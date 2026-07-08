@@ -22,8 +22,52 @@ widgets — e a lista de recursos continua crescendo.
 
 ## Instalação
 
-Baixe o binário da sua plataforma em [Releases](https://github.com/alorenco/fluig-cli/releases)
-e coloque no `PATH`, ou compile do código-fonte (Go ≥ 1.26):
+Cada [release](https://github.com/alorenco/fluig-cli/releases) publica binários
+para Linux e macOS (amd64/arm64) e Windows (amd64), no padrão
+`fluigcli_<versão>_<so>_<arquitetura>.tar.gz` (`.zip` no Windows), junto com um
+`checksums.txt` para conferência.
+
+### Linux e macOS
+
+```sh
+VERSION=0.1.0   # confira a última versão em https://github.com/alorenco/fluig-cli/releases/latest
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
+curl -fsSLO "https://github.com/alorenco/fluig-cli/releases/download/v${VERSION}/fluigcli_${VERSION}_${OS}_${ARCH}.tar.gz"
+tar -xzf "fluigcli_${VERSION}_${OS}_${ARCH}.tar.gz" fluigcli
+sudo install -m 0755 fluigcli /usr/local/bin/fluigcli
+fluigcli version
+```
+
+Sem `sudo`? Troque a linha do `install` por
+`install -m 0755 fluigcli ~/.local/bin/fluigcli` (com `~/.local/bin` no `PATH`).
+
+> **macOS:** baixando via `curl` o Gatekeeper não interfere. Se baixar pelo
+> navegador e o macOS bloquear o binário, libere com
+> `xattr -d com.apple.quarantine fluigcli`.
+
+### Windows (PowerShell)
+
+```powershell
+$Version = "0.1.0"   # confira a última versão em https://github.com/alorenco/fluig-cli/releases/latest
+Invoke-WebRequest "https://github.com/alorenco/fluig-cli/releases/download/v$Version/fluigcli_${Version}_windows_amd64.zip" -OutFile fluigcli.zip
+Expand-Archive fluigcli.zip -DestinationPath "$env:LOCALAPPDATA\Programs\fluigcli" -Force
+# Adicione a pasta ao PATH do usuário (só na primeira vez) e abra um novo terminal:
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:LOCALAPPDATA\Programs\fluigcli", "User")
+fluigcli version
+```
+
+### Conferir a integridade (opcional)
+
+```sh
+curl -fsSLO "https://github.com/alorenco/fluig-cli/releases/download/v${VERSION}/checksums.txt"
+sha256sum --check --ignore-missing checksums.txt   # no macOS: shasum -a 256 -c
+```
+
+No Windows, compare `Get-FileHash fluigcli.zip` com a linha correspondente do
+`checksums.txt`.
+
+### Compilar do código-fonte (Go ≥ 1.26)
 
 ```sh
 go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest
