@@ -74,6 +74,17 @@ não-interativo (sem ele: exit 2).
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo) |
 
+## diff — conferir antes de publicar
+
+| comando | efeito |
+|---|---|
+| `diff` | compara datasets/eventos/mecanismos locais com o servidor; aponta `only-server` |
+| `diff <path>...` | compara só os arquivos informados |
+
+Read-only (não dispara a trava de produção). No `--json`, cada artefato vem com
+`status` (`equal`\|`modified`\|`only-local`\|`only-server`) e o diff unificado.
+Use antes de um `export` para saber o que mudaria.
+
 ## Utilitários
 
 | comando | efeito |

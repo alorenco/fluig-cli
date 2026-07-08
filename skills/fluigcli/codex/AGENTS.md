@@ -33,7 +33,8 @@ fluigcli dataset export datasets/ds_x.js --json     # publica (local → servido
 Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `dataset` (list|import|export|query), `event` (list|import|export|delete),
 `mechanism` (list|import|export|delete), `form` (list|import|export),
-`workflow` (version|export), `widget` (list|import|export).
+`workflow` (version|export), `widget` (list|import|export), `diff` (local vs.
+servidor, read-only — use antes de um export).
 
 Sem `--server`, vale o servidor padrão (`server use`). ⚠️ Servidor com
 `env=prod` exige `--yes` nos comandos de escrita em modo não-interativo.
