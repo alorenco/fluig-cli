@@ -89,11 +89,12 @@ Use antes de um `export` para saber o que mudaria.
 
 | comando | efeito |
 |---|---|
-| `watch` | observa datasets/, events/ e mechanisms/ e publica a cada salvamento |
+| `watch` | observa datasets/, events/, mechanisms/, forms/ e workflow/scripts/ e publica a cada salvamento |
 
 Só roda em servidor `dev`/`hml` (prod e servidor sem env são recusados); nunca
-cria artefato (só atualiza existentes); sem `--json` — para automação, use os
-comandos `export`. Não é indicado para agentes: prefira `diff` + `export`.
+cria artefato nem versão (forms sempre com a versão mantida); sem `--json` —
+para automação, use os comandos `export`. Não é indicado para agentes:
+prefira `diff` + `export`.
 
 ## Utilitários
 

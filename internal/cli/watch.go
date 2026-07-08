@@ -2,11 +2,15 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -17,6 +21,7 @@ import (
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 func newWatchCmd(app *App) *cobra.Command {
@@ -26,10 +31,12 @@ func newWatchCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "watch",
-		Short: "Publica automaticamente ao salvar (datasets, eventos e mecanismos)",
-		Long: "Observa as pastas datasets/, events/ e mechanisms/ do projeto e publica o\n" +
-			"artefato no servidor a cada salvamento — o ciclo editar→exportar→testar\n" +
-			"vira só editar→testar.\n\n" +
+		Short: "Publica automaticamente ao salvar (datasets, eventos, mecanismos, formulários e scripts de processo)",
+		Long: "Observa as pastas do projeto e publica o artefato no servidor a cada\n" +
+			"salvamento — o ciclo editar→exportar→testar vira só editar→testar.\n\n" +
+			"Cobertura: datasets/, events/, mechanisms/, forms/ (a pasta inteira do\n" +
+			"formulário é a unidade — sempre com a versão mantida) e workflow/scripts/\n" +
+			"(atualização cirúrgica via fluiggersWidget, sem bump de versão).\n\n" +
 			"Regras de segurança: só roda em servidor marcado como dev ou hml (produção\n" +
 			"é recusada, sem exceção); só ATUALIZA artefatos que já existem no servidor\n" +
 			"— arquivo novo gera um aviso com o comando de criação; salvamento sem\n" +
@@ -73,9 +80,42 @@ func newWatchCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// watchUnit é a unidade de publicação do watch: um arquivo (dataset, evento,
+// mecanismo, script de processo) ou uma pasta inteira (formulário).
+type watchUnit struct {
+	typ  string // dataset | event | mechanism | form | workflow
+	id   string // nome nas mensagens: id do artefato, pasta do form, Processo.evento
+	path string // arquivo — ou a pasta do formulário (chave do debounce)
+}
+
+// watchDirs são as pastas observadas, relativas à raiz do projeto.
+var watchDirs = []string{
+	project.DatasetsDirName,
+	project.EventsDirName,
+	project.MechanismsDirName,
+	project.FormsDirName,
+	project.WorkflowScriptsDir,
+}
+
+// watchSession carrega o estado do loop de watch.
+type watchSession struct {
+	app    *App
+	client *fluig.Client
+	root   string
+	// published guarda o hash do conteúdo na última publicação de cada
+	// unidade, para pular salvamentos sem mudança — essencial em formulários
+	// e scripts de processo, cujo conteúdo atual não pode ser lido barato do
+	// servidor.
+	published map[string]string
+	// helperOK cacheia o status da fluiggersWidget (checado no primeiro
+	// script de processo salvo).
+	helperOK *bool
+}
+
 // runWatch é o loop do watch: observa as pastas convencionais, agrupa eventos
-// por arquivo (debounce) e publica cada salvamento. Erros de publicação viram
-// aviso — o watch segue vivo até o contexto ser cancelado (Ctrl+C).
+// por unidade (debounce; a pasta do formulário agrupa todos os seus arquivos)
+// e publica cada salvamento. Erros de publicação viram aviso — o watch segue
+// vivo até o contexto ser cancelado (Ctrl+C).
 func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverName string, debounce time.Duration) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -84,24 +124,25 @@ func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverNa
 	defer w.Close()
 
 	var watched []string
-	for _, d := range diffDirs {
-		base := filepath.Join(root, d.dir)
+	for _, dir := range watchDirs {
+		base := filepath.Join(root, dir)
 		if _, err := os.Stat(base); err != nil {
 			continue
 		}
 		if err := watchRecursive(w, base); err != nil {
 			return output.Genericf("não consegui observar %s: %v", base, err)
 		}
-		watched = append(watched, d.dir+"/")
+		watched = append(watched, filepath.ToSlash(dir)+"/")
 	}
 	if len(watched) == 0 {
-		return output.Usagef("nenhuma pasta da convenção (datasets/, events/, mechanisms/) encontrada em %s", root)
+		return output.Usagef("nenhuma pasta da convenção (datasets/, events/, mechanisms/, forms/, workflow/scripts/) encontrada em %s", root)
 	}
 
 	a.printer.Infof("Observando %s em %q — Ctrl+C para parar.", strings.Join(watched, ", "), serverName)
 
+	s := &watchSession{app: a, client: client, root: root, published: map[string]string{}}
 	pending := map[string]*time.Timer{}
-	fire := make(chan string, 32)
+	fire := make(chan watchUnit, 32)
 	for {
 		select {
 		case <-ctx.Done():
@@ -120,31 +161,29 @@ func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverNa
 				_ = watchRecursive(w, ev.Name)
 				continue
 			}
-			if !strings.HasSuffix(ev.Name, ".js") {
+			unit, ok := classifyWatchPath(root, ev.Name)
+			if !ok {
 				continue
 			}
-			// Debounce por arquivo: editores salvam em rajadas (write+rename).
-			if t, ok := pending[ev.Name]; ok {
+			// Debounce por unidade: rajadas do editor (write+rename) e vários
+			// arquivos do mesmo formulário viram uma publicação só.
+			if t, ok := pending[unit.path]; ok {
 				t.Stop()
 			}
-			name := ev.Name
-			pending[name] = time.AfterFunc(debounce, func() {
+			u := unit
+			pending[u.path] = time.AfterFunc(debounce, func() {
 				select {
-				case fire <- name:
+				case fire <- u:
 				case <-ctx.Done():
 				}
 			})
 
-		case name := <-fire:
-			delete(pending, name)
-			target, err := classifyArtifactPath(root, name)
-			if err != nil {
-				continue // fora da convenção (ex.: .js solto em subpasta desconhecida)
-			}
-			if _, err := os.Stat(name); err != nil {
+		case u := <-fire:
+			delete(pending, u.path)
+			if _, err := os.Stat(u.path); err != nil {
 				continue // apagado/renomeado entre o evento e o disparo
 			}
-			a.publishWatched(ctx, client, target)
+			s.publish(ctx, u)
 
 		case werr, ok := <-w.Errors:
 			if !ok {
@@ -153,6 +192,49 @@ func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverNa
 			a.printer.Warnf("observador de arquivos: %v", werr)
 		}
 	}
+}
+
+// classifyWatchPath deduz a unidade de publicação de um arquivo alterado.
+// Arquivos temporários de editor (ocultos, *~, *.swp, *.tmp) são ignorados.
+func classifyWatchPath(root, name string) (watchUnit, bool) {
+	base := filepath.Base(name)
+	if strings.HasPrefix(base, ".") || strings.HasSuffix(base, "~") ||
+		strings.HasSuffix(base, ".swp") || strings.HasSuffix(base, ".tmp") {
+		return watchUnit{}, false
+	}
+	rel, err := filepath.Rel(root, name)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return watchUnit{}, false
+	}
+	segs := strings.Split(filepath.ToSlash(rel), "/")
+	isJS := strings.HasSuffix(base, ".js")
+
+	switch segs[0] {
+	case project.DatasetsDirName:
+		if isJS {
+			return watchUnit{"dataset", project.ArtifactName(name), name}, true
+		}
+	case project.EventsDirName:
+		if isJS {
+			return watchUnit{"event", project.ArtifactName(name), name}, true
+		}
+	case project.MechanismsDirName:
+		if isJS {
+			return watchUnit{"mechanism", project.ArtifactName(name), name}, true
+		}
+	case project.FormsDirName:
+		// forms/<pasta>/... — qualquer arquivo da pasta publica o formulário.
+		if len(segs) >= 3 {
+			return watchUnit{"form", segs[1], filepath.Join(root, project.FormsDirName, segs[1])}, true
+		}
+	case "workflow":
+		if len(segs) >= 3 && segs[1] == "scripts" && isJS {
+			if _, _, ok := project.ParseWorkflowScriptName(name); ok {
+				return watchUnit{"workflow", strings.TrimSuffix(base, ".js"), name}, true
+			}
+		}
+	}
+	return watchUnit{}, false
 }
 
 // watchRecursive adiciona dir e todos os subdiretórios ao observador (o
@@ -169,44 +251,158 @@ func watchRecursive(w *fsnotify.Watcher, dir string) error {
 	})
 }
 
-// publishWatched publica um artefato salvo: atualiza se existe no servidor e o
-// conteúdo mudou; nunca cria (aviso com o comando certo) — assim o watch não
-// gera artefatos nem versões por acidente.
-func (a *App) publishWatched(ctx context.Context, client *fluig.Client, t diffTarget) {
+// publish publica uma unidade salva, com as três proteções do watch: hash
+// igual ao da última publicação não vai à rede; artefato inexistente não é
+// criado; e nada de bump de versão (forms com VersionKeep, workflow cirúrgico).
+func (s *watchSession) publish(ctx context.Context, u watchUnit) {
 	ts := time.Now().Format("15:04:05")
-	raw, err := os.ReadFile(t.path)
+	p := s.app.printer
+
+	hash, err := hashPath(u.path)
 	if err != nil {
-		a.printer.Warnf("%s  %s %q: não consegui ler o arquivo: %v", ts, t.typ, t.id, err)
+		p.Warnf("%s  %s %q: não consegui ler: %v", ts, u.typ, u.id, err)
 		return
 	}
-	content := string(raw)
+	if s.published[u.path] == hash {
+		p.Infof("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
+		return
+	}
 
-	action, err := a.updateExisting(ctx, client, t, content)
+	action, err := s.update(ctx, u)
 	switch {
 	case err != nil:
-		a.printer.Warnf("%s  %s %q: %s", ts, t.typ, t.id, output.AsError(mapFluigError(err)).Message)
+		p.Warnf("%s  %s %q: %s", ts, u.typ, u.id, output.AsError(mapFluigError(err)).Message)
 	case action == "missing":
-		a.printer.Warnf("%s  %s %q não existe no servidor — o watch não cria; use: fluigcli %s export %s%s",
-			ts, t.typ, t.id, t.typ, relTo(a.ProjectRoot(), t.path), createFlagHint(t.typ))
+		p.Warnf("%s  %s", ts, missingMessage(u, s.root))
+	case action == "no-helper":
+		p.Warnf("%s  script %q: a fluiggersWidget não está instalada — instale com: fluigcli server install-helper", ts, u.id)
+	case action == "empty":
+		p.Warnf("%s  formulário %q: pasta sem arquivos para enviar", ts, u.id)
 	case action == "unchanged":
-		a.printer.Infof("· %s  %s %q sem mudança — nada a publicar", ts, t.typ, t.id)
+		s.published[u.path] = hash
+		p.Infof("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
 	default:
-		a.printer.Successf("✓ %s  %s %q publicado", ts, t.typ, t.id)
+		s.published[u.path] = hash
+		suffix := ""
+		if u.typ == "form" {
+			suffix = " (versão mantida)"
+		}
+		p.Successf("✓ %s  %s %q publicado%s", ts, u.typ, u.id, suffix)
 	}
 }
 
-// createFlagHint devolve a flag de criação do comando export do tipo (só o
-// dataset export exige --new; eventos e mecanismos criam direto).
-func createFlagHint(typ string) string {
-	if typ == "dataset" {
-		return " --new"
+// missingMessage monta o aviso de artefato inexistente com o comando certo —
+// o watch nunca cria nada por conta própria.
+func missingMessage(u watchUnit, root string) string {
+	switch u.typ {
+	case "form":
+		return "formulário \"" + u.id + "\" não existe no servidor (nem há vínculo em .fluigcli/forms.json) — " +
+			"o watch não cria; use: fluigcli form export forms/" + u.id + " --new"
+	case "workflow":
+		return "script \"" + u.id + "\": o processo não existe no servidor — crie o processo no Fluig Studio primeiro"
+	default:
+		hint := ""
+		if u.typ == "dataset" {
+			hint = " --new"
+		}
+		return u.typ + " \"" + u.id + "\" não existe no servidor — o watch não cria; use: fluigcli " +
+			u.typ + " export " + relTo(root, u.path) + hint
 	}
-	return ""
 }
 
-// updateExisting atualiza o artefato no servidor. Retorna "updated",
-// "unchanged" (conteúdo idêntico, nada gravado) ou "missing" (não existe —
-// o watch não cria).
+// update publica a unidade no servidor. Ações: "updated", "unchanged" (servidor
+// já tem esse conteúdo), "missing", "no-helper" ou "empty".
+func (s *watchSession) update(ctx context.Context, u watchUnit) (string, error) {
+	switch u.typ {
+	case "dataset", "event", "mechanism":
+		raw, err := os.ReadFile(u.path)
+		if err != nil {
+			return "", err
+		}
+		return s.app.updateExisting(ctx, s.client, diffTarget(u), string(raw))
+	case "form":
+		return s.updateForm(ctx, u)
+	case "workflow":
+		return s.updateWorkflow(ctx, u)
+	}
+	return "", output.Genericf("tipo de artefato desconhecido: %q", u.typ)
+}
+
+// updateForm reaproveita o fluxo do form export com a versão SEMPRE mantida
+// (VersionKeep) — o watch jamais gera versões novas de formulário.
+func (s *watchSession) updateForm(ctx context.Context, u watchUnit) (string, error) {
+	upload, err := readFormUpload(u.path)
+	if err != nil {
+		return "", err
+	}
+	if len(upload.Files) == 0 {
+		return "empty", nil
+	}
+	pub, err := s.client.ResolveUserCode(ctx)
+	if err != nil {
+		return "", err
+	}
+	fmap, err := project.LoadFormMap(s.root)
+	if err != nil {
+		return "", err
+	}
+	forms, err := s.client.ListForms(ctx, pub)
+	if err != nil {
+		return "", err
+	}
+	existing, found := resolveExportTarget(forms, fmap, u.id, "", 0)
+	if !found {
+		return "missing", nil
+	}
+	names := make([]string, 0, len(upload.Files))
+	for _, ff := range upload.Files {
+		names = append(names, ff.Name)
+	}
+	upload.PrincipalFile = fluig.ChoosePrincipalFile(names, u.id, existing.Description)
+	if _, err := s.client.UpdateForm(ctx, pub, existing.DocumentID, existing.CardDescription,
+		existing.Description, existing.DatasetName, fluig.VersionKeep, upload); err != nil {
+		return "", err
+	}
+	return "updated", nil
+}
+
+// updateWorkflow atualiza cirurgicamente o script salvo (fluiggersWidget) na
+// última versão do processo — a atualização não gera bump de versão.
+func (s *watchSession) updateWorkflow(ctx context.Context, u watchUnit) (string, error) {
+	if s.helperOK == nil {
+		ok, err := s.client.HelperInstalled(ctx)
+		if err != nil {
+			return "", err
+		}
+		s.helperOK = &ok
+	}
+	if !*s.helperOK {
+		return "no-helper", nil
+	}
+	processID, scripts, err := resolveWorkflowTargets(s.root, u.path, nil, false)
+	if err != nil {
+		return "", err
+	}
+	events, err := readWorkflowEvents(scripts)
+	if err != nil {
+		return "", err
+	}
+	version, err := s.client.WorkflowVersion(ctx, processID)
+	if err != nil {
+		return "", err
+	}
+	if version == 0 {
+		return "missing", nil
+	}
+	if _, err := s.client.UpdateWorkflowEvents(ctx, processID, version, events); err != nil {
+		return "", err
+	}
+	return "updated", nil
+}
+
+// updateExisting atualiza um artefato de arquivo único no servidor. Retorna
+// "updated", "unchanged" (conteúdo idêntico, nada gravado) ou "missing" (não
+// existe — o watch não cria).
 func (a *App) updateExisting(ctx context.Context, client *fluig.Client, t diffTarget, content string) (string, error) {
 	switch t.typ {
 	case "dataset":
@@ -256,4 +452,52 @@ func (a *App) updateExisting(ctx context.Context, client *fluig.Client, t diffTa
 		return "missing", nil
 	}
 	return "", output.Genericf("tipo de artefato desconhecido: %q", t.typ)
+}
+
+// hashPath devolve o sha256 do conteúdo: de um arquivo, ou de uma pasta
+// inteira (nomes relativos + conteúdo, em ordem estável).
+func hashPath(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	if !info.IsDir() {
+		f, err := os.Open(path)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		if _, err := io.Copy(h, f); err != nil {
+			return "", err
+		}
+		return hex.EncodeToString(h.Sum(nil)), nil
+	}
+
+	var files []string
+	err = filepath.WalkDir(path, func(p string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() {
+			files = append(files, p)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	sort.Strings(files)
+	for _, f := range files {
+		rel, _ := filepath.Rel(path, f)
+		h.Write([]byte(filepath.ToSlash(rel)))
+		h.Write([]byte{0})
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return "", err
+		}
+		h.Write(data)
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
