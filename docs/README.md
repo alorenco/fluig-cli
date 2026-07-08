@@ -11,6 +11,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [workflow](workflow.md) — scripts de eventos de processo
 - [widget](widget.md) — widgets
 - [diff](diff.md) — comparar artefatos locais com o servidor antes de publicar
+- [watch](watch.md) — publicar automaticamente ao salvar (só dev/hml)
 - [skill](skill.md) — Skill para agentes de IA (Claude Code / Codex)
 - [upgrade](upgrade.md) — atualização da própria CLI (e o aviso de versão nova)
 

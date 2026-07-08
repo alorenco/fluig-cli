@@ -96,6 +96,7 @@ fluigcli dataset export datasets/ds_clientes.js   # pede confirmação: producao
 | `workflow` | `version` `export` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
+| `watch` | publica ao salvar (só dev/hml; nunca cria artefato) | [docs/watch.md](docs/watch.md) |
 | `skill` | `install` `show` | [docs/skill.md](docs/skill.md) |
 | — | `version` `upgrade` `completion` | [docs/upgrade.md](docs/upgrade.md) |
 

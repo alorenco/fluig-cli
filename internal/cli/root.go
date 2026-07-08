@@ -175,6 +175,7 @@ func newRootCmd(app *App) *cobra.Command {
 	root.AddCommand(newWorkflowCmd(app))
 	root.AddCommand(newWidgetCmd(app))
 	root.AddCommand(newDiffCmd(app))
+	root.AddCommand(newWatchCmd(app))
 	root.AddCommand(newSkillCmd(app))
 	root.AddCommand(newCompletionCmd())
 	localize(root)

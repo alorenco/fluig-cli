@@ -85,6 +85,16 @@ Read-only (não dispara a trava de produção). No `--json`, cada artefato vem c
 `status` (`equal`\|`modified`\|`only-local`\|`only-server`) e o diff unificado.
 Use antes de um `export` para saber o que mudaria.
 
+## watch — publicar ao salvar (interativo)
+
+| comando | efeito |
+|---|---|
+| `watch` | observa datasets/, events/ e mechanisms/ e publica a cada salvamento |
+
+Só roda em servidor `dev`/`hml` (prod e servidor sem env são recusados); nunca
+cria artefato (só atualiza existentes); sem `--json` — para automação, use os
+comandos `export`. Não é indicado para agentes: prefira `diff` + `export`.
+
 ## Utilitários
 
 | comando | efeito |
