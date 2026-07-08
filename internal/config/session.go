@@ -12,8 +12,8 @@ import (
 	"sync"
 )
 
-// DiskSessionCache persiste os cookies de sessão do Fluig entre execuções
-//. Os cookies são credenciais de sessão (equivalentes a um token):
+// DiskSessionCache persiste os cookies de sessão do Fluig entre execuções.
+// Os cookies são credenciais de sessão (equivalentes a um token):
 // o arquivo fica no diretório de cache do usuário, com permissão 0600, e nunca
 // no projeto. Chaveado por host|usuário.
 type DiskSessionCache struct {

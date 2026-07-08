@@ -145,9 +145,9 @@ func mapFluigError(err error) error {
 
 func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "fluigcli",
-		Short: "CLI não oficial para desenvolvimento TOTVS Fluig",
-		Long: "CLI não oficial para desenvolvimento TOTVS Fluig.",
+		Use:           "fluigcli",
+		Short:         "CLI não oficial para desenvolvimento TOTVS Fluig",
+		Long:          "CLI não oficial para desenvolvimento TOTVS Fluig.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
