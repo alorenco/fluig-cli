@@ -28,7 +28,7 @@ try {
     Invoke-WebRequest "$base/$arquivo" -OutFile (Join-Path $tmp $arquivo)
     Invoke-WebRequest "$base/checksums.txt" -OutFile (Join-Path $tmp "checksums.txt")
 
-    $linha = Select-String -Path (Join-Path $tmp "checksums.txt") -Pattern ([regex]::Escape($arquivo)) -SimpleMatch
+    $linha = Select-String -Path (Join-Path $tmp "checksums.txt") -Pattern $arquivo -SimpleMatch
     if (-not $linha) { throw "não achei o $arquivo no checksums.txt" }
     $esperado = ($linha.Line -split "\s+")[0].ToLower()
     $obtido = (Get-FileHash (Join-Path $tmp $arquivo) -Algorithm SHA256).Hash.ToLower()
