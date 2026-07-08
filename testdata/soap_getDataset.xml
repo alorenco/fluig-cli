@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:getDatasetResponse xmlns:ns2="http://ws.dataservice.ecm.technology.totvs.com/">
+      <dataset>
+        <columns>codigo</columns>
+        <columns>nome</columns>
+        <columns>ativo</columns>
+        <values xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <value>1</value>
+          <value>Alpha</value>
+          <value>true</value>
+        </values>
+        <values xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <value>2</value>
+          <value xsi:nil="true"/>
+          <value>false</value>
+        </values>
+      </dataset>
+    </ns2:getDatasetResponse>
+  </soap:Body>
+</soap:Envelope>

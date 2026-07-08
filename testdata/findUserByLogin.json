@@ -1,0 +1,37 @@
+{
+  "content": {
+    "id": 5,
+    "login": "admin.deploy",
+    "firstName": "Administrador",
+    "lastName": "Deploy",
+    "fullName": "Administrador Deploy",
+    "email": "admin.deploy@empresa.com.br",
+    "password": "",
+    "passwordType": null,
+    "confirmPassword": null,
+    "birthDay": null,
+    "state": "ACTIVE",
+    "tenantCode": "01",
+    "tenantId": 1,
+    "userCode": "uqzevbfj42c1yul51556120291152",
+    "userKey": {
+      "login": "admin.deploy",
+      "tenantId": 1,
+      "userId": 5
+    },
+    "roles": ["admin", "user"],
+    "data": [
+      { "key": "WCMUserLang", "value": "pt_BR" },
+      { "key": "UserDocLanguage", "value": "pt_BR" },
+      { "key": "UserEmailHTML", "value": "true" },
+      { "key": "UserPhysicalVolume", "value": "Default" }
+    ],
+    "userValueData": {
+      "WCMUserLang": "pt_BR",
+      "UserDocLanguage": "pt_BR",
+      "UserEmailHTML": "true",
+      "UserPhysicalVolume": "Default"
+    }
+  },
+  "message": null
+}

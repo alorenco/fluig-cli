@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:getAttachmentsListResponse xmlns:ns2="http://ws.dm.ecm.technology.totvs.com/">
+      <result>
+        <item>Formulario de Teste.html</item>
+        <item>script.js</item>
+      </result>
+    </ns2:getAttachmentsListResponse>
+  </soap:Body>
+</soap:Envelope>

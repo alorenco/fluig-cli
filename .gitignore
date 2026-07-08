@@ -1,0 +1,15 @@
+# Binários locais
+/fluigcli
+/fluigcli.exe
+/bin/
+
+# goreleaser
+/dist/
+
+# Cobertura e artefatos de teste
+*.out
+*.test
+
+# Documentos de trabalho do mantenedor (não publicados)
+/SPEC.md
+/CLAUDE.md

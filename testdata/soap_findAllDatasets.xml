@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:findAllFormulariesDatasetsResponse xmlns:ns2="http://ws.dataservice.ecm.technology.totvs.com/">
+      <dataset>
+        <item>
+          <companyId>1</companyId>
+          <datasetId>ds_exemplo</datasetId>
+          <type>CUSTOM</type>
+          <version>3</version>
+        </item>
+        <item>
+          <companyId>1</companyId>
+          <datasetId>colleague</datasetId>
+          <type>DEFAULT</type>
+          <version>1</version>
+        </item>
+      </dataset>
+    </ns2:findAllFormulariesDatasetsResponse>
+  </soap:Body>
+</soap:Envelope>

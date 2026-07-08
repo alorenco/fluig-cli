@@ -1,0 +1,12 @@
+# golangci-lint v2
+version: "2"
+
+linters:
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Em handlers HTTP de teste, checar o retorno de w.Write/io.WriteString é ruído.
+      - path: _test\.go
+        linters:
+          - errcheck

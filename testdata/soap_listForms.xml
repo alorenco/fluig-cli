@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:getCardIndexesWithoutApproverResponse xmlns:ns2="http://ws.dm.ecm.technology.totvs.com/">
+      <result>
+        <item>
+          <documentId>42</documentId>
+          <documentDescription>Formulario de Teste</documentDescription>
+          <datasetName>ds_teste</datasetName>
+          <version>3</version>
+          <cardDescription>titulo</cardDescription>
+        </item>
+      </result>
+    </ns2:getCardIndexesWithoutApproverResponse>
+  </soap:Body>
+</soap:Envelope>

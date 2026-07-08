@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:getCardIndexContentResponse xmlns:ns2="http://ws.dm.ecm.technology.totvs.com/">
+      <folder>Y29udGV1ZG8=</folder>
+    </ns2:getCardIndexContentResponse>
+  </soap:Body>
+</soap:Envelope>

@@ -1,0 +1,10 @@
+[
+  {
+    "globalEventPK": { "companyId": 1, "eventId": "beforeConvertViewToPDF" },
+    "eventDescription": "function beforeConvertViewToPDF(){ /* codigo A */ }"
+  },
+  {
+    "globalEventPK": { "companyId": 1, "eventId": "displayCustomThemes" },
+    "eventDescription": "function displayCustomThemes(){ /* codigo B */ }"
+  }
+]

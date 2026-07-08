@@ -1,0 +1,13 @@
+{
+  "datasetPK": { "companyId": 1, "datasetId": "ds_exemplo" },
+  "datasetDescription": "Dataset de exemplo",
+  "datasetImpl": "function createDataset(fields, constraints, sortFields) {\n  return null;\n}\n",
+  "datasetBuilder": "com.datasul.technology.webdesk.dataset.CustomizedDatasetBuilder",
+  "serverOffline": false,
+  "mobileCache": false,
+  "mobileOffline": false,
+  "lastReset": 0,
+  "lastRemoteSync": 0,
+  "updateIntervalTimestamp": 0,
+  "type": "CUSTOM"
+}

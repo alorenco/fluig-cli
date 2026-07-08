@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ns2:createSimpleCardIndexWithDatasetPersisteTypeResponse xmlns:ns2="http://ws.dm.ecm.technology.totvs.com/">
+      <result>
+        <item>
+          <documentId>99</documentId>
+          <webServiceMessage>ok</webServiceMessage>
+        </item>
+      </result>
+    </ns2:createSimpleCardIndexWithDatasetPersisteTypeResponse>
+  </soap:Body>
+</soap:Envelope>

@@ -1,0 +1,852 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://ws.dm.ecm.technology.totvs.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns2="http://schemas.xmlsoap.org/soap/http" xmlns:ns1="http://jaxb.dev.java.net/array" name="ECMCardIndexServiceService" targetNamespace="http://ws.dm.ecm.technology.totvs.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://ws.dm.ecm.technology.totvs.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://ws.dm.ecm.technology.totvs.com/">
+  <xs:complexType name="attachment">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="attach" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="descriptor" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="editing" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileModificationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="fileName" type="xs:string"/>
+      <xs:element minOccurs="0" name="fileSelected" type="tns:attachment"/>
+      <xs:element name="fileSize" type="xs:long"/>
+      <xs:element minOccurs="0" name="filecontent" type="xs:base64Binary"/>
+      <xs:element minOccurs="0" name="fullPatch" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="mobile" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="pathName" type="xs:string"/>
+      <xs:element minOccurs="0" name="principal" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="supportedNewViewer" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="cardEventDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="eventDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="eventId" type="xs:string"/>
+      <xs:element minOccurs="0" name="eventVersAnt" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="webServiceMessage">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="webServiceMessage" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="documentDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="accessCount" type="xs:int"/>
+      <xs:element minOccurs="0" name="activeUserApprover" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="activeVersion" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="additionalComments" type="xs:string"/>
+      <xs:element minOccurs="0" name="allowMuiltiCardsPerUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvalAndOr" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approved" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="articleContent" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="attachments" nillable="true" type="tns:attachment"/>
+      <xs:element minOccurs="0" name="atualizationId" type="xs:int"/>
+      <xs:element minOccurs="0" name="backgroundColor" type="xs:string"/>
+      <xs:element minOccurs="0" name="backgroundImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="bannerImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="cardDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="convertDocumentType" type="xs:int"/>
+      <xs:element minOccurs="0" name="crc" type="xs:long"/>
+      <xs:element minOccurs="0" name="createDate" type="xs:dateTime"/>
+      <xs:element name="createDateInMilliseconds" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetName" type="xs:string"/>
+      <xs:element minOccurs="0" name="dateFormStarted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="deleted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentKeyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentPropertyNumber" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentPropertyVersion" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentType" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentTypeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="downloadEnabled" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="draft" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expirationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="expiredForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expires" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="externalDocumentId" type="xs:string"/>
+      <xs:element minOccurs="0" name="favorite" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileURL" type="xs:string"/>
+      <xs:element minOccurs="0" name="folderId" type="xs:int"/>
+      <xs:element name="forAproval" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="hashAnnotations" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconId" type="xs:int"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="imutable" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="indexed" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="inheritApprovers" type="xs:boolean"/>
+      <xs:element name="inheritSecurity" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="internalVisualizer" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="isEncrypted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="keyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageId" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageIndicator" type="xs:string"/>
+      <xs:element minOccurs="0" name="lastModifiedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="lastModifiedTime" type="xs:string"/>
+      <xs:element minOccurs="0" name="metaListId" type="xs:int"/>
+      <xs:element minOccurs="0" name="metaListRecordId" type="xs:int"/>
+      <xs:element minOccurs="0" name="newStructure" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="notificationDays" type="xs:int"/>
+      <xs:element name="onCheckout" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="parentDocumentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="pdfRenderEngine" type="xs:string"/>
+      <xs:element minOccurs="0" name="permissionType" type="xs:int"/>
+      <xs:element minOccurs="0" name="phisicalFile" type="xs:string"/>
+      <xs:element minOccurs="0" name="phisicalFileSize" type="xs:float"/>
+      <xs:element minOccurs="0" name="priority" type="xs:int"/>
+      <xs:element minOccurs="0" name="privateColleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="privateDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="protectedCopy" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publicDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publisherId" type="xs:string"/>
+      <xs:element minOccurs="0" name="publisherName" type="xs:string"/>
+      <xs:element minOccurs="0" name="quota" type="xs:int"/>
+      <xs:element minOccurs="0" name="relatedFiles" type="xs:string"/>
+      <xs:element minOccurs="0" name="restrictionType" type="xs:int"/>
+      <xs:element name="rowId" type="xs:int"/>
+      <xs:element minOccurs="0" name="searchNumber" type="xs:int"/>
+      <xs:element name="securityLevel" type="xs:int"/>
+      <xs:element minOccurs="0" name="siteCode" type="xs:string"/>
+      <xs:element minOccurs="0" name="sociableDocumentDto" type="tns:sociableDocumentDto"/>
+      <xs:element minOccurs="0" name="socialDocument" type="xs:string"/>
+      <xs:element minOccurs="0" name="tool" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="topicId" type="xs:int"/>
+      <xs:element name="translated" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="UUID" type="xs:string"/>
+      <xs:element name="updateIsoProperties" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userAnswerForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userNotify" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userPermission" type="xs:int"/>
+      <xs:element minOccurs="0" name="validationStartDate" type="xs:dateTime"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="versionDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="versionOption" type="xs:string"/>
+      <xs:element minOccurs="0" name="visualization" type="xs:string"/>
+      <xs:element minOccurs="0" name="volumeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="watermarkId" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="sociableDocumentDto">
+    <xs:sequence>
+      <xs:element name="commented" type="xs:boolean"/>
+      <xs:element name="denounced" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element name="following" type="xs:boolean"/>
+      <xs:element name="liked" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="numberComments" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberDenouncements" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberFollows" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberLikes" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberShares" type="xs:int"/>
+      <xs:element name="shared" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="sociableId" type="xs:long"/>
+      <xs:element minOccurs="0" name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="formDatasetDTO">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetId" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="id" type="xs:long"/>
+      <xs:element name="mobileOffline" type="xs:boolean"/>
+      <xs:element name="serverOffline" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="type" type="xs:string"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="generalInfoDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="versionOption" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="attachmentArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:attachment"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="cardEventDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:cardEventDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="webServiceMessageArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:webServiceMessage"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="formDatasetDTOArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:formDatasetDTO"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Exception" type="tns:Exception"/>
+  <xs:complexType name="Exception">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://jaxb.dev.java.net/array" version="1.0">
+
+  <xs:complexType final="#all" name="stringArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="createSimpleCardIndexResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithDatasetAndGeneralInfoResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndex">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="descriptionField" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCustomizationEventsResponse">
+    <wsdl:part name="result" type="tns:cardEventDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCustomizationEvents">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getFormFieldsResponse">
+    <wsdl:part name="result" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActiveCardIndex">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardIndexesWithoutApprover">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getFormDatasets">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAttachmentsListResponse">
+    <wsdl:part name="result" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithRelatedDatasetsResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndex">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithDatasetResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardIndexContent">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="nomeArquivo" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getFormDatasetsResponse">
+    <wsdl:part name="result" type="tns:formDatasetDTOArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithDatasetPersisteType">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="persistenceType" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithRelatedDatasetsResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActiveCardIndexResponse">
+    <wsdl:part name="cardIndex" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithDataset">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithDatasetPersisteTypeResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithRelatedDatasets">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="persistenceType" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="relatedDatasets" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Exception">
+    <wsdl:part element="tns:Exception" name="Exception">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAttachmentsList">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getFormFields">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleCardIndexWithDatasetResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithDataset">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="descriptionField" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardIndexContentResponse">
+    <wsdl:part name="folder" type="xsd:base64Binary">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardIndexesWithoutApproverResponse">
+    <wsdl:part name="result" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithDatasetAndGeneralInfo">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="descriptionField" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="generalInfo" type="tns:generalInfoDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleCardIndexWithRelatedDatasets">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="descriptionField" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="generalInfo" type="tns:generalInfoDto">
+    </wsdl:part>
+    <wsdl:part name="relatedDatasets" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="CardIndexService">
+    <wsdl:operation name="createSimpleCardIndexWithDatasetPersisteType">
+      <wsdl:input message="tns:createSimpleCardIndexWithDatasetPersisteType" name="createSimpleCardIndexWithDatasetPersisteType">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleCardIndexWithDatasetPersisteTypeResponse" name="createSimpleCardIndexWithDatasetPersisteTypeResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndexWithDataset">
+      <wsdl:input message="tns:createSimpleCardIndexWithDataset" name="createSimpleCardIndexWithDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleCardIndexWithDatasetResponse" name="createSimpleCardIndexWithDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndex">
+      <wsdl:input message="tns:updateSimpleCardIndex" name="updateSimpleCardIndex">
+    </wsdl:input>
+      <wsdl:output message="tns:updateSimpleCardIndexResponse" name="updateSimpleCardIndexResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCustomizationEvents">
+      <wsdl:input message="tns:getCustomizationEvents" name="getCustomizationEvents">
+    </wsdl:input>
+      <wsdl:output message="tns:getCustomizationEventsResponse" name="getCustomizationEventsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndexWithRelatedDatasets">
+      <wsdl:input message="tns:createSimpleCardIndexWithRelatedDatasets" name="createSimpleCardIndexWithRelatedDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleCardIndexWithRelatedDatasetsResponse" name="createSimpleCardIndexWithRelatedDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActiveCardIndex">
+      <wsdl:input message="tns:getActiveCardIndex" name="getActiveCardIndex">
+    </wsdl:input>
+      <wsdl:output message="tns:getActiveCardIndexResponse" name="getActiveCardIndexResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardIndexesWithoutApprover">
+      <wsdl:input message="tns:getCardIndexesWithoutApprover" name="getCardIndexesWithoutApprover">
+    </wsdl:input>
+      <wsdl:output message="tns:getCardIndexesWithoutApproverResponse" name="getCardIndexesWithoutApproverResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getFormDatasets">
+      <wsdl:input message="tns:getFormDatasets" name="getFormDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:getFormDatasetsResponse" name="getFormDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAttachmentsList">
+      <wsdl:input message="tns:getAttachmentsList" name="getAttachmentsList">
+    </wsdl:input>
+      <wsdl:output message="tns:getAttachmentsListResponse" name="getAttachmentsListResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getFormFields">
+      <wsdl:input message="tns:getFormFields" name="getFormFields">
+    </wsdl:input>
+      <wsdl:output message="tns:getFormFieldsResponse" name="getFormFieldsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithDataset">
+      <wsdl:input message="tns:updateSimpleCardIndexWithDataset" name="updateSimpleCardIndexWithDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:updateSimpleCardIndexWithDatasetResponse" name="updateSimpleCardIndexWithDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithDatasetAndGeneralInfo">
+      <wsdl:input message="tns:updateSimpleCardIndexWithDatasetAndGeneralInfo" name="updateSimpleCardIndexWithDatasetAndGeneralInfo">
+    </wsdl:input>
+      <wsdl:output message="tns:updateSimpleCardIndexWithDatasetAndGeneralInfoResponse" name="updateSimpleCardIndexWithDatasetAndGeneralInfoResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndex">
+      <wsdl:input message="tns:createSimpleCardIndex" name="createSimpleCardIndex">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleCardIndexResponse" name="createSimpleCardIndexResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardIndexContent">
+      <wsdl:input message="tns:getCardIndexContent" name="getCardIndexContent">
+    </wsdl:input>
+      <wsdl:output message="tns:getCardIndexContentResponse" name="getCardIndexContentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithRelatedDatasets">
+      <wsdl:input message="tns:updateSimpleCardIndexWithRelatedDatasets" name="updateSimpleCardIndexWithRelatedDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:updateSimpleCardIndexWithRelatedDatasetsResponse" name="updateSimpleCardIndexWithRelatedDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="ECMCardIndexServiceServiceSoapBinding" type="tns:CardIndexService">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="createSimpleCardIndexWithDatasetPersisteType">
+      <soap:operation soapAction="createSimpleCardIndexWithDatasetPersisteType" style="rpc"/>
+      <wsdl:input name="createSimpleCardIndexWithDatasetPersisteType">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleCardIndexWithDatasetPersisteTypeResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndexWithDataset">
+      <soap:operation soapAction="createSimpleCardIndexWithDataset" style="rpc"/>
+      <wsdl:input name="createSimpleCardIndexWithDataset">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleCardIndexWithDatasetResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndex">
+      <soap:operation soapAction="updateSimpleCardIndex" style="rpc"/>
+      <wsdl:input name="updateSimpleCardIndex">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateSimpleCardIndexResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCustomizationEvents">
+      <soap:operation soapAction="getCustomizationEvents" style="rpc"/>
+      <wsdl:input name="getCustomizationEvents">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getCustomizationEventsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndexWithRelatedDatasets">
+      <soap:operation soapAction="createSimpleCardIndexWithRelatedDatasets" style="rpc"/>
+      <wsdl:input name="createSimpleCardIndexWithRelatedDatasets">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleCardIndexWithRelatedDatasetsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActiveCardIndex">
+      <soap:operation soapAction="getActiveCardIndex" style="rpc"/>
+      <wsdl:input name="getActiveCardIndex">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getActiveCardIndexResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardIndexesWithoutApprover">
+      <soap:operation soapAction="getCardIndexesWithoutApprover" style="rpc"/>
+      <wsdl:input name="getCardIndexesWithoutApprover">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getCardIndexesWithoutApproverResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getFormDatasets">
+      <soap:operation soapAction="getFormDatasets" style="rpc"/>
+      <wsdl:input name="getFormDatasets">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getFormDatasetsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAttachmentsList">
+      <soap:operation soapAction="getAttachmentsList" style="rpc"/>
+      <wsdl:input name="getAttachmentsList">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAttachmentsListResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getFormFields">
+      <soap:operation soapAction="getFormFields" style="rpc"/>
+      <wsdl:input name="getFormFields">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getFormFieldsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithDataset">
+      <soap:operation soapAction="updateSimpleCardIndexWithDataset" style="rpc"/>
+      <wsdl:input name="updateSimpleCardIndexWithDataset">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateSimpleCardIndexWithDatasetResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithDatasetAndGeneralInfo">
+      <soap:operation soapAction="updateSimpleCardIndexWithDatasetAndGeneralInfo" style="rpc"/>
+      <wsdl:input name="updateSimpleCardIndexWithDatasetAndGeneralInfo">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateSimpleCardIndexWithDatasetAndGeneralInfoResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleCardIndex">
+      <soap:operation soapAction="createSimpleCardIndex" style="rpc"/>
+      <wsdl:input name="createSimpleCardIndex">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleCardIndexResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardIndexContent">
+      <soap:operation soapAction="getCardIndexContent" style="rpc"/>
+      <wsdl:input name="getCardIndexContent">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getCardIndexContentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleCardIndexWithRelatedDatasets">
+      <soap:operation soapAction="updateSimpleCardIndexWithRelatedDatasets" style="rpc"/>
+      <wsdl:input name="updateSimpleCardIndexWithRelatedDatasets">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateSimpleCardIndexWithRelatedDatasetsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="ECMCardIndexServiceService">
+    <wsdl:port binding="tns:ECMCardIndexServiceServiceSoapBinding" name="CardIndexServicePort">
+      <soap:address location="http://fluig.example.com/webdesk/ECMCardIndexService"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

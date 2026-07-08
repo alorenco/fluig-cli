@@ -1,0 +1,2300 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://ws.workflow.ecm.technology.totvs.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns2="http://schemas.xmlsoap.org/soap/http" xmlns:ns1="http://jaxb.dev.java.net/array" name="ECMWorkflowEngineServiceService" targetNamespace="http://ws.workflow.ecm.technology.totvs.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://ws.workflow.ecm.technology.totvs.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://ws.workflow.ecm.technology.totvs.com/">
+  <xs:complexType name="attachment">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="attach" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="descriptor" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="editing" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileModificationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="fileName" type="xs:string"/>
+      <xs:element minOccurs="0" name="fileSelected" type="tns:attachment"/>
+      <xs:element name="fileSize" type="xs:long"/>
+      <xs:element minOccurs="0" name="filecontent" type="xs:base64Binary"/>
+      <xs:element minOccurs="0" name="fullPatch" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="mobile" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="pathName" type="xs:string"/>
+      <xs:element minOccurs="0" name="principal" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="supportedNewViewer" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processDefinitionDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="active" type="xs:boolean"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="processDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="processId" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processAttachmentDto">
+    <xs:sequence>
+      <xs:element name="attachmentSequence" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="attachments" nillable="true" type="tns:attachment"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="crc" type="xs:long"/>
+      <xs:element minOccurs="0" name="createDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="createDateTimestamp" type="xs:long"/>
+      <xs:element minOccurs="0" name="deleted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="description" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentType" type="xs:string"/>
+      <xs:element minOccurs="0" name="fileName" type="xs:string"/>
+      <xs:element minOccurs="0" name="newAttach" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="originalMovementSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="permission" type="xs:string"/>
+      <xs:element name="processInstanceId" type="xs:int"/>
+      <xs:element name="size" type="xs:float"/>
+      <xs:element minOccurs="0" name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processTaskAppointmentDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="appointmentDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="appointmentSeconds" type="xs:int"/>
+      <xs:element name="appointmentSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="isNewRecord" type="xs:boolean"/>
+      <xs:element name="movementSequence" type="xs:int"/>
+      <xs:element name="processInstanceId" type="xs:int"/>
+      <xs:element name="transferenceSequence" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="keyValueDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="key" type="xs:string"/>
+      <xs:element minOccurs="0" name="value" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="cardEventDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="eventDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="eventId" type="xs:string"/>
+      <xs:element minOccurs="0" name="eventVersAnt" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="generalInfoDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="versionOption" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="webServiceMessage">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="webServiceMessage" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="deadLineDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="date" type="xs:string"/>
+      <xs:element name="hora" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processDefinitionVersionDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="categoryStructure" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="counterSign" type="xs:boolean"/>
+      <xs:element name="favorite" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="formId" type="xs:int"/>
+      <xs:element minOccurs="0" name="formIdV2" type="xs:int"/>
+      <xs:element minOccurs="0" name="formVersion" type="xs:int"/>
+      <xs:element minOccurs="0" name="fullCategoryStructure" type="xs:string"/>
+      <xs:element minOccurs="0" name="initialProcessState" type="tns:processStateDto"/>
+      <xs:element name="mobileReady" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="processDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="processId" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="relatedDatasets" nillable="true" type="xs:string"/>
+      <xs:element name="rowId" type="xs:int"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="versionDescription" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processStateDto">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="counterSign" type="xs:boolean"/>
+      <xs:element name="sequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="stateDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="stateName" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="availableUsersDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="isCollectiveTask" type="xs:boolean"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="users" nillable="true" type="tns:colleagueDto"/>
+      <xs:element minOccurs="0" name="willShowUsers" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="colleagueDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="active" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="adminUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="area1Id" type="xs:int"/>
+      <xs:element minOccurs="0" name="area2Id" type="xs:int"/>
+      <xs:element minOccurs="0" name="area3Id" type="xs:int"/>
+      <xs:element minOccurs="0" name="area4Id" type="xs:int"/>
+      <xs:element minOccurs="0" name="area5Id" type="xs:int"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleaguebackground" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="currentProject" type="xs:string"/>
+      <xs:element minOccurs="0" name="defaultLanguage" type="xs:string"/>
+      <xs:element minOccurs="0" name="dialectId" type="xs:string"/>
+      <xs:element minOccurs="0" name="ecmVersion" type="xs:string"/>
+      <xs:element minOccurs="0" name="emailHtml" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="especializationArea" type="xs:string"/>
+      <xs:element minOccurs="0" name="extensionNr" type="xs:string"/>
+      <xs:element minOccurs="0" name="gedUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="groupId" type="xs:string"/>
+      <xs:element minOccurs="0" name="guestUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="homePage" type="xs:string"/>
+      <xs:element minOccurs="0" name="login" type="xs:string"/>
+      <xs:element minOccurs="0" name="mail" type="xs:string"/>
+      <xs:element minOccurs="0" name="maxPrivateSize" type="xs:float"/>
+      <xs:element minOccurs="0" name="menuConfig" type="xs:int"/>
+      <xs:element minOccurs="0" name="nominalUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="passwd" type="xs:string"/>
+      <xs:element minOccurs="0" name="photoPath" type="xs:string"/>
+      <xs:element name="rowId" type="xs:int"/>
+      <xs:element minOccurs="0" name="sessionId" type="xs:string"/>
+      <xs:element minOccurs="0" name="usedSpace" type="xs:float"/>
+      <xs:element minOccurs="0" name="volumeId" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="documentDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="accessCount" type="xs:int"/>
+      <xs:element minOccurs="0" name="activeUserApprover" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="activeVersion" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="additionalComments" type="xs:string"/>
+      <xs:element minOccurs="0" name="allowMuiltiCardsPerUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvalAndOr" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approved" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="articleContent" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="attachments" nillable="true" type="tns:attachment"/>
+      <xs:element minOccurs="0" name="atualizationId" type="xs:int"/>
+      <xs:element minOccurs="0" name="backgroundColor" type="xs:string"/>
+      <xs:element minOccurs="0" name="backgroundImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="bannerImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="cardDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="convertDocumentType" type="xs:int"/>
+      <xs:element minOccurs="0" name="crc" type="xs:long"/>
+      <xs:element minOccurs="0" name="createDate" type="xs:dateTime"/>
+      <xs:element name="createDateInMilliseconds" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetName" type="xs:string"/>
+      <xs:element minOccurs="0" name="dateFormStarted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="deleted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentKeyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentPropertyNumber" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentPropertyVersion" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentType" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentTypeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="downloadEnabled" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="draft" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expirationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="expiredForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expires" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="externalDocumentId" type="xs:string"/>
+      <xs:element minOccurs="0" name="favorite" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileURL" type="xs:string"/>
+      <xs:element minOccurs="0" name="folderId" type="xs:int"/>
+      <xs:element name="forAproval" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="hashAnnotations" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconId" type="xs:int"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="imutable" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="indexed" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="inheritApprovers" type="xs:boolean"/>
+      <xs:element name="inheritSecurity" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="internalVisualizer" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="isEncrypted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="keyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageId" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageIndicator" type="xs:string"/>
+      <xs:element minOccurs="0" name="lastModifiedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="lastModifiedTime" type="xs:string"/>
+      <xs:element minOccurs="0" name="metaListId" type="xs:int"/>
+      <xs:element minOccurs="0" name="metaListRecordId" type="xs:int"/>
+      <xs:element minOccurs="0" name="newStructure" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="notificationDays" type="xs:int"/>
+      <xs:element name="onCheckout" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="parentDocumentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="pdfRenderEngine" type="xs:string"/>
+      <xs:element minOccurs="0" name="permissionType" type="xs:int"/>
+      <xs:element minOccurs="0" name="phisicalFile" type="xs:string"/>
+      <xs:element minOccurs="0" name="phisicalFileSize" type="xs:float"/>
+      <xs:element minOccurs="0" name="priority" type="xs:int"/>
+      <xs:element minOccurs="0" name="privateColleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="privateDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="protectedCopy" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publicDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publisherId" type="xs:string"/>
+      <xs:element minOccurs="0" name="publisherName" type="xs:string"/>
+      <xs:element minOccurs="0" name="quota" type="xs:int"/>
+      <xs:element minOccurs="0" name="relatedFiles" type="xs:string"/>
+      <xs:element minOccurs="0" name="restrictionType" type="xs:int"/>
+      <xs:element name="rowId" type="xs:int"/>
+      <xs:element minOccurs="0" name="searchNumber" type="xs:int"/>
+      <xs:element name="securityLevel" type="xs:int"/>
+      <xs:element minOccurs="0" name="siteCode" type="xs:string"/>
+      <xs:element minOccurs="0" name="sociableDocumentDto" type="tns:sociableDocumentDto"/>
+      <xs:element minOccurs="0" name="socialDocument" type="xs:string"/>
+      <xs:element minOccurs="0" name="tool" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="topicId" type="xs:int"/>
+      <xs:element name="translated" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="UUID" type="xs:string"/>
+      <xs:element name="updateIsoProperties" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userAnswerForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userNotify" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userPermission" type="xs:int"/>
+      <xs:element minOccurs="0" name="validationStartDate" type="xs:dateTime"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="versionDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="versionOption" type="xs:string"/>
+      <xs:element minOccurs="0" name="visualization" type="xs:string"/>
+      <xs:element minOccurs="0" name="volumeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="watermarkId" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="sociableDocumentDto">
+    <xs:sequence>
+      <xs:element name="commented" type="xs:boolean"/>
+      <xs:element name="denounced" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element name="following" type="xs:boolean"/>
+      <xs:element name="liked" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="numberComments" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberDenouncements" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberFollows" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberLikes" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberShares" type="xs:int"/>
+      <xs:element name="shared" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="sociableId" type="xs:long"/>
+      <xs:element minOccurs="0" name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processHistoryDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="active" type="xs:boolean"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="conversionSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="isReturn" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="labelActivity" type="xs:string"/>
+      <xs:element minOccurs="0" name="labelLink" type="xs:string"/>
+      <xs:element minOccurs="0" name="movementDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="movementHour" type="xs:string"/>
+      <xs:element name="movementSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="previousMovementSequence" type="xs:int"/>
+      <xs:element name="processInstanceId" type="xs:int"/>
+      <xs:element minOccurs="0" name="stateSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="subProcessId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="tasks" nillable="true" type="tns:processTaskDto"/>
+      <xs:element minOccurs="0" name="threadSequence" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="processTaskDto">
+    <xs:sequence>
+      <xs:element name="active" type="xs:boolean"/>
+      <xs:element name="canCurrentUserTakeTask" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="choosedColleagueId" type="xs:string"/>
+      <xs:element name="choosedSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="complement" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="completeColleagueId" type="xs:string"/>
+      <xs:element name="completeType" type="xs:int"/>
+      <xs:element minOccurs="0" name="deadlineText" type="xs:string"/>
+      <xs:element minOccurs="0" name="historCompleteColleague" type="xs:string"/>
+      <xs:element minOccurs="0" name="historTaskObservation" type="xs:string"/>
+      <xs:element name="movementSequence" type="xs:int"/>
+      <xs:element name="processInstanceId" type="xs:int"/>
+      <xs:element name="status" type="xs:int"/>
+      <xs:element name="statusConsult" type="xs:int"/>
+      <xs:element minOccurs="0" name="taskCompletionDate" type="xs:dateTime"/>
+      <xs:element name="taskCompletionHour" type="xs:int"/>
+      <xs:element minOccurs="0" name="taskObservation" type="xs:string"/>
+      <xs:element name="taskSigned" type="xs:boolean"/>
+      <xs:element name="transferredSequence" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="attachmentArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:attachment"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processDefinitionDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processDefinitionDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processAttachmentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processAttachmentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processTaskAppointmentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processTaskAppointmentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="keyValueDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:keyValueDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="cardEventDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:cardEventDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processDefinitionVersionDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processDefinitionVersionDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processStateDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processStateDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="processHistoryDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:processHistoryDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Exception" type="tns:Exception"/>
+  <xs:complexType name="Exception">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://jaxb.dev.java.net/array" targetNamespace="http://jaxb.dev.java.net/array" version="1.0">
+
+  <xs:complexType final="#all" name="stringArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType final="#all" name="stringArrayArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:stringArray"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType final="#all" name="intArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="importProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="newProcess" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="overWrite" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setDueDate">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="newDueDate" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="timeInSecods" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="calculateDeadLineHoursResponse">
+    <wsdl:part name="result" type="tns:deadLineDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getWorkFlowProcessVersionResponse">
+    <wsdl:part name="result" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setAutomaticDecisionClassicResponse">
+    <wsdl:part name="result" type="tns:keyValueDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createWorkFlowProcessVersion">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllProcessAvailableToExport">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActualThreadResponse">
+    <wsdl:part name="ActualThread" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableProcessOnDemandResponse">
+    <wsdl:part name="AvailableProcesses" type="tns:processDefinitionVersionDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setAutomaticDecisionClassic">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="iTaskAutom" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="iTask" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="condition" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndRelatedDatasets">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="newProcess" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="overWrite" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="generalInfo" type="tns:generalInfoDto">
+    </wsdl:part>
+    <wsdl:part name="update" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="persistenceType" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="relatedDatasets" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="calculateDeadLineHours">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="data" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="hora" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="prazo" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="periodId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableStatesDetailResponse">
+    <wsdl:part name="AvailableStatesDetail" type="tns:processStateDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="startProcessClassicResponse">
+    <wsdl:part name="result" type="tns:keyValueDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getWorkFlowProcessVersion">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersStartResponse">
+    <wsdl:part name="AvailableUsers" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableProcessResponse">
+    <wsdl:part name="AvailableProcesses" type="tns:processDefinitionVersionDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="calculateDeadLineTimeResponse">
+    <wsdl:part name="result" type="tns:deadLineDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAttachmentsResponse">
+    <wsdl:part name="Attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="exportProcessInZipFormat">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCard">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="newProcess" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="overWrite" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="update" type="xsd:boolean">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndGeneralInfoResponse">
+    <wsdl:part name="result" type="tns:webServiceMessage">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardValueResponse">
+    <wsdl:part name="content" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTaskByReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="choosedState" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="completeTask" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="ns1:stringArrayArray">
+    </wsdl:part>
+    <wsdl:part name="appointment" type="tns:processTaskAppointmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="calculateDeadLineTime">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="data" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="hora" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="prazo" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="periodId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="simpleStartProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="ns1:stringArrayArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllProcessAvailableToExportResponse">
+    <wsdl:part name="result" type="tns:processDefinitionDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersResponse">
+    <wsdl:part name="AvailableUsers" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardResponse">
+    <wsdl:part name="result" type="tns:webServiceMessage">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="startProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="choosedState" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="completeTask" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="ns1:stringArrayArray">
+    </wsdl:part>
+    <wsdl:part name="appointment" type="tns:processTaskAppointmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllActiveStates">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="releaseProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndPersistenceTypeResponse">
+    <wsdl:part name="result" type="tns:webServiceMessage">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllProcessAvailableToImportResponse">
+    <wsdl:part name="result" type="tns:processDefinitionDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="searchProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="content" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="favorite" type="xsd:boolean">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="releaseProcessResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="cancelInstanceResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getProcessFormId">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTaskClassic">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="choosedState" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="completeTask" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="tns:keyValueDtoArray">
+    </wsdl:part>
+    <wsdl:part name="appointment" type="tns:processTaskAppointmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsers">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="state" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getProcessImage">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAttachments">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndPersistenceType">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="newProcess" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="overWrite" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="update" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="persistenceType" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="takeProcessTaskResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersStart">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="state" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndGeneralInfo">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="newProcess" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="overWrite" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="datasetName" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardAttachs" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="customEvents" type="tns:cardEventDtoArray">
+    </wsdl:part>
+    <wsdl:part name="generalInfo" type="tns:generalInfoDto">
+    </wsdl:part>
+    <wsdl:part name="update" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="persistenceType" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="takeProcessTaskByReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createWorkFlowProcessVersionResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="exportProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableStates">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateWorkflowAttachment">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="usuario" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="document" type="tns:documentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:attachmentArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateWorkflowAttachmentResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getHistories">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTaskResponse">
+    <wsdl:part name="result" type="ns1:stringArrayArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="startProcessResponse">
+    <wsdl:part name="result" type="ns1:stringArrayArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTaskClassicResponse">
+    <wsdl:part name="result" type="tns:keyValueDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getProcessFormIdResponse">
+    <wsdl:part name="result" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="takeProcessTask">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getInstanceCardData">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getHistoriesResponse">
+    <wsdl:part name="Histories" type="tns:processHistoryDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getCardValue">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cardFieldName" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="simpleStartProcessResponse">
+    <wsdl:part name="result" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="takeProcessTaskByReplacementResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTask">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="choosedState" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="completeTask" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="ns1:stringArrayArray">
+    </wsdl:part>
+    <wsdl:part name="appointment" type="tns:processTaskAppointmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setDueDateResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="saveAndSendTaskByReplacementResponse">
+    <wsdl:part name="result" type="ns1:stringArrayArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllProcessAvailableToImport">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="cancelInstance">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cancelText" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActualThread">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="stateSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableProcessOnDemand">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="limit" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="lastRowId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableStatesDetail">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getInstanceCardDataResponse">
+    <wsdl:part name="CardData" type="ns1:stringArrayArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessWithCardAndRelatedDatasetsResponse">
+    <wsdl:part name="result" type="tns:webServiceMessage">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="startProcessClassic">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="choosedState" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueIds" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="completeTask" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="attachments" type="tns:processAttachmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="cardData" type="tns:keyValueDtoArray">
+    </wsdl:part>
+    <wsdl:part name="appointment" type="tns:processTaskAppointmentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="managerMode" type="xsd:boolean">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="cancelInstanceByReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="cancelText" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAllActiveStatesResponse">
+    <wsdl:part name="States" type="ns1:intArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableStatesResponse">
+    <wsdl:part name="States" type="ns1:intArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="exportProcessInZipFormatResponse">
+    <wsdl:part name="result" type="xsd:base64Binary">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableProcess">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="importProcessResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="exportProcessResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="searchProcessResponse">
+    <wsdl:part name="searchResults" type="tns:processDefinitionVersionDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setTasksComments">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="comments" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="setTasksCommentsResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getProcessImageResponse">
+    <wsdl:part name="Image" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Exception">
+    <wsdl:part element="tns:Exception" name="Exception">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersOnDemand">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processInstanceId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="state" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="limit" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="initialUser" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userSearch" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersStartOnDemand">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="processId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="state" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="threadSequence" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="limit" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="initialUser" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userSearch" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersStartOnDemandResponse">
+    <wsdl:part name="AvailableUsers" type="tns:availableUsersDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="cancelInstanceByReplacementResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableUsersOnDemandResponse">
+    <wsdl:part name="AvailableUsers" type="tns:availableUsersDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="WorkflowEngineService">
+    <wsdl:operation name="importProcess">
+      <wsdl:input message="tns:importProcess" name="importProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:importProcessResponse" name="importProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setDueDate">
+      <wsdl:input message="tns:setDueDate" name="setDueDate">
+    </wsdl:input>
+      <wsdl:output message="tns:setDueDateResponse" name="setDueDateResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="takeProcessTask">
+      <wsdl:input message="tns:takeProcessTask" name="takeProcessTask">
+    </wsdl:input>
+      <wsdl:output message="tns:takeProcessTaskResponse" name="takeProcessTaskResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getInstanceCardData">
+      <wsdl:input message="tns:getInstanceCardData" name="getInstanceCardData">
+    </wsdl:input>
+      <wsdl:output message="tns:getInstanceCardDataResponse" name="getInstanceCardDataResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createWorkFlowProcessVersion">
+      <wsdl:input message="tns:createWorkFlowProcessVersion" name="createWorkFlowProcessVersion">
+    </wsdl:input>
+      <wsdl:output message="tns:createWorkFlowProcessVersionResponse" name="createWorkFlowProcessVersionResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardValue">
+      <wsdl:input message="tns:getCardValue" name="getCardValue">
+    </wsdl:input>
+      <wsdl:output message="tns:getCardValueResponse" name="getCardValueResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllProcessAvailableToExport">
+      <wsdl:input message="tns:getAllProcessAvailableToExport" name="getAllProcessAvailableToExport">
+    </wsdl:input>
+      <wsdl:output message="tns:getAllProcessAvailableToExportResponse" name="getAllProcessAvailableToExportResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTask">
+      <wsdl:input message="tns:saveAndSendTask" name="saveAndSendTask">
+    </wsdl:input>
+      <wsdl:output message="tns:saveAndSendTaskResponse" name="saveAndSendTaskResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setAutomaticDecisionClassic">
+      <wsdl:input message="tns:setAutomaticDecisionClassic" name="setAutomaticDecisionClassic">
+    </wsdl:input>
+      <wsdl:output message="tns:setAutomaticDecisionClassicResponse" name="setAutomaticDecisionClassicResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndRelatedDatasets">
+      <wsdl:input message="tns:importProcessWithCardAndRelatedDatasets" name="importProcessWithCardAndRelatedDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:importProcessWithCardAndRelatedDatasetsResponse" name="importProcessWithCardAndRelatedDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="calculateDeadLineHours">
+      <wsdl:input message="tns:calculateDeadLineHours" name="calculateDeadLineHours">
+    </wsdl:input>
+      <wsdl:output message="tns:calculateDeadLineHoursResponse" name="calculateDeadLineHoursResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllProcessAvailableToImport">
+      <wsdl:input message="tns:getAllProcessAvailableToImport" name="getAllProcessAvailableToImport">
+    </wsdl:input>
+      <wsdl:output message="tns:getAllProcessAvailableToImportResponse" name="getAllProcessAvailableToImportResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="cancelInstance">
+      <wsdl:input message="tns:cancelInstance" name="cancelInstance">
+    </wsdl:input>
+      <wsdl:output message="tns:cancelInstanceResponse" name="cancelInstanceResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActualThread">
+      <wsdl:input message="tns:getActualThread" name="getActualThread">
+    </wsdl:input>
+      <wsdl:output message="tns:getActualThreadResponse" name="getActualThreadResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getWorkFlowProcessVersion">
+      <wsdl:input message="tns:getWorkFlowProcessVersion" name="getWorkFlowProcessVersion">
+    </wsdl:input>
+      <wsdl:output message="tns:getWorkFlowProcessVersionResponse" name="getWorkFlowProcessVersionResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableProcessOnDemand">
+      <wsdl:input message="tns:getAvailableProcessOnDemand" name="getAvailableProcessOnDemand">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableProcessOnDemandResponse" name="getAvailableProcessOnDemandResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableStatesDetail">
+      <wsdl:input message="tns:getAvailableStatesDetail" name="getAvailableStatesDetail">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableStatesDetailResponse" name="getAvailableStatesDetailResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="exportProcessInZipFormat">
+      <wsdl:input message="tns:exportProcessInZipFormat" name="exportProcessInZipFormat">
+    </wsdl:input>
+      <wsdl:output message="tns:exportProcessInZipFormatResponse" name="exportProcessInZipFormatResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCard">
+      <wsdl:input message="tns:importProcessWithCard" name="importProcessWithCard">
+    </wsdl:input>
+      <wsdl:output message="tns:importProcessWithCardResponse" name="importProcessWithCardResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTaskByReplacement">
+      <wsdl:input message="tns:saveAndSendTaskByReplacement" name="saveAndSendTaskByReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:saveAndSendTaskByReplacementResponse" name="saveAndSendTaskByReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="startProcessClassic">
+      <wsdl:input message="tns:startProcessClassic" name="startProcessClassic">
+    </wsdl:input>
+      <wsdl:output message="tns:startProcessClassicResponse" name="startProcessClassicResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="cancelInstanceByReplacement">
+      <wsdl:input message="tns:cancelInstanceByReplacement" name="cancelInstanceByReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:cancelInstanceByReplacementResponse" name="cancelInstanceByReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="calculateDeadLineTime">
+      <wsdl:input message="tns:calculateDeadLineTime" name="calculateDeadLineTime">
+    </wsdl:input>
+      <wsdl:output message="tns:calculateDeadLineTimeResponse" name="calculateDeadLineTimeResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="simpleStartProcess">
+      <wsdl:input message="tns:simpleStartProcess" name="simpleStartProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:simpleStartProcessResponse" name="simpleStartProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableProcess">
+      <wsdl:input message="tns:getAvailableProcess" name="getAvailableProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableProcessResponse" name="getAvailableProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="startProcess">
+      <wsdl:input message="tns:startProcess" name="startProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:startProcessResponse" name="startProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllActiveStates">
+      <wsdl:input message="tns:getAllActiveStates" name="getAllActiveStates">
+    </wsdl:input>
+      <wsdl:output message="tns:getAllActiveStatesResponse" name="getAllActiveStatesResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="releaseProcess">
+      <wsdl:input message="tns:releaseProcess" name="releaseProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:releaseProcessResponse" name="releaseProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setTasksComments">
+      <wsdl:input message="tns:setTasksComments" name="setTasksComments">
+    </wsdl:input>
+      <wsdl:output message="tns:setTasksCommentsResponse" name="setTasksCommentsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="searchProcess">
+      <wsdl:input message="tns:searchProcess" name="searchProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:searchProcessResponse" name="searchProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersOnDemand">
+      <wsdl:input message="tns:getAvailableUsersOnDemand" name="getAvailableUsersOnDemand">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableUsersOnDemandResponse" name="getAvailableUsersOnDemandResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getProcessFormId">
+      <wsdl:input message="tns:getProcessFormId" name="getProcessFormId">
+    </wsdl:input>
+      <wsdl:output message="tns:getProcessFormIdResponse" name="getProcessFormIdResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTaskClassic">
+      <wsdl:input message="tns:saveAndSendTaskClassic" name="saveAndSendTaskClassic">
+    </wsdl:input>
+      <wsdl:output message="tns:saveAndSendTaskClassicResponse" name="saveAndSendTaskClassicResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersStartOnDemand">
+      <wsdl:input message="tns:getAvailableUsersStartOnDemand" name="getAvailableUsersStartOnDemand">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableUsersStartOnDemandResponse" name="getAvailableUsersStartOnDemandResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsers">
+      <wsdl:input message="tns:getAvailableUsers" name="getAvailableUsers">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableUsersResponse" name="getAvailableUsersResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getProcessImage">
+      <wsdl:input message="tns:getProcessImage" name="getProcessImage">
+    </wsdl:input>
+      <wsdl:output message="tns:getProcessImageResponse" name="getProcessImageResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAttachments">
+      <wsdl:input message="tns:getAttachments" name="getAttachments">
+    </wsdl:input>
+      <wsdl:output message="tns:getAttachmentsResponse" name="getAttachmentsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndPersistenceType">
+      <wsdl:input message="tns:importProcessWithCardAndPersistenceType" name="importProcessWithCardAndPersistenceType">
+    </wsdl:input>
+      <wsdl:output message="tns:importProcessWithCardAndPersistenceTypeResponse" name="importProcessWithCardAndPersistenceTypeResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersStart">
+      <wsdl:input message="tns:getAvailableUsersStart" name="getAvailableUsersStart">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableUsersStartResponse" name="getAvailableUsersStartResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndGeneralInfo">
+      <wsdl:input message="tns:importProcessWithCardAndGeneralInfo" name="importProcessWithCardAndGeneralInfo">
+    </wsdl:input>
+      <wsdl:output message="tns:importProcessWithCardAndGeneralInfoResponse" name="importProcessWithCardAndGeneralInfoResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="takeProcessTaskByReplacement">
+      <wsdl:input message="tns:takeProcessTaskByReplacement" name="takeProcessTaskByReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:takeProcessTaskByReplacementResponse" name="takeProcessTaskByReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="exportProcess">
+      <wsdl:input message="tns:exportProcess" name="exportProcess">
+    </wsdl:input>
+      <wsdl:output message="tns:exportProcessResponse" name="exportProcessResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableStates">
+      <wsdl:input message="tns:getAvailableStates" name="getAvailableStates">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableStatesResponse" name="getAvailableStatesResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateWorkflowAttachment">
+      <wsdl:input message="tns:updateWorkflowAttachment" name="updateWorkflowAttachment">
+    </wsdl:input>
+      <wsdl:output message="tns:updateWorkflowAttachmentResponse" name="updateWorkflowAttachmentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getHistories">
+      <wsdl:input message="tns:getHistories" name="getHistories">
+    </wsdl:input>
+      <wsdl:output message="tns:getHistoriesResponse" name="getHistoriesResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="ECMWorkflowEngineServiceServiceSoapBinding" type="tns:WorkflowEngineService">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="importProcess">
+      <soap:operation soapAction="importProcess" style="rpc"/>
+      <wsdl:input name="importProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="importProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setDueDate">
+      <soap:operation soapAction="setDueDate" style="rpc"/>
+      <wsdl:input name="setDueDate">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="setDueDateResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="takeProcessTask">
+      <soap:operation soapAction="takeProcessTask" style="rpc"/>
+      <wsdl:input name="takeProcessTask">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="takeProcessTaskResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getInstanceCardData">
+      <soap:operation soapAction="getInstanceCardData" style="rpc"/>
+      <wsdl:input name="getInstanceCardData">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getInstanceCardDataResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createWorkFlowProcessVersion">
+      <soap:operation soapAction="createWorkFlowProcessVersion" style="rpc"/>
+      <wsdl:input name="createWorkFlowProcessVersion">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createWorkFlowProcessVersionResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getCardValue">
+      <soap:operation soapAction="getCardValue" style="rpc"/>
+      <wsdl:input name="getCardValue">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getCardValueResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllProcessAvailableToExport">
+      <soap:operation soapAction="getAllProcessAvailableToExport" style="rpc"/>
+      <wsdl:input name="getAllProcessAvailableToExport">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAllProcessAvailableToExportResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTask">
+      <soap:operation soapAction="saveAndSendTask" style="rpc"/>
+      <wsdl:input name="saveAndSendTask">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="saveAndSendTaskResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setAutomaticDecisionClassic">
+      <soap:operation soapAction="setAutomaticDecisionClassic" style="rpc"/>
+      <wsdl:input name="setAutomaticDecisionClassic">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="setAutomaticDecisionClassicResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndRelatedDatasets">
+      <soap:operation soapAction="importProcessWithCardAndRelatedDatasets" style="rpc"/>
+      <wsdl:input name="importProcessWithCardAndRelatedDatasets">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="importProcessWithCardAndRelatedDatasetsResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="calculateDeadLineHours">
+      <soap:operation soapAction="calculeDeadLineHours" style="rpc"/>
+      <wsdl:input name="calculateDeadLineHours">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="calculateDeadLineHoursResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllProcessAvailableToImport">
+      <soap:operation soapAction="getAllProcessAvailableToImport" style="rpc"/>
+      <wsdl:input name="getAllProcessAvailableToImport">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAllProcessAvailableToImportResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="cancelInstance">
+      <soap:operation soapAction="cancelInstance" style="rpc"/>
+      <wsdl:input name="cancelInstance">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="cancelInstanceResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActualThread">
+      <soap:operation soapAction="getActualThread" style="rpc"/>
+      <wsdl:input name="getActualThread">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getActualThreadResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getWorkFlowProcessVersion">
+      <soap:operation soapAction="getWorkFlowProcessVersion" style="rpc"/>
+      <wsdl:input name="getWorkFlowProcessVersion">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getWorkFlowProcessVersionResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableProcessOnDemand">
+      <soap:operation soapAction="getAvailableProcessOnDemand" style="rpc"/>
+      <wsdl:input name="getAvailableProcessOnDemand">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableProcessOnDemandResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableStatesDetail">
+      <soap:operation soapAction="getAvailableStatesDetail" style="rpc"/>
+      <wsdl:input name="getAvailableStatesDetail">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableStatesDetailResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="exportProcessInZipFormat">
+      <soap:operation soapAction="exportProcess" style="rpc"/>
+      <wsdl:input name="exportProcessInZipFormat">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="exportProcessInZipFormatResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCard">
+      <soap:operation soapAction="importProcessWithCard" style="rpc"/>
+      <wsdl:input name="importProcessWithCard">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="importProcessWithCardResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTaskByReplacement">
+      <soap:operation soapAction="saveAndSendTaskByReplacement" style="rpc"/>
+      <wsdl:input name="saveAndSendTaskByReplacement">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="saveAndSendTaskByReplacementResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="startProcessClassic">
+      <soap:operation soapAction="startProcessClassic" style="rpc"/>
+      <wsdl:input name="startProcessClassic">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="startProcessClassicResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="cancelInstanceByReplacement">
+      <soap:operation soapAction="cancelInstanceByReplacement" style="rpc"/>
+      <wsdl:input name="cancelInstanceByReplacement">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="cancelInstanceByReplacementResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="calculateDeadLineTime">
+      <soap:operation soapAction="calculeDeadLineTime" style="rpc"/>
+      <wsdl:input name="calculateDeadLineTime">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="calculateDeadLineTimeResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="simpleStartProcess">
+      <soap:operation soapAction="simpleStartProcess" style="rpc"/>
+      <wsdl:input name="simpleStartProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="simpleStartProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableProcess">
+      <soap:operation soapAction="getAvailableProcess" style="rpc"/>
+      <wsdl:input name="getAvailableProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="startProcess">
+      <soap:operation soapAction="startProcess" style="rpc"/>
+      <wsdl:input name="startProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="startProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAllActiveStates">
+      <soap:operation soapAction="getAllActiveStates" style="rpc"/>
+      <wsdl:input name="getAllActiveStates">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAllActiveStatesResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="releaseProcess">
+      <soap:operation soapAction="relaseProcess" style="rpc"/>
+      <wsdl:input name="releaseProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="releaseProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="setTasksComments">
+      <soap:operation soapAction="setTasksComments" style="rpc"/>
+      <wsdl:input name="setTasksComments">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="setTasksCommentsResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="searchProcess">
+      <soap:operation soapAction="searchProcess" style="rpc"/>
+      <wsdl:input name="searchProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="searchProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersOnDemand">
+      <soap:operation soapAction="getAvailableUsersOnDemand" style="rpc"/>
+      <wsdl:input name="getAvailableUsersOnDemand">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableUsersOnDemandResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getProcessFormId">
+      <soap:operation soapAction="getProcessFormId" style="rpc"/>
+      <wsdl:input name="getProcessFormId">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getProcessFormIdResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="saveAndSendTaskClassic">
+      <soap:operation soapAction="saveAndSendTaskClassic" style="rpc"/>
+      <wsdl:input name="saveAndSendTaskClassic">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="saveAndSendTaskClassicResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersStartOnDemand">
+      <soap:operation soapAction="getAvailableUsersStartOnDemand" style="rpc"/>
+      <wsdl:input name="getAvailableUsersStartOnDemand">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableUsersStartOnDemandResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsers">
+      <soap:operation soapAction="getAvailableUsers" style="rpc"/>
+      <wsdl:input name="getAvailableUsers">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableUsersResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getProcessImage">
+      <soap:operation soapAction="getProcessImage" style="rpc"/>
+      <wsdl:input name="getProcessImage">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getProcessImageResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAttachments">
+      <soap:operation soapAction="getAttachments" style="rpc"/>
+      <wsdl:input name="getAttachments">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAttachmentsResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndPersistenceType">
+      <soap:operation soapAction="importProcessWithCardAndPersistenceType" style="rpc"/>
+      <wsdl:input name="importProcessWithCardAndPersistenceType">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="importProcessWithCardAndPersistenceTypeResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableUsersStart">
+      <soap:operation soapAction="getAvailableUsersStart" style="rpc"/>
+      <wsdl:input name="getAvailableUsersStart">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableUsersStartResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="importProcessWithCardAndGeneralInfo">
+      <soap:operation soapAction="importProcessWithCardAndGeneralInfo" style="rpc"/>
+      <wsdl:input name="importProcessWithCardAndGeneralInfo">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="importProcessWithCardAndGeneralInfoResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="takeProcessTaskByReplacement">
+      <soap:operation soapAction="takeProcessTaskByReplacement" style="rpc"/>
+      <wsdl:input name="takeProcessTaskByReplacement">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="takeProcessTaskByReplacementResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="exportProcess">
+      <soap:operation soapAction="exportProcess" style="rpc"/>
+      <wsdl:input name="exportProcess">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="exportProcessResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableStates">
+      <soap:operation soapAction="getAvailbleStates" style="rpc"/>
+      <wsdl:input name="getAvailableStates">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableStatesResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateWorkflowAttachment">
+      <soap:operation soapAction="updateWorkflowAttachment" style="rpc"/>
+      <wsdl:input name="updateWorkflowAttachment">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateWorkflowAttachmentResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getHistories">
+      <soap:operation soapAction="getHistories" style="rpc"/>
+      <wsdl:input name="getHistories">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getHistoriesResponse">
+        <soap:body namespace="http://ws.workflow.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="ECMWorkflowEngineServiceService">
+    <wsdl:port binding="tns:ECMWorkflowEngineServiceServiceSoapBinding" name="WorkflowEngineServicePort">
+      <soap:address location="http://fluig.example.com/webdesk/ECMWorkflowEngineService"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

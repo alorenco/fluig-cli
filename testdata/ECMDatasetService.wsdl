@@ -1,0 +1,356 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://ws.dataservice.ecm.technology.totvs.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns2="http://schemas.xmlsoap.org/soap/http" xmlns:ns1="http://jaxb.dev.java.net/array" name="ECMDatasetServiceService" targetNamespace="http://ws.dataservice.ecm.technology.totvs.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://ws.dataservice.ecm.technology.totvs.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://ws.dataservice.ecm.technology.totvs.com/">
+  <xs:complexType name="formDatasetDTO">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetId" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="id" type="xs:long"/>
+      <xs:element name="mobileOffline" type="xs:boolean"/>
+      <xs:element name="serverOffline" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="type" type="xs:string"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="dataset">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="datasetBuilder" type="xs:string"/>
+      <xs:element minOccurs="0" name="datasetDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="datasetImpl" type="xs:string"/>
+      <xs:element minOccurs="0" name="datasetPK" type="tns:datasetPK"/>
+      <xs:element minOccurs="0" name="draft" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="journalingAdherence" type="xs:int"/>
+      <xs:element minOccurs="0" name="lastRemoteSync" type="xs:long"/>
+      <xs:element minOccurs="0" name="lastReset" type="xs:long"/>
+      <xs:element minOccurs="0" name="listId" type="xs:int"/>
+      <xs:element minOccurs="0" name="mobileCache" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="offlineMobileCache" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="resetType" type="xs:int"/>
+      <xs:element minOccurs="0" name="serverOffline" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="syncDetails" type="xs:string"/>
+      <xs:element minOccurs="0" name="syncStatus" type="xs:int"/>
+      <xs:element minOccurs="0" name="type" type="xs:string"/>
+      <xs:element minOccurs="0" name="updateInterval" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="datasetPK">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetId" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="searchConstraintDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="contraintType" type="xs:string"/>
+      <xs:element minOccurs="0" name="fieldName" type="xs:string"/>
+      <xs:element minOccurs="0" name="finalValue" type="xs:string"/>
+      <xs:element minOccurs="0" name="initialValue" type="xs:string"/>
+      <xs:element name="likeSearch" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="datasetDto">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="columns" nillable="true" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="values" nillable="true" type="tns:valuesDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="valuesDto">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="value" nillable="true" type="xs:anyType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="formDatasetDTOArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:formDatasetDTO"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="searchConstraintDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:searchConstraintDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Exception" type="tns:Exception"/>
+  <xs:complexType name="Exception">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://jaxb.dev.java.net/array" version="1.0">
+
+  <xs:complexType final="#all" name="anyTypeArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:anyType"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType final="#all" name="stringArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="addDatasetResponse">
+    <wsdl:part name="dataset" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteDataset">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="name" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getAvailableDatasets">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDatasetResponse">
+    <wsdl:part name="dataset" type="tns:datasetDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteDatasetResponse">
+  </wsdl:message>
+  <wsdl:message name="getAvailableDatasetsResponse">
+    <wsdl:part name="datasets" type="ns1:anyTypeArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="addDataset">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="name" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="description" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="impl" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDataset">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="name" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="description" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="impl" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="loadDatasetResponse">
+    <wsdl:part name="dataset" type="tns:dataset">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDataset">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="name" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="fields" type="ns1:stringArray">
+    </wsdl:part>
+    <wsdl:part name="constraints" type="tns:searchConstraintDtoArray">
+    </wsdl:part>
+    <wsdl:part name="order" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Exception">
+    <wsdl:part element="tns:Exception" name="Exception">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDatasetResponse">
+    <wsdl:part name="dataset" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findAllFormulariesDatasets">
+    <wsdl:part name="companyId" type="xsd:long">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="loadDataset">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="name" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findAllFormulariesDatasetsResponse">
+    <wsdl:part name="dataset" type="tns:formDatasetDTOArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="DatasetService">
+    <wsdl:operation name="deleteDataset">
+      <wsdl:input message="tns:deleteDataset" name="deleteDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:deleteDatasetResponse" name="deleteDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getAvailableDatasets">
+      <wsdl:input message="tns:getAvailableDatasets" name="getAvailableDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:getAvailableDatasetsResponse" name="getAvailableDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findAllFormulariesDatasets">
+      <wsdl:input message="tns:findAllFormulariesDatasets" name="findAllFormulariesDatasets">
+    </wsdl:input>
+      <wsdl:output message="tns:findAllFormulariesDatasetsResponse" name="findAllFormulariesDatasetsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="loadDataset">
+      <wsdl:input message="tns:loadDataset" name="loadDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:loadDatasetResponse" name="loadDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="addDataset">
+      <wsdl:input message="tns:addDataset" name="addDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:addDatasetResponse" name="addDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDataset">
+      <wsdl:input message="tns:updateDataset" name="updateDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:updateDatasetResponse" name="updateDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDataset">
+      <wsdl:input message="tns:getDataset" name="getDataset">
+    </wsdl:input>
+      <wsdl:output message="tns:getDatasetResponse" name="getDatasetResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="ECMDatasetServiceServiceSoapBinding" type="tns:DatasetService">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="getAvailableDatasets">
+      <soap:operation soapAction="getAvailableDatasets" style="rpc"/>
+      <wsdl:input name="getAvailableDatasets">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getAvailableDatasetsResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="deleteDataset">
+      <soap:operation soapAction="deleteDataset" style="rpc"/>
+      <wsdl:input name="deleteDataset">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="deleteDatasetResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findAllFormulariesDatasets">
+      <soap:operation soapAction="findAllFormulariesDatasets" style="rpc"/>
+      <wsdl:input name="findAllFormulariesDatasets">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="findAllFormulariesDatasetsResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="loadDataset">
+      <soap:operation soapAction="loadDataset" style="rpc"/>
+      <wsdl:input name="loadDataset">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="loadDatasetResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="addDataset">
+      <soap:operation soapAction="addDataset" style="rpc"/>
+      <wsdl:input name="addDataset">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="addDatasetResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDataset">
+      <soap:operation soapAction="updateDataset" style="rpc"/>
+      <wsdl:input name="updateDataset">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateDatasetResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDataset">
+      <soap:operation soapAction="getDataset" style="rpc"/>
+      <wsdl:input name="getDataset">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDatasetResponse">
+        <soap:body namespace="http://ws.dataservice.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="ECMDatasetServiceService">
+    <wsdl:port binding="tns:ECMDatasetServiceServiceSoapBinding" name="DatasetServicePort">
+      <soap:address location="http://fluig.example.com/webdesk/ECMDatasetService"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

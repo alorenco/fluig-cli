@@ -1,0 +1,12 @@
+[
+  {
+    "attributionMecanismPK": { "companyId": 1, "attributionMecanismId": "mec_gestor_area" },
+    "name": "Gestor da Área",
+    "description": "Atribui ao gestor da área do solicitante",
+    "attributionMecanismDescription": "function getUsers(mecanismId, colleagueId){ return ['gestor']; }",
+    "assignmentType": 1,
+    "controlClass": "com.datasul.technology.webdesk.workflow.assignment.customization.CustomAssignmentImpl",
+    "preSelectionClass": null,
+    "configurationClass": ""
+  }
+]
