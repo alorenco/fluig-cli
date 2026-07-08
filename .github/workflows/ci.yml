@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # semanal: vulnerabilidades novas aparecem mesmo sem mudança no código
+    - cron: "0 9 * * 1"
 
 permissions:
   contents: read
@@ -28,6 +31,18 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: govulncheck (vulnerabilidades conhecidas em dependências e stdlib)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
 
   build-matrix:
     strategy:
