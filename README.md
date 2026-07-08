@@ -5,7 +5,8 @@
 **TOTVS Fluig direto do terminal: importe, implante e automatize
 os artefatos da plataforma.**
 
-[![Status](https://img.shields.io/badge/status-0.x_pré--release-orange)](https://github.com/alorenco/fluig-cli/releases)
+[![Release](https://img.shields.io/github/v/release/alorenco/fluig-cli?label=release&color=orange)](https://github.com/alorenco/fluig-cli/releases/latest)
+[![CI](https://github.com/alorenco/fluig-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/alorenco/fluig-cli/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Plataformas](https://img.shields.io/badge/plataformas-linux_·_macos_·_windows-5865a3)](https://github.com/alorenco/fluig-cli/releases)
 [![Licença](https://img.shields.io/badge/licença-MIT-blue)](LICENSE)
