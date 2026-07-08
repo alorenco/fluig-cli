@@ -2,6 +2,36 @@
 
 Cadastra e testa os servidores Fluig usados pelos demais comandos.
 
+## Servidor padrão e ambientes
+
+Cada servidor pode ser marcado com um ambiente — `dev`, `hml` ou `prod` — e um
+deles pode ser o **padrão**, usado quando `--server` não é informado (como a
+org padrão da CLI do Salesforce). O primeiro servidor cadastrado vira padrão
+automaticamente; troque com `server use`.
+
+A ordem de resolução do servidor alvo é:
+
+1. argumento posicional (`server test homolog`)
+2. `--server <nome>` ou `FLUIGCLI_SERVER`
+3. padrão do **projeto** (`.fluigcli/servers.json`, versionável — o time
+   compartilha)
+4. padrão **global** (preferência pessoal)
+5. único servidor cadastrado
+6. seleção interativa (que oferece fixar a escolha como padrão)
+
+### ⚠️ Trava de produção
+
+Em servidor marcado `prod`, os comandos que **escrevem** (`export`, `delete`,
+`install-helper`) pedem confirmação antes de tocar no servidor:
+
+```
+O servidor "producao" é de PRODUÇÃO — publicar datasets mesmo assim? (s/N)
+```
+
+Em modo não-interativo (CI, agentes, `--json`), a operação é bloqueada com exit
+`2` a menos que venha `--yes` — o deploy consciente em produção continua a um
+flag de distância, mas o acidental morre na praia.
+
 ## Onde a configuração fica
 
 | Arquivo | Escopo | Precedência |
@@ -54,6 +84,10 @@ fluigcli server add --name homolog --host fluig-homolog.empresa.com.br \
   --port 443 --ssl --username admin.deploy --company-id 1
 ```
 
+- `--env dev|hml|prod` marca o ambiente (apelidos como `homolog` e `producao`
+  são aceitos e normalizados). `prod` ativa a trava de produção.
+- `--default` define o servidor como padrão já no cadastro (o primeiro
+  cadastrado vira padrão automaticamente).
 - `--password-stdin` lê a senha do stdin e grava no keyring (uso não-interativo).
 - `--global` grava na configuração global em vez da do projeto.
 - A senha **nunca** é aceita como argumento de linha de comando (vazaria em `ps`
@@ -62,7 +96,27 @@ fluigcli server add --name homolog --host fluig-homolog.empresa.com.br \
 ### `fluigcli server list`
 
 Lista os servidores visíveis (projeto + global, com o projeto sobrepondo nomes
-repetidos).
+repetidos). O `*` marca o padrão; a segunda coluna é o ambiente. No `--json`,
+o campo `default` traz o nome do padrão.
+
+### `fluigcli server use [<name>]`
+
+Define o servidor padrão. Sem `<name>`, lista e deixa escolher (interativo).
+
+```sh
+fluigcli server use producao            # padrão do projeto (vai para o git)
+fluigcli server use homolog --global    # preferência pessoal, fora do projeto
+```
+
+### `fluigcli server update <name>`
+
+Altera campos do cadastro sem remover o servidor — a senha no keyring é
+preservada. O nome não muda (é a chave); para renomear, remova e cadastre de novo.
+
+```sh
+fluigcli server update producao --env prod
+fluigcli server update homolog --host novo-host.empresa.com.br --port 8080 --ssl=false
+```
 
 ### `fluigcli server remove <name>`
 

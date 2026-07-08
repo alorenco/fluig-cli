@@ -146,7 +146,7 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 				return output.Usagef("informe um ou mais arquivos .js de mecanismo")
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar mecanismos")
 			if err != nil {
 				return err
 			}
@@ -230,7 +230,7 @@ func newMechanismDeleteCmd(app *App) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "excluir mecanismos")
 			if err != nil {
 				return err
 			}

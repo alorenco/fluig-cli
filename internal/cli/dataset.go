@@ -200,7 +200,7 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 				return output.Usagef("informe um ou mais arquivos .js de dataset")
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar datasets")
 			if err != nil {
 				return err
 			}

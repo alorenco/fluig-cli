@@ -92,7 +92,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "atualizar os scripts do processo")
 			if err != nil {
 				return err
 			}

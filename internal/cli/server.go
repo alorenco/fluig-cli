@@ -24,6 +24,8 @@ func newServerCmd(app *App) *cobra.Command {
 	}
 	cmd.AddCommand(newServerAddCmd(app))
 	cmd.AddCommand(newServerListCmd(app))
+	cmd.AddCommand(newServerUseCmd(app))
+	cmd.AddCommand(newServerUpdateCmd(app))
 	cmd.AddCommand(newServerRemoveCmd(app))
 	cmd.AddCommand(newServerTestCmd(app))
 	cmd.AddCommand(newServerInstallHelperCmd(app))
@@ -103,6 +105,9 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return err
 			}
 			p.Server = server.Name
+			if err := app.guardProdWrite(server, "instalar a widget auxiliar"); err != nil {
+				return err
+			}
 
 			ctx := context.Background()
 			client, err := app.authenticate(ctx, server, passwordStdin)
@@ -176,7 +181,8 @@ func loadHelperWAR(ctx context.Context, warPath string) ([]byte, string, error) 
 }
 
 // resolveServer determina o servidor alvo: argumento posicional > --server/env >
-// seleção interativa > erro de uso.
+// servidor padrão (projeto > global) > único cadastrado > seleção interativa >
+// erro de uso.
 func (a *App) resolveServer(nameArg string) (*config.Server, error) {
 	name := nameArg
 	if name == "" {
@@ -185,6 +191,17 @@ func (a *App) resolveServer(nameArg string) (*config.Server, error) {
 	store := a.Store()
 	if name != "" {
 		return store.Get(name)
+	}
+
+	if def, err := store.DefaultName(); err != nil {
+		return nil, err
+	} else if def != "" {
+		server, err := store.Get(def)
+		if err != nil {
+			return nil, output.NotFoundf(
+				"o servidor padrão %q não existe mais; escolha outro com: fluigcli server use", def)
+		}
+		return server, nil
 	}
 
 	servers, err := store.List()
@@ -198,12 +215,32 @@ func (a *App) resolveServer(nameArg string) (*config.Server, error) {
 		return &servers[0], nil
 	}
 	if !a.Interactive() {
-		return nil, output.Usagef("informe o servidor alvo com --server <nome> (ou FLUIGCLI_SERVER)")
+		return nil, output.Usagef("informe o servidor alvo com --server <nome> (ou FLUIGCLI_SERVER), " +
+			"ou defina um padrão com: fluigcli server use <nome>")
 	}
 
+	server, err := pickServerInteractive(servers)
+	if err != nil {
+		return nil, err
+	}
+	// Resolve a pergunta de uma vez: oferece fixar a escolha como padrão.
+	if save, err := promptYesNo(fmt.Sprintf("Definir %q como servidor padrão?", server.Name), false); err == nil && save {
+		if _, err := store.SetDefault(server.Name, false); err == nil {
+			fmt.Fprintf(os.Stderr, "Servidor padrão definido: %s (troque com: fluigcli server use)\n", server.Name)
+		}
+	}
+	return server, nil
+}
+
+// pickServerInteractive lista os servidores no stderr e lê a escolha.
+func pickServerInteractive(servers []config.Server) (*config.Server, error) {
 	fmt.Fprintln(os.Stderr, "Servidores disponíveis:")
 	for i, s := range servers {
-		fmt.Fprintf(os.Stderr, "  %d) %s (%s)\n", i+1, s.Name, s.BaseURL())
+		env := ""
+		if s.Env != "" {
+			env = " [" + s.Env + "]"
+		}
+		fmt.Fprintf(os.Stderr, "  %d) %s%s (%s)\n", i+1, s.Name, env, s.BaseURL())
 	}
 	n, err := promptInt("Escolha o servidor", 1)
 	if err != nil {
@@ -257,6 +294,8 @@ func newServerAddCmd(app *App) *cobra.Command {
 		ssl                  bool
 		passwordStdin        bool
 		global               bool
+		env                  string
+		makeDefault          bool
 	)
 	cmd := &cobra.Command{
 		Use:   "add",
@@ -316,6 +355,14 @@ func newServerAddCmd(app *App) *cobra.Command {
 						return err
 					}
 				}
+				if !cmd.Flags().Changed("env") {
+					if env, err = promptLine("Ambiente (dev/hml/prod; Enter para pular)", ""); err != nil {
+						return err
+					}
+				}
+			}
+			if env, err = config.NormalizeEnv(env); err != nil {
+				return output.Usagef("%s", err.Error())
 			}
 
 			server := config.Server{
@@ -327,6 +374,7 @@ func newServerAddCmd(app *App) *cobra.Command {
 				Username:  username,
 				UserCode:  username,
 				CompanyID: companyID,
+				Env:       env,
 			}
 
 			// Senha: só é persistida no keyring do SO. Sem keyring (ex.: Linux
@@ -361,8 +409,30 @@ func newServerAddCmd(app *App) *cobra.Command {
 			if err := app.Store().Add(server, global); err != nil {
 				return err
 			}
-			p.Successf("Servidor %q cadastrado (%s).", server.Name, server.BaseURL())
-			p.Done(map[string]any{"server": server})
+
+			// Primeiro servidor cadastrado vira padrão sem perguntar; nos
+			// demais, --default decide (ou a pergunta, no modo interativo).
+			isDefault := makeDefault
+			if !isDefault {
+				if all, listErr := app.Store().List(); listErr == nil && len(all) == 1 {
+					isDefault = true
+				} else if interactive {
+					isDefault, _ = promptYesNo(fmt.Sprintf("Definir %q como servidor padrão?", server.Name), false)
+				}
+			}
+			if isDefault {
+				if _, err := app.Store().SetDefault(server.Name, global); err != nil {
+					p.Warnf("não foi possível definir o servidor padrão: %v", err)
+					isDefault = false
+				}
+			}
+
+			suffix := ""
+			if isDefault {
+				suffix = " — definido como padrão"
+			}
+			p.Successf("Servidor %q cadastrado (%s)%s.", server.Name, server.BaseURL(), suffix)
+			p.Done(map[string]any{"server": server, "default": isDefault})
 			return nil
 		},
 	}
@@ -373,8 +443,138 @@ func newServerAddCmd(app *App) *cobra.Command {
 	f.BoolVar(&ssl, "ssl", true, "usar HTTPS")
 	f.StringVar(&username, "username", "", "usuário de login")
 	f.IntVar(&companyID, "company-id", 1, "companyId do tenant")
+	f.StringVar(&env, "env", "", "ambiente do servidor: dev, hml ou prod (prod pede confirmação para escrever)")
+	f.BoolVar(&makeDefault, "default", false, "define este servidor como o padrão")
 	f.BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin e grava no keyring")
 	f.BoolVar(&global, "global", false, "grava na configuração global em vez da do projeto")
+	return cmd
+}
+
+// --- server use ---
+
+func newServerUseCmd(app *App) *cobra.Command {
+	var global bool
+	cmd := &cobra.Command{
+		Use:   "use [<name>]",
+		Short: "Define o servidor padrão (usado quando --server não é informado)",
+		Long: "Grava o servidor padrão no servers.json do projeto — versionável, então o\n" +
+			"time compartilha o mesmo padrão — ou no global com --global (preferência\n" +
+			"pessoal). O padrão do projeto vence o global; --server e FLUIGCLI_SERVER\n" +
+			"continuam vencendo tudo, por execução.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			store := app.Store()
+
+			name := ""
+			if len(args) == 1 {
+				name = args[0]
+			} else {
+				servers, err := store.List()
+				if err != nil {
+					return err
+				}
+				if len(servers) == 0 {
+					return output.NotFoundf("nenhum servidor cadastrado; adicione um com: fluigcli server add")
+				}
+				if !app.Interactive() {
+					return output.Usagef("informe o servidor: fluigcli server use <nome>")
+				}
+				s, err := pickServerInteractive(servers)
+				if err != nil {
+					return err
+				}
+				name = s.Name
+			}
+
+			path, err := store.SetDefault(name, global)
+			if err != nil {
+				return err
+			}
+			p.Server = name
+			p.Successf("Servidor padrão definido: %s (em %s)", name, path)
+			p.Done(map[string]any{"default": name, "path": path})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&global, "global", false, "grava na configuração global em vez da do projeto")
+	return cmd
+}
+
+// --- server update ---
+
+func newServerUpdateCmd(app *App) *cobra.Command {
+	var (
+		host, username, env string
+		port, companyID     int
+		ssl                 bool
+	)
+	cmd := &cobra.Command{
+		Use:   "update <name>",
+		Short: "Altera dados de um servidor cadastrado (ex.: --env prod)",
+		Long: "Atualiza campos do cadastro sem remover o servidor (a senha no keyring é\n" +
+			"preservada). O nome não muda — ele é a chave do cadastro; para renomear,\n" +
+			"remova e cadastre de novo.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			flags := cmd.Flags()
+			changed := false
+			for _, f := range []string{"host", "port", "ssl", "username", "company-id", "env"} {
+				if flags.Changed(f) {
+					changed = true
+					break
+				}
+			}
+			if !changed {
+				return output.Usagef("nada a alterar: informe ao menos uma flag (--host, --port, --ssl, --username, --company-id, --env)")
+			}
+
+			normEnv := ""
+			if flags.Changed("env") {
+				var err error
+				if normEnv, err = config.NormalizeEnv(env); err != nil {
+					return output.Usagef("%s", err.Error())
+				}
+			}
+
+			server, err := app.Store().Update(args[0], func(s *config.Server) {
+				if flags.Changed("host") {
+					s.Host = stripScheme(host)
+				}
+				if flags.Changed("port") {
+					s.Port = port
+				}
+				if flags.Changed("ssl") {
+					s.SSL = ssl
+				}
+				if flags.Changed("username") {
+					s.Username = username
+					s.UserCode = username
+				}
+				if flags.Changed("company-id") {
+					s.CompanyID = companyID
+				}
+				if flags.Changed("env") {
+					s.Env = normEnv
+				}
+			})
+			if err != nil {
+				return err
+			}
+			p.Server = server.Name
+			p.Successf("Servidor %q atualizado (%s).", server.Name, server.BaseURL())
+			p.Done(map[string]any{"server": server})
+			return nil
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&host, "host", "", "host do Fluig, sem esquema")
+	f.IntVar(&port, "port", 443, "porta do servidor")
+	f.BoolVar(&ssl, "ssl", true, "usar HTTPS")
+	f.StringVar(&username, "username", "", "usuário de login")
+	f.IntVar(&companyID, "company-id", 1, "companyId do tenant")
+	f.StringVar(&env, "env", "", "ambiente: dev, hml, prod ou \"\" para limpar")
 	return cmd
 }
 
@@ -404,10 +604,25 @@ func newServerListCmd(app *App) *cobra.Command {
 			if len(servers) == 0 {
 				p.Infof("Nenhum servidor cadastrado. Adicione com: fluigcli server add")
 			}
-			for _, s := range servers {
-				p.Successf("%-16s %-45s usuário=%s companyId=%d", s.Name, s.BaseURL(), s.Username, s.CompanyID)
+			def, err := app.Store().DefaultName()
+			if err != nil {
+				return err
 			}
-			p.Done(map[string]any{"servers": servers})
+			for _, s := range servers {
+				marker := " "
+				if s.Name == def {
+					marker = "*"
+				}
+				env := s.Env
+				if env == "" {
+					env = "-"
+				}
+				p.Successf("%s %-16s %-5s %-45s usuário=%s companyId=%d", marker, s.Name, env, s.BaseURL(), s.Username, s.CompanyID)
+			}
+			if def != "" {
+				p.Infof("(* = servidor padrão; troque com: fluigcli server use)")
+			}
+			p.Done(map[string]any{"servers": servers, "default": def})
 			return nil
 		},
 	}

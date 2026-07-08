@@ -66,23 +66,29 @@ vez por dia, só em terminal interativo; desative com
 ## Quickstart
 
 ```sh
-# 1. Cadastre um servidor (a senha vai para o keyring do SO — nunca para arquivo)
-fluigcli server add --name homolog --host fluig.empresa.com.br --username admin.deploy
+# 1. Cadastre os servidores (a senha vai para o keyring do SO — nunca para arquivo).
+#    O primeiro cadastrado vira o padrão; servidores "prod" ganham trava de escrita.
+fluigcli server add --name homolog --host fluig-hml.empresa.com.br --username admin.deploy --env hml
+fluigcli server add --name producao --host fluig.empresa.com.br --username admin.deploy --env prod
 
 # 2. Teste o acesso (login + ping + dados do usuário + status da widget auxiliar)
 fluigcli server test homolog
 
-# 3. Trabalhe com os artefatos
+# 3. Trabalhe com os artefatos — sem --server, vale o servidor padrão
 fluigcli dataset list
 fluigcli dataset import ds_clientes
 fluigcli dataset export datasets/ds_clientes.js
+
+# 4. Troque o padrão quando precisar (ou aponte pontualmente com --server)
+fluigcli server use producao
+fluigcli dataset export datasets/ds_clientes.js   # pede confirmação: producao é prod
 ```
 
 ## Comandos
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `server` | `add` `list` `remove` `test` `logout` `install-helper` | [docs/server.md](docs/server.md) |
+| `server` | `add` `list` `use` `update` `remove` `test` `logout` `install-helper` | [docs/server.md](docs/server.md) |
 | `dataset` | `list` `import` `export` `query` | [docs/dataset.md](docs/dataset.md) |
 | `event` | `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |

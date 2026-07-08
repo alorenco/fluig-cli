@@ -10,12 +10,19 @@ o mapa mental, não a referência completa.
 
 | comando | efeito |
 |---|---|
-| `server add` | cadastra um servidor (metadados; senha vai para o keyring, nunca para arquivo) |
-| `server list` | lista os servidores cadastrados (projeto + global) |
+| `server add` | cadastra um servidor (metadados; senha vai para o keyring, nunca para arquivo); `--env dev\|hml\|prod` marca o ambiente |
+| `server list` | lista os servidores cadastrados (projeto + global); `*` = padrão |
+| `server use [<name>]` | define o servidor padrão, usado quando `--server` não é informado |
+| `server update <name>` | altera o cadastro (ex.: `--env prod`) preservando a senha no keyring |
 | `server remove <name>` | remove o servidor (e a senha do keyring) |
 | `server test [<name>]` | login + ping + dados do usuário; reporta se a fluiggersWidget está instalada |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
 | `server install-helper [<name>]` | instala a widget auxiliar fluiggersWidget (pré-requisito de `workflow export` e `widget list|import`) |
+
+Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
+padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
+escrita (`export`, `delete`, `install-helper`) **exigem `--yes`** em modo
+não-interativo (sem ele: exit 2).
 
 ## dataset
 

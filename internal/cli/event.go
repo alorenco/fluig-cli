@@ -147,7 +147,7 @@ func newEventExportCmd(app *App) *cobra.Command {
 				return output.Usagef("informe um ou mais arquivos .js de evento")
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar eventos globais")
 			if err != nil {
 				return err
 			}
@@ -224,7 +224,7 @@ func newEventDeleteCmd(app *App) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "excluir eventos globais")
 			if err != nil {
 				return err
 			}

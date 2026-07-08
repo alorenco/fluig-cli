@@ -283,7 +283,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar o formulário")
 			if err != nil {
 				return err
 			}
