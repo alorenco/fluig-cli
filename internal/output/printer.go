@@ -128,3 +128,9 @@ func StdoutIsTTY() bool {
 func StdinIsTTY() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
+
+// StderrIsTTY informa se stderr é um terminal (usado para avisos que só fazem
+// sentido para humanos, como o de versão nova).
+func StderrIsTTY() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}

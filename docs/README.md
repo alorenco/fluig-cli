@@ -11,6 +11,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [workflow](workflow.md) — scripts de eventos de processo
 - [widget](widget.md) — widgets
 - [skill](skill.md) — Skill para agentes de IA (Claude Code / Codex)
+- [upgrade](upgrade.md) — atualização da própria CLI (e o aviso de versão nova)
 
 Convenção: **import** = servidor → local; **export** = local → servidor.
 Comandos e flags em inglês; mensagens em pt-BR.

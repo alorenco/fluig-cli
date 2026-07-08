@@ -72,6 +72,7 @@ o mapa mental, não a referência completa.
 | comando | efeito |
 |---|---|
 | `version` | versão do fluigcli |
+| `upgrade` | atualiza o próprio fluigcli para a última release (`--check` só consulta) |
 | `completion <bash\|zsh\|fish\|powershell>` | script de autocompletar |
 | `skill install \| show` | instala/mostra esta skill de agente |
 

@@ -23,6 +23,7 @@ const (
 	envNonInteractive = "FLUIGCLI_NON_INTERACTIVE"
 	envTimeout        = "FLUIGCLI_TIMEOUT"
 	envNoSessionCache = "FLUIGCLI_NO_SESSION_CACHE"
+	envNoUpdateCheck  = "FLUIGCLI_NO_UPDATE_CHECK"
 )
 
 // App carrega o estado compartilhado entre os comandos de uma execução.
@@ -165,6 +166,7 @@ func newRootCmd(app *App) *cobra.Command {
 	pf.BoolVar(&app.NoSessionCache, "no-session-cache", false, "não reaproveita a sessão entre execuções (env: FLUIGCLI_NO_SESSION_CACHE=1)")
 
 	root.AddCommand(newVersionCmd(app))
+	root.AddCommand(newUpgradeCmd(app))
 	root.AddCommand(newServerCmd(app))
 	root.AddCommand(newDatasetCmd(app))
 	root.AddCommand(newEventCmd(app))
@@ -234,6 +236,7 @@ func Main(version, commit, date string) int {
 
 	err := root.Execute()
 	if err == nil {
+		maybeNotifyUpdate(app)
 		return output.ExitOK
 	}
 

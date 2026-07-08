@@ -50,6 +50,19 @@ Autocompletar (bash/zsh/fish/powershell):
 source <(fluigcli completion bash)      # veja: fluigcli completion --help
 ```
 
+## Atualização
+
+A própria CLI se atualiza — baixa a última release, confere o checksum e
+substitui o binário no lugar:
+
+```sh
+fluigcli upgrade
+```
+
+Quando sai versão nova, a CLI avisa sozinha ao fim de um comando (no máximo uma
+vez por dia, só em terminal interativo; desative com
+`FLUIGCLI_NO_UPDATE_CHECK=1`). Detalhes em [docs/upgrade.md](docs/upgrade.md).
+
 ## Quickstart
 
 ```sh
@@ -77,7 +90,7 @@ fluigcli dataset export datasets/ds_clientes.js
 | `workflow` | `version` `export` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `skill` | `install` `show` | [docs/skill.md](docs/skill.md) |
-| — | `version` `completion` | |
+| — | `version` `upgrade` `completion` | [docs/upgrade.md](docs/upgrade.md) |
 
 Comandos e flags em **inglês**; mensagens, ajuda e logs em **pt-BR** (`fluigcli <cmd> --help`).
 
