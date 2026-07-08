@@ -32,14 +32,19 @@ func runMain(t *testing.T, args ...string) (int, string) {
 	os.Stdout = w
 	os.Args = append([]string{"fluigcli"}, args...)
 
+	// Drena o pipe concorrentemente: o buffer do pipe é limitado (pequeno no
+	// Windows) e ler só depois de Main() retornar trava a escrita em saídas
+	// maiores que o buffer (ex.: TestSkillShow, que imprime a skill inteira).
+	outCh := make(chan string, 1)
+	go func() {
+		out, _ := io.ReadAll(r)
+		outCh <- string(out)
+	}()
+
 	code := Main("test", "abc123", "2026-01-01")
 
 	w.Close()
-	out, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return code, string(out)
+	return code, <-outCh
 }
 
 func TestVersionJSONEnvelope(t *testing.T) {
