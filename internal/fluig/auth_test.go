@@ -284,3 +284,41 @@ func TestMaskURL(t *testing.T) {
 		t.Errorf("parâmetros inofensivos não deveriam ser mascarados: %s", masked)
 	}
 }
+
+// Uma sessão em cache válida basta por si só — sem senha e sem login (a
+// sessão é a credencial universal).
+func TestRestoreSessionSemSenha(t *testing.T) {
+	stub := &fluigStub{password: "correta"}
+	srv := httptest.NewServer(stub.handler())
+	defer srv.Close()
+
+	cache := &fakeSessionCache{load: []*http.Cookie{{Name: "JSESSIONIDSSO", Value: "sessao-ok", Path: "/"}}}
+	c, err := NewClient(Options{BaseURL: srv.URL, Username: "user-restore", Password: "", SessionCache: cache})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.RestoreSession(context.Background()) {
+		t.Fatal("sessão em cache válida deveria ser restaurada sem senha")
+	}
+	if n := stub.loginCalls.Load(); n != 0 {
+		t.Errorf("RestoreSession não pode logar, mas houve %d login(s)", n)
+	}
+}
+
+// Sem sessão aproveitável, RestoreSession devolve false sem tentar login.
+func TestRestoreSessionSemCache(t *testing.T) {
+	stub := &fluigStub{password: "correta"}
+	srv := httptest.NewServer(stub.handler())
+	defer srv.Close()
+
+	c, err := NewClient(Options{BaseURL: srv.URL, Username: "user-restore-neg", Password: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.RestoreSession(context.Background()) {
+		t.Fatal("sem cache não há sessão a restaurar")
+	}
+	if n := stub.loginCalls.Load(); n != 0 {
+		t.Errorf("RestoreSession não pode logar, mas houve %d login(s)", n)
+	}
+}

@@ -44,6 +44,10 @@ companyId). Por isso é seguro commitá-lo no repositório do projeto.
 
 ## Onde a senha fica (ordem de resolução)
 
+0. **Sessão em cache válida dispensa senha** — se há uma sessão reaproveitável
+   (ver abaixo), a CLI a usa direto, sem prompt nem env var. Exceção:
+   `--password-stdin` pula essa etapa, porque quem manda a senha
+   explicitamente quer vê-la validada por um login de verdade.
 1. `--password-stdin` — senha lida do stdin (scripts e agentes)
 2. `FLUIGCLI_PASSWORD` — variável de ambiente (vale para o servidor selecionado)
 3. Keyring do SO (Windows Credential Manager, macOS Keychain, Secret Service no Linux),

@@ -96,24 +96,34 @@ func (c *Client) Ping(ctx context.Context) error {
 	return nil
 }
 
-// EnsureSession garante uma sessão válida: reutiliza a sessão em cache quando o
-// ping confirma; caso contrário refaz o login, aplicando o quirk de servidores
-// demo (license.do?demo=true + novo login).
-func (c *Client) EnsureSession(ctx context.Context) error {
+// RestoreSession tenta obter uma sessão válida SEM fazer login — cookies já
+// ativos no processo ou persistidos no cache, validados por ping. Como a
+// sessão é a credencial universal (REST + SOAP), quem tem uma válida nem
+// precisa de senha. Retorna false quando não há sessão aproveitável.
+func (c *Client) RestoreSession(ctx context.Context) bool {
 	// 1. Sessão já ativa neste processo (cache em memória).
 	if c.hasSessionCookies() && c.Ping(ctx) == nil {
-		return nil
+		return true
 	}
 	// 2. Sessão persistida em disco (reaproveitada entre execuções).
 	if c.cache != nil && !c.hasSessionCookies() {
 		if cookies := c.cache.Load(c.sessionKey); len(cookies) > 0 {
 			c.http.Jar.SetCookies(c.base, cookies)
 			if c.hasSessionCookies() && c.Ping(ctx) == nil {
-				return nil
+				return true
 			}
 		}
 	}
-	// 3. Login (com o quirk de servidores demo).
+	return false
+}
+
+// EnsureSession garante uma sessão válida: reutiliza a sessão em cache quando o
+// ping confirma; caso contrário refaz o login, aplicando o quirk de servidores
+// demo (license.do?demo=true + novo login).
+func (c *Client) EnsureSession(ctx context.Context) error {
+	if c.RestoreSession(ctx) {
+		return nil
+	}
 	if err := c.loginAndValidate(ctx); err != nil {
 		return err
 	}

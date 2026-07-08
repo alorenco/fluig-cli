@@ -14,6 +14,16 @@ import (
 // válida. Se a senha veio do keyring e a autenticação falha, remove-a (para não
 // deixar o usuário preso com uma senha inválida em cache).
 func (a *App) authenticate(ctx context.Context, server *config.Server, passwordStdin bool) (*fluig.Client, error) {
+	// A sessão é a credencial universal (REST + SOAP): uma sessão em cache
+	// válida dispensa a senha — nada de prompt nem env var. Com
+	// --password-stdin a etapa é pulada: quem manda a senha explicitamente
+	// quer vê-la validada por um login de verdade.
+	if !a.NoSessionCache && !passwordStdin {
+		if client, err := a.clientFor(server, ""); err == nil && client.RestoreSession(ctx) {
+			return client, nil
+		}
+	}
+
 	pw, err := a.passwordSource(passwordStdin).Resolve(server)
 	if err != nil {
 		return nil, err
