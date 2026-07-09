@@ -5,6 +5,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -143,17 +144,32 @@ func mapFluigError(err error) error {
 	return output.ServerErrorf("%s", err.Error()).WithCause(err)
 }
 
+// Grupos de comandos do help (a visão completa tem ainda os grupos
+// administrativo e operacional, planejados na SPEC §10).
+const (
+	groupDev    = "dev"
+	groupConfig = "config"
+)
+
 func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "fluigcli",
-		Short:         "CLI não oficial para desenvolvimento TOTVS Fluig",
-		Long:          "CLI não oficial para desenvolvimento TOTVS Fluig.",
+		Use:   "fluigcli",
+		Short: "CLI não oficial para desenvolvimento TOTVS Fluig",
+		Long: "CLI não oficial para desenvolvimento TOTVS Fluig.\n\n" +
+			"Versão:\n  fluigcli " + app.Version + " " + runtime.GOOS + "-" + runtime.GOARCH +
+			" (commit " + app.Commit + ", build " + app.Date + ")",
+		Version:       app.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return app.applyEnvDefaults(cmd)
 		},
 	}
+	root.SetVersionTemplate("fluigcli " + app.Version + " (commit " + app.Commit + ", build " + app.Date + ")\n")
+	root.AddGroup(
+		&cobra.Group{ID: groupDev, Title: "Comandos de desenvolvimento:"},
+		&cobra.Group{ID: groupConfig, Title: "Configuração:"},
+	)
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&app.Server, "server", "", "servidor alvo (env: FLUIGCLI_SERVER)")
@@ -164,18 +180,29 @@ func newRootCmd(app *App) *cobra.Command {
 	pf.BoolVarP(&app.Verbose, "verbose", "v", false, "loga as requisições HTTP no stderr")
 	pf.DurationVar(&app.Timeout, "timeout", 30*time.Second, "timeout por requisição (env: FLUIGCLI_TIMEOUT)")
 	pf.BoolVar(&app.NoSessionCache, "no-session-cache", false, "não reaproveita a sessão entre execuções (env: FLUIGCLI_NO_SESSION_CACHE=1)")
+	// A flag --version é definida aqui (em pt-BR) para o cobra não criar a dele.
+	root.Flags().Bool("version", false, "mostra a versão do fluigcli")
 
+	addToGroup := func(group string, cmds ...*cobra.Command) {
+		for _, c := range cmds {
+			c.GroupID = group
+			root.AddCommand(c)
+		}
+	}
+	addToGroup(groupDev,
+		newDatasetCmd(app),
+		newEventCmd(app),
+		newMechanismCmd(app),
+		newFormCmd(app),
+		newWorkflowCmd(app),
+		newWidgetCmd(app),
+		newDiffCmd(app),
+		newWatchCmd(app),
+	)
+	addToGroup(groupConfig, newServerCmd(app))
+	// Sem grupo (aparecem em "Comandos adicionais:").
 	root.AddCommand(newVersionCmd(app))
 	root.AddCommand(newUpgradeCmd(app))
-	root.AddCommand(newServerCmd(app))
-	root.AddCommand(newDatasetCmd(app))
-	root.AddCommand(newEventCmd(app))
-	root.AddCommand(newMechanismCmd(app))
-	root.AddCommand(newFormCmd(app))
-	root.AddCommand(newWorkflowCmd(app))
-	root.AddCommand(newWidgetCmd(app))
-	root.AddCommand(newDiffCmd(app))
-	root.AddCommand(newWatchCmd(app))
 	root.AddCommand(newSkillCmd(app))
 	root.AddCommand(newCompletionCmd())
 	localize(root)

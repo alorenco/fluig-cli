@@ -197,3 +197,24 @@ func TestServerTestWithoutServers(t *testing.T) {
 		t.Errorf("exit = %d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
 	}
 }
+
+// O help raiz mostra a versão e os grupos de comandos; --version funciona.
+func TestHelpMostraVersaoEGrupos(t *testing.T) {
+	code, stdout := runMain(t, "--help")
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d, quer 0", code)
+	}
+	for _, want := range []string{
+		"Versão:", "fluigcli test",
+		"Comandos de desenvolvimento:", "Configuração:", "Comandos adicionais:",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("help sem %q:\n%s", want, stdout)
+		}
+	}
+
+	code, stdout = runMain(t, "--version")
+	if code != output.ExitOK || !strings.Contains(stdout, "fluigcli test (commit abc123") {
+		t.Errorf("--version: exit=%d stdout=%q", code, stdout)
+	}
+}

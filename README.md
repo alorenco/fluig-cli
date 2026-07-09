@@ -86,9 +86,10 @@ fluigcli dataset export datasets/ds_clientes.js   # pede confirmação: producao
 
 ## Comandos
 
+**Desenvolvimento** — importar, publicar e acompanhar os artefatos da plataforma:
+
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `server` | `add` `list` `use` `update` `remove` `test` `logout` `install-helper` | [docs/server.md](docs/server.md) |
 | `dataset` | `list` `import` `export` `query` | [docs/dataset.md](docs/dataset.md) |
 | `event` | `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
@@ -96,7 +97,18 @@ fluigcli dataset export datasets/ds_clientes.js   # pede confirmação: producao
 | `workflow` | `version` `export` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
-| `watch` | publica ao salvar (só dev/hml; nunca cria artefato) | [docs/watch.md](docs/watch.md) |
+| `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
+
+**Configuração**:
+
+| Grupo | Comandos | Doc |
+|---|---|---|
+| `server` | `add` `list` `use` `update` `remove` `test` `logout` `install-helper` | [docs/server.md](docs/server.md) |
+
+**Adicionais**:
+
+| Grupo | Comandos | Doc |
+|---|---|---|
 | `skill` | `install` `show` | [docs/skill.md](docs/skill.md) |
 | — | `version` `upgrade` `completion` | [docs/upgrade.md](docs/upgrade.md) |
 
