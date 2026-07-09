@@ -16,6 +16,7 @@ import (
 
 func newDevCmd(app *App) *cobra.Command {
 	var (
+		listen        string
 		port          int
 		debounce      time.Duration
 		passwordStdin bool
@@ -34,8 +35,11 @@ func newDevCmd(app *App) *cobra.Command {
 			"    datasets do servidor real (DatasetFactory funciona com dados reais).\n" +
 			"  • Live reload: ao salvar em forms/ ou wcm/widget/, o navegador\n" +
 			"    recarrega sozinho.\n\n" +
-			"Segurança: escuta só em 127.0.0.1 — o proxy carrega a SUA sessão\n" +
-			"autenticada; não exponha a porta. Só roda em servidor dev ou hml.",
+			"Segurança: por padrão escuta só em 127.0.0.1 — o proxy carrega a SUA\n" +
+			"sessão autenticada; quem acessa a porta age no Fluig como você. Em\n" +
+			"servidor de desenvolvimento remoto, use --listen com um endereço de\n" +
+			"rede privada sua (ex.: o IP da máquina na tailnet) — nunca um IP\n" +
+			"público. Só roda em servidor dev ou hml.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -75,6 +79,7 @@ func newDevCmd(app *App) *cobra.Command {
 				Root:     root,
 				Upstream: client.BaseURL(),
 				Jar:      client.SessionJar(),
+				Host:     listen,
 				Port:     port,
 				Debounce: debounce,
 				Infof:    p.Infof,
@@ -85,6 +90,9 @@ func newDevCmd(app *App) *cobra.Command {
 			}
 
 			p.Successf("Dev server de %q em %s — Ctrl+C para parar.", server.Name, srv.URL())
+			if srv.ListensBeyondLoopback() {
+				p.Warnf("escutando fora do loopback (%s): quem alcança essa porta age no Fluig com a SUA sessão — use só em rede privada (tailnet/VPN), nunca em IP público", listen)
+			}
 			p.Infof("Portal via proxy:       %s/portal/p/%d/home", srv.URL(), server.CompanyID)
 			p.Infof("Preview de formulários: %s/_dev/forms/", srv.URL())
 			if mounts := srv.Mounts(); len(mounts) > 0 {
@@ -102,7 +110,8 @@ func newDevCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().IntVar(&port, "port", 8787, "porta local do dev server (escuta só em 127.0.0.1)")
+	cmd.Flags().StringVar(&listen, "listen", "127.0.0.1", "endereço de escuta — mude para um IP de rede privada (ex.: tailnet) ao desenvolver em servidor remoto")
+	cmd.Flags().IntVar(&port, "port", 8787, "porta do dev server")
 	cmd.Flags().DurationVar(&debounce, "debounce", 500*time.Millisecond, "espera após o salvamento antes de recarregar (agrupa rajadas do editor)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd

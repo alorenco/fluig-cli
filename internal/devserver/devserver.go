@@ -30,7 +30,8 @@ type Options struct {
 	Root     string         // raiz do projeto Fluig local
 	Upstream *url.URL       // URL base do servidor Fluig
 	Jar      http.CookieJar // sessão autenticada (compartilhada com o fluig.Client)
-	Port     int            // porta local (escuta apenas em 127.0.0.1)
+	Host     string         // endereço de escuta (padrão 127.0.0.1; ver ListensBeyondLoopback)
+	Port     int            // porta local
 	Debounce time.Duration  // espera após o salvamento antes de recarregar
 	Infof    func(format string, args ...any)
 	Warnf    func(format string, args ...any)
@@ -60,6 +61,9 @@ func New(opts Options) (*Server, error) {
 	if opts.Warnf == nil {
 		opts.Warnf = func(string, ...any) {}
 	}
+	if opts.Host == "" {
+		opts.Host = "127.0.0.1"
+	}
 	s := &Server{
 		opts:   opts,
 		mounts: newMountTable(opts.Root),
@@ -87,15 +91,28 @@ func New(opts Options) (*Server, error) {
 	return s, nil
 }
 
-// Addr é o endereço local de escuta (sempre loopback: o proxy carrega a
-// sessão autenticada do usuário e não pode ficar acessível na rede).
+// Addr é o endereço de escuta. O padrão é loopback: o proxy carrega a sessão
+// autenticada do usuário. Outro endereço (ex.: IP de tailnet num servidor de
+// desenvolvimento remoto) é escolha consciente de quem roda — a CLI avisa.
 func (s *Server) Addr() string {
-	return fmt.Sprintf("127.0.0.1:%d", s.opts.Port)
+	return net.JoinHostPort(s.opts.Host, fmt.Sprint(s.opts.Port))
 }
 
-// URL é a origem local que o navegador deve abrir.
+// URL é a origem que o navegador deve abrir.
 func (s *Server) URL() string {
 	return "http://" + s.Addr()
+}
+
+// ListensBeyondLoopback informa se o endereço de escuta é alcançável por
+// outras máquinas (qualquer coisa que não seja loopback) — quem acessa a
+// porta age no Fluig com a sessão do usuário, então isso merece aviso.
+func (s *Server) ListensBeyondLoopback() bool {
+	host := s.opts.Host
+	if strings.EqualFold(host, "localhost") {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip == nil || !ip.IsLoopback()
 }
 
 // Mounts descreve os map-locals ativos (para a CLI listar na largada).

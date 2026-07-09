@@ -46,9 +46,12 @@ modos de edição), continue com o `fluigcli watch` + F5.
 
 ## Segurança (por design)
 
-- **Escuta só em `127.0.0.1`** — o proxy carrega a SUA sessão autenticada;
-  quem acessa a porta age como você no Fluig. Não exponha a porta
-  (túnel/port-forward por sua conta e risco).
+- **Por padrão escuta só em `127.0.0.1`** — o proxy carrega a SUA sessão
+  autenticada; quem acessa a porta age como você no Fluig. Desenvolvendo em
+  servidor remoto (via SSH), use `--listen` com um endereço de rede privada
+  sua — ex.: o IP da máquina na tailnet (`fluigcli dev --listen 100.x.y.z`)
+  ou um túnel SSH (`ssh -L 8787:127.0.0.1:8787`). **Nunca** um IP público:
+  a CLI avisa sempre que o bind sai do loopback.
 - O navegador **nunca vê os cookies do Fluig**: a sessão mora no proxy; os
   `Set-Cookie` do servidor são absorvidos pelo jar da CLI.
 - **Só roda em servidor `dev` ou `hml`**, como o watch — produção é recusada
@@ -57,7 +60,10 @@ modos de edição), continue com o `fluigcli watch` + F5.
 
 ## Detalhes
 
-- `--port <n>` (padrão `8787`): porta local.
+- `--port <n>` (padrão `8787`): porta do dev server.
+- `--listen <addr>` (padrão `127.0.0.1`): endereço de escuta (ver Segurança).
+  A reescrita de URLs usa o Host de cada requisição — acessar pelo IP da
+  tailnet funciona sem configuração extra.
 - `--debounce <dur>` (padrão `500ms`): espera após o salvamento antes de
   recarregar, agrupando rajadas do editor.
 - O live reload observa `forms/` e `wcm/widget/` (SSE injetado nas páginas

@@ -107,7 +107,8 @@ prefira `diff` + `export`.
 |---|---|
 | `dev` | proxy local autenticado do portal: serve o JS/CSS das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` e recarrega o navegador ao salvar |
 
-Só roda em servidor `dev`/`hml`; escuta apenas em `127.0.0.1`; sem `--json`.
+Só roda em servidor `dev`/`hml`; escuta em `127.0.0.1` por padrão (`--listen`
+muda, com aviso — ex.: IP de tailnet em servidor remoto); sem `--json`.
 Não publica nada no servidor. Não é indicado para agentes — é para o humano
 ver o resultado no navegador; agentes usam `diff` + `export`.
 

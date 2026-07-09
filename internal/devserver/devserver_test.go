@@ -305,6 +305,37 @@ func TestFormPreview(t *testing.T) {
 	}
 }
 
+func TestListenAddr(t *testing.T) {
+	u, _ := url.Parse("http://fluig:8080")
+	jar, _ := cookiejar.New(nil)
+	newS := func(host string) *Server {
+		t.Helper()
+		s, err := New(Options{Root: t.TempDir(), Upstream: u, Jar: jar, Host: host, Port: 8787})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	// Padrão: loopback.
+	s := newS("")
+	if s.Addr() != "127.0.0.1:8787" || s.ListensBeyondLoopback() {
+		t.Errorf("padrão: addr=%q beyond=%v", s.Addr(), s.ListensBeyondLoopback())
+	}
+	for host, beyond := range map[string]bool{
+		"127.0.0.1": false, "localhost": false, "::1": false,
+		"100.101.102.103": true, // IP de tailnet
+		"0.0.0.0":         true,
+		"minha-maquina":   true, // hostname não-loopback: melhor avisar
+	} {
+		if got := newS(host).ListensBeyondLoopback(); got != beyond {
+			t.Errorf("ListensBeyondLoopback(%q) = %v, quer %v", host, got, beyond)
+		}
+	}
+	if addr := newS("::1").Addr(); addr != "[::1]:8787" {
+		t.Errorf("IPv6 addr = %q", addr)
+	}
+}
+
 func TestHub(t *testing.T) {
 	h := newHub()
 	a, b := h.subscribe(), h.subscribe()
