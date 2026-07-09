@@ -732,8 +732,11 @@ func newServerRemoveCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := app.Keyring.Delete(server.KeyringKey()); err != nil {
-				p.Warnf("não foi possível remover a senha do keyring: %v", err)
+			// Sem backend de keyring não há senha salva — não vale avisar.
+			if app.Keyring != nil && app.Keyring.Available() {
+				if err := app.Keyring.Delete(server.KeyringKey()); err != nil {
+					p.Warnf("não foi possível remover a senha do keyring: %v", err)
+				}
 			}
 			p.Successf("Servidor %q removido.", name)
 			p.Done(map[string]any{"removed": name})
