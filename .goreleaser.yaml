@@ -38,10 +38,9 @@ changelog:
       - "^test:"
       - "^ci:"
 
+# Release notes: o padrão do projeto é só a lista de títulos das melhorias
+# (ver CLAUDE.md "Processo de release") — sem footer de autoria/atualização;
+# o crédito e as instruções de instalação ficam no README.
 release:
   draft: false
   prerelease: auto
-  footer: |
-    ---
-    Projeto **não oficial** e de código aberto, sem vínculo com a TOTVS.
-    Criado e mantido por [Alessandro Lorençone](https://github.com/alorenco).
