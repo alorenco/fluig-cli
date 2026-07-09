@@ -22,6 +22,7 @@ func newFormCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newFormListCmd(app))
 	cmd.AddCommand(newFormImportCmd(app))
 	cmd.AddCommand(newFormExportCmd(app))
+	cmd.AddCommand(newFormLinkCmd(app))
 	return cmd
 }
 
@@ -354,7 +355,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 
 			// Criação.
 			if !app.confirmCreate(formName, markNew) {
-				return output.Usagef("formulário %q não existe no servidor; use --new para criá-lo (ou --name/--document-id para apontar um existente)", folderKey)
+				return output.Usagef("formulário %q não existe no servidor; use --new para criá-lo, --name/--document-id para apontar um existente, ou rode form link para vincular as pastas locais", folderKey)
 			}
 			if parentID == 0 {
 				return output.Usagef("--parent-id é obrigatório para criar um formulário (pasta do GED onde ele será salvo)")

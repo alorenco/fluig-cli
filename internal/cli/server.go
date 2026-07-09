@@ -445,6 +445,7 @@ func newServerAddCmd(app *App) *cobra.Command {
 				suffix = " — definido como padrão"
 			}
 			p.Successf("Servidor %q cadastrado (%s)%s.", server.Name, server.BaseURL(), suffix)
+			hintFormLink(app, p, &server)
 			p.Done(map[string]any{"server": server, "default": isDefault})
 			return nil
 		},
@@ -796,6 +797,7 @@ func newServerTestCmd(app *App) *cobra.Command {
 			} else {
 				p.Successf("Widget auxiliar (fluiggersWidget): ausente (instale com: fluigcli server install-helper %s)", server.Name)
 			}
+			hintFormLink(app, p, server)
 
 			p.Done(map[string]any{
 				"server":          server.Name,

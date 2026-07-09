@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // FormLink liga uma pasta local de formulário ao formulário no servidor.
@@ -103,6 +104,28 @@ func (m *FormMap) ByName(name string) (FormLink, bool) {
 		}
 	}
 	return FormLink{}, false
+}
+
+// FolderNameHint procura nos buckets dos OUTROS servidores o nome de
+// formulário já vinculado a esta pasta — a melhor pista para o mapeamento
+// inicial num servidor novo: o nome tende a ser igual entre ambientes, só o
+// documentId muda. Devolve o primeiro achado, em ordem estável de chave.
+func (m *FormMap) FolderNameHint(folder string) (name, serverKey string, ok bool) {
+	keys := make([]string, 0, len(m.file.Servers))
+	for k := range m.file.Servers {
+		if k != m.key {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		for _, l := range m.file.Servers[k] {
+			if l.Folder == folder && l.Name != "" {
+				return l.Name, k, true
+			}
+		}
+	}
+	return "", "", false
 }
 
 // Upsert insere ou atualiza o vínculo no servidor ativo, chaveado pela pasta.

@@ -33,6 +33,15 @@ pasta (ou `--name`/`--document-id`) e grava o vínculo daquele servidor.
 
 Para criar/inicializar o vínculo:
 
+- **`form link`** (recomendado ao configurar um servidor): percorre as pastas
+  de `forms/` sem vínculo e sugere o formulário correspondente — pelo nome já
+  vinculado à pasta em outro servidor (o caso "acabei de cadastrar a
+  produção"), pelo nome exato da pasta ou ignorando caixa. No modo
+  interativo, Enter aceita a sugestão, um termo busca na lista do servidor,
+  o número escolhe e `s` pula. `form link --auto` grava só as sugestões
+  inequívocas, sem prompt (com `--json`, para scripts e agentes). O
+  `server add`/`server test` lembram do comando quando o projeto tem
+  formulários sem vínculo no servidor;
 - no import: `--folder <pasta>` grava o formulário na pasta indicada;
 - no export: `--name "<nome no servidor>"` ou `--document-id <id>` apontam o alvo
   (e o vínculo fica salvo para as próximas vezes).

@@ -58,6 +58,7 @@ não-interativo (sem ele: exit 2).
 | `form list` | — | lista os formulários |
 | `form import <documentId\|nome>... \| --all` | servidor → local | baixa formulários para pastas locais (com anexos e eventos) |
 | `form export <pasta>` | local → servidor | envia um formulário local (cria nova versão) |
+| `form link --auto` | — | vincula pastas locais aos forms do servidor por nome (grava em .fluigcli/forms.json, por servidor); sem `--auto` é interativo (não use como agente) |
 
 ## workflow — scripts de eventos de processo
 
