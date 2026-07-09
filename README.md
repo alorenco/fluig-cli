@@ -74,14 +74,25 @@ fluigcli server add --name producao --host fluig.empresa.com.br --username admin
 # 2. Teste o acesso (login + ping + dados do usuário + status da widget auxiliar)
 fluigcli server test homolog
 
-# 3. Trabalhe com os artefatos — sem --server, vale o servidor padrão
-fluigcli dataset list
-fluigcli dataset import ds_clientes
-fluigcli dataset export datasets/ds_clientes.js
+# 3. Traga os artefatos do servidor para o projeto (import = servidor → local)
+fluigcli dataset import --all
+fluigcli form import "Solicitação de Compras"
+fluigcli event import --all
 
-# 4. Troque o padrão quando precisar (ou aponte pontualmente com --server)
-fluigcli server use producao
-fluigcli dataset export datasets/ds_clientes.js   # pede confirmação: producao é prod
+# 4. Desenvolva com deploy automático: cada salvamento publica na homologação
+#    (só roda em dev/hml; nunca cria artefato nem versão nova)
+fluigcli watch
+
+# 5. Ou no ritmo manual: confira o que mudaria e publique (export = local → servidor)
+fluigcli diff
+fluigcli dataset export datasets/ds_clientes.js
+fluigcli workflow export workflow/scripts/Compras.beforeTaskSave.js
+
+# 6. Na hora de ir para produção, a trava pede confirmação antes de escrever
+fluigcli dataset export datasets/ds_clientes.js --server producao
+
+# 7. Em scripts, CI e agentes de IA: --json + exit codes estáveis
+fluigcli diff --json | jq '.data.counts'
 ```
 
 ## Comandos

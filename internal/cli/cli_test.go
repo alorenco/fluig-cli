@@ -206,7 +206,7 @@ func TestHelpMostraVersaoEGrupos(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Versão:", "fluigcli test",
-		"Comandos de desenvolvimento:", "Configuração:", "Comandos adicionais:",
+		"Desenvolvimento:", "Configuração:", "Adicionais:",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("help sem %q:\n%s", want, stdout)
@@ -214,7 +214,10 @@ func TestHelpMostraVersaoEGrupos(t *testing.T) {
 	}
 
 	code, stdout = runMain(t, "--version")
-	if code != output.ExitOK || !strings.Contains(stdout, "fluigcli test (commit abc123") {
+	if code != output.ExitOK || !strings.Contains(stdout, "fluigcli test") {
 		t.Errorf("--version: exit=%d stdout=%q", code, stdout)
+	}
+	if strings.Contains(stdout, "commit") {
+		t.Errorf("--version não deveria mostrar commit/build: %q", stdout)
 	}
 }

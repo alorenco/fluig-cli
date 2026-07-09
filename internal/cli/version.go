@@ -11,7 +11,7 @@ func newVersionCmd(app *App) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			p.Successf("fluigcli %s (commit %s, build %s)", app.Version, app.Commit, app.Date)
+			p.Successf("fluigcli %s", app.Version)
 			p.Done(map[string]string{
 				"version": app.Version,
 				"commit":  app.Commit,

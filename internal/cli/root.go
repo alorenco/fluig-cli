@@ -156,8 +156,7 @@ func newRootCmd(app *App) *cobra.Command {
 		Use:   "fluigcli",
 		Short: "CLI não oficial para desenvolvimento TOTVS Fluig",
 		Long: "CLI não oficial para desenvolvimento TOTVS Fluig.\n\n" +
-			"Versão:\n  fluigcli " + app.Version + " " + runtime.GOOS + "-" + runtime.GOARCH +
-			" (commit " + app.Commit + ", build " + app.Date + ")",
+			"Versão:\n  fluigcli " + app.Version + " " + runtime.GOOS + "-" + runtime.GOARCH,
 		Version:       app.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -165,9 +164,9 @@ func newRootCmd(app *App) *cobra.Command {
 			return app.applyEnvDefaults(cmd)
 		},
 	}
-	root.SetVersionTemplate("fluigcli " + app.Version + " (commit " + app.Commit + ", build " + app.Date + ")\n")
+	root.SetVersionTemplate("fluigcli " + app.Version + "\n")
 	root.AddGroup(
-		&cobra.Group{ID: groupDev, Title: "Comandos de desenvolvimento:"},
+		&cobra.Group{ID: groupDev, Title: "Desenvolvimento:"},
 		&cobra.Group{ID: groupConfig, Title: "Configuração:"},
 	)
 
