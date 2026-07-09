@@ -16,19 +16,33 @@ func newCompletionCmd() *cobra.Command {
 		Short: "Gera o script de autocompletar para o shell indicado",
 		Long: `Gera o script de autocompletar do fluigcli.
 
+Escolha a seção do SEU shell — cada comando serve a um shell específico.
+No Windows (PowerShell), use a seção PowerShell; a linha do Bash com
+"source <(...)" NÃO funciona no PowerShell.
+
 Bash:
-  fluigcli completion bash | sudo tee /etc/bash_completion.d/fluigcli > /dev/null
-  # ou, na sessão atual:
+  # na sessão atual:
   source <(fluigcli completion bash)
+  # de forma permanente (Linux; exige o pacote bash-completion):
+  fluigcli completion bash | sudo tee /etc/bash_completion.d/fluigcli > /dev/null
 
 Zsh:
+  # na sessão atual:
+  source <(fluigcli completion zsh)
+  # de forma permanente:
   fluigcli completion zsh > "${fpath[1]}/_fluigcli"
 
 Fish:
+  # na sessão atual:
+  fluigcli completion fish | source
+  # de forma permanente:
   fluigcli completion fish > ~/.config/fish/completions/fluigcli.fish
 
 PowerShell:
-  fluigcli completion powershell | Out-String | Invoke-Expression`,
+  # na sessão atual:
+  fluigcli completion powershell | Out-String | Invoke-Expression
+  # de forma permanente (adiciona ao seu perfil do PowerShell):
+  fluigcli completion powershell >> $PROFILE`,
 		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -44,12 +44,6 @@ de Releases e coloque no `PATH` — ou compile do código-fonte (Go ≥ 1.26):
 go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest
 ```
 
-Autocompletar (bash/zsh/fish/powershell):
-
-```sh
-source <(fluigcli completion bash)      # veja: fluigcli completion --help
-```
-
 ## Atualização
 
 A própria CLI se atualiza — baixa a última release, confere o checksum e
