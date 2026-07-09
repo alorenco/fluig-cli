@@ -36,8 +36,9 @@ func newUpgradeCmd(app *App) *cobra.Command {
 	var targetVersion string
 	var checkOnly bool
 	cmd := &cobra.Command{
-		Use:   "upgrade",
-		Short: "Atualiza o fluigcli para a última versão",
+		Use:     "upgrade",
+		Aliases: []string{"update"},
+		Short:   "Atualiza o fluigcli para a última versão",
 		Long: "Baixa a release do GitHub, confere o checksum e substitui o próprio binário.\n\n" +
 			"Sem flags, instala a última versão publicada. Use --version para instalar uma\n" +
 			"versão específica (inclusive mais antiga) e --check para só consultar.\n\n" +

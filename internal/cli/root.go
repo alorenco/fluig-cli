@@ -144,8 +144,7 @@ func mapFluigError(err error) error {
 	return output.ServerErrorf("%s", err.Error()).WithCause(err)
 }
 
-// Grupos de comandos do help (a visão completa tem ainda os grupos
-// administrativo e operacional, planejados na SPEC §10).
+// Grupos de comandos do help.
 const (
 	groupDev    = "dev"
 	groupConfig = "config"
