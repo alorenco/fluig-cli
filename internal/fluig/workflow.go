@@ -11,6 +11,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 )
@@ -116,7 +117,18 @@ func parseProcessEventScripts(zipData []byte) (map[string]string, error) {
 // A varredura é tolerante a namespace e caixa — o XML é gerado pelo servidor e
 // não temos um schema publicado.
 func parseProcessDefinitionEvents(data []byte) (map[string]string, error) {
+	// O servidor exporta o XML em ISO-8859-1 (validado na homologação: bytes
+	// fora de UTF-8 quebravam o decoder). Normaliza para UTF-8 antes do parse;
+	// como Latin-1 mapeia byte a byte para os mesmos code points, a conversão
+	// é sem perdas. Depois disso o CharsetReader só precisa aceitar o rótulo
+	// declarado (ex.: encoding="ISO-8859-1") sem reconverter nada.
+	if !utf8.Valid(data) {
+		data = latin1ToUTF8(data)
+	}
 	dec := xml.NewDecoder(bytes.NewReader(data))
+	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		return input, nil
+	}
 	byVersion := map[int]map[string]string{}
 	maxVersion := 0
 	for {
@@ -151,6 +163,16 @@ func parseProcessDefinitionEvents(data []byte) (map[string]string, error) {
 		events = map[string]string{}
 	}
 	return events, nil
+}
+
+// latin1ToUTF8 reencoda ISO-8859-1 → UTF-8 (cada byte é o próprio code point).
+func latin1ToUTF8(b []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(b) + len(b)/8)
+	for _, c := range b {
+		out.WriteRune(rune(c))
+	}
+	return out.Bytes()
 }
 
 // decodeProcessEvent consome o subárvore de um <WorkflowProcessEvent> já

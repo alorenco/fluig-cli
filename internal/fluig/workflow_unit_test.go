@@ -3,6 +3,7 @@ package fluig
 import (
 	"archive/zip"
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +84,28 @@ func TestParseProcessEventScriptsSemEventos(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Errorf("processo sem eventos deveria dar mapa vazio, veio %v", events)
+	}
+}
+
+// Regressão da homologação (2026-07-09): o servidor exporta o XML em
+// ISO-8859-1 — acentos viravam "invalid UTF-8" no decoder. O parser precisa
+// normalizar para UTF-8 e aceitar o encoding declarado.
+func TestParseProcessEventScriptsISO88591(t *testing.T) {
+	xmlLatin1 := `<?xml version="1.0" encoding="ISO-8859-1"?>
+<ProcessDefinition>
+  <WorkflowProcessEvent>
+    <workflowProcessEventPK>
+      <version>2</version><eventId>beforeTaskSave</eventId>
+    </workflowProcessEventPK>
+    <eventDescription>function beforeTaskSave(){ /* aprova` + "\xe7\xe3o" + ` */ }</eventDescription>
+  </WorkflowProcessEvent>
+</ProcessDefinition>`
+	events, err := parseProcessEventScripts(zipWithXML(t, "P.xml", xmlLatin1))
+	if err != nil {
+		t.Fatalf("XML ISO-8859-1 deveria ser aceito: %v", err)
+	}
+	if got := events["beforeTaskSave"]; !strings.Contains(got, "aprovação") {
+		t.Errorf("acentos Latin-1 não convertidos: %q", got)
 	}
 }
 
