@@ -276,6 +276,46 @@ func TestServerListPadraoImplicitoUnico(t *testing.T) {
 	}
 }
 
+// Com 2+ servidores e nenhum padrão definido, o list orienta o usuário a fixar
+// um com "server use" (antes ficava sem marcador e sem nenhuma dica).
+func TestServerListSemPadraoOrienta(t *testing.T) {
+	proj := projWithServers(t, doisServidores()...)
+	code, stdout := runMain(t, "server", "list", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	if strings.Contains(stdout, "●") {
+		t.Errorf("sem padrão não deveria haver marcador:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Nenhum servidor padrão definido") {
+		t.Errorf("list sem padrão deveria orientar a fixar um:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "server use") {
+		t.Errorf("orientação deveria citar o comando server use:\n%s", stdout)
+	}
+}
+
+// O servidor padrão sempre aparece antes dos demais, independentemente da ordem
+// de cadastro.
+func TestServerListPadraoAparecePrimeiro(t *testing.T) {
+	proj := projWithServers(t, doisServidores()...) // hml, producao (nessa ordem)
+	if _, err := config.NewStore(proj).SetDefault("producao", false); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout := runMain(t, "server", "list", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	iProd := strings.Index(stdout, "producao")
+	iHml := strings.Index(stdout, "hml")
+	if iProd == -1 || iHml == -1 {
+		t.Fatalf("saída não lista os dois servidores:\n%s", stdout)
+	}
+	if iProd > iHml {
+		t.Errorf("o padrão \"producao\" deveria aparecer antes de \"hml\":\n%s", stdout)
+	}
+}
+
 func TestServerListMostraPadrao(t *testing.T) {
 	proj := projWithServers(t, doisServidores()...)
 	if _, err := config.NewStore(proj).SetDefault("hml", false); err != nil {

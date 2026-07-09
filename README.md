@@ -125,7 +125,8 @@ A CLI opera sobre um diretório com a convenção de projetos Fluig:
 
 ```
 projeto/
-├── .fluigcli/servers.json         # servidores (sem senha; versionável)
+├── .fluigcli/servers.json         # conexão dos servidores (sem senha; versionável)
+├── .fluigcli/servers.local.json   # sua identidade + padrão (git-ignorado)
 ├── datasets/<nome>.js
 ├── events/<nome>.js
 ├── forms/<NomeForm>/{<html>, *.js, events/<evento>.js}
@@ -194,8 +195,12 @@ nem sobrescreve arquivos que você editou, salvo com `--force`). Ver
 
 A senha **nunca** é gravada em arquivo nem aceita como argumento de linha de
 comando. Ordem de resolução: `--password-stdin` → `FLUIGCLI_PASSWORD` → keyring
-do SO → prompt interativo (com oferta de salvar no keyring). Detalhes em
-[docs/server.md](docs/server.md).
+do SO → prompt interativo (com oferta de salvar no keyring).
+
+No projeto, a **conexão** dos servidores é versionável (`.fluigcli/servers.json`)
+mas sua **identidade** (usuário) e seu **padrão** ficam num arquivo pessoal
+git-ignorado (`.fluigcli/servers.local.json`) — assim commitar a config não impõe
+seu login ao time. Detalhes em [docs/server.md](docs/server.md).
 
 ## Desenvolvimento
 

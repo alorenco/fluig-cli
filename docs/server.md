@@ -13,8 +13,7 @@ A ordem de resolução do servidor alvo é:
 
 1. argumento posicional (`server test homolog`)
 2. `--server <nome>` ou `FLUIGCLI_SERVER`
-3. padrão do **projeto** (`.fluigcli/servers.json`, versionável — o time
-   compartilha)
+3. padrão do **projeto** (pessoal, em `.fluigcli/servers.local.json`)
 4. padrão **global** (preferência pessoal)
 5. único servidor cadastrado
 6. seleção interativa (que oferece fixar a escolha como padrão)
@@ -34,13 +33,32 @@ flag de distância, mas o acidental morre na praia.
 
 ## Onde a configuração fica
 
-| Arquivo | Escopo | Precedência |
-|---|---|---|
-| `<projeto>/.fluigcli/servers.json` | por projeto (versionável em Git) | maior |
-| `~/.config/fluigcli/servers.json` (Linux/macOS) · `%APPDATA%\fluigcli\servers.json` (Windows) | global | menor |
+A configuração do **projeto** separa o que é do time do que é seu: o
+`servers.json` é versionável e guarda só a **conexão**; sua **identidade**
+(usuário) e seu **padrão** ficam num arquivo pessoal, git-ignorado.
 
-O arquivo **nunca** contém senha — apenas metadados (host, porta, usuário,
-companyId). Por isso é seguro commitá-lo no repositório do projeto.
+| Arquivo | Escopo | Conteúdo | Precedência |
+|---|---|---|---|
+| `<projeto>/.fluigcli/servers.json` | projeto (versionável em Git) | conexão do time (host, porta, ssl, companyId, env) | maior |
+| `<projeto>/.fluigcli/servers.local.json` | projeto (**git-ignorado**) | sua identidade por servidor + seu padrão | — |
+| `~/.config/fluigcli/servers.json` · `%APPDATA%\fluigcli\servers.json` (Windows) | global | servidor completo + padrão (pessoal) | menor |
+
+Nenhum arquivo **jamais** contém senha. Como o `servers.json` do projeto não
+carrega usuário nem padrão pessoal, é seguro commitá-lo: cada pessoa do time põe
+o próprio usuário no `servers.local.json` (o `server add` já cria a entrada no
+`.gitignore`). Arquivos no formato antigo (com usuário embutido) continuam sendo
+lidos.
+
+### Sua identidade num servidor compartilhado
+
+Ao usar um servidor que veio do repositório (sem identidade local ainda), a CLI
+resolve o **usuário** nesta ordem:
+
+1. overlay local (`servers.local.json`) — gravado quando você informa uma vez;
+2. servidor global de mesmo nome, se houver;
+3. `FLUIGCLI_USERNAME` (útil em CI/não-interativo);
+4. prompt interativo (a resposta é salva no overlay local);
+5. sem nada disso em modo não-interativo → exit `2`, orientando a definir.
 
 ## Onde a senha fica (ordem de resolução)
 
@@ -51,7 +69,7 @@ companyId). Por isso é seguro commitá-lo no repositório do projeto.
 1. `--password-stdin` — senha lida do stdin (scripts e agentes)
 2. `FLUIGCLI_PASSWORD` — variável de ambiente (vale para o servidor selecionado)
 3. Keyring do SO (Windows Credential Manager, macOS Keychain, Secret Service no Linux),
-   gravada pelo `server add`
+   gravada pelo `server add` e chaveada por `baseURL|usuário`
 4. Prompt interativo (com oferta de salvar no keyring, quando ele existe)
 5. Nenhuma disponível em modo não-interativo → exit `3`
 
@@ -100,15 +118,16 @@ fluigcli server add --name homolog --host fluig-homolog.empresa.com.br \
 ### `fluigcli server list`
 
 Lista os servidores visíveis (projeto + global, com o projeto sobrepondo nomes
-repetidos). O `*` marca o padrão; a segunda coluna é o ambiente. No `--json`,
-o campo `default` traz o nome do padrão.
+repetidos), em tabela. O padrão aparece **primeiro** e marcado com `●`; sem
+padrão definido, a saída orienta a fixar um com `server use`. No `--json`, o
+campo `default` traz o nome do padrão.
 
 ### `fluigcli server use [<name>]`
 
 Define o servidor padrão. Sem `<name>`, lista e deixa escolher (interativo).
 
 ```sh
-fluigcli server use producao            # padrão do projeto (vai para o git)
+fluigcli server use producao            # padrão pessoal do projeto (git-ignorado)
 fluigcli server use homolog --global    # preferência pessoal, fora do projeto
 ```
 

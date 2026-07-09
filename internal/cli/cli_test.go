@@ -163,17 +163,18 @@ func TestServerTestRemovesBadKeyringPassword(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv(config.EnvPassword, "") // sem env var: força o degrau do keyring
 
-	const serverID = "kr-test-id"
 	server := config.Server{
-		ID: serverID, Name: "homolog", Host: u.Hostname(), Port: port,
+		Name: "homolog", Host: u.Hostname(), Port: port,
 		SSL: false, Username: "user-kr", CompanyID: 1,
 	}
 	if err := config.NewStore(proj).Add(server, false); err != nil {
 		t.Fatal(err)
 	}
 
-	// Keyring pré-carregado com a senha ERRADA (como no cenário reportado).
-	kr := &memKeyring{m: map[string]string{serverID: "senha-errada"}}
+	// Keyring pré-carregado com a senha ERRADA (como no cenário reportado),
+	// chaveado por baseURL+usuário (a chave estável de KeyringKey).
+	key := server.KeyringKey()
+	kr := &memKeyring{m: map[string]string{key: "senha-errada"}}
 	old := newKeyring
 	newKeyring = func() config.Keyring { return kr }
 	defer func() { newKeyring = old }()
@@ -182,7 +183,7 @@ func TestServerTestRemovesBadKeyringPassword(t *testing.T) {
 	if code != output.ExitAuth {
 		t.Errorf("exit = %d, quer %d (AUTH_FAILED)", code, output.ExitAuth)
 	}
-	if _, ainda := kr.m[serverID]; ainda {
+	if _, ainda := kr.m[key]; ainda {
 		t.Errorf("a senha errada deveria ter sido removida do keyring, mas continua lá")
 	}
 }

@@ -136,8 +136,8 @@ func (m *mockKeyring) Available() bool        { return m.err == nil }
 
 // Ordem de precedência da senha.
 func TestPasswordPrecedence(t *testing.T) {
-	server := &Server{ID: "s1", Name: "homolog"}
-	kr := &mockKeyring{data: map[string]string{"s1": "do-keyring"}}
+	server := &Server{Name: "homolog", Host: "h", Port: 80, Username: "u"}
+	kr := &mockKeyring{data: map[string]string{server.KeyringKey(): "do-keyring"}}
 	env := func(k string) string {
 		if k == EnvPassword {
 			return "da-env"
@@ -206,7 +206,8 @@ func TestPasswordPrecedence(t *testing.T) {
 // que só deve ser chamada após a autenticação dar certo (para nunca persistir
 // uma senha errada). Regressão do bug achado na validação da Fase 0.
 func TestPasswordSaveIsDeferred(t *testing.T) {
-	server := &Server{ID: "s2", Name: "homolog"}
+	server := &Server{Name: "homolog", Host: "h", Port: 80, Username: "u"}
+	key := server.KeyringKey()
 	kr := &mockKeyring{data: map[string]string{}}
 	src := PasswordSource{
 		Getenv:  func(string) string { return "" },
@@ -217,13 +218,13 @@ func TestPasswordSaveIsDeferred(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, saved := kr.data["s2"]; saved {
+	if _, saved := kr.data[key]; saved {
 		t.Error("Resolve não pode gravar no keyring antes da validação")
 	}
 	if err := res.SaveIfRequested(); err != nil {
 		t.Fatal(err)
 	}
-	if kr.data["s2"] != "nova" {
+	if kr.data[key] != "nova" {
 		t.Errorf("SaveIfRequested deveria gravar a senha, keyring=%+v", kr.data)
 	}
 }

@@ -11,6 +11,10 @@ import (
 // EnvPassword é a variável de ambiente de senha (vale para o servidor selecionado).
 const EnvPassword = "FLUIGCLI_PASSWORD"
 
+// EnvUsername informa o usuário quando não há identidade cadastrada no overlay
+// local nem no global (útil em CI/não-interativo, onde não há prompt).
+const EnvUsername = "FLUIGCLI_USERNAME"
+
 // Source identifica de onde a senha resolvida veio.
 type Source int
 
@@ -73,10 +77,10 @@ func (ps PasswordSource) Resolve(server *Server) (*PasswordResult, error) {
 		}
 	}
 
-	if ps.Keyring != nil && ps.Keyring.Available() && server.ID != "" {
+	if key := server.KeyringKey(); ps.Keyring != nil && ps.Keyring.Available() && key != "" {
 		// Keyring indisponível (ex.: Linux headless) é ignorado em silêncio: a
 		// resolução segue para o prompt/erro sem poluir a saída.
-		if pw, err := ps.Keyring.Get(server.ID); err == nil && pw != "" {
+		if pw, err := ps.Keyring.Get(key); err == nil && pw != "" {
 			return &PasswordResult{Password: pw, Source: SourceKeyring}, nil
 		}
 	}
@@ -91,7 +95,7 @@ func (ps PasswordSource) Resolve(server *Server) (*PasswordResult, error) {
 			Source:   SourcePrompt,
 			save:     save,
 			keyring:  ps.Keyring,
-			serverID: server.ID,
+			serverID: server.KeyringKey(),
 		}, nil
 	}
 

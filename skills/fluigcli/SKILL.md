@@ -43,6 +43,11 @@ ordem: `--password-stdin` → `FLUIGCLI_PASSWORD` → keyring do SO → prompt. 
 agente/CI use uma das duas primeiras. A **sessão é reaproveitada entre execuções**
 (cache em disco), então normalmente a senha só é usada no primeiro comando.
 
+Num projeto compartilhado, o `.fluigcli/servers.json` (versionável) guarda só a
+conexão — o **usuário** vem do overlay pessoal `.fluigcli/servers.local.json`
+(git-ignorado). Se ele não existe (ex.: repo recém-clonado no CI), defina
+`FLUIGCLI_USERNAME` para não travar em modo não-interativo.
+
 ```sh
 # 1) cadastrar o servidor uma vez (metadados; senha vai para o keyring se houver)
 echo "$SENHA" | fluigcli server add --name homolog \

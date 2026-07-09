@@ -4,10 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -367,7 +371,6 @@ func newServerAddCmd(app *App) *cobra.Command {
 			}
 
 			server := config.Server{
-				ID:        config.NewServerID(),
 				Name:      name,
 				Host:      host,
 				Port:      port,
@@ -390,7 +393,7 @@ func newServerAddCmd(app *App) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if err := app.Keyring.Set(server.ID, pw.Password); err != nil {
+				if err := app.Keyring.Set(server.KeyringKey(), pw.Password); err != nil {
 					p.Warnf("não foi possível salvar a senha no keyring: %v", err)
 				}
 			case interactive:
@@ -399,7 +402,7 @@ func newServerAddCmd(app *App) *cobra.Command {
 					return err
 				}
 				if pw != "" {
-					if err := app.Keyring.Set(server.ID, pw); err != nil {
+					if err := app.Keyring.Set(server.KeyringKey(), pw); err != nil {
 						p.Warnf("não foi possível salvar a senha no keyring: %v", err)
 					}
 				}
@@ -409,6 +412,15 @@ func newServerAddCmd(app *App) *cobra.Command {
 
 			if err := app.Store().Add(server, global); err != nil {
 				return err
+			}
+
+			// Em projeto, a identidade foi para o overlay pessoal (git-ignorado)
+			// e só a conexão ao servers.json versionável — garante o .gitignore.
+			if !global && app.ProjectRoot() != "" {
+				if err := ensureLocalGitignore(app.ProjectRoot()); err != nil {
+					p.Warnf("não foi possível atualizar o .gitignore: %v", err)
+				}
+				p.Infof("Conexão salva em .fluigcli/servers.json (versionável); seu usuário em .fluigcli/servers.local.json (git-ignorado).")
 			}
 
 			// Primeiro servidor cadastrado vira padrão sem perguntar; nos
@@ -458,9 +470,9 @@ func newServerUseCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "use [<name>]",
 		Short: "Define o servidor padrão (usado quando --server não é informado)",
-		Long: "Grava o servidor padrão no servers.json do projeto — versionável, então o\n" +
-			"time compartilha o mesmo padrão — ou no global com --global (preferência\n" +
-			"pessoal). O padrão do projeto vence o global; --server e FLUIGCLI_SERVER\n" +
+		Long: "Grava o servidor padrão no servers.local.json do projeto — pessoal e\n" +
+			"git-ignorado, então seu padrão não vaza para o time — ou no global com\n" +
+			"--global. O padrão do projeto vence o global; --server e FLUIGCLI_SERVER\n" +
 			"continuam vencendo tudo, por execução.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -579,6 +591,35 @@ func newServerUpdateCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// ensureLocalGitignore garante que .fluigcli/servers.local.json (identidade
+// pessoal) esteja no .gitignore do projeto — para não ser versionado por engano.
+// Idempotente: não duplica a entrada nem sobrescreve o resto do arquivo.
+func ensureLocalGitignore(projectRoot string) error {
+	const entry = ".fluigcli/servers.local.json"
+	path := filepath.Join(projectRoot, ".gitignore")
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == entry {
+			return nil // já ignorado
+		}
+	}
+	prefix := ""
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		prefix = "\n"
+	}
+	block := prefix + "\n# fluigcli: identidade pessoal (não versionar)\n" + entry + "\n"
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(block)
+	return err
+}
+
 // stripScheme remove http(s):// e barras finais de um host informado por engano.
 func stripScheme(host string) string {
 	host = strings.TrimPrefix(host, "https://")
@@ -618,8 +659,9 @@ func newServerListCmd(app *App) *cobra.Command {
 }
 
 // renderServerTable imprime os servidores em uma tabela com bordas; marca o
-// padrão com "●" e, em terminal, colore cabeçalho e marcador. Fora de terminal
-// (pipe/redirecionamento) sai sem cores, preservando o texto legível.
+// padrão com "●", ordena-o em primeiro e, em terminal, colore cabeçalho e
+// marcador. Fora de terminal (pipe/redirecionamento) sai sem cores, preservando
+// o texto legível.
 func renderServerTable(p *output.Printer, servers []config.Server, def string) {
 	// Padrão efetivo: o explícito (server use) ou, se não houver, o único
 	// cadastrado — que a CLI usa implicitamente (mesma regra do resolveServer).
@@ -628,10 +670,17 @@ func renderServerTable(p *output.Printer, servers []config.Server, def string) {
 		effectiveDef, implicit = servers[0].Name, true
 	}
 
+	// O padrão sempre aparece primeiro; os demais mantêm a ordem de cadastro.
+	ordered := make([]config.Server, len(servers))
+	copy(ordered, servers)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].Name == effectiveDef && ordered[j].Name != effectiveDef
+	})
+
 	headers := []string{"", "Nome", "Ambiente", "URL", "Usuário", "Company"}
-	rows := make([][]string, 0, len(servers))
+	rows := make([][]string, 0, len(ordered))
 	defaultIdx := -1
-	for i, s := range servers {
+	for i, s := range ordered {
 		marker := ""
 		if s.Name == effectiveDef {
 			marker = "●"
@@ -666,6 +715,10 @@ func renderServerTable(p *output.Printer, servers []config.Server, def string) {
 		p.Infof("● = servidor padrão (único cadastrado) · fixe outro com: fluigcli server use")
 	case effectiveDef != "":
 		p.Infof("● = servidor padrão · troque com: fluigcli server use")
+	default:
+		// 2+ servidores e nenhum padrão definido: sem padrão, todo comando
+		// precisa de --server. Orienta a fixar um.
+		p.Infof("Nenhum servidor padrão definido — fixe um com: fluigcli server use <nome> (ex.: fluigcli server use %s)", ordered[0].Name)
 	}
 }
 
@@ -686,7 +739,7 @@ func newServerRemoveCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := app.Keyring.Delete(server.ID); err != nil {
+			if err := app.Keyring.Delete(server.KeyringKey()); err != nil {
 				p.Warnf("não foi possível remover a senha do keyring: %v", err)
 			}
 			p.Successf("Servidor %q removido.", name)
