@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/alorenco/fluig-cli/internal/fluig/soap"
@@ -22,19 +23,73 @@ const (
 	datasetTypeCustom    = "CUSTOM"
 )
 
-// DatasetSummary é um dataset listado por findAllFormulariesDatasets.
+// DatasetSummary é um dataset listado pela API REST v2 de datasets. Desde
+// 2026-07-09 (troca do SOAP findAllFormulariesDatasets pela REST v2) não há
+// mais o campo "version" — a API nova não o expõe; em compensação vieram
+// description, active e draft.
 type DatasetSummary struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Version int    `json:"version"`
-	Custom  bool   `json:"custom"`
+	ID          string `json:"id"`
+	Type        string `json:"type"` // CUSTOM | BUILTIN | GENERATED
+	Custom      bool   `json:"custom"`
+	Description string `json:"description"`
+	Active      bool   `json:"active"`
+	Draft       bool   `json:"draft"`
 }
 
-// ListDatasets retorna os datasets do servidor (SOAP findAllFormulariesDatasets).
+// ListDatasets retorna os datasets do servidor pela REST v2 (paginada). Se o
+// módulo /dataset não existir no servidor (Fluig antigo → 404), cai para o
+// SOAP findAllFormulariesDatasets (sem description/active/draft).
 func (c *Client) ListDatasets(ctx context.Context) ([]DatasetSummary, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
+	const pageSize = 100
+	var out []DatasetSummary
+	for page := 1; ; page++ {
+		endpoint := c.url("/dataset/api/v2/datasets") +
+			"?page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status == http.StatusNotFound && page == 1 {
+			return c.listDatasetsSOAP(ctx)
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: "dataset/api/v2/datasets", Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Items []struct {
+				DatasetID          string `json:"datasetId"`
+				DatasetDescription string `json:"datasetDescription"`
+				Type               string `json:"type"`
+				Custom             bool   `json:"custom"`
+				Active             bool   `json:"active"`
+				Draft              bool   `json:"draft"`
+			} `json:"items"`
+			HasNext bool `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de dataset/api/v2/datasets: %w", err)
+		}
+		for _, it := range parsed.Items {
+			out = append(out, DatasetSummary{
+				ID:          it.DatasetID,
+				Type:        it.Type,
+				Custom:      it.Custom,
+				Description: it.DatasetDescription,
+				Active:      it.Active,
+				Draft:       it.Draft,
+			})
+		}
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
+}
+
+// listDatasetsSOAP é o fallback para servidores sem a REST v2 de datasets.
+func (c *Client) listDatasetsSOAP(ctx context.Context) ([]DatasetSummary, error) {
 	reqBody, err := soap.BuildFindAllDatasets(int64(c.opts.CompanyID), c.opts.Username, c.opts.Password)
 	if err != nil {
 		return nil, err
@@ -50,10 +105,10 @@ func (c *Client) ListDatasets(ctx context.Context) ([]DatasetSummary, error) {
 	out := make([]DatasetSummary, 0, len(items))
 	for _, it := range items {
 		out = append(out, DatasetSummary{
-			ID:      it.DatasetID,
-			Type:    it.Type,
-			Version: it.Version,
-			Custom:  strings.EqualFold(it.Type, datasetTypeCustom),
+			ID:     it.DatasetID,
+			Type:   it.Type,
+			Custom: strings.EqualFold(it.Type, datasetTypeCustom),
+			Active: true, // o SOAP não informa; lista só o que existe
 		})
 	}
 	return out, nil
@@ -154,24 +209,112 @@ func (c *Client) UpdateDataset(ctx context.Context, loaded *Dataset, impl string
 	return c.postDatasetWrite(ctx, "editDataset?confirmnewstructure=false", raw)
 }
 
-// QueryDataset executa getDataset (SOAP) e retorna colunas + linhas.
-func (c *Client) QueryDataset(ctx context.Context, name string, fields []string, constraints []soap.Constraint, order []string) (*soap.DatasetResult, error) {
+// DatasetConstraint é um filtro do dataset-handle/search (equivalente ao
+// constraint do getDataset SOAP).
+type DatasetConstraint struct {
+	Field   string
+	Initial string
+	Final   string
+	Type    string // MUST | MUST_NOT | SHOULD (vazio = MUST)
+	Like    bool
+}
+
+// DatasetQuery parametriza uma consulta de valores de dataset.
+type DatasetQuery struct {
+	Fields      []string
+	Constraints []DatasetConstraint
+	OrderBy     string // um único campo; sufixo _ASC/_DESC opcional
+	Limit       int    // 0 = todas as linhas (pagina com offset por baixo)
+	Offset      int
+}
+
+// DatasetResult é o resultado da consulta: colunas + linhas (valor nil =
+// campo ausente naquela linha).
+type DatasetResult struct {
+	Columns []string
+	Rows    []map[string]*string
+}
+
+// datasetHandleMaxPage é o teto por requisição do dataset-handle/search — o
+// servidor aplica 300 quando limit não é enviado, mas aceita valores maiores.
+const datasetHandleMaxPage = 500
+
+// QueryDataset consulta os valores de um dataset pela REST v2
+// (dataset-handle/search — substituiu o SOAP getDataset em 2026-07-09, que
+// respondia EOF na homologação). Com Limit=0, pagina com offset até o fim.
+// ⚠️ Validado na homologação: dataset inexistente (ou consulta inválida)
+// responde 200 com columns/values null → ErrNotFound; dataset vazio responde
+// arrays vazios.
+func (c *Client) QueryDataset(ctx context.Context, name string, q DatasetQuery) (*DatasetResult, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
-	reqBody, err := soap.BuildGetDataset(int64(c.opts.CompanyID), c.opts.Username, c.opts.Password, name, fields, constraints, order)
-	if err != nil {
-		return nil, err
+	res := &DatasetResult{}
+	offset, remaining := q.Offset, q.Limit
+	for {
+		pageLimit := datasetHandleMaxPage
+		if remaining > 0 && remaining < pageLimit {
+			pageLimit = remaining
+		}
+		params := url.Values{}
+		params.Set("datasetId", name)
+		for _, f := range q.Fields {
+			params.Add("field", f)
+		}
+		for _, cons := range q.Constraints {
+			typ := cons.Type
+			if typ == "" {
+				typ = "MUST"
+			}
+			final := cons.Final
+			if final == "" {
+				final = cons.Initial
+			}
+			params.Add("constraintsField", cons.Field)
+			params.Add("constraintsInitialValue", cons.Initial)
+			params.Add("constraintsFinalValue", final)
+			params.Add("constraintsType", typ)
+			params.Add("constraintsLikeSearch", strconv.FormatBool(cons.Like))
+		}
+		if q.OrderBy != "" {
+			params.Set("orderby", q.OrderBy)
+		}
+		params.Set("limit", strconv.Itoa(pageLimit))
+		params.Set("offset", strconv.Itoa(offset))
+
+		endpoint := c.url("/dataset/api/v2/dataset-handle/search") + "?" + params.Encode()
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: "dataset-handle/search", Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Columns []string             `json:"columns"`
+			Values  []map[string]*string `json:"values"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de dataset-handle/search: %w", err)
+		}
+		if parsed.Columns == nil && parsed.Values == nil {
+			return nil, fmt.Errorf("%w: dataset %q (ou consulta inválida — confira campos e ordenação)", ErrNotFound, name)
+		}
+		if res.Columns == nil {
+			res.Columns = parsed.Columns
+		}
+		res.Rows = append(res.Rows, parsed.Values...)
+		if remaining > 0 {
+			remaining -= len(parsed.Values)
+			if remaining <= 0 {
+				return res, nil
+			}
+		}
+		if len(parsed.Values) < pageLimit {
+			return res, nil
+		}
+		offset += len(parsed.Values)
 	}
-	respBody, err := c.postSOAP(ctx, soapDatasetPath, "getDataset", reqBody)
-	if err != nil {
-		return nil, err
-	}
-	res, err := soap.ParseGetDataset(respBody)
-	if err != nil {
-		return nil, mapSOAPError(err)
-	}
-	return res, nil
 }
 
 // postDatasetWrite envia um payload JSON para create/editDataset e interpreta a

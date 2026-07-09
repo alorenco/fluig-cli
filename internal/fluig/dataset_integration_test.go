@@ -64,3 +64,28 @@ func TestIntegrationDatasetCycle(t *testing.T) {
 	}
 	t.Logf("ciclo create→update→reload ok; dataset de teste %q permanece no servidor para inspeção", id)
 }
+
+// Consulta de valores via REST v2 (dataset-handle/search), read-only.
+func TestIntegrationDatasetQuery(t *testing.T) {
+	c, err := NewClient(integrationOptions(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.QueryDataset(context.Background(), "colleague", DatasetQuery{
+		Fields:  []string{"login"},
+		OrderBy: "login",
+		Limit:   3,
+	})
+	if err != nil {
+		t.Fatalf("QueryDataset: %v", err)
+	}
+	t.Logf("colunas=%v linhas=%d", res.Columns, len(res.Rows))
+	if len(res.Columns) == 0 || len(res.Rows) == 0 || len(res.Rows) > 3 {
+		t.Errorf("resultado inesperado: %d colunas, %d linhas", len(res.Columns), len(res.Rows))
+	}
+
+	// Dataset inexistente responde 200 com nulls → ErrNotFound.
+	if _, err := c.QueryDataset(context.Background(), "zz_fluigcli_nao_existe", DatasetQuery{}); err == nil {
+		t.Error("dataset inexistente deveria dar erro")
+	}
+}

@@ -9,7 +9,7 @@ reduzidas — a estrutura e os tipos são os reais).
 | `findUserByLogin.json` | `GET /portal/api/rest/wcmservice/rest/user/findUserByLogin` | ✅ gravada da homologação (Fluig 1.8.2) em 2026-07-07, sanitizada |
 | `ECMDatasetService.wsdl` | `GET /webdesk/ECMDatasetService?wsdl` | ✅ capturado da homologação (referência de estrutura RPC/literal) |
 | `soap_findAllDatasets.xml` | resposta de `findAllFormulariesDatasets` | ✅ formato confirmado na integração (341 datasets reais parseados em 2026-07-07) |
-| `soap_getDataset.xml` | resposta de `getDataset` | ⚠️ construída do WSDL — confirmar via `dataset query` no gate |
+| ~~`soap_getDataset.xml`~~ | resposta de `getDataset` | ❌ removida em 2026-07-09: a operação SOAP respondia EOF na homologação (nunca foi confirmada); o `dataset query` migrou para a REST v2 |
 | `soap_fault.xml` | `soap:Fault` genérico | sintética (formato SOAP padrão) |
 | `loadDataset.json` | `GET .../dataset/loadDataset` | ✅ estrutura confirmada na integração (ciclo create→update→reload) |
 
@@ -87,6 +87,22 @@ Sem fixtures novas (empacotamento/desempacotamento do WAR é testado com zips
 sintéticos in-memory). Investigação: APIs nativas de widget (`/wcm/api/v2/widgets`,
 `/api/public/wcm/widget`) respondem `NotFoundException`; listagem/download só via
 `GET /fluiggersWidget/api/widgets[/{filename}]`. Export/deploy é nativo (uploadfile).
+
+## dataset REST v2 (ROADMAP 2026-07-09)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_datasets_page1.json` / `page2.json` | `GET /dataset/api/v2/datasets` | ✅ gravadas da homologação em 2026-07-09, sanitizadas (exemplares reais de BUILTIN/CUSTOM/GENERATED) |
+| `rest_dataset_handle.json` | `GET /dataset/api/v2/dataset-handle/search` | ✅ gravada da homologação em 2026-07-09, valores fictícios |
+
+> Descobertas: o SOAP `getDataset` respondia **EOF** na homologação (o
+> `dataset query` estava quebrado — a REST v2 o corrigiu); o handle/search
+> aplica **limit default de 300** no servidor (a CLI pagina por offset quando
+> `--limit 0`); **um único** `orderby` (dois fazem a resposta vir nula);
+> dataset inexistente/consulta inválida responde **200 com columns/values
+> null** (dataset vazio responde arrays vazios) → é assim que se detecta o
+> "não encontrado". A listagem REST não expõe `version` (o campo saiu do
+> contrato do `dataset list`).
 
 ## widget list nativo (ROADMAP 2026-07-09)
 

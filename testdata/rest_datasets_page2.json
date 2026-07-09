@@ -1,0 +1,38 @@
+{
+ "items": [
+  {
+   "datasetId": "frm_cadastro",
+   "datasetDescription": "Formulário de Cadastro",
+   "datasetImpl": "",
+   "datasetBuilder": "com.datasul.technology.webdesk.dataset.CustomizedDatasetBuilder",
+   "active": true,
+   "draft": true,
+   "serverOffline": false,
+   "mobileCache": false,
+   "internal": false,
+   "custom": false,
+   "generated": true,
+   "offlineMobileCache": false,
+   "mobileOfflineSummary": "Não",
+   "updateInterval": 0,
+   "lastReset": 0,
+   "lastRemoteSync": 0,
+   "jobLastExecution": "-",
+   "jobNextExecution": "-",
+   "type": "GENERATED",
+   "journalingAdherenceFull": true,
+   "journalingAdherenceHalf": false,
+   "journalingAdherenceNone": false,
+   "syncStatusSuccess": true,
+   "syncStatusWarning": false,
+   "syncStatusError": false,
+   "syncDetails": "",
+   "updated": true,
+   "_expandables": [
+    "datasetImpl",
+    "dependency"
+   ]
+  }
+ ],
+ "hasNext": false
+}

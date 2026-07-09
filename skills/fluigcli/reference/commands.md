@@ -28,10 +28,10 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
-| `dataset list` | — | lista os datasets do servidor |
+| `dataset list [--custom-only] [--search t]` | — | lista os datasets do servidor (id, tipo, descrição, ativo) |
 | `dataset import <id>... \| --all` | servidor → local | baixa datasets para arquivos locais |
 | `dataset export <file>...` | local → servidor | envia datasets locais |
-| `dataset query <id>` | — | consulta os dados de um dataset (getDataset) |
+| `dataset query <id>` | — | consulta os dados de um dataset (`--order` aceita um único campo; sufixo `_DESC`) |
 
 ## event — eventos globais
 

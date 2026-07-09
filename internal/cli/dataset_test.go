@@ -56,11 +56,26 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		switch r.Header.Get("SOAPAction") {
 		case "findAllFormulariesDatasets":
 			w.Write(readTD("soap_findAllDatasets.xml"))
-		case "getDataset":
-			w.Write(readTD("soap_getDataset.xml"))
 		default:
 			http.Error(w, "op?", 500)
 		}
+	})
+	// REST v2: listagem paginada + consulta de valores.
+	restCalls := 0
+	mux.HandleFunc("/dataset/api/v2/datasets", func(w http.ResponseWriter, r *http.Request) {
+		restCalls++
+		if restCalls == 1 {
+			w.Write(readTD("rest_datasets_page1.json"))
+			return
+		}
+		w.Write(readTD("rest_datasets_page2.json"))
+	})
+	mux.HandleFunc("/dataset/api/v2/dataset-handle/search", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("datasetId") == "nao_existe" {
+			io.WriteString(w, `{"columns":null,"values":null}`)
+			return
+		}
+		w.Write(readTD("rest_dataset_handle.json"))
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/dataset/loadDataset", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("datasetId") == "ds_exemplo" {
@@ -134,8 +149,29 @@ func TestDatasetListCustomOnly(t *testing.T) {
 	json.Unmarshal([]byte(stdout), &env)
 	data, _ := env.Data.(map[string]any)
 	list, _ := data["datasets"].([]any)
+	if len(list) != 2 {
+		t.Errorf("--custom-only deveria retornar 2 datasets, veio %d", len(list))
+	}
+}
+
+// --search filtra por id e descrição (case-insensitive).
+func TestDatasetListSearch(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "list", "--search", "cadastro", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	list, _ := data["datasets"].([]any)
 	if len(list) != 1 {
-		t.Errorf("--custom-only deveria retornar 1 dataset, veio %d", len(list))
+		t.Fatalf("--search cadastro deveria retornar 1 dataset, veio %d\n%s", len(list), stdout)
+	}
+	first, _ := list[0].(map[string]any)
+	if first["id"] != "frm_cadastro" || first["description"] != "Formulário de Cadastro" {
+		t.Errorf("dataset inesperado: %+v", first)
 	}
 }
 
@@ -228,15 +264,41 @@ func TestDatasetImportPartialFailure(t *testing.T) {
 func TestDatasetQueryJSON(t *testing.T) {
 	stub := &fluigDatasetStub{}
 	proj := datasetProject(t, stub.server(t).URL)
-	code, stdout := runMain(t, "dataset", "query", "ds_exemplo", "--json", "--project", proj, "--server", "homolog")
+	code, stdout := runMain(t, "dataset", "query", "colleague", "--fields", "colleagueName,login",
+		"--order", "colleagueName", "--limit", "3", "--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
 	}
 	var env output.Envelope
 	json.Unmarshal([]byte(stdout), &env)
 	data, _ := env.Data.(map[string]any)
-	if data["count"].(float64) != 2 {
-		t.Errorf("esperava count=2, veio %v", data["count"])
+	if data["count"].(float64) != 3 {
+		t.Errorf("esperava count=3, veio %v", data["count"])
+	}
+	rows, _ := data["rows"].([]any)
+	first, _ := rows[0].(map[string]any)
+	if first["login"] != "ana.andrade" {
+		t.Errorf("linha[0] inesperada: %+v", first)
+	}
+}
+
+// Dataset inexistente na consulta → exit 4.
+func TestDatasetQueryNotFound(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "query", "nao_existe", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// Mais de um campo de ordenação → erro de uso (a API aceita um só).
+func TestDatasetQueryOrdemUnica(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "query", "colleague", "--order", "a,b", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
 
@@ -249,7 +311,7 @@ func TestDatasetListTabela(t *testing.T) {
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d", code)
 	}
-	for _, want := range []string{"│", "ID", "Tipo", "Versão", "ds_exemplo", "CUSTOM"} {
+	for _, want := range []string{"│", "ID", "Tipo", "Descrição", "Ativo", "ds_exemplo", "CUSTOM", "Dataset de exemplo", "sim", "não"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("tabela sem %q:\n%s", want, stdout)
 		}

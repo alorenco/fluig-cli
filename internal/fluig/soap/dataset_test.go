@@ -53,28 +53,6 @@ func TestParseFindAllDatasets(t *testing.T) {
 	}
 }
 
-func TestParseGetDataset(t *testing.T) {
-	res, err := ParseGetDataset(fixture(t, "soap_getDataset.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(res.Columns, ",") != "codigo,nome,ativo" {
-		t.Errorf("colunas inesperadas: %v", res.Columns)
-	}
-	if len(res.Rows) != 2 {
-		t.Fatalf("esperava 2 linhas, veio %d", len(res.Rows))
-	}
-	if res.Rows[0][1] == nil || *res.Rows[0][1] != "Alpha" {
-		t.Errorf("linha 0 col 1 = %v, quer Alpha", res.Rows[0][1])
-	}
-	// O valor xsi:nil deve virar nil.
-	if res.Rows[1][1] != nil {
-		t.Errorf("linha 1 col 1 deveria ser nil, veio %v", *res.Rows[1][1])
-	}
-	if res.Rows[1][2] == nil || *res.Rows[1][2] != "false" {
-		t.Errorf("linha 1 col 2 = %v, quer false", res.Rows[1][2])
-	}
-}
 
 func TestParseSOAPFault(t *testing.T) {
 	_, err := ParseFindAllDatasets(fixture(t, "soap_fault.xml"))
@@ -95,18 +73,3 @@ func asFault(err error, target **Fault) bool {
 	return ok
 }
 
-func TestBuildGetDatasetWithConstraints(t *testing.T) {
-	body, err := BuildGetDataset(1, "u", "p", "ds_x",
-		[]string{"a", "b"},
-		[]Constraint{{FieldName: "codigo", InitialValue: "10", FinalValue: "10"}},
-		[]string{"a"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(body)
-	for _, want := range []string{"<name>ds_x</name>", "<fieldName>codigo</fieldName>", "<item>a</item>"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("envelope sem %q:\n%s", want, s)
-		}
-	}
-}

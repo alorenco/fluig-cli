@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/alorenco/fluig-cli/internal/fluig"
-	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
 )
@@ -53,7 +51,10 @@ func (a *App) projectRootForFiles() (string, error) {
 // --- dataset list ---
 
 func newDatasetListCmd(app *App) *cobra.Command {
-	var customOnly bool
+	var (
+		customOnly bool
+		search     string
+	)
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Lista os datasets do servidor",
@@ -69,26 +70,35 @@ func newDatasetListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			needle := strings.ToLower(search)
 			shown := datasets[:0]
 			rows := make([][]string, 0, len(datasets))
 			for _, d := range datasets {
 				if customOnly && !d.Custom {
 					continue
 				}
-				shown = append(shown, d)
-				tag := d.Type
-				if d.Custom {
-					tag = "CUSTOM"
+				if needle != "" && !strings.Contains(strings.ToLower(d.ID), needle) &&
+					!strings.Contains(strings.ToLower(d.Description), needle) {
+					continue
 				}
-				rows = append(rows, []string{d.ID, tag, strconv.Itoa(d.Version)})
+				shown = append(shown, d)
+				ativo := "não"
+				if d.Active {
+					ativo = "sim"
+				}
+				rows = append(rows, []string{d.ID, d.Type, d.Description, ativo})
 			}
 			if len(shown) == 0 {
-				p.Infof("Nenhum dataset encontrado no servidor.")
+				if search != "" {
+					p.Infof("Nenhum dataset casa com %q.", search)
+				} else {
+					p.Infof("Nenhum dataset encontrado no servidor.")
+				}
 			} else {
 				// Padrão de listagem (ver CLAUDE.md): tabela com cabeçalho em
 				// negrito; CUSTOM em verde — são os datasets que a CLI edita.
 				p.Table(output.Table{
-					Headers: []string{"ID", "Tipo", "Versão"},
+					Headers: []string{"ID", "Tipo", "Descrição", "Ativo"},
 					Rows:    rows,
 					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
 						if col == 1 && shown[row].Custom {
@@ -102,6 +112,7 @@ func newDatasetListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&search, "search", "", "filtra por texto no id ou na descrição")
 	cmd.Flags().BoolVar(&customOnly, "custom-only", false, "lista apenas datasets customizados")
 	return cmd
 }
@@ -308,7 +319,7 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "query <id>",
-		Short: "Consulta os dados de um dataset (getDataset)",
+		Short: "Consulta os dados de um dataset (nativo, REST v2)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -322,34 +333,40 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := client.QueryDataset(ctx, args[0], splitCSV(fields), cons, splitCSV(order))
+			// A API aceita um único campo de ordenação (sufixo _ASC/_DESC
+			// opcional) — mais de um faz o servidor devolver resposta nula.
+			orderFields := splitCSV(order)
+			if len(orderFields) > 1 {
+				return output.Usagef("a ordenação aceita um único campo (recebi %d); use --order campo ou campo_DESC", len(orderFields))
+			}
+			orderBy := ""
+			if len(orderFields) == 1 {
+				orderBy = orderFields[0]
+			}
+			res, err := client.QueryDataset(ctx, args[0], fluig.DatasetQuery{
+				Fields:      splitCSV(fields),
+				Constraints: cons,
+				OrderBy:     orderBy,
+				Limit:       limit,
+			})
 			if err != nil {
 				return mapFluigError(err)
 			}
 
-			rows := res.Rows
-			if limit > 0 && len(rows) > limit {
-				rows = rows[:limit]
-			}
 			// Impressão humana: cabeçalho + linhas separadas por tab.
 			if len(res.Columns) > 0 {
 				p.Successf("%s", strings.Join(res.Columns, "\t"))
 			}
-			jsonRows := make([]map[string]any, 0, len(rows))
-			for _, r := range rows {
-				cells := make([]string, len(r))
+			jsonRows := make([]map[string]any, 0, len(res.Rows))
+			for _, r := range res.Rows {
+				cells := make([]string, len(res.Columns))
 				obj := make(map[string]any, len(res.Columns))
-				for i, v := range r {
-					col := ""
-					if i < len(res.Columns) {
-						col = res.Columns[i]
-					}
-					if v == nil {
-						cells[i] = ""
-						obj[col] = nil
-					} else {
+				for i, col := range res.Columns {
+					if v, ok := r[col]; ok && v != nil {
 						cells[i] = *v
 						obj[col] = *v
+					} else {
+						obj[col] = nil
 					}
 				}
 				p.Successf("%s", strings.Join(cells, "\t"))
@@ -361,21 +378,21 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&fields, "fields", nil, "campos a retornar (separados por vírgula)")
 	cmd.Flags().StringArrayVar(&constraints, "constraint", nil, "filtro campo=valor (pode repetir)")
-	cmd.Flags().StringSliceVar(&order, "order", nil, "campos de ordenação (separados por vírgula)")
+	cmd.Flags().StringSliceVar(&order, "order", nil, "campo de ordenação (um só; sufixo _DESC inverte)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "número máximo de linhas (0 = sem limite)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 
-// parseConstraints converte "campo=valor" em filtros de igualdade de getDataset.
-func parseConstraints(raw []string) ([]soap.Constraint, error) {
-	var out []soap.Constraint
+// parseConstraints converte "campo=valor" em filtros de igualdade.
+func parseConstraints(raw []string) ([]fluig.DatasetConstraint, error) {
+	var out []fluig.DatasetConstraint
 	for _, c := range raw {
 		k, v, ok := strings.Cut(c, "=")
 		if !ok || k == "" {
 			return nil, output.Usagef("constraint inválida %q (use campo=valor)", c)
 		}
-		out = append(out, soap.Constraint{FieldName: k, InitialValue: v, FinalValue: v})
+		out = append(out, fluig.DatasetConstraint{Field: k, Initial: v, Final: v})
 	}
 	return out, nil
 }
