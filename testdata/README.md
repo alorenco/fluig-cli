@@ -64,6 +64,23 @@ reduzidas — a estrutura e os tipos são os reais).
 > FLUIGADHOCPROCESS); o parâmetro `fields` devolve itens vazios neste endpoint;
 > `expand=versions` infla a resposta ~25× (13 KB → 334 KB em 31 processos).
 
+## workflow publish (ROADMAP 2026-07-09)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_process_export.xml` | `GET /process-management/api/v2/processes/{id}/export/xml` | ✅ gravada da homologação em 2026-07-09 (processo de teste zz_fluigcli_test_pub, criado e apagado durante a investigação) |
+
+> Descobertas (ciclo validado com processos `zz_fluigcli_test_*`, removidos ao
+> final): o export REST vem em **UTF-8**, raiz `<list>`, só a última versão
+> (≠ zip SOAP, ISO-8859-1); **todo import cria versão nova em edição** (as PKs
+> do corpo são renumeradas); `release=true` no import **não é atômico** (a
+> versão fica criada mesmo se a liberação falhar) — por isso o publish libera
+> pelo endpoint dedicado; o release desativa a versão anterior e o withdraw
+> reverte, mas **withdraw exige que a versão anterior tenha histórico de
+> liberação** (senão HTTP 500 EJBTransactionRolledback — beco sem saída via
+> REST); `DELETE /processes/{id}` exige uma única versão não liberada
+> (apagar `process-versions/latest` uma a uma antes).
+
 ## Fase 6 — Widgets
 
 Sem fixtures novas (empacotamento/desempacotamento do WAR é testado com zips

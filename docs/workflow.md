@@ -64,8 +64,45 @@ fluigcli workflow export Compras --events beforeTaskSave,afterTaskComplete --ser
 | `--process-version N` | versão do processo (default: a última do servidor) |
 
 **Limitação:** só atualiza eventos de um processo **existente** (criado no Fluig
-Studio). Não cria processos nem sobe diagramas `.process`. O deploy do processo
-inteiro (estilo Fluig Studio) via API nativa é um item de roadmap.
+Studio). Não cria processos nem sobe diagramas `.process`. Para o deploy com
+versão nova e liberação, use `workflow publish` (nativo).
+
+## `fluigcli workflow publish <processId> [--no-release]`
+
+Faz o **deploy** do processo: cria uma **versão nova** no servidor com os
+scripts locais (`workflow/scripts/<processId>.*.js`) aplicados e a **libera
+para uso** (a versão anterior é desativada). **Nativo** (REST v2
+`process-management`) — não depende da fluiggersWidget.
+
+```sh
+fluigcli workflow publish Compras --server homolog
+fluigcli workflow publish Compras --no-release    # só cria a versão, sem liberar
+```
+
+| Flag | Uso |
+|---|---|
+| `--no-release` | cria a versão nova em modo de edição, sem liberá-la |
+
+Quando usar `publish` vs `export`:
+
+| | `workflow export` | `workflow publish` |
+|---|---|---|
+| Versão do processo | mantém (cirúrgico) | **cria nova** (sempre) |
+| Liberação | não mexe | libera a nova (salvo `--no-release`) |
+| Dependência | fluiggersWidget | nenhuma (API nativa) |
+| Uso típico | iterar em desenvolvimento | deploy |
+
+Regras e limitações:
+
+- O publish **não cria eventos nem processos**: script local de um evento que
+  não existe no processo interrompe o comando **antes** de qualquer mudança no
+  servidor (crie o evento no Fluig Studio). Eventos do servidor sem script
+  local ficam como estão.
+- Se a liberação falhar (ex.: diagrama sem início/fim), **a versão nova fica
+  criada em edição** — a mensagem de erro avisa; corrija no Fluig Studio ou
+  repita com `--no-release`.
+- O diagrama e as demais configurações da versão nova vêm do estado atual do
+  servidor (o publish exporta a última versão, troca só os scripts e reimporta).
 
 ## `fluigcli server install-helper [<name>]`
 

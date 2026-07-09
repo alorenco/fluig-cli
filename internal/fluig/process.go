@@ -1,12 +1,16 @@
 package fluig
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 // API REST v2 de process-management (validada na homologação em 2026-07-09).
@@ -72,4 +76,258 @@ func (c *Client) ListProcesses(ctx context.Context) ([]ProcessSummary, error) {
 			return out, nil
 		}
 	}
+}
+
+// --- publish nativo: export/import/release de versão de processo ---
+//
+// Semântica validada na homologação (2026-07-09):
+//   - o export/xml devolve SÓ a última versão, em UTF-8, raiz <list> (diferente
+//     do zip SOAP, que vem em ISO-8859-1);
+//   - TODO import cria uma versão nova, em edição (as versões da PK no corpo
+//     são renumeradas pelo servidor);
+//   - release?=true no import NÃO é atômico: se a liberação falha, a versão
+//     fica criada mesmo assim — por isso o publish libera pelo endpoint
+//     dedicado, para distinguir "import falhou" de "liberação falhou";
+//   - o release da última versão desativa a anterior; o withdraw reverte.
+
+// ProcessVersion é uma versão de processo (REST v2 process-versions).
+type ProcessVersion struct {
+	Version int  `json:"version"`
+	Active  bool `json:"active"`
+	Editing bool `json:"editing"`
+}
+
+// ProcessVersions lista as versões de um processo, da API REST v2.
+func (c *Client) ProcessVersions(ctx context.Context, processID string) ([]ProcessVersion, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	var out []ProcessVersion
+	for page := 1; ; page++ {
+		endpoint := c.url(processPath(processID, "/process-versions")) +
+			"?page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, processAPIError(status, body, processID, "process-versions")
+		}
+		var parsed struct {
+			Items   []ProcessVersion `json:"items"`
+			HasNext bool             `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de process-versions: %w", err)
+		}
+		out = append(out, parsed.Items...)
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
+}
+
+// LatestProcessVersion devolve o maior número de versão (0 = sem versões).
+func LatestProcessVersion(versions []ProcessVersion) int {
+	max := 0
+	for _, v := range versions {
+		if v.Version > max {
+			max = v.Version
+		}
+	}
+	return max
+}
+
+// ExportProcessXML baixa o XML de configuração da última versão do processo.
+func (c *Client) ExportProcessXML(ctx context.Context, processID string) ([]byte, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	body, status, err := c.doRaw(ctx, http.MethodGet, c.url(processPath(processID, "/export/xml")), nil, "", "application/xml")
+	if err != nil {
+		return nil, err
+	}
+	if status < 200 || status >= 300 {
+		return nil, processAPIError(status, body, processID, "export/xml")
+	}
+	return body, nil
+}
+
+// ImportProcessXML importa o XML no processo, criando uma versão nova em edição.
+func (c *Client) ImportProcessXML(ctx context.Context, processID string, xmlData []byte) error {
+	return c.importProcessXML(ctx, processPath(processID, "/import/xml"), processID, xmlData)
+}
+
+// ImportNewProcessXML cria um processo novo a partir do XML.
+func (c *Client) ImportNewProcessXML(ctx context.Context, processID string, xmlData []byte) error {
+	path := restProcessesPath + "/import/xml?processId=" + url.QueryEscape(processID)
+	return c.importProcessXML(ctx, path, processID, xmlData)
+}
+
+func (c *Client) importProcessXML(ctx context.Context, path, processID string, xmlData []byte) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	body, status, err := c.doRaw(ctx, http.MethodPost, c.url(path), xmlData, "application/xml", "application/json")
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return processAPIError(status, body, processID, "import/xml")
+	}
+	return nil
+}
+
+// ReleaseLatestProcessVersion libera a última versão do processo para uso
+// (desativa a versão anteriormente liberada).
+func (c *Client) ReleaseLatestProcessVersion(ctx context.Context, processID string) error {
+	return c.postProcessVersionOp(ctx, processID, "/process-versions/latest/release")
+}
+
+// WithdrawLatestProcessVersion retira a liberação da última versão.
+func (c *Client) WithdrawLatestProcessVersion(ctx context.Context, processID string) error {
+	return c.postProcessVersionOp(ctx, processID, "/process-versions/latest/withdraw")
+}
+
+// DeleteLatestProcessVersion remove a última versão do processo.
+func (c *Client) DeleteLatestProcessVersion(ctx context.Context, processID string) error {
+	return c.processOp(ctx, http.MethodDelete, processID, "/process-versions/latest")
+}
+
+// DeleteProcess remove o processo (precisa ter uma única versão, não liberada).
+func (c *Client) DeleteProcess(ctx context.Context, processID string) error {
+	return c.processOp(ctx, http.MethodDelete, processID, "")
+}
+
+func (c *Client) postProcessVersionOp(ctx context.Context, processID, op string) error {
+	return c.processOp(ctx, http.MethodPost, processID, op)
+}
+
+func (c *Client) processOp(ctx context.Context, method, processID, op string) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	body, status, err := c.doJSON(ctx, method, c.url(processPath(processID, op)), nil)
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return processAPIError(status, body, processID, strings.TrimPrefix(op, "/"))
+	}
+	return nil
+}
+
+// processPath monta o caminho REST de um processo (o id pode ter espaço/acento).
+func processPath(processID, suffix string) string {
+	return restProcessesPath + "/" + url.PathEscape(processID) + suffix
+}
+
+// processAPIError interpreta o erro da API de process-management: negócio vem
+// como {"code":"BPM...Exception","message":"..."} (HTTP 400); 404 = inexistente.
+func processAPIError(status int, body []byte, processID, op string) error {
+	if status == http.StatusNotFound {
+		return fmt.Errorf("%w: processo %q", ErrNotFound, processID)
+	}
+	var parsed struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Message != "" {
+		return fmt.Errorf("%w: %s", errServerRejected, parsed.Message)
+	}
+	return &HTTPError{StatusCode: status, URL: op, Body: truncate(string(body), 512)}
+}
+
+// doRaw faz uma requisição com Content-Type/Accept arbitrários e cookies do jar.
+func (c *Client) doRaw(ctx context.Context, method, endpoint string, body []byte, ctype, accept string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, 0, err
+	}
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+	if ctype != "" {
+		req.Header.Set("Content-Type", ctype)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("falha ao chamar %s: %w", c.base.Host, err)
+	}
+	respBody, err := readBody(resp, 32<<20)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	return []byte(respBody), resp.StatusCode, nil
+}
+
+// ApplyProcessEventScripts substitui, no XML exportado do processo, o código
+// (eventDescription) dos eventos presentes em scripts (evento → código novo).
+// Devolve o XML atualizado, os eventos efetivamente atualizados e os que não
+// existem no processo — o publish NÃO cria eventos (isso é papel do Fluig
+// Studio), então quem chama decide falhar antes de importar.
+func ApplyProcessEventScripts(xmlData []byte, scripts map[string]string) (out []byte, updated []string, missing []string) {
+	const (
+		openEvent = "<WorkflowProcessEvent>"
+		openID    = "<eventId>"
+		closeID   = "</eventId>"
+		openDesc  = "<eventDescription>"
+		closeDesc = "</eventDescription>"
+		emptyDesc = "<eventDescription/>"
+	)
+	data := string(xmlData)
+	var buf strings.Builder
+	buf.Grow(len(data))
+	seen := map[string]bool{}
+	rest := data
+	for {
+		blockStart := strings.Index(rest, openEvent)
+		if blockStart < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		blockEnd := strings.Index(rest[blockStart:], "</WorkflowProcessEvent>")
+		if blockEnd < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		blockEnd += blockStart
+		block := rest[blockStart:blockEnd]
+
+		id := ""
+		if i := strings.Index(block, openID); i >= 0 {
+			if j := strings.Index(block[i:], closeID); j >= 0 {
+				id = strings.TrimSpace(block[i+len(openID) : i+j])
+			}
+		}
+		if code, ok := scripts[id]; ok && id != "" {
+			seen[id] = true
+			var esc bytes.Buffer
+			_ = xml.EscapeText(&esc, []byte(code))
+			switch {
+			case strings.Contains(block, openDesc):
+				i := strings.Index(block, openDesc)
+				j := strings.Index(block[i:], closeDesc)
+				if j >= 0 {
+					block = block[:i+len(openDesc)] + esc.String() + block[i+j:]
+				}
+			case strings.Contains(block, emptyDesc):
+				block = strings.Replace(block, emptyDesc, openDesc+esc.String()+closeDesc, 1)
+			}
+		}
+		buf.WriteString(rest[:blockStart])
+		buf.WriteString(block)
+		rest = rest[blockEnd:]
+	}
+	for id := range scripts {
+		if seen[id] {
+			updated = append(updated, id)
+		} else {
+			missing = append(missing, id)
+		}
+	}
+	sort.Strings(updated)
+	sort.Strings(missing)
+	return []byte(buf.String()), updated, missing
 }

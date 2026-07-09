@@ -21,6 +21,113 @@ func newWorkflowCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newWorkflowListCmd(app))
 	cmd.AddCommand(newWorkflowVersionCmd(app))
 	cmd.AddCommand(newWorkflowExportCmd(app))
+	cmd.AddCommand(newWorkflowPublishCmd(app))
+	return cmd
+}
+
+// --- workflow publish ---
+
+func newWorkflowPublishCmd(app *App) *cobra.Command {
+	var (
+		noRelease     bool
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "publish <processId>",
+		Short: "Publica uma nova versão do processo com os scripts locais (nativo)",
+		Long: "Cria uma NOVA versão do processo no servidor com os scripts de eventos\n" +
+			"locais (workflow/scripts/<processId>.*.js) aplicados, e a libera para uso\n" +
+			"— tudo pela API nativa, sem a fluiggersWidget.\n\n" +
+			"Diferença para o workflow export: o export atualiza os scripts na versão\n" +
+			"corrente, sem criar versão (bom para desenvolvimento); o publish é o\n" +
+			"deploy — sobe versão nova e libera (a versão anterior é desativada).\n\n" +
+			"O publish NÃO cria eventos nem processos: scripts locais de eventos que\n" +
+			"não existem no processo interrompem o comando antes de qualquer mudança.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			pid := args[0]
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
+			scripts, err := project.FindProcessScripts(root, pid)
+			if err != nil {
+				return err
+			}
+			if len(scripts) == 0 {
+				return output.Usagef("nenhum script local do processo %q (esperado %s/%s.<evento>.js)",
+					pid, project.WorkflowScriptsDir, pid)
+			}
+			events, err := readWorkflowEvents(scripts)
+			if err != nil {
+				return err
+			}
+			byEvent := make(map[string]string, len(events))
+			for _, e := range events {
+				byEvent[e.Name] = e.Contents
+			}
+
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar uma nova versão do processo")
+			if err != nil {
+				return err
+			}
+
+			xmlData, err := client.ExportProcessXML(ctx, pid)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			newXML, updated, missing := fluig.ApplyProcessEventScripts(xmlData, byEvent)
+			if len(missing) > 0 {
+				return output.NotFoundf(
+					"evento(s) %s não existem no processo %q — o publish não cria eventos; crie-os no Fluig Studio (nada foi alterado)",
+					strings.Join(missing, ", "), pid)
+			}
+
+			before, err := client.ProcessVersions(ctx, pid)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if err := client.ImportProcessXML(ctx, pid, newXML); err != nil {
+				return mapFluigError(err)
+			}
+			after, err := client.ProcessVersions(ctx, pid)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			prevVersion, newVersion := fluig.LatestProcessVersion(before), fluig.LatestProcessVersion(after)
+
+			released := false
+			if !noRelease {
+				if err := client.ReleaseLatestProcessVersion(ctx, pid); err != nil {
+					return output.ServerErrorf(
+						"a versão %d do processo %q foi criada, mas não pôde ser liberada: %v — corrija o processo no Fluig Studio (ou use --no-release)",
+						newVersion, pid, err).WithCause(err)
+				}
+				released = true
+			}
+
+			for _, ev := range updated {
+				p.Successf("evento %q aplicado", ev)
+			}
+			if released {
+				p.Successf("versão %d do processo %q criada e liberada (a v%d foi desativada)", newVersion, pid, prevVersion)
+			} else {
+				p.Successf("versão %d do processo %q criada em edição (libere com o publish sem --no-release ou no Fluig Studio)", newVersion, pid)
+			}
+			p.Done(map[string]any{
+				"processId":       pid,
+				"previousVersion": prevVersion,
+				"version":         newVersion,
+				"released":        released,
+				"events":          updated,
+			})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&noRelease, "no-release", false, "cria a versão nova em edição, sem liberá-la")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 

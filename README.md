@@ -99,7 +99,7 @@ fluigcli diff --json | jq '.data.counts'
 | `event` | `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
 | `form` | `list` `import` `export` | [docs/form.md](docs/form.md) |
-| `workflow` | `list` `version` `export` | [docs/workflow.md](docs/workflow.md) |
+| `workflow` | `list` `version` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |

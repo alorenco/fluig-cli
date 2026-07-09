@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,10 +17,15 @@ import (
 )
 
 // workflowStub simula version (SOAP nativo), ping do helper, o update de
-// eventos e a listagem de processos (REST v2).
+// eventos, a listagem de processos e o ciclo de publish (REST v2).
 type workflowStub struct {
 	helperInstalled bool
 	version         int
+
+	pubVersion   int    // última versão REST (import incrementa; default 3)
+	importedXML  []byte // corpo do import/xml
+	releaseCalls int
+	releaseFail  bool
 }
 
 func (s *workflowStub) server(t *testing.T) *httptest.Server {
@@ -55,6 +61,42 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			`{"processId":"AprovacaoContrato","processDescription":"Aprovação de Contrato","active":false,"categoryId":"Jurídico","public":false},`+
 			`{"processId":"FLUIGADHOCPROCESS","processDescription":"Processo Ad-hoc","active":true,"public":true}`+
 			`],"hasNext":false}`)
+	})
+	// Ciclo de publish (REST v2): export/import/versions/release por processo.
+	if s.pubVersion == 0 {
+		s.pubVersion = 3
+	}
+	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.HasSuffix(path, "/export/xml"):
+			if strings.Contains(path, "Fantasma") {
+				http.Error(w, `{"code":"NotFound","message":"processo inexistente"}`, http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "application/xml;charset=UTF-8")
+			// Fixture real da homologação: evento beforeTaskSave com /* v1 fluigcli */.
+			b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_process_export.xml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.Write(b)
+		case strings.HasSuffix(path, "/import/xml"):
+			s.importedXML, _ = io.ReadAll(r.Body)
+			s.pubVersion++
+			io.WriteString(w, `{"processId":"Compras","versions":null}`)
+		case strings.HasSuffix(path, "/process-versions/latest/release"):
+			if s.releaseFail {
+				http.Error(w, `{"code":"BPMProcessDefinitionVersionOnReleaseException","message":"Versão do processo contém erros"}`, http.StatusBadRequest)
+				return
+			}
+			s.releaseCalls++
+			w.WriteHeader(http.StatusNoContent)
+		case strings.HasSuffix(path, "/process-versions"):
+			fmt.Fprintf(w, `{"items":[{"version":%d,"active":true,"editing":true}],"hasNext":false}`, s.pubVersion)
+		default:
+			http.NotFound(w, r)
+		}
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -144,6 +186,127 @@ func TestWorkflowVersionNotFound(t *testing.T) {
 		"--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitNotFound {
 		t.Errorf("versão 0 deveria dar exit 4, veio %d", code)
+	}
+}
+
+// publish: aplica o script local, importa (nova versão) e libera.
+func TestWorkflowPublish(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "Compras.beforeTaskSave.js"),
+		[]byte("function beforeTaskSave(){ /* publicado */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["previousVersion"].(float64) != 3 || data["version"].(float64) != 4 || data["released"] != true {
+		t.Errorf("resultado inesperado: %+v", data)
+	}
+	events, _ := data["events"].([]any)
+	if len(events) != 1 || events[0] != "beforeTaskSave" {
+		t.Errorf("eventos inesperados: %v", events)
+	}
+	if !strings.Contains(string(stub.importedXML), "function beforeTaskSave(){ /* publicado */ }") {
+		t.Error("XML importado não contém o script local")
+	}
+	if strings.Contains(string(stub.importedXML), "/* v1 fluigcli */") {
+		t.Error("XML importado ainda tem o script antigo")
+	}
+	if stub.releaseCalls != 1 {
+		t.Errorf("release chamado %d vezes, quer 1", stub.releaseCalls)
+	}
+}
+
+// --no-release: cria a versão em edição e não chama o release.
+func TestWorkflowPublishNoRelease(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "Compras.beforeTaskSave.js"), []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--no-release",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["released"] != false || stub.releaseCalls != 0 {
+		t.Errorf("released=%v releaseCalls=%d", data["released"], stub.releaseCalls)
+	}
+}
+
+// Script local de evento que não existe no processo: falha ANTES do import.
+func TestWorkflowPublishEventoInexistente(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "Compras.naoTem.js"), []byte("function naoTem(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	if stub.importedXML != nil {
+		t.Error("import não deveria ter acontecido")
+	}
+	if stub.releaseCalls != 0 {
+		t.Error("release não deveria ter acontecido")
+	}
+}
+
+// Falha na liberação: a versão fica criada e a mensagem explica isso (exit 5).
+func TestWorkflowPublishReleaseFalha(t *testing.T) {
+	stub := &workflowStub{releaseFail: true}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "Compras.beforeTaskSave.js"), []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "foi criada, mas não pôde ser liberada") {
+		t.Errorf("mensagem deveria avisar que a versão foi criada: %+v", env.Error)
+	}
+}
+
+// Sem script local do processo: erro de uso (exit 2), sem tocar no servidor.
+func TestWorkflowPublishSemScripts(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "workflow", "publish", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if stub.importedXML != nil {
+		t.Error("import não deveria ter acontecido")
+	}
+}
+
+// Processo inexistente no servidor: exit 4.
+func TestWorkflowPublishProcessoInexistente(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "Fantasma.beforeTaskSave.js"), []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, _ := runMain(t, "workflow", "publish", "Fantasma", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
 	}
 }
 
