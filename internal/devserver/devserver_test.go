@@ -336,6 +336,68 @@ func TestListenAddr(t *testing.T) {
 	}
 }
 
+func TestFormPreviewEmulaTema20(t *testing.T) {
+	// Upstream "Fluig 2.0": o CSS flat existe.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/style-guide/css/fluig-style-guide-flat.min.css" {
+			_, _ = io.WriteString(w, "/* flat */")
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+	ts, s, _ := newTestServer(t, upstream)
+	writeForm := func(name, content string) {
+		p := filepath.Join(s.opts.Root, "forms", name)
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, name+".html"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeForm("legado", `<html><head>`+
+		`<link rel="stylesheet" href="/style-guide/css/fluig-style-guide.min.css"/>`+
+		`</head><body>x</body></html>`)
+
+	resp, err := http.Get(ts.URL + "/_dev/forms/legado/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	out := string(body)
+	if strings.Contains(out, "/style-guide/css/fluig-style-guide.min.css") {
+		t.Error("CSS legado deveria ser reescrito para o flat (como o servidor 2.0 faz)")
+	}
+	if !strings.Contains(out, "fluig-style-guide-flat.min.css") ||
+		!strings.Contains(out, "/ecm_resources/resources/assets/forms/forms.js") ||
+		!strings.Contains(out, "animalia-icons.min.css") {
+		t.Errorf("bloco do tema 2.0 não injetado:\n%s", out)
+	}
+	// A injeção entra dentro do <head>.
+	if strings.Index(out, "forms.js") > strings.Index(out, "</head>") {
+		t.Error("injeção deveria ficar antes do </head>")
+	}
+}
+
+func TestFormPreviewServidor1x(t *testing.T) {
+	// Upstream "Fluig 1.x": sem o CSS flat → preview cru (fiel ao 1.x).
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	defer upstream.Close()
+	ts, _, _ := newTestServer(t, upstream)
+
+	resp, err := http.Get(ts.URL + "/_dev/forms/Meu%20Form/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if strings.Contains(string(body), "forms.js") || strings.Contains(string(body), "flat.min.css") {
+		t.Errorf("servidor sem tema novo não deveria ganhar injeção:\n%s", body)
+	}
+}
+
 func TestHub(t *testing.T) {
 	h := newHub()
 	a, b := h.subscribe(), h.subscribe()

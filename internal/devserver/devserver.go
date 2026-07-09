@@ -47,7 +47,12 @@ type Server struct {
 
 	warnedMu sync.Mutex
 	warned   map[string]bool // avisos já emitidos (warnOnce)
+
+	theme formThemeProbe // detecção (única) do tema novo no servidor
 }
+
+// probeTimeout limita as sondagens que o dev server faz no upstream.
+const probeTimeout = 15 * time.Second
 
 const defaultDebounce = 500 * time.Millisecond
 
@@ -228,7 +233,7 @@ func (s *Server) serveFormMain(w http.ResponseWriter, r *http.Request, formDir, 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(injectReloadScript(b))
+	_, _ = w.Write(injectReloadScript(s.applyFormTheme(b)))
 }
 
 // serveFormsIndex lista os formulários locais com links de preview.

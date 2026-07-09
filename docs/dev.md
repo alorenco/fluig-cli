@@ -48,8 +48,20 @@ equivalente ao modo "novo registro". Como a origem é a mesma do proxy, os
 caminhos absolutos que os formulários usam (`/style-guide/...`,
 `/portal/resources/js/...`, `/webdesk/vcXMLRPC.js`) resolvem no servidor real
 com a sessão injetada — **`DatasetFactory` funciona com dados reais**, sem
-publicar nada. Para testar o formulário dentro do processo (bindings de card,
-modos de edição), continue com o `fluigcli watch` + F5.
+publicar nada.
+
+O preview **emula o render de formulários do Fluig 2.0**: ao servir um
+formulário numa solicitação, o servidor 2.0 reescreve o style guide legado
+(`fluig-style-guide.min.css`, descontinuado — responde 404) para o tema novo
+(`fluig-style-guide-flat.min.css`) e injeta no `<head>` o runtime
+(`forms.js`) e os CSS do tema (flat + animalia-icons + fluig-icons) — por
+isso formulários **não migrados** renderizam certo no portal. O preview
+aplica as mesmas transformações, condicionadas ao servidor ter o tema novo
+(num Fluig 1.x nada é alterado). É só apresentação: **os arquivos locais não
+são tocados**.
+
+Para testar o formulário dentro do processo (bindings de card, modos de
+edição), continue com o `fluigcli watch` + F5.
 
 ## Segurança (por design)
 
