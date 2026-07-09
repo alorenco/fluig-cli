@@ -171,6 +171,14 @@ func diffServerStub(t *testing.T) *httptest.Server {
 		// Processo inexistente: export vazio → ErrNotFound no cliente.
 		io.WriteString(w, wfExportEnvelope(""))
 	})
+	// Processos do servidor (REST v2): Compras tem scripts locais no projeto;
+	// SoServidor não tem nenhum → only-server na varredura.
+	mux.HandleFunc("/process-management/api/v2/processes", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"items":[`+
+			`{"processId":"Compras","processDescription":"Compras","active":true,"categoryId":"Suprimentos","public":false},`+
+			`{"processId":"SoServidor","processDescription":"Só no Servidor","active":true,"public":false}`+
+			`],"hasNext":false}`)
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -263,6 +271,7 @@ func TestDiffVarredura(t *testing.T) {
 		"workflow Compras.naoTem":                "only-local",
 		"workflow Compras.validateForm":          "only-server",
 		"workflow Fantasma.beforeTaskSave":       "only-local",
+		"workflow SoServidor":                    "only-server",
 	}
 	got := map[string]string{}
 	for _, a := range arts {
@@ -303,7 +312,7 @@ func TestDiffVarredura(t *testing.T) {
 
 	counts, _ := data["counts"].(map[string]any)
 	if counts["equal"] != float64(4) || counts["modified"] != float64(3) ||
-		counts["only-local"] != float64(5) || counts["only-server"] != float64(4) {
+		counts["only-local"] != float64(5) || counts["only-server"] != float64(5) {
 		t.Errorf("counts inesperados: %#v", counts)
 	}
 	// O dataset "colleague" é DEFAULT no servidor — não pode aparecer.
@@ -448,7 +457,8 @@ func TestDiffVarreduraModoHumano(t *testing.T) {
 		"── form Form Sem Local só existe no servidor — importe com: fluigcli form import \"Form Sem Local\"",
 		"── form meu_form/script.js só existe no servidor — o export da pasta o removeria",
 		"── workflow Compras.validateForm só existe no servidor — crie workflow/scripts/Compras.validateForm.js",
-		"4 igual(is), 3 diferente(s), 5 só local(is), 4 só no servidor",
+		"── workflow SoServidor (processo) não tem scripts locais — se ele tiver eventos, versione-os em workflow/scripts/SoServidor.<evento>.js",
+		"4 igual(is), 3 diferente(s), 5 só local(is), 5 só no servidor",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("saída humana sem %q:\n%s", want, stdout)

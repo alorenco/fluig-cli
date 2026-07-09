@@ -24,7 +24,8 @@ fluigcli diff --server producao              # contra um servidor específico
 
 - Sem argumentos, além de comparar os arquivos locais, aponta artefatos que só
   existem no servidor (datasets **customizados**, eventos, mecanismos,
-  formulários e — nos processos com script local — eventos de processo).
+  formulários, processos sem nenhum script local e — nos processos com script
+  local — eventos de processo).
 - Diferenças só de quebra de linha (CRLF/LF) e de quebra final **não contam** —
   é a mesma normalização que o ciclo import/export já faz.
 - Cobertura: datasets, eventos globais, mecanismos, formulários (`forms/<pasta>`,
@@ -47,8 +48,10 @@ fluigcli diff --server producao              # contra um servidor específico
 - A comparação usa o **export nativo** do processo (zip com o XML de
   definição) — funciona sem a fluiggersWidget e considera a versão mais
   recente do processo.
-- Processos que só existem no servidor não são varridos (não há como
-  enumerá-los hoje); o diff cobre os processos que têm script local.
+- Na varredura, processos do servidor **sem nenhum script local** aparecem como
+  `only-server` (enumerados pela mesma API nativa do `workflow list`). O diff
+  não baixa os scripts desses processos — a comparação evento a evento
+  acontece só nos processos com script local.
 
 ## Saída `--json`
 

@@ -132,6 +132,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				}
 			}
 			serverDatasets := map[string]bool{}
+			var serverProcesses []fluig.ProcessSummary
 			if sweep {
 				list, err := client.ListDatasets(ctx)
 				if err != nil {
@@ -141,6 +142,12 @@ func newDiffCmd(app *App) *cobra.Command {
 					if d.Custom {
 						serverDatasets[d.ID] = true
 					}
+				}
+				// Processos do servidor (REST v2) — para apontar os que não têm
+				// script local. A comparação script a script continua vindo do
+				// export nativo em diffProcessScripts.
+				if serverProcesses, err = client.ListProcesses(ctx); err != nil {
+					return mapFluigError(err)
 				}
 			}
 
@@ -224,6 +231,13 @@ func newDiffCmd(app *App) *cobra.Command {
 					entries = append(entries, diffEntry{Type: "mechanism", ID: id, Status: diffOnlyServer})
 				}
 			}
+			// Processos sem nenhum script local (o ID sem "." distingue o
+			// processo inteiro de um evento pid.evento nas mensagens).
+			for _, pr := range serverProcesses {
+				if _, ok := targets.wf[pr.ID]; !ok {
+					entries = append(entries, diffEntry{Type: "workflow", ID: pr.ID, Status: diffOnlyServer})
+				}
+			}
 
 			sort.Slice(entries, func(i, j int) bool {
 				if entries[i].Type != entries[j].Type {
@@ -270,6 +284,10 @@ func onlyServerMessage(e diffEntry) string {
 		}
 		return "── form " + e.ID + " só existe no servidor — importe com: fluigcli form import \"" + e.ID + "\""
 	case "workflow":
+		if !strings.Contains(e.ID, ".") {
+			// Processo inteiro, sem nenhum script local (varredura via ListProcesses).
+			return "── workflow " + e.ID + " (processo) não tem scripts locais — se ele tiver eventos, versione-os em workflow/scripts/" + e.ID + ".<evento>.js"
+		}
 		return "── workflow " + e.ID + " só existe no servidor — crie workflow/scripts/" + e.ID + ".js para versioná-lo (não há import de scripts de processo)"
 	default:
 		return "── " + e.Type + " " + e.ID + " só existe no servidor — importe com: fluigcli " + e.Type + " import " + e.ID
