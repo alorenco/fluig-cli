@@ -236,28 +236,96 @@ func (s *Server) serveFormMain(w http.ResponseWriter, r *http.Request, formDir, 
 	_, _ = w.Write(injectReloadScript(s.applyFormTheme(b)))
 }
 
+// formsIndexCSS estiliza o índice de formulários. Self-contained de propósito
+// (nada do style guide do servidor): o índice é da CLI, não do Fluig, e assim
+// funciona igual em qualquer versão do servidor.
+const formsIndexCSS = `
+:root{--bg:#f4f6f8;--card:#fff;--txt:#1d2b36;--sub:#5a6b7b;--line:#e3e8ee;
+  --accent:#0c9abe;--accent-txt:#fff;--shadow:0 1px 2px rgba(16,36,54,.08)}
+@media(prefers-color-scheme:dark){:root{--bg:#12181f;--card:#1b232d;
+  --txt:#e6edf3;--sub:#93a4b4;--line:#2b3742;--shadow:0 1px 2px rgba(0,0,0,.4)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:28px 32px 20px;border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:22px;font-weight:650}
+header h1 small{color:var(--accent);font-weight:650}
+header p{margin:6px 0 0;color:var(--sub);font-size:13.5px}
+main{max-width:1080px;margin:0 auto;padding:24px 32px 48px}
+.bar{display:flex;gap:12px;align-items:center;margin-bottom:20px}
+.bar input{flex:1;max-width:420px;padding:9px 14px;border:1px solid var(--line);
+  border-radius:8px;background:var(--card);color:var(--txt);font-size:14px;outline:none}
+.bar input:focus{border-color:var(--accent)}
+.bar .count{color:var(--sub);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+a.card{display:block;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:16px 18px;text-decoration:none;color:var(--txt);
+  box-shadow:var(--shadow);transition:transform .08s,border-color .08s}
+a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
+a.card .name{font-weight:600;font-size:14.5px;word-break:break-word}
+a.card .meta{margin-top:6px;color:var(--sub);font-size:12.5px;display:flex;
+  gap:8px;flex-wrap:wrap}
+.badge{background:color-mix(in srgb,var(--accent) 12%,transparent);
+  color:var(--accent);border-radius:5px;padding:1px 7px;font-size:11.5px;font-weight:600}
+.empty{color:var(--sub);padding:40px 0;text-align:center}
+.empty code{background:var(--card);border:1px solid var(--line);
+  border-radius:5px;padding:2px 7px}`
+
+// formsIndexJS filtra os cards pelo campo de busca.
+const formsIndexJS = `document.getElementById("q").addEventListener("input",function(){
+  var q=this.value.toLowerCase(),n=0;
+  document.querySelectorAll("a.card").forEach(function(c){
+    var hit=c.dataset.name.indexOf(q)>=0;c.style.display=hit?"":"none";if(hit)n++;});
+  document.getElementById("count").textContent=n+" formulário(s)";});
+document.getElementById("q").focus();`
+
 // serveFormsIndex lista os formulários locais com links de preview.
 func (s *Server) serveFormsIndex(w http.ResponseWriter) {
 	entries, _ := os.ReadDir(filepath.Join(s.opts.Root, project.FormsDirName))
-	var b strings.Builder
-	b.WriteString("<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">" +
-		"<title>fluigcli dev — formulários</title></head><body>" +
-		"<h1>Formulários do projeto</h1><p>Preview local (modo novo registro); " +
-		"datasets e style guide vêm do servidor via proxy.</p><ul>")
-	n := 0
+	type formCard struct{ name, files, events string }
+	var cards []formCard
 	for _, e := range entries {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		fmt.Fprintf(&b, "<li><a href=\"/_dev/forms/%s/\">%s</a></li>",
-			url.PathEscape(e.Name()), html.EscapeString(e.Name()))
-		n++
+		card := formCard{name: e.Name()}
+		if fc, err := project.ReadFormFolder(filepath.Join(s.opts.Root, project.FormsDirName, e.Name())); err == nil {
+			card.files = fmt.Sprintf("%d arquivo(s)", len(fc.Files))
+			if n := len(fc.EventFiles); n > 0 {
+				card.events = fmt.Sprintf("%d evento(s)", n)
+			}
+		}
+		cards = append(cards, card)
 	}
-	b.WriteString("</ul>")
-	if n == 0 {
-		b.WriteString("<p>Nenhuma pasta em forms/ — baixe com <code>fluigcli form import</code>.</p>")
+	sort.Slice(cards, func(i, j int) bool {
+		return strings.ToLower(cards[i].name) < strings.ToLower(cards[j].name)
+	})
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"+
+		"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"+
+		"<title>fluigcli dev — formulários</title><style>%s</style></head><body>"+
+		"<header><h1><small>fluigcli dev</small> · Formulários do projeto</h1>"+
+		"<p>Preview local em modo novo registro — datasets, style guide e APIs vêm do servidor via proxy; salvar um arquivo recarrega o navegador.</p></header><main>", formsIndexCSS)
+	if len(cards) == 0 {
+		b.WriteString("<p class=\"empty\">Nenhuma pasta em <code>forms/</code> — baixe do servidor com <code>fluigcli form import</code>.</p>")
+	} else {
+		fmt.Fprintf(&b, "<div class=\"bar\"><input id=\"q\" type=\"search\" placeholder=\"Filtrar formulários…\">"+
+			"<span class=\"count\" id=\"count\">%d formulário(s)</span></div><div class=\"grid\">", len(cards))
+		for _, c := range cards {
+			esc := html.EscapeString(c.name)
+			fmt.Fprintf(&b, "<a class=\"card\" data-name=\"%s\" href=\"/_dev/forms/%s/\"><div class=\"name\">%s</div><div class=\"meta\">",
+				html.EscapeString(strings.ToLower(c.name)), url.PathEscape(c.name), esc)
+			if c.files != "" {
+				fmt.Fprintf(&b, "<span>%s</span>", c.files)
+			}
+			if c.events != "" {
+				fmt.Fprintf(&b, "<span class=\"badge\">%s</span>", c.events)
+			}
+			b.WriteString("</div></a>")
+		}
+		fmt.Fprintf(&b, "</div><script>%s</script>", formsIndexJS)
 	}
-	b.WriteString("</body></html>")
+	b.WriteString("</main></body></html>")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(injectReloadScript([]byte(b.String())))
