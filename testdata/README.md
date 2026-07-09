@@ -88,6 +88,18 @@ sintéticos in-memory). Investigação: APIs nativas de widget (`/wcm/api/v2/wid
 `/api/public/wcm/widget`) respondem `NotFoundException`; listagem/download só via
 `GET /fluiggersWidget/api/widgets[/{filename}]`. Export/deploy é nativo (uploadfile).
 
+## widget list nativo (ROADMAP 2026-07-09)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_applications_page1.json` / `page2.json` | `GET /page-management/api/v2/applications?internal=false` | ✅ gravadas da homologação em 2026-07-09, sanitizadas; envelope `{items, hasNext}` |
+
+> Descobertas: a rota funciona sem a fluiggersWidget, mas **omite widgets**
+> (3 de 28 na homologação — fluiggersWidget, repositorio, sbi_global — mesmo
+> respondendo 200 no `GET applications/{code}`; critério do filtro não
+> identificado) e não traz o nome do `.war` (necessário ao `widget import`).
+> Por isso é o **fallback** do `widget list`, não a fonte primária.
+
 ---
 
 > `TestIntegrationFormListAndDownload` (`-tags=integration`) exercita list +

@@ -17,7 +17,7 @@ o mapa mental, não a referência completa.
 | `server remove <name>` | remove o servidor (e a senha do keyring) |
 | `server test [<name>]` | login + ping + dados do usuário; reporta se a fluiggersWidget está instalada |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
-| `server install-helper [<name>]` | instala a widget auxiliar fluiggersWidget (pré-requisito de `workflow export` e `widget list|import`) |
+| `server install-helper [<name>]` | instala a widget auxiliar fluiggersWidget (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo) |
 
 Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
@@ -72,7 +72,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
-| `widget list` | — | lista os widgets do servidor (via fluiggersWidget) |
+| `widget list` | — | lista os widgets do servidor (fluiggersWidget; sem ela usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo) |
 

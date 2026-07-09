@@ -20,9 +20,10 @@ import (
 var widgetBinary = []byte{0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0x42}
 
 type widgetStub struct {
-	mu           sync.Mutex
-	uploadedWAR  []byte
-	uploadedName string
+	mu            sync.Mutex
+	uploadedWAR   []byte
+	uploadedName  string
+	helperMissing bool // fluiggersWidget ausente → widget list cai no nativo
 }
 
 func (s *widgetStub) widgetZip(t *testing.T) []byte {
@@ -53,7 +54,18 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
 	mux.HandleFunc("/fluiggersWidget/api/widgets", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperMissing {
+			http.NotFound(w, r)
+			return
+		}
 		io.WriteString(w, `[{"code":"meu_widget","title":"Meu Widget","description":"d","filename":"meu_widget.war"}]`)
+	})
+	// Listagem nativa (fallback do widget list quando a fluiggersWidget falta).
+	mux.HandleFunc("/page-management/api/v2/applications", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"items":[`+
+			`{"code":"meu_widget","title":"Meu Widget","description":"d","internal":false},`+
+			`{"code":"outro_widget","title":"Outro Widget","description":"d2","internal":false}`+
+			`],"hasNext":false}`)
 	})
 	mux.HandleFunc("/fluiggersWidget/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(s.widgetZip(t))
@@ -182,6 +194,43 @@ func TestWidgetListJSON(t *testing.T) {
 	data, _ := env.Data.(map[string]any)
 	if ws, _ := data["widgets"].([]any); len(ws) != 1 {
 		t.Errorf("esperava 1 widget, veio %d", len(ws))
+	}
+	if data["source"] != "fluiggersWidget" {
+		t.Errorf("source = %v, quer fluiggersWidget", data["source"])
+	}
+}
+
+// Sem a fluiggersWidget, o list cai para a API nativa (não dá exit 7).
+func TestWidgetListFallbackNativo(t *testing.T) {
+	stub := &widgetStub{helperMissing: true}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "widget", "list", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["source"] != "native" {
+		t.Errorf("source = %v, quer native", data["source"])
+	}
+	ws, _ := data["widgets"].([]any)
+	if len(ws) != 2 {
+		t.Fatalf("esperava 2 widgets da listagem nativa, veio %d", len(ws))
+	}
+	first, _ := ws[0].(map[string]any)
+	if first["code"] != "meu_widget" || first["filename"] != "" {
+		t.Errorf("widget[0] inesperado: %+v", first)
+	}
+}
+
+// O import continua exigindo a fluiggersWidget (exit 7 sem ela).
+func TestWidgetImportSemHelper(t *testing.T) {
+	stub := &widgetStub{helperMissing: true}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "widget", "import", "meu_widget", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitMissingHelper {
+		t.Errorf("exit=%d, quer %d", code, output.ExitMissingHelper)
 	}
 }
 

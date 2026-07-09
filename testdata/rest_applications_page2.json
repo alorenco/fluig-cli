@@ -1,0 +1,28 @@
+{
+ "items": [
+  {
+   "id": 386,
+   "code": "widget_relatorio",
+   "title": "widget_relatorio",
+   "internal": false,
+   "localeFileBaseName": "widget_relatorio",
+   "description": "widget_relatorio",
+   "renderer": "freemarker",
+   "developerCode": "DEV001",
+   "developerName": "dev.exemplo",
+   "developerUrl": "http://www.fluig.com",
+   "version": "1.0",
+   "applicationContext": "/widget_relatorio",
+   "uiWidget": true,
+   "mobileAppWidget": false,
+   "type": "widget",
+   "_expandables": [
+    "locales",
+    "resources",
+    "categories",
+    "services"
+   ]
+  }
+ ],
+ "hasNext": false
+}

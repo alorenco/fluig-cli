@@ -1,0 +1,51 @@
+{
+ "items": [
+  {
+   "id": 377,
+   "code": "meu_widget",
+   "title": "Meu Widget",
+   "internal": false,
+   "localeFileBaseName": "meu_widget",
+   "description": "Widget de exemplo",
+   "renderer": "freemarker",
+   "developerCode": "DEV001",
+   "developerName": "dev.exemplo",
+   "developerUrl": "http://www.fluig.com",
+   "version": "1.0",
+   "applicationContext": "/meu_widget",
+   "uiWidget": true,
+   "mobileAppWidget": false,
+   "type": "widget",
+   "_expandables": [
+    "locales",
+    "resources",
+    "categories",
+    "services"
+   ]
+  },
+  {
+   "id": 379,
+   "code": "kit_avisos",
+   "title": "Avisos do RH",
+   "internal": false,
+   "localeFileBaseName": "kit_avisos",
+   "description": "Mural de avisos com acentuação",
+   "renderer": "freemarker",
+   "developerCode": "DEV001",
+   "developerName": "dev.exemplo",
+   "developerUrl": "http://www.fluig.com",
+   "version": "2.1",
+   "applicationContext": "/kit_avisos",
+   "uiWidget": true,
+   "mobileAppWidget": false,
+   "type": "widget",
+   "_expandables": [
+    "locales",
+    "resources",
+    "categories",
+    "services"
+   ]
+  }
+ ],
+ "hasNext": true
+}

@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -85,6 +86,49 @@ func (c *Client) DownloadWidget(ctx context.Context, filename string) ([]byte, e
 		return nil, &HTTPError{StatusCode: status, URL: "fluiggersWidget/widgets/" + filename, Body: truncate(string(body), 256)}
 	}
 	return body, nil
+}
+
+// ListWidgetsNative lista os widgets customizados pela API nativa de
+// page-management (`GET /page-management/api/v2/applications?internal=false`),
+// sem depender da fluiggersWidget. ⚠️ Limitações validadas na homologação
+// (2026-07-09): a listagem nativa pode OMITIR widgets instaladas (3 de 28
+// ficaram de fora, embora o GET por código as encontre) e não informa o nome
+// do arquivo (.war), necessário ao download do import — por isso ela é o
+// fallback do `widget list`, não a fonte primária.
+func (c *Client) ListWidgetsNative(ctx context.Context) ([]Widget, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	var out []Widget
+	for page := 1; ; page++ {
+		endpoint := c.url("/page-management/api/v2/applications") +
+			"?internal=false&page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: "page-management/applications", Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Items []struct {
+				Code        string `json:"code"`
+				Title       string `json:"title"`
+				Description string `json:"description"`
+			} `json:"items"`
+			HasNext bool `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de page-management/applications: %w", err)
+		}
+		for _, it := range parsed.Items {
+			out = append(out, Widget{Code: it.Code, Title: it.Title, Description: it.Description})
+		}
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
 }
 
 // widgetUploadPath é o endpoint nativo de upload de widget/WAR.
