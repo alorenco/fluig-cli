@@ -1,7 +1,9 @@
 # Contribuindo com o fluigcli
 
 Obrigado pelo interesse! Este é um projeto **não oficial** e de código aberto,
-sem vínculo com a TOTVS. Contribuições são bem-vindas.
+sem vínculo com a TOTVS, criado e mantido por
+[Alessandro Lorençone](https://github.com/alorenco) (@alorenco).
+Contribuições são bem-vindas.
 
 ## Antes de começar
 

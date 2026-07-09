@@ -222,6 +222,9 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
   widget auxiliar que a CLI instala no servidor (`fluigcli server install-helper`)
   e usa nas operações sem API nativa no Fluig.
 
-## Licença
+## Autor e licença
 
-[MIT](LICENSE)
+Criado e mantido por **Alessandro Lorençone**
+([@alorenco](https://github.com/alorenco)).
+
+[MIT](LICENSE) — © 2026 Alessandro Lorençone e contribuidores do fluig-cli.
