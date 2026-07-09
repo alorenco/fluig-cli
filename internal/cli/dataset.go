@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -69,6 +70,7 @@ func newDatasetListCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			shown := datasets[:0]
+			rows := make([][]string, 0, len(datasets))
 			for _, d := range datasets {
 				if customOnly && !d.Custom {
 					continue
@@ -78,7 +80,23 @@ func newDatasetListCmd(app *App) *cobra.Command {
 				if d.Custom {
 					tag = "CUSTOM"
 				}
-				p.Successf("%-45s %s", d.ID, tag)
+				rows = append(rows, []string{d.ID, tag, strconv.Itoa(d.Version)})
+			}
+			if len(shown) == 0 {
+				p.Infof("Nenhum dataset encontrado no servidor.")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md): tabela com cabeçalho em
+				// negrito; CUSTOM em verde — são os datasets que a CLI edita.
+				p.Table(output.Table{
+					Headers: []string{"ID", "Tipo", "Versão"},
+					Rows:    rows,
+					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+						if col == 1 && shown[row].Custom {
+							return output.Green(padded)
+						}
+						return padded
+					}),
+				})
 			}
 			p.Done(map[string]any{"datasets": shown})
 			return nil

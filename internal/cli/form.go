@@ -47,8 +47,21 @@ func newFormListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			rows := make([][]string, 0, len(forms))
 			for _, f := range forms {
-				p.Successf("%-8d %-45s dataset=%s v%d", f.DocumentID, f.Description, f.DatasetName, f.Version)
+				rows = append(rows, []string{
+					strconv.Itoa(f.DocumentID), f.Description, f.DatasetName, strconv.Itoa(f.Version),
+				})
+			}
+			if len(forms) == 0 {
+				p.Infof("Nenhum formulário no servidor.")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md).
+				p.Table(output.Table{
+					Headers: []string{"ID", "Nome", "Dataset", "Versão"},
+					Rows:    rows,
+					Style:   output.BoldHeaderStyle(nil),
+				})
 			}
 			p.Done(map[string]any{"forms": forms})
 			return nil

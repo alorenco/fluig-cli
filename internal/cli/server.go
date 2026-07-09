@@ -695,19 +695,12 @@ func renderServerTable(p *output.Printer, servers []config.Server, def string) {
 		})
 	}
 
-	var style func(row, col int, padded string) string
-	if output.ColorEnabled() {
-		style = func(row, col int, padded string) string {
-			switch {
-			case row == -1:
-				return output.Bold(padded)
-			case row == defaultIdx && col == 0:
-				return output.Green(padded)
-			default:
-				return padded
-			}
+	style := output.BoldHeaderStyle(func(row, col int, padded string) string {
+		if row == defaultIdx && col == 0 {
+			return output.Green(padded)
 		}
-	}
+		return padded
+	})
 
 	p.Table(output.Table{Headers: headers, Rows: rows, Style: style})
 	switch {

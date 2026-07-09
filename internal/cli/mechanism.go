@@ -43,9 +43,20 @@ func newMechanismListCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			ids := make([]string, 0, len(mechs))
+			rows := make([][]string, 0, len(mechs))
 			for _, m := range mechs {
-				p.Successf("%-40s %s", m.ID, m.Name)
 				ids = append(ids, m.ID)
+				rows = append(rows, []string{m.ID, m.Name})
+			}
+			if len(mechs) == 0 {
+				p.Infof("Nenhum mecanismo de atribuição customizado no servidor.")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md).
+				p.Table(output.Table{
+					Headers: []string{"ID", "Nome"},
+					Rows:    rows,
+					Style:   output.BoldHeaderStyle(nil),
+				})
 			}
 			p.Done(map[string]any{"mechanisms": ids})
 			return nil

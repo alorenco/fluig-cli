@@ -44,8 +44,19 @@ func newWidgetListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			rows := make([][]string, 0, len(widgets))
 			for _, w := range widgets {
-				p.Successf("%-35s %s", w.Code, w.Title)
+				rows = append(rows, []string{w.Code, w.Title})
+			}
+			if len(widgets) == 0 {
+				p.Infof("Nenhum widget no servidor.")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md).
+				p.Table(output.Table{
+					Headers: []string{"Código", "Título"},
+					Rows:    rows,
+					Style:   output.BoldHeaderStyle(nil),
+				})
 			}
 			p.Done(map[string]any{"widgets": widgets})
 			return nil

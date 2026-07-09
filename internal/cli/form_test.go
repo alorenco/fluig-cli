@@ -282,3 +282,18 @@ func TestFormListJSON(t *testing.T) {
 		t.Errorf("esperava 1 form no envelope, veio %d", len(forms))
 	}
 }
+
+// Modo humano: tabela com bordas (padrão de listas — ver CLAUDE.md).
+func TestFormListTabela(t *testing.T) {
+	stub := &formStub{}
+	proj := formProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "form", "list", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	for _, want := range []string{"│", "ID", "Nome", "Dataset", "Formulario de Teste", "ds_teste"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alorenco/fluig-cli/internal/config"
@@ -236,5 +237,21 @@ func TestDatasetQueryJSON(t *testing.T) {
 	data, _ := env.Data.(map[string]any)
 	if data["count"].(float64) != 2 {
 		t.Errorf("esperava count=2, veio %v", data["count"])
+	}
+}
+
+// Modo humano: a listagem sai em tabela com bordas e cabeçalho (padrão de
+// listas — ver CLAUDE.md). Sem TTY não há cor, mas a grade permanece.
+func TestDatasetListTabela(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "list", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	for _, want := range []string{"│", "ID", "Tipo", "Versão", "ds_exemplo", "CUSTOM"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
 	}
 }

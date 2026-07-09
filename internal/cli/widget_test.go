@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -181,5 +182,20 @@ func TestWidgetListJSON(t *testing.T) {
 	data, _ := env.Data.(map[string]any)
 	if ws, _ := data["widgets"].([]any); len(ws) != 1 {
 		t.Errorf("esperava 1 widget, veio %d", len(ws))
+	}
+}
+
+// Modo humano: tabela com bordas (padrão de listas — ver CLAUDE.md).
+func TestWidgetListTabela(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "widget", "list", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	for _, want := range []string{"│", "Código", "Título", "meu_widget", "Meu Widget"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
 	}
 }

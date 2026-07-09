@@ -104,3 +104,22 @@ func Bold(s string) string  { return ansiBold + s + ansiReset }
 func Dim(s string) string   { return ansiDim + s + ansiReset }
 func Cyan(s string) string  { return ansiCyan + s + ansiReset }
 func Green(s string) string { return ansiGreen + s + ansiReset }
+
+// BoldHeaderStyle é o Style padrão das tabelas de listagem: cabeçalho em
+// negrito e demais células delegadas a cellStyle (opcional; nil = sem cor
+// extra). Devolve nil quando cores estão desabilitadas (pipe/NO_COLOR), e a
+// tabela sai em texto puro.
+func BoldHeaderStyle(cellStyle func(row, col int, padded string) string) func(row, col int, padded string) string {
+	if !ColorEnabled() {
+		return nil
+	}
+	return func(row, col int, padded string) string {
+		if row == -1 {
+			return Bold(padded)
+		}
+		if cellStyle != nil {
+			return cellStyle(row, col, padded)
+		}
+		return padded
+	}
+}

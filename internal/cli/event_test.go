@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -162,5 +163,20 @@ func TestEventListJSON(t *testing.T) {
 	events, _ := data["events"].([]any)
 	if len(events) != 2 {
 		t.Errorf("esperava 2 eventos no envelope, veio %d", len(events))
+	}
+}
+
+// Modo humano: tabela com bordas (padrão de listas — ver CLAUDE.md).
+func TestEventListTabela(t *testing.T) {
+	stub := &eventStub{}
+	proj := eventProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "event", "list", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	for _, want := range []string{"│", "ID", "Linhas", "beforeConvertViewToPDF", "displayCustomThemes"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
 	}
 }

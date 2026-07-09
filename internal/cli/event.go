@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -44,9 +46,21 @@ func newEventListCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			ids := make([]string, 0, len(events))
+			rows := make([][]string, 0, len(events))
 			for _, e := range events {
-				p.Successf("%s", e.ID)
 				ids = append(ids, e.ID)
+				lines := strconv.Itoa(strings.Count(strings.TrimRight(e.Code, "\n"), "\n") + 1)
+				rows = append(rows, []string{e.ID, lines})
+			}
+			if len(events) == 0 {
+				p.Infof("Nenhum evento global no servidor.")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md).
+				p.Table(output.Table{
+					Headers: []string{"ID", "Linhas"},
+					Rows:    rows,
+					Style:   output.BoldHeaderStyle(nil),
+				})
 			}
 			p.Done(map[string]any{"events": ids})
 			return nil

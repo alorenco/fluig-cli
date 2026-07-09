@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -130,5 +131,20 @@ func TestMechanismExportUpdatesExisting(t *testing.T) {
 	}
 	if stub.created != nil {
 		t.Error("não deveria ter criado um mecanismo que já existe")
+	}
+}
+
+// Modo humano: tabela com bordas (padrão de listas — ver CLAUDE.md).
+func TestMechanismListTabela(t *testing.T) {
+	stub := &mechStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "mechanism", "list", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	for _, want := range []string{"│", "ID", "Nome", "mec_gestor_area", "Gestor da Área"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
 	}
 }
