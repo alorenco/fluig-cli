@@ -234,6 +234,48 @@ func TestServerUpdate(t *testing.T) {
 	}
 }
 
+// No modo humano, o list sai como tabela com bordas, cabeçalhos pt-BR e marca
+// o servidor padrão. (Sem TTY nos testes → sem cores, texto puro.)
+func TestServerListTabelaHumana(t *testing.T) {
+	proj := projWithServers(t, doisServidores()...)
+	if _, err := config.NewStore(proj).SetDefault("hml", false); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout := runMain(t, "server", "list", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	for _, want := range []string{
+		"┌", "│", "└", "Nome", "Ambiente", "URL", "Usuário", "Company",
+		"hml", "producao", "servidor padrão",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("saída do list sem %q:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "\x1b[") {
+		t.Errorf("sem TTY não deveria haver ANSI:\n%q", stdout)
+	}
+}
+
+// Com um único servidor e nenhum padrão explícito, ele é o padrão efetivo e
+// deve aparecer marcado (regressão: antes ficava sem marcador nenhum).
+func TestServerListPadraoImplicitoUnico(t *testing.T) {
+	proj := projWithServers(t, config.Server{
+		ID: "1", Name: "homolog", Host: "h", Port: 80, Username: "u", CompanyID: 1, Env: config.EnvHml,
+	})
+	code, stdout := runMain(t, "server", "list", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	if !strings.Contains(stdout, "●") {
+		t.Errorf("servidor único deveria estar marcado como padrão:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "único cadastrado") {
+		t.Errorf("legenda de padrão implícito ausente:\n%s", stdout)
+	}
+}
+
 func TestServerListMostraPadrao(t *testing.T) {
 	proj := projWithServers(t, doisServidores()...)
 	if _, err := config.NewStore(proj).SetDefault("hml", false); err != nil {

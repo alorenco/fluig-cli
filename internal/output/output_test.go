@@ -113,3 +113,57 @@ func TestPrinterHumanFailure(t *testing.T) {
 		t.Errorf("mensagem pt-BR ausente no stderr: %q", stderr.String())
 	}
 }
+
+func TestTableRender(t *testing.T) {
+	var buf bytes.Buffer
+	Table{
+		Headers: []string{"", "Nome", "Company"},
+		Rows: [][]string{
+			{"●", "homolog", "1"},
+			{"", "producao-longo", "42"},
+		},
+	}.Render(&buf)
+	out := buf.String()
+
+	// Bordas em caracteres de caixa.
+	for _, want := range []string{"┌", "┬", "┐", "├", "┼", "┤", "└", "┴", "┘", "│"} {
+		if !bytes.Contains(buf.Bytes(), []byte(want)) {
+			t.Errorf("tabela sem a borda %q:\n%s", want, out)
+		}
+	}
+	// Todas as linhas têm a mesma largura visível (colunas alinhadas).
+	lines := bytes.Split(bytes.TrimRight(buf.Bytes(), "\n"), []byte("\n"))
+	if len(lines) != 6 { // topo, header, separador, 2 linhas, base
+		t.Fatalf("esperava 6 linhas, obtive %d:\n%s", len(lines), out)
+	}
+	width := len([]rune(string(lines[0])))
+	for i, ln := range lines {
+		if w := len([]rune(string(ln))); w != width {
+			t.Errorf("linha %d com largura %d, esperava %d:\n%s", i, w, width, out)
+		}
+	}
+	// Sem códigos ANSI quando Style é nil.
+	if bytes.Contains(buf.Bytes(), []byte("\x1b[")) {
+		t.Errorf("tabela sem Style não deveria conter ANSI:\n%q", out)
+	}
+}
+
+func TestTableStyleColors(t *testing.T) {
+	var buf bytes.Buffer
+	Table{
+		Headers: []string{"Nome"},
+		Rows:    [][]string{{"homolog"}},
+		Style: func(row, col int, padded string) string {
+			if row == -1 {
+				return Bold(padded)
+			}
+			return Green(padded)
+		},
+	}.Render(&buf)
+	if !bytes.Contains(buf.Bytes(), []byte(ansiBold)) {
+		t.Errorf("cabeçalho sem negrito:\n%q", buf.String())
+	}
+	if !bytes.Contains(buf.Bytes(), []byte(ansiGreen)) {
+		t.Errorf("célula sem verde:\n%q", buf.String())
+	}
+}

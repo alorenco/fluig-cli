@@ -63,6 +63,15 @@ func (p *Printer) Warnf(format string, args ...any) {
 	fmt.Fprintf(p.Stderr, "aviso: "+format+"\n", args...)
 }
 
+// Table renderiza uma tabela para humanos em stdout. Em modo JSON não imprime
+// nada (o dado estruturado vai no envelope via Done).
+func (p *Printer) Table(t Table) {
+	if p.JSON {
+		return
+	}
+	t.Render(p.Stdout)
+}
+
 // Done finaliza a execução com sucesso: em modo JSON emite o envelope com data.
 func (p *Printer) Done(data any) {
 	if !p.JSON || p.emitted {

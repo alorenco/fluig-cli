@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -601,30 +602,70 @@ func newServerListCmd(app *App) *cobra.Command {
 			if servers == nil {
 				servers = []config.Server{}
 			}
-			if len(servers) == 0 {
-				p.Infof("Nenhum servidor cadastrado. Adicione com: fluigcli server add")
-			}
 			def, err := app.Store().DefaultName()
 			if err != nil {
 				return err
 			}
-			for _, s := range servers {
-				marker := " "
-				if s.Name == def {
-					marker = "*"
-				}
-				env := s.Env
-				if env == "" {
-					env = "-"
-				}
-				p.Successf("%s %-16s %-5s %-45s usuário=%s companyId=%d", marker, s.Name, env, s.BaseURL(), s.Username, s.CompanyID)
-			}
-			if def != "" {
-				p.Infof("(* = servidor padrão; troque com: fluigcli server use)")
+			if len(servers) == 0 {
+				p.Infof("Nenhum servidor cadastrado. Adicione com: fluigcli server add")
+			} else {
+				renderServerTable(p, servers, def)
 			}
 			p.Done(map[string]any{"servers": servers, "default": def})
 			return nil
 		},
+	}
+}
+
+// renderServerTable imprime os servidores em uma tabela com bordas; marca o
+// padrão com "●" e, em terminal, colore cabeçalho e marcador. Fora de terminal
+// (pipe/redirecionamento) sai sem cores, preservando o texto legível.
+func renderServerTable(p *output.Printer, servers []config.Server, def string) {
+	// Padrão efetivo: o explícito (server use) ou, se não houver, o único
+	// cadastrado — que a CLI usa implicitamente (mesma regra do resolveServer).
+	effectiveDef, implicit := def, false
+	if effectiveDef == "" && len(servers) == 1 {
+		effectiveDef, implicit = servers[0].Name, true
+	}
+
+	headers := []string{"", "Nome", "Ambiente", "URL", "Usuário", "Company"}
+	rows := make([][]string, 0, len(servers))
+	defaultIdx := -1
+	for i, s := range servers {
+		marker := ""
+		if s.Name == effectiveDef {
+			marker = "●"
+			defaultIdx = i
+		}
+		env := s.Env
+		if env == "" {
+			env = "-"
+		}
+		rows = append(rows, []string{
+			marker, s.Name, env, s.BaseURL(), s.Username, strconv.Itoa(s.CompanyID),
+		})
+	}
+
+	var style func(row, col int, padded string) string
+	if output.ColorEnabled() {
+		style = func(row, col int, padded string) string {
+			switch {
+			case row == -1:
+				return output.Bold(padded)
+			case row == defaultIdx && col == 0:
+				return output.Green(padded)
+			default:
+				return padded
+			}
+		}
+	}
+
+	p.Table(output.Table{Headers: headers, Rows: rows, Style: style})
+	switch {
+	case implicit:
+		p.Infof("● = servidor padrão (único cadastrado) · fixe outro com: fluigcli server use")
+	case effectiveDef != "":
+		p.Infof("● = servidor padrão · troque com: fluigcli server use")
 	}
 }
 
