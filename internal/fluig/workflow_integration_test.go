@@ -17,6 +17,28 @@ func integrationProcessID() string {
 	return "meu_processo" // placeholder; defina FLUIGCLI_TEST_PROCESS
 }
 
+// TestIntegrationListProcesses confirma a listagem de processos (REST v2,
+// read-only): envelope {items, hasNext} paginado.
+func TestIntegrationListProcesses(t *testing.T) {
+	c, err := NewClient(integrationOptions(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	procs, err := c.ListProcesses(context.Background())
+	if err != nil {
+		t.Fatalf("ListProcesses: %v", err)
+	}
+	t.Logf("%d processo(s) no servidor", len(procs))
+	if len(procs) == 0 {
+		t.Error("nenhum processo listado — esperado ao menos 1 na homologação")
+	}
+	for _, p := range procs {
+		if p.ID == "" {
+			t.Errorf("processo sem ID: %+v", p)
+		}
+	}
+}
+
 // TestIntegrationWorkflowVersion confirma o workflow version nativo (read-only).
 func TestIntegrationWorkflowVersion(t *testing.T) {
 	c, err := NewClient(integrationOptions(t))

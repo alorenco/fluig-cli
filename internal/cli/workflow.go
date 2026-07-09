@@ -16,10 +16,67 @@ import (
 func newWorkflowCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Versão e deploy de scripts de eventos de processo (export = local → servidor)",
+		Short: "Processos: listagem, versão e deploy de scripts de eventos (export = local → servidor)",
 	}
+	cmd.AddCommand(newWorkflowListCmd(app))
 	cmd.AddCommand(newWorkflowVersionCmd(app))
 	cmd.AddCommand(newWorkflowExportCmd(app))
+	return cmd
+}
+
+// --- workflow list ---
+
+func newWorkflowListCmd(app *App) *cobra.Command {
+	var activeOnly bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "Lista os processos do servidor (nativo, REST v2)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, false)
+			if err != nil {
+				return err
+			}
+			processes, err := client.ListProcesses(ctx)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			shown := processes[:0]
+			rows := make([][]string, 0, len(processes))
+			for _, pr := range processes {
+				if activeOnly && !pr.Active {
+					continue
+				}
+				shown = append(shown, pr)
+				ativo := "não"
+				if pr.Active {
+					ativo = "sim"
+				}
+				rows = append(rows, []string{pr.ID, pr.Description, pr.Category, ativo})
+			}
+			if len(shown) == 0 {
+				p.Infof("Nenhum processo encontrado no servidor (processos são criados no Fluig Studio).")
+			} else {
+				// Padrão de listagem (ver CLAUDE.md): tabela com cabeçalho em
+				// negrito; "sim" em verde destaca os processos ativos.
+				p.Table(output.Table{
+					Headers: []string{"ID", "Descrição", "Categoria", "Ativo"},
+					Rows:    rows,
+					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+						if col == 3 && shown[row].Active {
+							return output.Green(padded)
+						}
+						return padded
+					}),
+				})
+			}
+			p.Done(map[string]any{"processes": shown})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&activeOnly, "active-only", false, "mostra apenas processos ativos")
 	return cmd
 }
 

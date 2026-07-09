@@ -63,6 +63,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | efeito |
 |---|---|
+| `workflow list [--active-only]` | lista os processos do servidor (nativo) |
 | `workflow version <processId>` | mostra a última versão do processo (nativo) |
 | `workflow export <arquivo\|processId>` | atualiza scripts de eventos do processo (via fluiggersWidget) |
 

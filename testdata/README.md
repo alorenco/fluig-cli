@@ -54,6 +54,16 @@ reduzidas — a estrutura e os tipos são os reais).
 > script/evento — só processo inteiro. Update cirúrgico só via fluiggersWidget.
 > Ver a referência das APIs nativas no CLAUDE.md.
 
+## workflow list (ROADMAP 2026-07-09)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_processes_page1.json` / `page2.json` | `GET /process-management/api/v2/processes` | ✅ gravadas da homologação (Voyager 2.0.0) em 2026-07-09, sanitizadas; envelope `{items, hasNext}` |
+
+> Descobertas: processo sem categoria vem **sem a chave** `categoryId` (ex.:
+> FLUIGADHOCPROCESS); o parâmetro `fields` devolve itens vazios neste endpoint;
+> `expand=versions` infla a resposta ~25× (13 KB → 334 KB em 31 processos).
+
 ## Fase 6 — Widgets
 
 Sem fixtures novas (empacotamento/desempacotamento do WAR é testado com zips

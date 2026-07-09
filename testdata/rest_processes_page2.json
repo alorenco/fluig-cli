@@ -1,0 +1,26 @@
+{
+ "items": [
+  {
+   "processId": "zz_fluigcli_test_proc",
+   "processDescription": "Processo de teste",
+   "active": true,
+   "versions": null,
+   "volumeId": "Default",
+   "managerAssignmentConfiguration": null,
+   "periodId": "Default",
+   "uniqueFormRecord": false,
+   "complementConfiguration": null,
+   "deadlineTime": 0,
+   "warningTime": 0,
+   "public": false,
+   "_expandables": [
+    "instructions",
+    "complementConfiguration",
+    "keywords",
+    "versions",
+    "managerAssignmentConfiguration"
+   ]
+  }
+ ],
+ "hasNext": false
+}

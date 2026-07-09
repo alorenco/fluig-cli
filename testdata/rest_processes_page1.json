@@ -1,0 +1,71 @@
+{
+ "items": [
+  {
+   "processId": "Compras",
+   "processDescription": "Compras",
+   "active": true,
+   "versions": null,
+   "volumeId": "Default",
+   "managerAssignmentConfiguration": null,
+   "periodId": "Default",
+   "categoryId": "Suprimentos",
+   "uniqueFormRecord": false,
+   "complementConfiguration": null,
+   "deadlineTime": 0,
+   "warningTime": 0,
+   "public": false,
+   "_expandables": [
+    "instructions",
+    "complementConfiguration",
+    "keywords",
+    "versions",
+    "managerAssignmentConfiguration"
+   ]
+  },
+  {
+   "processId": "AprovacaoContrato",
+   "processDescription": "Aprovação de Contrato",
+   "active": false,
+   "versions": null,
+   "volumeId": "Default",
+   "managerAssignmentConfiguration": null,
+   "periodId": "Default",
+   "categoryId": "Jurídico",
+   "uniqueFormRecord": false,
+   "complementConfiguration": null,
+   "deadlineTime": 0,
+   "warningTime": 0,
+   "public": false,
+   "_expandables": [
+    "instructions",
+    "complementConfiguration",
+    "keywords",
+    "versions",
+    "managerAssignmentConfiguration"
+   ]
+  },
+  {
+   "processId": "ferias_solicitacao",
+   "processDescription": "Solicitação de Férias",
+   "active": true,
+   "versions": null,
+   "volumeId": "Default",
+   "managerAssignmentConfiguration": null,
+   "periodId": "Default",
+   "categoryId": "RH",
+   "uniqueFormRecord": false,
+   "complementConfiguration": null,
+   "deadlineTime": 0,
+   "warningTime": 0,
+   "public": true,
+   "_expandables": [
+    "instructions",
+    "complementConfiguration",
+    "keywords",
+    "versions",
+    "managerAssignmentConfiguration"
+   ]
+  }
+ ],
+ "hasNext": true
+}

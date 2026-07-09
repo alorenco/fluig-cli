@@ -1,12 +1,28 @@
 # fluigcli workflow — scripts de processo
 
-Consulta a versão de um processo e faz o deploy **cirúrgico** dos scripts de
-eventos (sem reimportar o processo inteiro). Arquivos locais em:
+Lista os processos do servidor, consulta a versão de um processo e faz o deploy
+**cirúrgico** dos scripts de eventos (sem reimportar o processo inteiro).
+Arquivos locais em:
 
 ```
 workflow/scripts/<Processo>.<evento>.js
 # ex.: workflow/scripts/Compras.beforeTaskSave.js  → processId "Compras", evento "beforeTaskSave"
 ```
+
+## `fluigcli workflow list [--active-only]`
+
+Lista os processos do servidor em tabela (ID, descrição, categoria, ativo).
+**Nativo** (REST v2 `process-management`) — não depende de nada instalado.
+
+```sh
+fluigcli workflow list --server homolog
+fluigcli workflow list --active-only          # só os processos ativos
+fluigcli workflow list --json                 # para agentes/CI
+```
+
+O `processId` da primeira coluna é o que os demais comandos (`workflow
+version`, `workflow export`) e a convenção de arquivos
+(`workflow/scripts/<processId>.<evento>.js`) usam.
 
 ## `fluigcli workflow version <processId>`
 
