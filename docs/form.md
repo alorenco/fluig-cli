@@ -23,7 +23,15 @@ A pasta local pode ter um nome técnico (ex.: `frm_fin_pagamentos_diversos`)
 diferente do nome do formulário no servidor (`Formulário de Pagamentos Diversos`).
 A CLI grava esse vínculo em **`.fluigcli/forms.json`** (versionável no Git) no
 import e no export, então depois do primeiro vínculo o `form export <pasta>`
-reencontra o formulário sozinho. Para criar/inicializar o vínculo:
+reencontra o formulário sozinho.
+
+Os vínculos são **separados por servidor** (chave `host:porta/companyId`):
+o mesmo formulário tem `documentId` — e às vezes nome — diferente em cada
+ambiente, então o vínculo criado na homologação nunca é usado num export para
+a produção. O primeiro export para um servidor novo resolve pelo nome da
+pasta (ou `--name`/`--document-id`) e grava o vínculo daquele servidor.
+
+Para criar/inicializar o vínculo:
 
 - no import: `--folder <pasta>` grava o formulário na pasta indicada;
 - no export: `--name "<nome no servidor>"` ou `--document-id <id>` apontam o alvo

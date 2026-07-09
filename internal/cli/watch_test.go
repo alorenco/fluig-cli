@@ -2,11 +2,14 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +20,13 @@ import (
 )
 
 const watchImplServidor = "function createDataset(fields, constraints, sortFields) {\n  return null;\n}\n"
+
+// watchServer monta o config.Server de teste apontando para o stub.
+func watchServer(stubURL string) *config.Server {
+	u, _ := url.Parse(stubURL)
+	port, _ := strconv.Atoi(u.Port())
+	return &config.Server{Name: "homolog", Host: u.Hostname(), Port: port, Username: "u", CompanyID: 1}
+}
 
 // watchStub simula o servidor para o watch: dataset ds_exemplo existente, com
 // sinal em edits a cada editDataset.
@@ -142,7 +152,7 @@ func TestWatchPublicaAoSalvar(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- app.runWatch(ctx, client, root, "homolog", 20*time.Millisecond) }()
+	go func() { done <- app.runWatch(ctx, client, root, watchServer(srv.URL), 20*time.Millisecond) }()
 
 	// Salva conteúdo modificado até o watch publicar (tolerante ao tempo de
 	// inicialização do observador).
@@ -269,7 +279,8 @@ func TestWatchFormAgrupaPastaEPulaSemMudanca(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, ".fluigcli", "forms.json"),
-		[]byte(`{"version":"1.0.0","forms":[{"folder":"MeuForm","documentId":42,"name":"Meu Form"}]}`), 0o644); err != nil {
+		[]byte(fmt.Sprintf(`{"version":"2.0.0","servers":{"%s":[{"folder":"MeuForm","documentId":42,"name":"Meu Form"}]}}`,
+			watchServer(srv.URL).FormScopeKey())), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(form, "MeuForm.html"), []byte("<html>v1</html>"), 0o644); err != nil {
@@ -283,7 +294,7 @@ func TestWatchFormAgrupaPastaEPulaSemMudanca(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- app.runWatch(ctx, client, root, "homolog", 300*time.Millisecond) }()
+	go func() { done <- app.runWatch(ctx, client, root, watchServer(srv.URL), 300*time.Millisecond) }()
 	time.Sleep(300 * time.Millisecond) // observador no ar
 
 	// Rajada: dois arquivos do MESMO formulário em sequência.

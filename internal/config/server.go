@@ -37,6 +37,15 @@ func (s *Server) KeyringKey() string {
 	return s.BaseURL() + "|" + s.Username
 }
 
+// FormScopeKey é a chave do bucket do servidor no .fluigcli/forms.json
+// (host:porta/companyId): documentId e nome de formulário variam por ambiente
+// — e por empresa, no multi-tenant — então o vínculo pasta↔form só vale
+// dentro deste escopo. Independe do nome dado ao servidor (que é local de
+// cada máquina) e de SSL.
+func (s *Server) FormScopeKey() string {
+	return fmt.Sprintf("%s:%d/%d", s.Host, s.Port, s.CompanyID)
+}
+
 // Ambientes canônicos de um servidor.
 const (
 	EnvDev  = "dev"

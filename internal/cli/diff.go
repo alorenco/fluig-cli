@@ -100,7 +100,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				}
 			}
 
-			_, client, err := app.connect(ctx, passwordStdin)
+			server, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func newDiffCmd(app *App) *cobra.Command {
 
 			// Formulários: pastas locais vs. anexos + eventos do servidor.
 			if sweep || len(targets.forms) > 0 {
-				formEntries, err := diffForms(ctx, client, root, targets.forms, sweep)
+				formEntries, err := diffForms(ctx, client, root, server.FormScopeKey(), targets.forms, sweep)
 				if err != nil {
 					return err
 				}
@@ -418,7 +418,7 @@ func classifyArtifactPath(targets *diffTargets, root, arg string) error {
 
 // diffForms compara as pastas locais de formulário com o servidor e, na
 // varredura, aponta formulários que só existem no servidor.
-func diffForms(ctx context.Context, client *fluig.Client, root string, targets []formDiffTarget, sweep bool) ([]diffEntry, error) {
+func diffForms(ctx context.Context, client *fluig.Client, root, formScope string, targets []formDiffTarget, sweep bool) ([]diffEntry, error) {
 	userCode, err := client.ResolveUserCode(ctx)
 	if err != nil {
 		return nil, mapFluigError(err)
@@ -427,7 +427,7 @@ func diffForms(ctx context.Context, client *fluig.Client, root string, targets [
 	if err != nil {
 		return nil, mapFluigError(err)
 	}
-	fmap, err := project.LoadFormMap(root)
+	fmap, err := project.LoadFormMap(root, formScope)
 	if err != nil {
 		return nil, output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 // FormLink liga uma pasta local de formulário ao formulário no servidor.
-// Resolve o problema de a pasta local ter nome diferente do documentDescription
+// Resolve o problema de a pasta local ter nome diferente do documentDescription.
 type FormLink struct {
 	Folder      string `json:"folder"`
 	DocumentID  int    `json:"documentId"`
@@ -17,28 +17,42 @@ type FormLink struct {
 	DatasetName string `json:"datasetName,omitempty"`
 }
 
-// FormMap é o mapeamento persistido em <root>/.fluigcli/forms.json.
+// FormMap é o mapeamento persistido em <root>/.fluigcli/forms.json, com os
+// vínculos agrupados POR SERVIDOR (chave host:porta/companyId): documentId e
+// nome do formulário variam por ambiente — o mesmo form é um id na homologação
+// e outro na produção. As consultas e o Upsert operam no servidor ativo; o
+// Save preserva os buckets dos demais servidores.
+//
+// Schema v2 (2026-07-09). O v1 (lista única, sem servidor) foi abandonado sem
+// retrocompatibilidade por decisão do mantenedor — arquivo v1 é tratado como
+// vazio e reescrito no primeiro Save.
 type FormMap struct {
-	path  string
-	links []FormLink
+	path string
+	key  string // servidor ativo (host:porta/companyId)
+	file formMapFile
 }
 
 type formMapFile struct {
-	Version string     `json:"version"`
-	Forms   []FormLink `json:"forms"`
+	Version string                `json:"version"`
+	Servers map[string][]FormLink `json:"servers"`
 }
 
-const formMapVersion = "1.0.0"
+const formMapVersion = "2.0.0"
 
 // FormMapPath devolve o caminho do mapa de formulários do projeto.
 func FormMapPath(root string) string {
 	return filepath.Join(root, ".fluigcli", "forms.json")
 }
 
-// LoadFormMap carrega o mapa (vazio se o arquivo não existe).
-func LoadFormMap(root string) (*FormMap, error) {
+// LoadFormMap carrega o mapa do projeto já posicionado no servidor dado
+// (serverKey = host:porta/companyId). Arquivo ausente ou em schema antigo
+// resulta em mapa vazio.
+func LoadFormMap(root, serverKey string) (*FormMap, error) {
 	path := FormMapPath(root)
-	m := &FormMap{path: path}
+	m := &FormMap{path: path, key: serverKey, file: formMapFile{
+		Version: formMapVersion,
+		Servers: map[string][]FormLink{},
+	}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return m, nil
@@ -50,13 +64,20 @@ func LoadFormMap(root string) (*FormMap, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, err
 	}
-	m.links = f.Forms
+	if f.Version == formMapVersion && f.Servers != nil {
+		m.file = f
+	}
 	return m, nil
 }
 
-// ByFolder busca o vínculo pelo nome da pasta.
+// links devolve o bucket do servidor ativo.
+func (m *FormMap) links() []FormLink {
+	return m.file.Servers[m.key]
+}
+
+// ByFolder busca o vínculo pelo nome da pasta (no servidor ativo).
 func (m *FormMap) ByFolder(folder string) (FormLink, bool) {
-	for _, l := range m.links {
+	for _, l := range m.links() {
 		if l.Folder == folder {
 			return l, true
 		}
@@ -64,9 +85,9 @@ func (m *FormMap) ByFolder(folder string) (FormLink, bool) {
 	return FormLink{}, false
 }
 
-// ByDocumentID busca o vínculo pelo documentId.
+// ByDocumentID busca o vínculo pelo documentId (no servidor ativo).
 func (m *FormMap) ByDocumentID(id int) (FormLink, bool) {
-	for _, l := range m.links {
+	for _, l := range m.links() {
 		if l.DocumentID == id {
 			return l, true
 		}
@@ -74,9 +95,9 @@ func (m *FormMap) ByDocumentID(id int) (FormLink, bool) {
 	return FormLink{}, false
 }
 
-// ByName busca o vínculo pelo nome (documentDescription).
+// ByName busca o vínculo pelo nome do formulário (no servidor ativo).
 func (m *FormMap) ByName(name string) (FormLink, bool) {
-	for _, l := range m.links {
+	for _, l := range m.links() {
 		if l.Name == name {
 			return l, true
 		}
@@ -84,23 +105,25 @@ func (m *FormMap) ByName(name string) (FormLink, bool) {
 	return FormLink{}, false
 }
 
-// Upsert insere ou atualiza o vínculo, chaveado pela pasta.
+// Upsert insere ou atualiza o vínculo no servidor ativo, chaveado pela pasta.
 func (m *FormMap) Upsert(link FormLink) {
-	for i := range m.links {
-		if m.links[i].Folder == link.Folder {
-			m.links[i] = link
+	bucket := m.links()
+	for i := range bucket {
+		if bucket[i].Folder == link.Folder {
+			bucket[i] = link
 			return
 		}
 	}
-	m.links = append(m.links, link)
+	m.file.Servers[m.key] = append(bucket, link)
 }
 
-// Save grava o mapa em disco (cria .fluigcli/ se preciso).
+// Save grava o mapa em disco (cria .fluigcli/ se preciso), preservando os
+// vínculos dos demais servidores.
 func (m *FormMap) Save() error {
 	if err := os.MkdirAll(filepath.Dir(m.path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(formMapFile{Version: formMapVersion, Forms: m.links}, "", "  ")
+	data, err := json.MarshalIndent(m.file, "", "  ")
 	if err != nil {
 		return err
 	}

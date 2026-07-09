@@ -220,8 +220,9 @@ func diffProject(t *testing.T, stubURL string) string {
 	// Formulário 42, vinculado à pasta meu_form pelo mapeamento: o html difere
 	// do servidor ("conteudo"); o anexo script.js não existe localmente
 	// (only-server); onNotify é igual; novoEvento é only-local.
-	write(".fluigcli/forms.json",
-		`{"version":"1.0.0","forms":[{"folder":"meu_form","documentId":42,"name":"Formulario de Teste"}]}`)
+	write(".fluigcli/forms.json", fmt.Sprintf(
+		`{"version":"2.0.0","servers":{"%s":[{"folder":"meu_form","documentId":42,"name":"Formulario de Teste"}]}}`,
+		s.FormScopeKey()))
 	write("forms/meu_form/Formulario de Teste.html", "conteudo NOVO")
 	write("forms/meu_form/events/onNotify.js", "function onNotify(){ /* codigo */ }")
 	write("forms/meu_form/events/novoEvento.js", "function novo(){}")

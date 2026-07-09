@@ -93,7 +93,7 @@ func newFormImportCmd(app *App) *cobra.Command {
 				return output.Usagef("--folder só pode ser usado ao importar um único formulário")
 			}
 			ctx := context.Background()
-			_, client, err := app.connect(ctx, passwordStdin)
+			server, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {
 				return err
 			}
@@ -105,7 +105,7 @@ func newFormImportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			fmap, err := project.LoadFormMap(root)
+			fmap, err := project.LoadFormMap(root, server.FormScopeKey())
 			if err != nil {
 				return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
 			}
@@ -296,7 +296,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar o formulário")
+			server, client, err := app.connectWrite(ctx, passwordStdin, "publicar o formulário")
 			if err != nil {
 				return err
 			}
@@ -308,7 +308,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			fmap, err := project.LoadFormMap(root)
+			fmap, err := project.LoadFormMap(root, server.FormScopeKey())
 			if err != nil {
 				return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
 			}

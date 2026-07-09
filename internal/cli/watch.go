@@ -72,7 +72,7 @@ func newWatchCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return app.runWatch(ctx, client, root, server.Name, debounce)
+			return app.runWatch(ctx, client, root, server, debounce)
 		},
 	}
 	cmd.Flags().DurationVar(&debounce, "debounce", 500*time.Millisecond, "espera após o salvamento antes de publicar (agrupa rajadas do editor)")
@@ -102,6 +102,9 @@ type watchSession struct {
 	app    *App
 	client *fluig.Client
 	root   string
+	// formScope é o bucket do servidor no .fluigcli/forms.json
+	// (host:porta/companyId) — o vínculo pasta↔form varia por servidor.
+	formScope string
 	// published guarda o hash do conteúdo na última publicação de cada
 	// unidade, para pular salvamentos sem mudança — essencial em formulários
 	// e scripts de processo, cujo conteúdo atual não pode ser lido barato do
@@ -116,7 +119,7 @@ type watchSession struct {
 // por unidade (debounce; a pasta do formulário agrupa todos os seus arquivos)
 // e publica cada salvamento. Erros de publicação viram aviso — o watch segue
 // vivo até o contexto ser cancelado (Ctrl+C).
-func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverName string, debounce time.Duration) error {
+func (a *App) runWatch(ctx context.Context, client *fluig.Client, root string, server *config.Server, debounce time.Duration) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return output.Genericf("não consegui iniciar o observador de arquivos: %v", err)
@@ -138,9 +141,9 @@ func (a *App) runWatch(ctx context.Context, client *fluig.Client, root, serverNa
 		return output.Usagef("nenhuma pasta da convenção (datasets/, events/, mechanisms/, forms/, workflow/scripts/) encontrada em %s", root)
 	}
 
-	a.printer.Infof("Observando %s em %q — Ctrl+C para parar.", strings.Join(watched, ", "), serverName)
+	a.printer.Infof("Observando %s em %q — Ctrl+C para parar.", strings.Join(watched, ", "), server.Name)
 
-	s := &watchSession{app: a, client: client, root: root, published: map[string]string{}}
+	s := &watchSession{app: a, client: client, root: root, formScope: server.FormScopeKey(), published: map[string]string{}}
 	pending := map[string]*time.Timer{}
 	fire := make(chan watchUnit, 32)
 	for {
@@ -342,7 +345,7 @@ func (s *watchSession) updateForm(ctx context.Context, u watchUnit) (string, err
 	if err != nil {
 		return "", err
 	}
-	fmap, err := project.LoadFormMap(s.root)
+	fmap, err := project.LoadFormMap(s.root, s.formScope)
 	if err != nil {
 		return "", err
 	}
