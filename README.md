@@ -77,6 +77,10 @@ fluigcli event import --all
 #    (só roda em dev/hml; nunca cria artefato nem versão nova)
 fluigcli watch
 
+# 4b. Ou com feedback instantâneo, sem publicar nada: proxy local do portal
+#     que serve o JS/CSS das widgets do disco e recarrega o navegador ao salvar
+fluigcli dev
+
 # 5. Ou no ritmo manual: confira o que mudaria e publique (export = local → servidor)
 fluigcli diff
 fluigcli dataset export datasets/ds_clientes.js
@@ -103,6 +107,7 @@ fluigcli diff --json | jq '.data.counts'
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
+| `dev` | dev server com live reload: widgets sem deploy + preview de formulários (só dev/hml) | [docs/dev.md](docs/dev.md) |
 
 **Configuração**:
 

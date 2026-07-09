@@ -196,6 +196,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newWidgetCmd(app),
 		newDiffCmd(app),
 		newWatchCmd(app),
+		newDevCmd(app),
 	)
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").

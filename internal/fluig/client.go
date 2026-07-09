@@ -110,6 +110,27 @@ func (c *Client) url(path string) string {
 	return c.base.String() + path
 }
 
+// BaseURL devolve uma cópia da URL base do servidor.
+func (c *Client) BaseURL() *url.URL {
+	u := *c.base
+	return &u
+}
+
+// SessionJar expõe o cookie jar vivo da sessão. Quem fala com o servidor por
+// fora do Client (ex.: o proxy do `fluigcli dev`) compartilha a mesma sessão —
+// inclusive as rotações de cookie feitas pelo servidor, que invalidariam uma
+// cópia estática dos cookies (o jwt.token expira).
+func (c *Client) SessionJar() http.CookieJar {
+	return c.http.Jar
+}
+
+// SaveSession persiste os cookies atuais no cache de sessão (no-op sem cache).
+// Processos longos (ex.: `fluigcli dev`) chamam ao encerrar, para que as
+// rotações de cookie acumuladas sobrevivam à execução.
+func (c *Client) SaveSession() {
+	c.saveSession()
+}
+
 // cookies retorna os cookies de sessão atuais para a URL base.
 func (c *Client) cookies() []*http.Cookie {
 	return c.http.Jar.Cookies(c.base)
