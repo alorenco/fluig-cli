@@ -105,7 +105,7 @@ prefira `diff` + `export`.
 
 | comando | efeito |
 |---|---|
-| `dev` | proxy local autenticado do portal: serve o JS/CSS das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` e recarrega o navegador ao salvar |
+| `dev` | proxy local autenticado do portal: serve JS/CSS **e o markup do view.ftl** das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` e recarrega o navegador ao salvar |
 
 Só roda em servidor `dev`/`hml`; escuta em `127.0.0.1` por padrão (`--listen`
 muda, com aviso — ex.: IP de tailnet em servidor remoto); sem `--json`.

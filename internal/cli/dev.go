@@ -27,10 +27,12 @@ func newDevCmd(app *App) *cobra.Command {
 		Long: "Sobe um proxy local autenticado do servidor Fluig que serve do disco os\n" +
 			"arquivos que você está editando — sem publicar nada:\n\n" +
 			"  • Widgets: navegue no portal real pela porta local; o JS/CSS de\n" +
-			"    wcm/widget/*/src/main/webapp/resources/ é servido da sua máquina.\n" +
-			"    Salvou, recarregou, mudou — sem deploy de WAR nem espera de cache.\n" +
-			"    (view.ftl e .properties são renderizados no servidor: mudanças neles\n" +
-			"    geram aviso pedindo o widget export.)\n" +
+			"    wcm/widget/*/src/main/webapp/resources/ é servido da sua máquina, e\n" +
+			"    o markup do view.ftl é rerenderizado do arquivo local direto na\n" +
+			"    página (quando o template só usa ${instanceId} — FreeMarker real\n" +
+			"    mantém o render do servidor, com aviso). Salvou, recarregou, mudou —\n" +
+			"    sem deploy de WAR nem espera de cache. (edit.ftl, .properties e\n" +
+			"    application.info seguem exigindo o widget export.)\n" +
 			"  • Formulários: preview local em /_dev/forms/ com o style guide e os\n" +
 			"    datasets do servidor real (DatasetFactory funciona com dados reais).\n" +
 			"  • Live reload: ao salvar em forms/ ou wcm/widget/, o navegador\n" +

@@ -30,9 +30,16 @@ descompactar, sem limpeza de cache.** Vale também para widgets-biblioteca
   acrescenta (`ramais_pt_BR.js` → `ramais.js`) são resolvidos.
 - Arquivo que não existe localmente (ex.: bundles gerados pelo servidor)
   segue para o servidor — o portal nunca quebra por causa do map-local.
-- `view.ftl`, `edit.ftl`, `.properties` e `application.info` são renderizados
-  **no servidor**: mudar neles não recarrega (recarregar mentiria que a mudança
-  apareceu) — sai um aviso pedindo `fluigcli widget export <code>`.
+- **O markup do `view.ftl` também é local**: o portal envelopa cada instância
+  com `id="_instance_<id>_" appcode="<code>"`, e o proxy troca a saída
+  renderizada pela do seu `view.ftl` (substituindo `${instanceId}` e
+  removendo comentários `<#-- -->`). Salvou o `.ftl` → recarregou → mudou,
+  sem deploy. Limite: template com FreeMarker de verdade (outras `${…}`,
+  `<#if>`, `<@macro>`) mantém o render do servidor, com um aviso — o
+  renderizador local não executa FreeMarker.
+- `edit.ftl`, `.properties` e `application.info` seguem server-side: mudar
+  neles não recarrega (recarregar mentiria que a mudança apareceu) — sai um
+  aviso pedindo `fluigcli widget export <code>`.
 
 ## Formulários
 

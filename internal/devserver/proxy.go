@@ -52,13 +52,16 @@ func (s *Server) newProxy() *httputil.ReverseProxy {
 				return nil
 			}
 			// HTML: URLs absolutas do host real (WCMAPI.serverURL, links, logo)
-			// viram a origem local, e o script de live reload entra no fim.
+			// viram a origem local; o markup das widgets do projeto é
+			// rerenderizado do view.ftl local (ver ftl.go); e o script de live
+			// reload entra no fim.
 			b, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				return err
 			}
 			body := strings.ReplaceAll(string(b), upstream.String(), origin)
+			body = s.rewriteWidgetBlocks(body)
 			out := injectReloadScript([]byte(body))
 			resp.Body = io.NopCloser(strings.NewReader(string(out)))
 			resp.ContentLength = int64(len(out))

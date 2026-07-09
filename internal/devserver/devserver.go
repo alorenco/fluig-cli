@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alorenco/fluig-cli/internal/fluig"
@@ -43,6 +44,9 @@ type Server struct {
 	mounts  *mountTable
 	hub     *hub
 	handler http.Handler
+
+	warnedMu sync.Mutex
+	warned   map[string]bool // avisos já emitidos (warnOnce)
 }
 
 const defaultDebounce = 500 * time.Millisecond
@@ -68,6 +72,7 @@ func New(opts Options) (*Server, error) {
 		opts:   opts,
 		mounts: newMountTable(opts.Root),
 		hub:    newHub(),
+		warned: map[string]bool{},
 	}
 
 	proxy := s.newProxy()

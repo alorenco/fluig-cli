@@ -13,10 +13,12 @@ import (
 )
 
 // mount liga o context-root de uma widget (URL no servidor) à sua pasta
-// local de recursos estáticos (src/main/webapp).
+// local de recursos estáticos (src/main/webapp) e ao view.ftl (render local).
 type mount struct {
 	contextRoot string // ex.: /ramais (com barra inicial, sem final)
 	dir         string // ex.: <root>/wcm/widget/ramais/src/main/webapp
+	appCode     string // application.code do application.info (fallback: pasta)
+	viewFTL     string // caminho do view.file (fallback: view.ftl); "" se não existe
 }
 
 // mountTable descobre e cacheia os map-locals das widgets do projeto. O cache
@@ -101,12 +103,74 @@ func discoverMounts(root string) []mount {
 			continue
 		}
 		cr := contextRootOf(dir, e.Name())
-		out = append(out, mount{contextRoot: cr, dir: dir})
+		widgetDir := filepath.Join(root, project.WidgetsDir, e.Name())
+		code, viewFTL := appInfoOf(widgetDir, e.Name())
+		out = append(out, mount{contextRoot: cr, dir: dir, appCode: code, viewFTL: viewFTL})
 	}
 	// Prefixos mais longos primeiro: um context-root que contenha outro
 	// (ex.: /app e /app2 não conflitam, mas /a e /a/b sim) resolve certo.
 	sort.Slice(out, func(i, j int) bool { return len(out[i].contextRoot) > len(out[j].contextRoot) })
 	return out
+}
+
+// byAppCode acha o mount de uma widget pelo application.code (o `appcode` que
+// o portal estampa no envelope de cada instância).
+func (t *mountTable) byAppCode(code string) (mount, bool) {
+	if code == "" {
+		return mount{}, false
+	}
+	for _, m := range t.snapshot() {
+		if m.appCode == code && m.viewFTL != "" {
+			return m, true
+		}
+	}
+	return mount{}, false
+}
+
+// byViewFTL acha o mount cujo view.ftl é o arquivo dado (caminho já limpo ou
+// não — a comparação normaliza).
+func (t *mountTable) byViewFTL(path string) (mount, bool) {
+	clean := filepath.Clean(path)
+	for _, m := range t.snapshot() {
+		if m.viewFTL != "" && filepath.Clean(m.viewFTL) == clean {
+			return m, true
+		}
+	}
+	return mount{}, false
+}
+
+// appInfoOf lê application.code e o arquivo de view do application.info
+// (fallbacks: nome da pasta e view.ftl). viewFTL volta "" quando o arquivo
+// de view não existe no disco.
+func appInfoOf(widgetDir, folderName string) (code, viewFTL string) {
+	code, viewFile := folderName, "view.ftl"
+	resources := filepath.Join(widgetDir, "src", "main", "resources")
+	if b, err := os.ReadFile(filepath.Join(resources, "application.info")); err == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if !ok {
+				continue
+			}
+			switch strings.TrimSpace(k) {
+			case "application.code":
+				if v = strings.TrimSpace(v); v != "" {
+					code = v
+				}
+			case "view.file":
+				if v = strings.TrimSpace(v); v != "" {
+					viewFile = v
+				}
+			}
+		}
+	}
+	p, err := project.SafeJoin(resources, viewFile)
+	if err != nil {
+		return code, ""
+	}
+	if st, err := os.Stat(p); err != nil || st.IsDir() {
+		return code, ""
+	}
+	return code, p
 }
 
 // contextRootOf lê o <context-root> do jboss-web.xml (fallback: nome da pasta).

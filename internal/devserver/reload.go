@@ -144,7 +144,13 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 					continue
 				}
 				if inWidgets {
-					if code, serverSide := widgetServerSidePath(s.opts.Root, ev.Name); serverSide {
+					if m, ok := s.mounts.byViewFTL(ev.Name); ok {
+						// view.ftl é rerenderizado localmente pelo proxy:
+						// recarrega — e re-arma o aviso de FTL não suportado,
+						// para o usuário saber se a edição destravou (ou não)
+						// o render local.
+						s.clearWarn("ftl:" + m.appCode)
+					} else if code, serverSide := widgetServerSidePath(s.opts.Root, ev.Name); serverSide {
 						// Avisa no máximo uma vez por widget a cada rajada.
 						if time.Since(warned[code]) > 2*time.Second {
 							warned[code] = time.Now()
