@@ -5,8 +5,11 @@ nada** — o complemento natural da trava de produção: ela pergunta "quer mesm
 publicar?", o `diff` mostra *o que* seria publicado.
 
 ```sh
-fluigcli diff                                # varre datasets/, events/ e mechanisms/
+fluigcli diff                                # varre datasets/, events/, mechanisms/, forms/ e workflow/scripts/
 fluigcli diff datasets/ds_clientes.js        # compara só um arquivo
+fluigcli diff forms/MinhaPasta               # compara um formulário inteiro (anexos + eventos)
+fluigcli diff forms/MinhaPasta/events/x.js   # compara um único arquivo do formulário
+fluigcli diff workflow/scripts/Compras.beforeTaskSave.js   # um script de processo
 fluigcli diff --server producao              # contra um servidor específico
 ```
 
@@ -20,11 +23,32 @@ fluigcli diff --server producao              # contra um servidor específico
 | `only-server` | existe no servidor, não localmente (importe com `<tipo> import <id>`) |
 
 - Sem argumentos, além de comparar os arquivos locais, aponta artefatos que só
-  existem no servidor (datasets **customizados**, eventos e mecanismos).
+  existem no servidor (datasets **customizados**, eventos, mecanismos,
+  formulários e — nos processos com script local — eventos de processo).
 - Diferenças só de quebra de linha (CRLF/LF) e de quebra final **não contam** —
   é a mesma normalização que o ciclo import/export já faz.
-- Cobertura atual: datasets, eventos globais e mecanismos (artefatos de arquivo
-  único). Formulários e scripts de workflow ficam para uma próxima versão.
+- Cobertura: datasets, eventos globais, mecanismos, formulários (`forms/<pasta>`,
+  arquivo a arquivo, incluindo `events/`) e scripts de processo
+  (`workflow/scripts/<Processo>.<evento>.js`).
+
+### Formulários
+
+- O diff compara **cada arquivo** da pasta com o anexo/evento correspondente no
+  servidor. Um arquivo `only-server` seria **removido** por um `form export` da
+  pasta (o export envia a lista completa de anexos) — importe o formulário se
+  quiser preservá-lo.
+- Anexos binários (imagens etc.) são comparados byte a byte; quando diferem, o
+  status é `modified` sem diff textual.
+- O formulário-alvo é resolvido como no `form export`: mapeamento
+  `.fluigcli/forms.json` > nome da pasta.
+
+### Scripts de processo
+
+- A comparação usa o **export nativo** do processo (zip com o XML de
+  definição) — funciona sem a fluiggersWidget e considera a versão mais
+  recente do processo.
+- Processos que só existem no servidor não são varridos (não há como
+  enumerá-los hoje); o diff cobre os processos que têm script local.
 
 ## Saída `--json`
 

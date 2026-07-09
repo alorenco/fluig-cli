@@ -1,9 +1,15 @@
 package fluig
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 
 	"github.com/alorenco/fluig-cli/internal/fluig/soap"
@@ -61,4 +67,128 @@ func (c *Client) ExportProcessZip(ctx context.Context, processID string) ([]byte
 		return nil, fmt.Errorf("zip base64 inválido do processo %q: %w", processID, err)
 	}
 	return zip, nil
+}
+
+// ProcessEventScripts devolve os scripts de eventos de um processo como mapa
+// evento → código, extraídos do export nativo (§5.7 da SPEC: o zip traz um
+// único XML <ProcessDefinition>, com os scripts em <WorkflowProcessEvent>).
+// Leitura pura — não requer a fluiggersWidget. Quando o XML traz eventos de
+// mais de uma versão do processo, prevalece a versão mais alta.
+func (c *Client) ProcessEventScripts(ctx context.Context, processID string) (map[string]string, error) {
+	zipData, err := c.ExportProcessZip(ctx, processID)
+	if err != nil {
+		return nil, err
+	}
+	events, err := parseProcessEventScripts(zipData)
+	if err != nil {
+		return nil, fmt.Errorf("processo %q: %w", processID, err)
+	}
+	return events, nil
+}
+
+// parseProcessEventScripts abre o zip do export e extrai os eventos do XML de
+// definição (o primeiro .xml do pacote).
+func parseProcessEventScripts(zipData []byte) (map[string]string, error) {
+	zr, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+	if err != nil {
+		return nil, fmt.Errorf("zip de processo inválido: %w", err)
+	}
+	for _, f := range zr.File {
+		if !strings.HasSuffix(strings.ToLower(f.Name), ".xml") {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return nil, err
+		}
+		return parseProcessDefinitionEvents(data)
+	}
+	return nil, errors.New("zip de processo sem o XML de definição")
+}
+
+// parseProcessDefinitionEvents varre o XML <ProcessDefinition> atrás dos
+// elementos <WorkflowProcessEvent> (eventId na PK + eventDescription = código).
+// A varredura é tolerante a namespace e caixa — o XML é gerado pelo servidor e
+// não temos um schema publicado.
+func parseProcessDefinitionEvents(data []byte) (map[string]string, error) {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	byVersion := map[int]map[string]string{}
+	maxVersion := 0
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("XML de definição inválido: %w", err)
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || !strings.EqualFold(se.Name.Local, "workflowProcessEvent") {
+			continue
+		}
+		id, code, version, err := decodeProcessEvent(dec)
+		if err != nil {
+			return nil, fmt.Errorf("evento de processo inválido no XML: %w", err)
+		}
+		if id == "" {
+			continue
+		}
+		if byVersion[version] == nil {
+			byVersion[version] = map[string]string{}
+		}
+		byVersion[version][id] = code
+		if version > maxVersion {
+			maxVersion = version
+		}
+	}
+	events := byVersion[maxVersion]
+	if events == nil {
+		events = map[string]string{}
+	}
+	return events, nil
+}
+
+// decodeProcessEvent consome o subárvore de um <WorkflowProcessEvent> já
+// aberto, coletando eventId, eventDescription e version (da PK) por nome de
+// elemento, sem depender da ordem nem da caixa exata.
+func decodeProcessEvent(dec *xml.Decoder) (id, code string, version int, err error) {
+	var (
+		stack      []string
+		idB, codeB strings.Builder
+		verSet     bool
+	)
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", "", 0, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			stack = append(stack, t.Name.Local)
+		case xml.EndElement:
+			if len(stack) == 0 { // fechou o próprio WorkflowProcessEvent
+				return strings.TrimSpace(idB.String()), codeB.String(), version, nil
+			}
+			stack = stack[:len(stack)-1]
+		case xml.CharData:
+			if len(stack) == 0 {
+				continue
+			}
+			switch leaf := stack[len(stack)-1]; {
+			case strings.EqualFold(leaf, "eventId"):
+				idB.Write(t)
+			case strings.EqualFold(leaf, "eventDescription"):
+				codeB.Write(t)
+			case strings.EqualFold(leaf, "version") && !verSet:
+				if v, convErr := strconv.Atoi(strings.TrimSpace(string(t))); convErr == nil {
+					version, verSet = v, true
+				}
+			}
+		}
+	}
 }

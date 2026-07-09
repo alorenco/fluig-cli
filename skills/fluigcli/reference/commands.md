@@ -78,12 +78,15 @@ não-interativo (sem ele: exit 2).
 
 | comando | efeito |
 |---|---|
-| `diff` | compara datasets/eventos/mecanismos locais com o servidor; aponta `only-server` |
-| `diff <path>...` | compara só os arquivos informados |
+| `diff` | compara datasets, eventos, mecanismos, formulários e scripts de processo locais com o servidor; aponta `only-server` |
+| `diff <path>...` | compara só os arquivos (ou pastas de formulário) informados |
 
 Read-only (não dispara a trava de produção). No `--json`, cada artefato vem com
 `status` (`equal`\|`modified`\|`only-local`\|`only-server`) e o diff unificado.
-Use antes de um `export` para saber o que mudaria.
+Use antes de um `export` para saber o que mudaria. Em formulários, um arquivo
+`only-server` seria **removido** por um `form export` da pasta; anexos binários
+são comparados byte a byte (sem diff textual). Scripts de processo usam o
+export nativo do processo — não requerem a fluiggersWidget.
 
 ## watch — publicar ao salvar (interativo)
 
