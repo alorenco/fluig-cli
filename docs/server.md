@@ -114,6 +114,10 @@ fluigcli server add --name homolog --host fluig-homolog.empresa.com.br \
 - `--global` grava na configuração global em vez da do projeto.
 - A senha **nunca** é aceita como argumento de linha de comando (vazaria em `ps`
   e no histórico do shell).
+- Se o projeto tem pastas em `forms/` ainda sem vínculo com o servidor
+  cadastrado, o comando lembra de rodar `fluigcli form link` (o vínculo
+  pasta↔formulário é por servidor — ver [form](form.md)). O `server test`
+  dá a mesma dica.
 
 ### `fluigcli server list`
 
