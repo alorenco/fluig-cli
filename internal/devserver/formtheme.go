@@ -1,6 +1,7 @@
 package devserver
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -40,32 +41,57 @@ var legacyFormCSS = []string{
 	"/portal/resources/style-guide/css/fluig-style-guide.min.css",
 }
 
-// formThemeInject espelha o bloco que o Fluig 2.0 acrescenta ao <head> (sem o
-// script de tema dark, que depende do portal pai e é no-op no preview).
-const formThemeInject = "\n<!-- fluigcli dev: emulação do render de formulários do Fluig 2.0 -->\n" +
-	"<script src='/ecm_resources/resources/assets/forms/forms.js'></script>\n" +
-	"<link type='text/css' rel='stylesheet' href='" + formThemeFlatCSS + "'/>\n" +
-	"<link type='text/css' rel='stylesheet' href='/style-guide/css/animalia-icons.min.css'/>\n" +
-	"<link type='text/css' rel='stylesheet' href='/style-guide/css/fluig-icons.min.css'/>\n"
-
-// formThemeProbe descobre (uma vez) se o servidor tem o tema novo.
-type formThemeProbe struct {
-	once sync.Once
-	v2   bool
+// formThemeAssets são os assets que o render 2.0 acrescenta ao <head> (sem o
+// script de tema dark, que depende do portal pai e é no-op no preview). Cada
+// um é sondado individualmente: há servidores 2.0 em que parte deles responde
+// 500 (observado na homologação com animalia-icons/fluig-icons) — injetar um
+// asset quebrado só suja o console do preview.
+var formThemeAssets = []struct{ tag, path string }{
+	{"<script src='%s'></script>", "/ecm_resources/resources/assets/forms/forms.js"},
+	{"<link type='text/css' rel='stylesheet' href='%s'/>", formThemeFlatCSS},
+	{"<link type='text/css' rel='stylesheet' href='%s'/>", "/style-guide/css/animalia-icons.min.css"},
+	{"<link type='text/css' rel='stylesheet' href='%s'/>", "/style-guide/css/fluig-icons.min.css"},
 }
 
-// serverHasNewTheme sonda o CSS flat no upstream com a sessão do proxy.
+// formThemeProbe descobre (uma vez) se o servidor tem o tema novo e monta o
+// bloco de injeção só com os assets que respondem 200.
+type formThemeProbe struct {
+	once   sync.Once
+	v2     bool
+	inject string
+}
+
+// serverHasNewTheme sonda o CSS flat (detector do 2.0) e os demais assets do
+// tema no upstream, com a sessão do proxy.
 func (s *Server) serverHasNewTheme() bool {
 	s.theme.once.Do(func() {
 		client := &http.Client{Jar: s.opts.Jar, Timeout: probeTimeout}
-		resp, err := client.Get(s.opts.Upstream.String() + formThemeFlatCSS)
-		if err != nil {
+		ok := func(path string) bool {
+			resp, err := client.Get(s.opts.Upstream.String() + path)
+			if err != nil {
+				return false
+			}
+			_ = resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}
+		if !ok(formThemeFlatCSS) {
 			return
 		}
-		_ = resp.Body.Close()
-		s.theme.v2 = resp.StatusCode == http.StatusOK
-		if s.theme.v2 {
-			s.opts.Infof("preview de formulários emulando o render do Fluig 2.0 (tema flat + forms.js injetados)")
+		s.theme.v2 = true
+		var b strings.Builder
+		b.WriteString("\n<!-- fluigcli dev: emulação do render de formulários do Fluig 2.0 -->\n")
+		var skipped []string
+		for _, a := range formThemeAssets {
+			if a.path == formThemeFlatCSS || ok(a.path) {
+				fmt.Fprintf(&b, a.tag+"\n", a.path)
+			} else {
+				skipped = append(skipped, a.path)
+			}
+		}
+		s.theme.inject = b.String()
+		s.opts.Infof("preview de formulários emulando o render do Fluig 2.0 (tema flat + forms.js injetados)")
+		if len(skipped) > 0 {
+			s.opts.Warnf("preview: assets do tema indisponíveis no servidor e não injetados: %s", strings.Join(skipped, ", "))
 		}
 	})
 	return s.theme.v2
@@ -81,9 +107,9 @@ func (s *Server) applyFormTheme(page []byte) []byte {
 		out = strings.ReplaceAll(out, legacy, formThemeFlatCSS)
 	}
 	if i := strings.LastIndex(strings.ToLower(out), "</head>"); i >= 0 {
-		out = out[:i] + formThemeInject + out[i:]
+		out = out[:i] + s.theme.inject + out[i:]
 	} else {
-		out = formThemeInject + out
+		out = s.theme.inject + out
 	}
 	return []byte(out)
 }

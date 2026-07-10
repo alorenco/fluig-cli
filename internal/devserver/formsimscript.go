@@ -25,9 +25,29 @@ const formSimJS = `(function () {
   var firstVisit = !cfg;
   if (!cfg) cfg = { enabled: true, formMode: "ADD", wkNumState: "0", wkUser: "", processId: "", processVersion: 0, vars: {} };
 
-  // Relatório da execução, exibido no painel.
+  // Relatório da execução, exibido no painel (avisos tardios — ex.: stub do
+  // portal usado no document.ready do form — re-renderizam os detalhes).
   var report = { ran: false, error: null, reads: [], sets: [], warns: [], unknown: [] };
-  function warn(msg) { if (report.warns.indexOf(msg) < 0) report.warns.push(msg); }
+  function warn(msg) {
+    if (report.warns.indexOf(msg) < 0) {
+      report.warns.push(msg);
+      if (root) renderStatus();
+    }
+  }
+
+  // Stub do frame pai do portal: numa solicitação real o formulário roda num
+  // iframe e o pai expõe ECM (parent.ECM.attachmentTable = anexos). No
+  // preview parent === window e nada disso existe — o stub devolve "sem
+  // anexos" e avisa no painel no primeiro uso.
+  function installPortalStub() {
+    if (window.ECM) return;
+    function usedOnce(api) { warn(api + " emulado — no preview a solicitação não tem anexos"); }
+    window.ECM = {
+      attachmentTable: {
+        getData: function () { usedOnce("parent.ECM.attachmentTable.getData()"); return []; }
+      }
+    };
+  }
 
   // --- shims da API server-side de formulário ---
 
@@ -521,8 +541,10 @@ const formSimJS = `(function () {
     location.reload();
   }
 
-  // Ordem: o evento roda JÁ (antes do load do formulário, que lê os campos
+  // Ordem: o stub do portal entra antes de tudo (o form usa no document
+  // .ready); o evento roda JÁ (antes do load do formulário, que lê os campos
   // preenchidos por ele); o painel entra em seguida.
+  installPortalStub();
   runEvent();
   buildPanel();
   if (firstVisit) autodetect();

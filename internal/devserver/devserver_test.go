@@ -337,13 +337,22 @@ func TestListenAddr(t *testing.T) {
 }
 
 func TestFormPreviewEmulaTema20(t *testing.T) {
-	// Upstream "Fluig 2.0": o CSS flat existe.
+	// Upstream "Fluig 2.0": o CSS flat e os demais assets do tema existem —
+	// menos o fluig-icons, que responde 500 (observado na homologação) e por
+	// isso não deve ser injetado.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/style-guide/css/fluig-style-guide-flat.min.css" {
+		switch r.URL.Path {
+		case "/style-guide/css/fluig-style-guide-flat.min.css":
 			_, _ = io.WriteString(w, "/* flat */")
-			return
+		case "/ecm_resources/resources/assets/forms/forms.js":
+			_, _ = io.WriteString(w, "// forms.js")
+		case "/style-guide/css/animalia-icons.min.css":
+			_, _ = io.WriteString(w, "/* animalia */")
+		case "/style-guide/css/fluig-icons.min.css":
+			http.Error(w, "erro interno", http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
 		}
-		http.NotFound(w, r)
 	}))
 	defer upstream.Close()
 	ts, s, _ := newTestServer(t, upstream)
@@ -374,6 +383,10 @@ func TestFormPreviewEmulaTema20(t *testing.T) {
 		!strings.Contains(out, "/ecm_resources/resources/assets/forms/forms.js") ||
 		!strings.Contains(out, "animalia-icons.min.css") {
 		t.Errorf("bloco do tema 2.0 não injetado:\n%s", out)
+	}
+	// Asset que o servidor não serve (500) fica fora da injeção.
+	if strings.Contains(out, "fluig-icons.min.css") {
+		t.Error("asset com 500 no upstream não deveria ser injetado")
 	}
 	// A injeção entra dentro do <head>.
 	if strings.Index(out, "forms.js") > strings.Index(out, "</head>") {
