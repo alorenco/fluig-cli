@@ -82,9 +82,14 @@ server-side emulada:
   Sem vínculo, escolha o processo na lista ou digite o número direto.
 - A escolha fica salva por formulário (localStorage) e sobrevive ao reload —
   inclusive o live reload ao salvar o próprio `displayFields.js`.
-- O painel mostra o que o evento fez (leituras, `setValue`, avisos). Evento
-  que use API Java do Rhino (`importClass` etc.) não roda no navegador: o
-  erro aparece no painel e o form fica como no preview cru.
+- O painel mostra o que o evento fez (leituras, `setValue`, avisos). Além do
+  básico (`setValue/getValue/getFormMode/setEnabled/getMobile`), a emulação
+  cobre `setVisibleById`, `getChildrenIndexes`, `getCardData` e o interop
+  Java comum dos eventos (`new java.util.HashMap()`/`ArrayList`,
+  `keySet().iterator()`, `importClass` das classes simuladas). Classe Java
+  fora disso (ex.: `java.text.SimpleDateFormat`) não roda no navegador: o
+  painel mostra o erro com o nome da classe e o form fica como no preview
+  cru.
 
 Para testar o formulário dentro do processo de verdade (bindings de card,
 anexos, movimentação), continue com o `fluigcli watch` + F5.

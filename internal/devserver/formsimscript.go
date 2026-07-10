@@ -72,6 +72,126 @@ const formSimJS = `(function () {
     return vars;
   }
 
+  // --- emulação mínima do Java (Rhino) que os eventos costumam usar ---
+  // Cobre o padrão "new java.util.HashMap() + form.getCardData() + iterator".
+  // Classe não simulada falha com o caminho claro (java.x.Y) no painel.
+
+  function javaIterator(arr) {
+    var i = 0;
+    return {
+      hasNext: function () { return i < arr.length; },
+      next: function () { return arr[i++]; }
+    };
+  }
+  function javaCollection(arr) {
+    return {
+      iterator: function () { return javaIterator(arr); },
+      size: function () { return arr.length; },
+      isEmpty: function () { return arr.length === 0; },
+      contains: function (v) { return arr.indexOf(v) >= 0; },
+      toArray: function () { return arr.slice(); }
+    };
+  }
+  function javaList(arr) {
+    var c = javaCollection(arr);
+    c.get = function (i) { return arr[i]; };
+    c.add = function (v) { arr.push(v); return true; };
+    return c;
+  }
+  function javaMap(obj) {
+    function keys() { return Object.keys(obj); }
+    return {
+      get: function (k) { return Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : null; },
+      put: function (k, v) { var old = obj[k]; obj[k] = v; return old == null ? null : old; },
+      containsKey: function (k) { return Object.prototype.hasOwnProperty.call(obj, k); },
+      remove: function (k) { var old = obj[k]; delete obj[k]; return old == null ? null : old; },
+      size: function () { return keys().length; },
+      isEmpty: function () { return keys().length === 0; },
+      keySet: function () { return javaCollection(keys()); },
+      values: function () { return javaList(keys().map(function (k) { return obj[k]; })); },
+      entrySet: function () {
+        return javaCollection(keys().map(function (k) {
+          return { getKey: function () { return k; }, getValue: function () { return obj[k]; } };
+        }));
+      }
+    };
+  }
+  function javaMissing(path) {
+    var msg = path + " não é simulado no preview (interop Java do Rhino)";
+    var f = function () { throw new Error(msg); };
+    if (!window.Proxy) return f;
+    return new Proxy(f, {
+      get: function (t, p) {
+        if (typeof p !== "string" || p === "__simpleName") return undefined;
+        return javaMissing(path + "." + p);
+      },
+      construct: function () { throw new Error(msg); },
+      apply: function () { throw new Error(msg); }
+    });
+  }
+  function makeJava() {
+    function cls(name, ctor) { ctor.__simpleName = name; return ctor; }
+    var pkgs = {
+      util: {
+        HashMap: cls("HashMap", function () { return javaMap({}); }),
+        LinkedHashMap: cls("LinkedHashMap", function () { return javaMap({}); }),
+        ArrayList: cls("ArrayList", function () { return javaList([]); })
+      },
+      lang: { String: cls("String", String) }
+    };
+    if (!window.Proxy) return pkgs;
+    function wrapPkg(name, pkg) {
+      return new Proxy(pkg, {
+        get: function (t, p) {
+          if (p in t) return t[p];
+          if (typeof p !== "string" || p === "__simpleName") return undefined;
+          return javaMissing("java." + name + "." + p);
+        }
+      });
+    }
+    return new Proxy(pkgs, {
+      get: function (t, p) {
+        if (p in t) return wrapPkg(p, t[p]);
+        if (typeof p !== "string") return undefined;
+        return javaMissing("java." + p);
+      }
+    });
+  }
+
+  // getCardData server-side = mapa campo → valor do card; no preview, o
+  // retrato atual dos campos nomeados do DOM (os controles do painel não
+  // têm atributo name, então ficam de fora).
+  function cardDataObj() {
+    var obj = {};
+    var els = document.querySelectorAll("input[name],select[name],textarea[name]");
+    for (var i = 0; i < els.length; i++) {
+      var n = els[i].getAttribute("name");
+      if (n && !Object.prototype.hasOwnProperty.call(obj, n)) obj[n] = getField(n);
+    }
+    return obj;
+  }
+
+  // getChildrenIndexes server-side = índices dos filhos no card; no preview,
+  // os sufixos ___N presentes dentro da tabela.
+  function childrenIndexes(tableName) {
+    var scope = document.getElementById(tableName);
+    if (!scope) {
+      warn("form.getChildrenIndexes: tabela \"" + tableName + "\" não existe no HTML — devolvendo []");
+      return [];
+    }
+    var seen = {}, out = [];
+    var els = scope.querySelectorAll("[name]");
+    for (var i = 0; i < els.length; i++) {
+      var m = /___(\d+)$/.exec(els[i].getAttribute("name") || "");
+      if (m && !seen[m[1]]) {
+        seen[m[1]] = true;
+        out.push(parseInt(m[1], 10));
+      }
+    }
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
   // O DatasetFactory server-side devolve getValue(row, col)/rowsCount; o
   // cliente devolve {columns, values} — o wrapper serve as duas interfaces.
   function wrapDataset(ds) {
@@ -102,6 +222,14 @@ const formSimJS = `(function () {
       getFormMode: function () { return cfg.formMode || "ADD"; },
       setEnabled: function (name, enabled) { findFields(name).forEach(function (el) { el.disabled = !enabled; }); },
       getMobile: function () { return false; },
+      getCompanyId: function () { return boot.companyId || 1; },
+      getCardData: function () { return javaMap(cardDataObj()); },
+      getChildrenIndexes: childrenIndexes,
+      setVisibleById: function (id, visible) {
+        var el = document.getElementById(id);
+        if (!el) { warn("form.setVisibleById: elemento \"" + id + "\" não existe no HTML"); return; }
+        el.style.display = visible === false || visible === "false" ? "none" : "";
+      },
       setShowDisabledFields: function () {},
       setHidePrintLink: function () {},
       setHideDeleteButton: function () {},
@@ -121,11 +249,17 @@ const formSimJS = `(function () {
       getDataset: function (a, b, c, d) { return wrapDataset(realDF.getDataset(a, b, c, d)); },
       createConstraint: function () { return realDF.createConstraint.apply(realDF, arguments); }
     } : undefined;
+    var javaObj = makeJava();
+    var importClassShim = function (cls) {
+      if (cls && cls.__simpleName) { window[cls.__simpleName] = cls; return; }
+      warn("importClass: classe não simulada no preview (interop Java do Rhino)");
+    };
     try {
       var src = boot.event +
         "\n;if (typeof displayFields !== \"function\") throw new Error(\"events/displayFields.js não define displayFields(form, customHTML)\");" +
         "\ndisplayFields(form, customHTML);";
-      new Function("getValue", "form", "customHTML", "DatasetFactory", src)(getValue, form, customHTML, DF || realDF);
+      new Function("getValue", "form", "customHTML", "DatasetFactory", "java", "importClass", src)(
+        getValue, form, customHTML, DF || realDF, javaObj, importClassShim);
       report.ran = true;
       if (parts.length) document.body.insertAdjacentHTML("beforeend", parts.join(""));
     } catch (e) {
