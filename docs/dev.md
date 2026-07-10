@@ -90,6 +90,12 @@ server-side emulada:
   fora disso (ex.: `java.text.SimpleDateFormat`) não roda no navegador: o
   painel mostra o erro com o nome da classe e o form fica como no preview
   cru.
+- **Tabelas pai×filho funcionam no preview** (`wdkAddChild`/
+  `fnWdkRemoveChild`): o preview replica a transformação do render (marca a
+  linha-modelo de cada `table[tablename]`) e carrega a **máquina real do
+  servidor** (`wdkdetail.js`) pelo proxy — incluir/remover linhas se comporta
+  como no portal. Em servidor sem o arquivo (Fluig antigo), entra uma
+  emulação local equivalente.
 
 Para testar o formulário dentro do processo de verdade (bindings de card,
 anexos, movimentação), continue com o `fluigcli watch` + F5.

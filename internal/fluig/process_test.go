@@ -224,10 +224,10 @@ func TestProcessPublishClientOps(t *testing.T) {
 
 // --- estados e vínculo com formulário (simulação do `fluigcli dev`) ---
 //
-// ⚠️ As fixtures rest_process_states*.json e rest_processes_expand.json seguem
-// o schema do swagger real do process-management, mas ainda NÃO são respostas
-// reais (a homologação estava fora do ar em 2026-07-10) — substituir por
-// respostas reais sanitizadas quando o gate de validação viva rodar.
+// As fixtures rest_process_states*.json e rest_processes_expand.json são
+// respostas REAIS da homologação (2026-07-10, processo rh_justificativa_ponto
+// v24), recortadas: a paginação dos states foi dividida em duas páginas para
+// exercitar o hasNext (a resposta real veio numa página só).
 
 // simStub simula login/ping + states paginados + listagem com expand=versions.
 type simStub struct {
@@ -274,7 +274,7 @@ func TestProcessStatesPaginadoOrdenado(t *testing.T) {
 		testdata(t, "rest_process_states_page2.json"),
 	}}
 	c := processClient(t, stub.server(t).URL)
-	states, err := c.ProcessStates(context.Background(), "rh_justificativa_ponto", 12)
+	states, err := c.ProcessStates(context.Background(), "rh_justificativa_ponto", 24)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,14 +290,16 @@ func TestProcessStatesPaginadoOrdenado(t *testing.T) {
 			t.Fatalf("estados fora de ordem: %v", seqs)
 		}
 	}
-	if states[0].Sequence != 0 || states[0].Name != "Início" || states[0].BpmnType != "START_EVENT" {
+	// Valores reais da homologação: o "Início" do diagrama é sequence 6 (a
+	// solicitação nova abre com WKNumState=0, que não aparece na lista).
+	if states[0].Sequence != 6 || states[0].Name != "Início" || states[0].BpmnType != "START_EVENT_NORMAL" {
 		t.Errorf("estado[0] inesperado: %+v", states[0])
 	}
-	if states[2].Sequence != 9 || states[2].StateType != "TASK" {
+	if states[2].Sequence != 9 || states[2].StateType != "SIMPLE" || states[2].Name != "Revisar Processo" {
 		t.Errorf("estado[2] inesperado: %+v", states[2])
 	}
 	// A URL usa a versão pedida.
-	if !strings.Contains(stub.seen[0], "/process-versions/12/states") {
+	if !strings.Contains(stub.seen[0], "/process-versions/24/states") {
 		t.Errorf("caminho inesperado: %s", stub.seen[0])
 	}
 }
@@ -306,7 +308,7 @@ func TestProcessStatesPaginadoOrdenado(t *testing.T) {
 func TestFindProcessesByFormID(t *testing.T) {
 	stub := &simStub{expandBody: testdata(t, "rest_processes_expand.json")}
 	c := processClient(t, stub.server(t).URL)
-	links, err := c.FindProcessesByFormID(context.Background(), 4711)
+	links, err := c.FindProcessesByFormID(context.Background(), 1109734)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +316,7 @@ func TestFindProcessesByFormID(t *testing.T) {
 		t.Fatalf("esperava 1 processo, veio %d: %+v", len(links), links)
 	}
 	l := links[0]
-	if l.ProcessID != "rh_justificativa_ponto" || l.Description != "Justificativa de Ponto" || l.Version != 12 {
+	if l.ProcessID != "rh_justificativa_ponto" || l.Description != "Justificativa de Ponto" || l.Version != 24 {
 		t.Errorf("vínculo inesperado: %+v", l)
 	}
 	if !strings.Contains(stub.seen[0], "expand=versions") {

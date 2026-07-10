@@ -55,6 +55,7 @@ type Server struct {
 	warned   map[string]bool // avisos já emitidos (warnOnce)
 
 	theme formThemeProbe // detecção (única) do tema novo no servidor
+	wdk   formWdkProbe   // detecção (única) da máquina wdkdetail.js
 	sim   formSimCache   // cache da API de simulação de formulários
 }
 

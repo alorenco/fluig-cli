@@ -1,27 +1,33 @@
 {
-  "items": [
-    {
-      "processId": "rh_justificativa_ponto",
-      "processVersion": 12,
-      "sequence": 11,
-      "stateName": "Aprovar Justificativa",
-      "stateDescription": "Aprovação pela gerência",
-      "stateType": "TASK",
-      "bpmnType": "USER_TASK",
-      "configuration": null,
-      "instructions": ""
-    },
-    {
-      "processId": "rh_justificativa_ponto",
-      "processVersion": 12,
-      "sequence": 99,
-      "stateName": "Fim",
-      "stateDescription": "",
-      "stateType": "END",
-      "bpmnType": "END_EVENT",
-      "configuration": null,
-      "instructions": ""
-    }
-  ],
-  "hasNext": false
+ "items": [
+  {
+   "processId": "rh_justificativa_ponto",
+   "processVersion": 24,
+   "sequence": 11,
+   "stateName": "Aprovar Justificativa",
+   "stateDescription": "Aprovar Justificativa",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": null,
+   "_expandables": [
+    "instructions",
+    "configuration"
+   ]
+  },
+  {
+   "processId": "rh_justificativa_ponto",
+   "processVersion": 24,
+   "sequence": 13,
+   "stateName": "Registrar no Sistema",
+   "stateDescription": "Registrar no Sistema",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": null,
+   "_expandables": [
+    "instructions",
+    "configuration"
+   ]
+  }
+ ],
+ "hasNext": false
 }

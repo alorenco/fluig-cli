@@ -70,6 +70,70 @@ func TestFormSimInjecao(t *testing.T) {
 	}
 }
 
+// Formulário com tabela pai×filho (tablename=) ganha a máquina REAL do
+// servidor (wdkdetail.js) injetada antes do runtime — desde que o upstream a
+// tenha; formulário sem tabela não ganha.
+func TestFormSimInjetaWdkDetail(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ecm_resources/resources/assets/forms/wdkdetail.js" {
+			_, _ = io.WriteString(w, "// máquina real")
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+	ts, s, _ := newTestServer(t, upstream)
+
+	// Sem tablename → sem wdkdetail.
+	resp, _ := http.Get(ts.URL + "/_dev/forms/Meu%20Form/")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if strings.Contains(string(body), "wdkdetail.js") {
+		t.Error("form sem tabela pai×filho não deveria ganhar o wdkdetail.js")
+	}
+
+	// Com tablename → wdkdetail injetado ANTES do runtime da simulação.
+	dir := filepath.Join(s.opts.Root, "forms", "comtabela")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	html := `<html><body><table tablename="tabelaItens" id="tabelaItens"><tbody><tr><td><input name="item"/></td></tr></tbody></table></body></html>`
+	if err := os.WriteFile(filepath.Join(dir, "comtabela.html"), []byte(html), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ = http.Get(ts.URL + "/_dev/forms/comtabela/")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	out := string(body)
+	iWdk := strings.Index(out, "wdkdetail.js")
+	iSim := strings.Index(out, "/_dev/formsim.js")
+	if iWdk < 0 || iSim < 0 || iWdk > iSim {
+		t.Errorf("wdkdetail.js deveria ser injetado antes do runtime (wdk=%d sim=%d):\n%s", iWdk, iSim, out)
+	}
+}
+
+// Upstream sem o wdkdetail.js (Fluig antigo) → nada é injetado e o runtime
+// cai na emulação local.
+func TestFormSimSemWdkDetailNoServidor(t *testing.T) {
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	defer upstream.Close()
+	ts, s, _ := newTestServer(t, upstream)
+	dir := filepath.Join(s.opts.Root, "forms", "comtabela")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	html := `<html><body><table tablename="t" id="t"><tbody><tr><td><input name="x"/></td></tr></tbody></table></body></html>`
+	if err := os.WriteFile(filepath.Join(dir, "comtabela.html"), []byte(html), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resp, _ := http.Get(ts.URL + "/_dev/forms/comtabela/")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if strings.Contains(string(body), "wdkdetail.js") {
+		t.Error("upstream sem wdkdetail.js não deveria gerar injeção")
+	}
+}
+
 // Sem cliente autenticado (só nos testes — o comando dev sempre passa), a API
 // local responde 503 com mensagem, e o painel segue com valores manuais.
 func TestFormSimAPISemCliente(t *testing.T) {

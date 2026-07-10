@@ -44,8 +44,36 @@ import (
 // displayFieldsFile é o único evento de formulário executado no render.
 const displayFieldsFile = "displayFields.js"
 
+// formWdkJSPath é a máquina real de tabelas pai×filho (wdkAddChild etc.) que
+// o render 2.0 injeta no fim da página do formulário — validado na
+// homologação em 2026-07-10 buscando o render real via streamcontrol.
+const formWdkJSPath = "/ecm_resources/resources/assets/forms/wdkdetail.js"
+
+// serverHasWdkDetail sonda (uma vez) a máquina wdkdetail.js no upstream.
+func (s *Server) serverHasWdkDetail() bool {
+	s.wdk.once.Do(func() {
+		client := &http.Client{Jar: s.opts.Jar, Timeout: probeTimeout}
+		resp, err := client.Get(s.opts.Upstream.String() + formWdkJSPath)
+		if err != nil {
+			return
+		}
+		_ = resp.Body.Close()
+		s.wdk.ok = resp.StatusCode == http.StatusOK
+	})
+	return s.wdk.ok
+}
+
+// formWdkProbe guarda o resultado (único) da sonda do wdkdetail.js.
+type formWdkProbe struct {
+	once sync.Once
+	ok   bool
+}
+
 // injectFormSim acrescenta ao HTML do preview o bootstrap da simulação (com o
-// fonte do displayFields local embutido) e o runtime /_dev/formsim.js.
+// fonte do displayFields local embutido) e o runtime /_dev/formsim.js. Para
+// formulários com tabela pai×filho (tablename=), injeta antes a máquina REAL
+// do servidor (wdkdetail.js) — o runtime marca as linhas-modelo e semeia o
+// WdksetNewId; sem a máquina (Fluig sem o arquivo), o runtime emula.
 func (s *Server) injectFormSim(page []byte, folder, formDir string) []byte {
 	var event any
 	if b, err := os.ReadFile(filepath.Join(project.FormEventsDir(formDir), displayFieldsFile)); err == nil {
@@ -59,10 +87,15 @@ func (s *Server) injectFormSim(page []byte, folder, formDir string) []byte {
 	if err != nil {
 		return page
 	}
-	// json.Marshal escapa < > & (<…) — seguro dentro de <script>.
-	tag := "\n<script>window.__fluigcliFormSim=" + string(boot) + ";</script>\n" +
-		"<script src=\"" + formSimJSPath + "\"></script>\n"
 	out := string(page)
+	wdkTag := ""
+	if strings.Contains(strings.ToLower(out), "tablename=") && s.serverHasWdkDetail() {
+		wdkTag = "<script src=\"" + formWdkJSPath + "\"></script>\n"
+	}
+	// json.Marshal escapa < > & (<…) — seguro dentro de <script>.
+	tag := "\n" + wdkTag +
+		"<script>window.__fluigcliFormSim=" + string(boot) + ";</script>\n" +
+		"<script src=\"" + formSimJSPath + "\"></script>\n"
 	if i := strings.LastIndex(strings.ToLower(out), "</body>"); i >= 0 {
 		return []byte(out[:i] + tag + out[i:])
 	}

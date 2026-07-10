@@ -52,6 +52,82 @@ const formSimJS = `(function () {
     }
   }
 
+  // Tabelas pai×filho (wdkAddChild/fnWdkRemoveChild): o render do Fluig
+  // marca a primeira linha do tbody de cada <table tablename="..."> como
+  // linha-modelo (detail="true" detailname="<tabela>", escondida), injeta a
+  // máquina REAL (/ecm_resources/resources/assets/forms/wdkdetail.js) e
+  // semeia o contador com WdksetNewId('{"tabela":N}'). O preview replica a
+  // marcação aqui e o dev server injeta o wdkdetail.js do próprio servidor
+  // (quando existe) — a emulação local só entra sem a máquina real.
+  function installWdkMachine() {
+    var tables = document.querySelectorAll("table[tablename]");
+    if (!tables.length) return;
+    var seeds = {};
+    tables.forEach(function (table) {
+      var name = table.getAttribute("tablename");
+      var tb = table.tBodies && table.tBodies[0];
+      if (!name || !tb || !tb.rows.length) return;
+      var model = tb.rows[0];
+      model.setAttribute("detail", "true");
+      model.setAttribute("detailname", name);
+      model.style.display = "none";
+      var max = 0;
+      table.querySelectorAll("[name]").forEach(function (el) {
+        var m = /___(\d+)$/.exec(el.getAttribute("name") || "");
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      });
+      seeds[name] = max;
+    });
+    if (typeof window.wdkAddChild === "function" && typeof window.WdksetNewId === "function") {
+      window.WdksetNewId(JSON.stringify(seeds)); // máquina real do servidor
+    } else {
+      installWdkStub();
+    }
+  }
+
+  // Emulação local da máquina, fiel à semântica do wdkdetail.js: clona a
+  // linha-modelo renumerando name/id/for para ___N e devolve N.
+  function installWdkStub() {
+    if (typeof window.wdkAddChild === "function") return;
+
+    function suffix(v, n) { return v.replace(/___\d+$/, "") + "___" + n; }
+
+    window.wdkAddChild = function (tableName) {
+      var model = document.querySelector("[detail=\"true\"][detailname=\"" + tableName + "\"]");
+      var table = document.getElementById(tableName) ||
+        document.querySelector("table[tablename=\"" + tableName + "\"]");
+      if (!table || !model) {
+        warn("wdkAddChild: tabela \"" + tableName + "\" sem linha-modelo no preview");
+        return 0;
+      }
+      var max = 0;
+      table.querySelectorAll("[name]").forEach(function (el) {
+        var m = /___(\d+)$/.exec(el.getAttribute("name") || "");
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      });
+      var n = max + 1;
+      var clone = model.cloneNode(true);
+      clone.removeAttribute("detail");
+      clone.removeAttribute("detailname");
+      clone.style.display = "";
+      var all = clone.querySelectorAll("*");
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        if (el.getAttribute("name")) el.setAttribute("name", suffix(el.getAttribute("name"), n));
+        if (el.id) el.id = suffix(el.id, n);
+        if (el.getAttribute("for")) el.setAttribute("for", suffix(el.getAttribute("for"), n));
+      }
+      model.parentNode.appendChild(clone);
+      return n;
+    };
+
+    window.fnWdkRemoveChild = function (el) {
+      var tr = el && el.closest ? el.closest("tr") : null;
+      if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+      else warn("fnWdkRemoveChild: não achei a linha para remover");
+    };
+  }
+
   // --- shims da API server-side de formulário ---
 
   function findFields(name) {
@@ -544,10 +620,11 @@ const formSimJS = `(function () {
     location.reload();
   }
 
-  // Ordem: o stub do portal entra antes de tudo (o form usa no document
-  // .ready); o evento roda JÁ (antes do load do formulário, que lê os campos
-  // preenchidos por ele); o painel entra em seguida.
+  // Ordem: os stubs do ambiente do portal entram antes de tudo (o form usa
+  // no document.ready e nos onclick); o evento roda JÁ (antes do load do
+  // formulário, que lê os campos preenchidos por ele); o painel em seguida.
   installPortalStub();
+  installWdkMachine();
   runEvent();
   buildPanel();
   if (firstVisit) autodetect();
