@@ -291,6 +291,43 @@ const formSimJS = `(function () {
     return out;
   }
 
+  // Selects declarativos (dataset= / datasetkey= / datasetvalue=): o render
+  // do servidor popula os <option> consultando o dataset — validado no render
+  // real (2026-07-10): opção vazia primeiro quando addblankline="true",
+  // depois um option por linha (value=datasetkey, texto=datasetvalue), na
+  // ordem do dataset, mantendo os atributos. Replicado com o DatasetFactory
+  // cliente da página — dados reais via proxy.
+  function populateDatasetSelects() {
+    var sels = document.querySelectorAll("select[dataset]");
+    if (!sels.length) return;
+    if (!window.DatasetFactory) {
+      warn("selects com dataset= não populados: DatasetFactory indisponível na página");
+      return;
+    }
+    sels.forEach(function (sel) {
+      var ds = sel.getAttribute("dataset");
+      var key = sel.getAttribute("datasetkey");
+      var val = sel.getAttribute("datasetvalue");
+      if (!ds || !key || !val || sel.hasAttribute("data-fluigcli-populated")) return;
+      try {
+        var result = window.DatasetFactory.getDataset(ds, null, null, null);
+        var values = (result && result.values) || [];
+        if ((sel.getAttribute("addblankline") || "").toLowerCase() === "true") {
+          sel.appendChild(document.createElement("option"));
+        }
+        values.forEach(function (row) {
+          var o = document.createElement("option");
+          o.value = row[key] == null ? "" : String(row[key]);
+          o.textContent = row[val] == null ? "" : String(row[val]);
+          sel.appendChild(o);
+        });
+        sel.setAttribute("data-fluigcli-populated", "true");
+      } catch (e) {
+        warn("select " + (sel.name || sel.id || "?") + ": falha ao consultar o dataset " + ds + " — " + ((e && e.message) || e));
+      }
+    });
+  }
+
   // O DatasetFactory server-side devolve getValue(row, col)/rowsCount; o
   // cliente devolve {columns, values} — o wrapper serve as duas interfaces.
   function wrapDataset(ds) {
@@ -625,6 +662,7 @@ const formSimJS = `(function () {
   // formulário, que lê os campos preenchidos por ele); o painel em seguida.
   installPortalStub();
   installWdkMachine();
+  populateDatasetSelects(); // antes do evento: displayFields pode selecionar valor
   runEvent();
   buildPanel();
   if (firstVisit) autodetect();

@@ -96,6 +96,11 @@ server-side emulada:
   servidor** (`wdkdetail.js`) pelo proxy — incluir/remover linhas se comporta
   como no portal. Em servidor sem o arquivo (Fluig antigo), entra uma
   emulação local equivalente.
+- **Selects declarativos de dataset são populados** (`<select
+  dataset="dsX" datasetkey="..." datasetvalue="..." addBlankLine="true">`):
+  o preview consulta o dataset real (via proxy) e gera os `<option>` como o
+  render do servidor — opção vazia primeiro quando `addBlankLine`, depois as
+  linhas na ordem do dataset. Falha na consulta vira aviso no painel.
 
 Para testar o formulário dentro do processo de verdade (bindings de card,
 anexos, movimentação), continue com o `fluigcli watch` + F5.
