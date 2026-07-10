@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "processId": "rh_justificativa_ponto",
+      "processVersion": 12,
+      "sequence": 9,
+      "stateName": "Revisar Processo",
+      "stateDescription": "Correção da solicitação pelo solicitante",
+      "stateType": "TASK",
+      "bpmnType": "USER_TASK",
+      "configuration": null,
+      "instructions": ""
+    },
+    {
+      "processId": "rh_justificativa_ponto",
+      "processVersion": 12,
+      "sequence": 0,
+      "stateName": "Início",
+      "stateDescription": "Abertura da solicitação",
+      "stateType": "START",
+      "bpmnType": "START_EVENT",
+      "configuration": null,
+      "instructions": ""
+    },
+    {
+      "processId": "rh_justificativa_ponto",
+      "processVersion": 12,
+      "sequence": 7,
+      "stateName": "Revisar Justificativa",
+      "stateDescription": "Conferência pelo revisor",
+      "stateType": "TASK",
+      "bpmnType": "USER_TASK",
+      "configuration": null,
+      "instructions": "Confira a justificativa e aprove ou devolva."
+    }
+  ],
+  "hasNext": true
+}

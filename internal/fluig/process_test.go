@@ -222,6 +222,114 @@ func TestProcessPublishClientOps(t *testing.T) {
 	}
 }
 
+// --- estados e vínculo com formulário (simulação do `fluigcli dev`) ---
+//
+// ⚠️ As fixtures rest_process_states*.json e rest_processes_expand.json seguem
+// o schema do swagger real do process-management, mas ainda NÃO são respostas
+// reais (a homologação estava fora do ar em 2026-07-10) — substituir por
+// respostas reais sanitizadas quando o gate de validação viva rodar.
+
+// simStub simula login/ping + states paginados + listagem com expand=versions.
+type simStub struct {
+	statesPages [][]byte
+	expandBody  []byte
+	seen        []string
+}
+
+func (s *simStub) server(t *testing.T) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/process-management/api/v2/processes", func(w http.ResponseWriter, r *http.Request) {
+		s.seen = append(s.seen, r.URL.RawQuery)
+		w.Write(s.expandBody)
+	})
+	statesCalls := 0
+	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/states") {
+			http.NotFound(w, r)
+			return
+		}
+		s.seen = append(s.seen, r.URL.Path+"?"+r.URL.RawQuery)
+		if statesCalls >= len(s.statesPages) {
+			io.WriteString(w, `{"items":[],"hasNext":false}`)
+			return
+		}
+		w.Write(s.statesPages[statesCalls])
+		statesCalls++
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// ProcessStates agrega as páginas e devolve os estados ordenados por sequence.
+func TestProcessStatesPaginadoOrdenado(t *testing.T) {
+	stub := &simStub{statesPages: [][]byte{
+		testdata(t, "rest_process_states.json"),
+		testdata(t, "rest_process_states_page2.json"),
+	}}
+	c := processClient(t, stub.server(t).URL)
+	states, err := c.ProcessStates(context.Background(), "rh_justificativa_ponto", 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(states) != 5 {
+		t.Fatalf("esperava 5 estados (3+2), veio %d: %+v", len(states), states)
+	}
+	var seqs []int
+	for _, st := range states {
+		seqs = append(seqs, st.Sequence)
+	}
+	for i := 1; i < len(seqs); i++ {
+		if seqs[i-1] > seqs[i] {
+			t.Fatalf("estados fora de ordem: %v", seqs)
+		}
+	}
+	if states[0].Sequence != 0 || states[0].Name != "Início" || states[0].BpmnType != "START_EVENT" {
+		t.Errorf("estado[0] inesperado: %+v", states[0])
+	}
+	if states[2].Sequence != 9 || states[2].StateType != "TASK" {
+		t.Errorf("estado[2] inesperado: %+v", states[2])
+	}
+	// A URL usa a versão pedida.
+	if !strings.Contains(stub.seen[0], "/process-versions/12/states") {
+		t.Errorf("caminho inesperado: %s", stub.seen[0])
+	}
+}
+
+// FindProcessesByFormID casa o formId nas versões e devolve a maior versão.
+func TestFindProcessesByFormID(t *testing.T) {
+	stub := &simStub{expandBody: testdata(t, "rest_processes_expand.json")}
+	c := processClient(t, stub.server(t).URL)
+	links, err := c.FindProcessesByFormID(context.Background(), 4711)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("esperava 1 processo, veio %d: %+v", len(links), links)
+	}
+	l := links[0]
+	if l.ProcessID != "rh_justificativa_ponto" || l.Description != "Justificativa de Ponto" || l.Version != 12 {
+		t.Errorf("vínculo inesperado: %+v", l)
+	}
+	if !strings.Contains(stub.seen[0], "expand=versions") {
+		t.Errorf("faltou expand=versions na query: %s", stub.seen[0])
+	}
+	// Form sem processo → lista vazia, sem erro.
+	if links, err = c.FindProcessesByFormID(context.Background(), 999999); err != nil || len(links) != 0 {
+		t.Errorf("form sem processo: links=%v err=%v", links, err)
+	}
+	// formId inválido é recusado antes de bater no servidor.
+	if _, err = c.FindProcessesByFormID(context.Background(), 0); err == nil {
+		t.Error("formId 0 deveria ser recusado")
+	}
+}
+
 // Erro HTTP do servidor vira HTTPError (não "não encontrado").
 func TestListProcessesErroHTTP(t *testing.T) {
 	stub := &processStub{fail: http.StatusForbidden}

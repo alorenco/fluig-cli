@@ -91,10 +91,13 @@ func (c *Client) ListProcesses(ctx context.Context) ([]ProcessSummary, error) {
 //   - o release da última versão desativa a anterior; o withdraw reverte.
 
 // ProcessVersion é uma versão de processo (REST v2 process-versions).
+// FormID é o documentId do formulário (cardIndex) vinculado à versão — 0
+// quando a versão não usa formulário.
 type ProcessVersion struct {
 	Version int  `json:"version"`
 	Active  bool `json:"active"`
 	Editing bool `json:"editing"`
+	FormID  int  `json:"formId"`
 }
 
 // ProcessVersions lista as versões de um processo, da API REST v2.
@@ -122,6 +125,116 @@ func (c *Client) ProcessVersions(ctx context.Context, processID string) ([]Proce
 			return nil, fmt.Errorf("resposta inesperada de process-versions: %w", err)
 		}
 		out = append(out, parsed.Items...)
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
+}
+
+// --- simulação de contexto do `fluigcli dev`: estados e vínculo com formulário ---
+//
+// Schemas conferidos no swagger real do process-management da homologação
+// (2026-07-10). ⚠️ Validação viva pendente: o servidor estava fora do ar no
+// dia — refazer o gate (fixtures reais + integração) quando voltar.
+
+// ProcessState é uma etapa (estado) de uma versão de processo. O número que
+// os eventos de formulário enxergam em WKNumState é o Sequence.
+type ProcessState struct {
+	Sequence    int    `json:"sequence"`
+	Name        string `json:"stateName"`
+	Description string `json:"stateDescription"`
+	StateType   string `json:"stateType"`
+	BpmnType    string `json:"bpmnType"`
+}
+
+// ProcessStates lista os estados de uma versão do processo, em ordem de
+// sequence (a API não garante ordem entre páginas).
+func (c *Client) ProcessStates(ctx context.Context, processID string, version int) ([]ProcessState, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	base := processPath(processID, "/process-versions/"+strconv.Itoa(version)+"/states")
+	var out []ProcessState
+	for page := 1; ; page++ {
+		endpoint := c.url(base) + "?page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, processAPIError(status, body, processID, "states")
+		}
+		var parsed struct {
+			Items   []ProcessState `json:"items"`
+			HasNext bool           `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de states: %w", err)
+		}
+		out = append(out, parsed.Items...)
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			sort.Slice(out, func(i, j int) bool { return out[i].Sequence < out[j].Sequence })
+			return out, nil
+		}
+	}
+}
+
+// ProcessFormLink relaciona um processo ao formulário procurado.
+type ProcessFormLink struct {
+	ProcessID   string `json:"processId"`
+	Description string `json:"description"`
+	Version     int    `json:"version"` // maior versão do processo cujo formId casa
+}
+
+// FindProcessesByFormID varre os processos do servidor (expand=versions, uma
+// requisição por página — payload grande, mas único) e devolve os que têm
+// alguma versão vinculada ao formulário (documentId do cardIndex). É o
+// caminho de auto-detecção do processo de um formulário local.
+func (c *Client) FindProcessesByFormID(ctx context.Context, formID int) ([]ProcessFormLink, error) {
+	if formID <= 0 {
+		return nil, fmt.Errorf("formId inválido: %d", formID)
+	}
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	var out []ProcessFormLink
+	for page := 1; ; page++ {
+		q := url.Values{}
+		q.Set("expand", "versions")
+		q.Set("page", strconv.Itoa(page))
+		q.Set("pageSize", strconv.Itoa(pageSize))
+		endpoint := c.url(restProcessesPath) + "?" + q.Encode()
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: restProcessesPath, Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Items []struct {
+				ProcessID          string           `json:"processId"`
+				ProcessDescription string           `json:"processDescription"`
+				Versions           []ProcessVersion `json:"versions"`
+			} `json:"items"`
+			HasNext bool `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de %s: %w", restProcessesPath, err)
+		}
+		for _, it := range parsed.Items {
+			best := 0
+			for _, v := range it.Versions {
+				if v.FormID == formID && v.Version > best {
+					best = v.Version
+				}
+			}
+			if best > 0 {
+				out = append(out, ProcessFormLink{ProcessID: it.ProcessID, Description: it.ProcessDescription, Version: best})
+			}
+		}
 		if !parsed.HasNext || len(parsed.Items) == 0 {
 			return out, nil
 		}

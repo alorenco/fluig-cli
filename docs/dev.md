@@ -60,8 +60,34 @@ aplica as mesmas transformações, condicionadas ao servidor ter o tema novo
 (num Fluig 1.x nada é alterado). É só apresentação: **os arquivos locais não
 são tocados**.
 
-Para testar o formulário dentro do processo (bindings de card, modos de
-edição), continue com o `fluigcli watch` + F5.
+### Simulação de processo (painel flutuante)
+
+Formulário de processo costuma "sumir" em preview: o `events/displayFields.js`
+— que roda **no servidor** quando o portal renderiza o form numa solicitação —
+lê as variáveis de workflow (`getValue("WKNumState")`, `WKUser`, …) e preenche
+campos que o JS do formulário usa para mostrar/esconder as seções de cada
+etapa. Sem processo, nada disso acontece.
+
+O preview resolve executando o **displayFields local no navegador**, com a API
+server-side emulada:
+
+- `getValue("WK…")` lê do **painel de simulação** (botão flutuante no canto da
+  página): etapa (`WKNumState`), modo (`ADD`/`MOD`/`VIEW`), usuário (`WKUser`,
+  já preenchido com o seu) e variáveis extras (`CHAVE=valor`).
+- `form.setValue/getValue/getFormMode/setEnabled` operam no DOM do preview;
+  `DatasetFactory` usa os **datasets reais** pela sessão do proxy.
+- **Com o formulário vinculado** (`fluigcli form link`), o processo é
+  detectado sozinho (pelo `formId` das versões) e as **etapas reais aparecem
+  pelo nome** — escolha "Revisar Justificativa" em vez de decorar o número.
+  Sem vínculo, escolha o processo na lista ou digite o número direto.
+- A escolha fica salva por formulário (localStorage) e sobrevive ao reload —
+  inclusive o live reload ao salvar o próprio `displayFields.js`.
+- O painel mostra o que o evento fez (leituras, `setValue`, avisos). Evento
+  que use API Java do Rhino (`importClass` etc.) não roda no navegador: o
+  erro aparece no painel e o form fica como no preview cru.
+
+Para testar o formulário dentro do processo de verdade (bindings de card,
+anexos, movimentação), continue com o `fluigcli watch` + F5.
 
 ## Segurança (por design)
 

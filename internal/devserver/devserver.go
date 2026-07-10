@@ -36,6 +36,12 @@ type Options struct {
 	Debounce time.Duration  // espera após o salvamento antes de recarregar
 	Infof    func(format string, args ...any)
 	Warnf    func(format string, args ...any)
+
+	// Simulação de processo no preview de formulários (formsim.go). Sem
+	// Client o painel fica só com valores manuais (a API local responde 503).
+	Client    *fluig.Client // cliente autenticado (processos, etapas, userCode)
+	FormScope string        // chave do servidor no forms.json (Server.FormScopeKey)
+	CompanyID int           // WKCompany simulado
 }
 
 // Server é o dev server montado e pronto para rodar.
@@ -49,6 +55,7 @@ type Server struct {
 	warned   map[string]bool // avisos já emitidos (warnOnce)
 
 	theme formThemeProbe // detecção (única) do tema novo no servidor
+	sim   formSimCache   // cache da API de simulação de formulários
 }
 
 // probeTimeout limita as sondagens que o dev server faz no upstream.
@@ -84,6 +91,8 @@ func New(opts Options) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(reloadPath, s.handleReload)
 	mux.HandleFunc("/_dev/forms/", s.handleFormPreview)
+	mux.HandleFunc(formSimJSPath, s.handleFormSimJS)
+	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
 	mux.HandleFunc("/_dev/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/_dev/forms/", http.StatusFound)
 	})
@@ -233,7 +242,8 @@ func (s *Server) serveFormMain(w http.ResponseWriter, r *http.Request, formDir, 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(injectReloadScript(s.applyFormTheme(b)))
+	page := s.injectFormSim(s.applyFormTheme(b), folder, formDir)
+	_, _ = w.Write(injectReloadScript(page))
 }
 
 // formsIndexCSS estiliza o índice de formulários. Self-contained de propósito

@@ -107,7 +107,7 @@ fluigcli diff --json | jq '.data.counts'
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
-| `dev` | dev server com live reload: widgets sem deploy + preview de formulários (só dev/hml) | [docs/dev.md](docs/dev.md) |
+| `dev` | dev server com live reload: widgets sem deploy + preview de formulários com simulação de processo (WKNumState/etapas reais) | [docs/dev.md](docs/dev.md) |
 
 **Configuração**:
 

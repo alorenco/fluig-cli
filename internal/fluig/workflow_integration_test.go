@@ -144,3 +144,62 @@ func TestIntegrationWorkflowExportZip(t *testing.T) {
 	}
 	t.Logf("export ok: %d bytes, %d entrada(s)", len(data), len(zr.File))
 }
+
+// TestIntegrationProcessStates valida os endpoints da simulação de contexto do
+// `fluigcli dev` (tudo read-only): versões com formId, etapas (states) da
+// última versão e a busca reversa de processos por formId (expand=versions).
+// ⚠️ Primeiro gate de validação viva destes endpoints — os schemas vieram do
+// swagger real, mas a homologação estava fora do ar em 2026-07-10.
+func TestIntegrationProcessStates(t *testing.T) {
+	c, err := NewClient(integrationOptions(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	pid := integrationProcessID()
+
+	vs, err := c.ProcessVersions(ctx, pid)
+	if err != nil {
+		t.Fatalf("ProcessVersions: %v", err)
+	}
+	latest := LatestProcessVersion(vs)
+	if latest == 0 {
+		t.Fatalf("processo %q sem versões", pid)
+	}
+	states, err := c.ProcessStates(ctx, pid, latest)
+	if err != nil {
+		t.Fatalf("ProcessStates(%q, %d): %v", pid, latest, err)
+	}
+	if len(states) < 2 {
+		t.Errorf("esperava ao menos início e fim, veio %d estado(s): %+v", len(states), states)
+	}
+	for _, st := range states {
+		t.Logf("etapa %d — %q (stateType=%q bpmnType=%q)", st.Sequence, st.Name, st.StateType, st.BpmnType)
+	}
+
+	// Busca reversa pelo formId da última versão (quando o processo tem form).
+	formID := 0
+	for _, v := range vs {
+		if v.Version == latest {
+			formID = v.FormID
+		}
+	}
+	if formID <= 0 {
+		t.Logf("processo %q sem formulário na versão %d — busca reversa não testada", pid, latest)
+		return
+	}
+	links, err := c.FindProcessesByFormID(ctx, formID)
+	if err != nil {
+		t.Fatalf("FindProcessesByFormID(%d): %v", formID, err)
+	}
+	found := false
+	for _, l := range links {
+		t.Logf("formId %d → processo %q (%s) v%d", formID, l.ProcessID, l.Description, l.Version)
+		if l.ProcessID == pid {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("busca reversa não devolveu o próprio processo %q: %+v", pid, links)
+	}
+}

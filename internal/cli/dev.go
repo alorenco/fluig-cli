@@ -35,6 +35,11 @@ func newDevCmd(app *App) *cobra.Command {
 			"    application.info seguem exigindo o widget export.)\n" +
 			"  • Formulários: preview local em /_dev/forms/ com o style guide e os\n" +
 			"    datasets do servidor real (DatasetFactory funciona com dados reais).\n" +
+			"    Formulário de processo ganha um painel de simulação: o\n" +
+			"    events/displayFields.js local roda no navegador com WKNumState,\n" +
+			"    WKUser e modo escolhidos no painel — com o form vinculado\n" +
+			"    (fluigcli form link), o processo é detectado e as etapas reais\n" +
+			"    aparecem pelo nome; sem vínculo, digite o número da etapa.\n" +
 			"  • Live reload: ao salvar em forms/ ou wcm/widget/, o navegador\n" +
 			"    recarrega sozinho.\n\n" +
 			"Segurança: por padrão escuta só em 127.0.0.1 — o proxy carrega a SUA\n" +
@@ -78,14 +83,17 @@ func newDevCmd(app *App) *cobra.Command {
 			defer client.SaveSession()
 
 			srv, err := devserver.New(devserver.Options{
-				Root:     root,
-				Upstream: client.BaseURL(),
-				Jar:      client.SessionJar(),
-				Host:     listen,
-				Port:     port,
-				Debounce: debounce,
-				Infof:    p.Infof,
-				Warnf:    p.Warnf,
+				Root:      root,
+				Upstream:  client.BaseURL(),
+				Jar:       client.SessionJar(),
+				Host:      listen,
+				Port:      port,
+				Debounce:  debounce,
+				Infof:     p.Infof,
+				Warnf:     p.Warnf,
+				Client:    client,
+				FormScope: server.FormScopeKey(),
+				CompanyID: server.CompanyID,
 			})
 			if err != nil {
 				return output.Genericf("não consegui montar o dev server: %v", err)
