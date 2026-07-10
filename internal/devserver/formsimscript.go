@@ -36,17 +36,20 @@ const formSimJS = `(function () {
   }
 
   // Stub do frame pai do portal: numa solicitação real o formulário roda num
-  // iframe e o pai expõe ECM (parent.ECM.attachmentTable = anexos). No
-  // preview parent === window e nada disso existe — o stub devolve "sem
-  // anexos" e avisa no painel no primeiro uso.
+  // iframe e o pai expõe ECM.attachmentTable (anexos). No preview parent ===
+  // window, e o ECM que existir veio dos scripts do portal carregados pelo
+  // próprio form (namespace SEM attachmentTable) — por isso o stub MESCLA:
+  // completa só o que falta, sem sobrescrever nada da página.
   function installPortalStub() {
-    if (window.ECM) return;
-    function usedOnce(api) { warn(api + " emulado — no preview a solicitação não tem anexos"); }
-    window.ECM = {
-      attachmentTable: {
-        getData: function () { usedOnce("parent.ECM.attachmentTable.getData()"); return []; }
-      }
-    };
+    var ecm = window.ECM || (window.ECM = {});
+    if (!ecm.attachmentTable) {
+      ecm.attachmentTable = {
+        getData: function () {
+          warn("parent.ECM.attachmentTable.getData() emulado — no preview a solicitação não tem anexos");
+          return [];
+        }
+      };
+    }
   }
 
   // --- shims da API server-side de formulário ---
