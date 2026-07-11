@@ -117,10 +117,12 @@ server-side emulada:
     reais pelo nome ou número) e valida o envio; se o formulário definir
     `beforeSendValidate(numState, nextState)` client-side, ele roda antes,
     como no portal.
-  - **📱 Tela** — alterna a largura do formulário num clique: livre →
-    celular (375px) → tablet (768px), com moldura de dispositivo; só o
-    visual (o `getMobile()` é simulado na Simulação, pois re-executa o
-    evento).
+  - **📱 Tela** — alterna num clique: livre → celular (375px) → tablet
+    (768px). O formulário abre numa **moldura de dispositivo com iframe**
+    (`?screen=phone|tablet`) — iframe tem viewport próprio, então as media
+    queries do grid disparam e as colunas quebram linha de verdade (limitar
+    por container não dispara). Largura visual apenas — o `getMobile()` é
+    simulado na Simulação, pois re-executa o evento.
   - **↗ Abrir no Fluig** — abre numa aba o render **real** do formulário
     (streamcontrol, via proxy autenticado) para comparar com o preview;
     requer o processo escolhido na Simulação.

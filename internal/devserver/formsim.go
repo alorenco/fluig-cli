@@ -2,7 +2,10 @@ package devserver
 
 import (
 	"encoding/json"
+	"fmt"
+	"html"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -73,12 +76,48 @@ type formWdkProbe struct {
 	ok   bool
 }
 
+// serveFormScreenShell é a moldura do modo de tela: um iframe com a largura
+// do dispositivo apontando para o preview (?framed=<modo>). O iframe tem
+// viewport próprio, então o grid responsivo quebra linha de verdade.
+func (s *Server) serveFormScreenShell(w http.ResponseWriter, folder, mode string) {
+	width, height, label := 375, 812, "Celular"
+	if mode == "tablet" {
+		width, height, label = 768, 1024, "Tablet"
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprintf(w, formScreenShell,
+		html.EscapeString(folder), label, width, height,
+		width, height,
+		html.EscapeString(folder), label, width, height,
+		html.EscapeString((&url.URL{Path: "./", RawQuery: "framed=" + mode}).String()))
+}
+
+// formScreenShell é a página da moldura (self-contained; a barra do preview
+// continua DENTRO do iframe, controlando o modo via window.top).
+const formScreenShell = `<!doctype html><html><head><meta charset="utf-8">
+<title>%s · %s %dx%d</title>
+<style>
+  body{margin:0;min-height:100vh;background:#39434d;display:flex;flex-direction:column;
+    align-items:center;font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .frame{margin:18px 0 28px;width:%dpx;max-width:96vw;height:min(%dpx,88vh);
+    background:#fff;border-radius:14px;border:6px solid #1d2b36;
+    box-shadow:0 14px 48px rgba(0,0,0,.45);overflow:hidden}
+  .frame iframe{width:100%%;height:100%%;border:0}
+  .top{color:#cdd6de;padding:12px 16px 0;display:flex;gap:14px;align-items:center}
+  .top a{color:#8fd4e8}
+</style></head><body>
+<div class="top"><strong>%s</strong> · %s %dx%d <a href="./">sair do modo tela</a></div>
+<div class="frame"><iframe src="%s"></iframe></div>
+</body></html>`
+
 // injectFormSim acrescenta ao HTML do preview o bootstrap da simulação (com o
 // fonte do displayFields local embutido) e o runtime /_dev/formsim.js. Para
 // formulários com tabela pai×filho (tablename=), injeta antes a máquina REAL
 // do servidor (wdkdetail.js) — o runtime marca as linhas-modelo e semeia o
 // WdksetNewId; sem a máquina (Fluig sem o arquivo), o runtime emula.
-func (s *Server) injectFormSim(page []byte, folder, formDir string) []byte {
+// screen ≠ "" indica que o preview está dentro da moldura de dispositivo.
+func (s *Server) injectFormSim(page []byte, folder, formDir string, screen string) []byte {
 	readEvent := func(name string) any {
 		if b, err := os.ReadFile(filepath.Join(project.FormEventsDir(formDir), name)); err == nil {
 			return string(b)
@@ -90,6 +129,7 @@ func (s *Server) injectFormSim(page []byte, folder, formDir string) []byte {
 		"event":     readEvent(displayFieldsFile), // nil sem events/displayFields.js
 		"validate":  readEvent(validateFormFile),  // nil sem events/validateForm.js
 		"companyId": s.opts.CompanyID,
+		"screen":    screen, // ""|phone|tablet — estado do modo de tela
 	})
 	if err != nil {
 		return page

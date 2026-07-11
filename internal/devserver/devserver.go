@@ -220,8 +220,14 @@ func (s *Server) handleFormPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveFormMain serve o HTML principal do formulário com o script de live
-// reload injetado.
+// reload injetado. Com ?screen=phone|tablet, serve a moldura de dispositivo
+// (iframe com viewport próprio — media queries do grid disparam de verdade;
+// limitar por container não dispara, validado pelo mantenedor em 2026-07-11).
 func (s *Server) serveFormMain(w http.ResponseWriter, r *http.Request, formDir, folder string) {
+	if mode := r.URL.Query().Get("screen"); mode == "phone" || mode == "tablet" {
+		s.serveFormScreenShell(w, folder, mode)
+		return
+	}
 	fc, err := project.ReadFormFolder(formDir)
 	if err != nil {
 		http.Error(w, "não consegui ler a pasta do formulário", http.StatusInternalServerError)
@@ -243,7 +249,11 @@ func (s *Server) serveFormMain(w http.ResponseWriter, r *http.Request, formDir, 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	page := s.injectFormSim(s.applyFormTheme(b), folder, formDir)
+	framed := r.URL.Query().Get("framed")
+	if framed != "phone" && framed != "tablet" {
+		framed = ""
+	}
+	page := s.injectFormSim(s.applyFormTheme(b), folder, formDir, framed)
 	_, _ = w.Write(injectReloadScript(page))
 }
 

@@ -50,6 +50,14 @@ const formSimJS = `(function () {
         }
       };
     }
+    // Na moldura do modo de tela o preview roda num iframe: parent vira a
+    // página da moldura — espelha o ECM nela (mesma origem) para o
+    // parent.ECM.* dos forms continuar funcionando.
+    try {
+      if (window.parent && window.parent !== window && !window.parent.ECM) {
+        window.parent.ECM = window.ECM;
+      }
+    } catch (e) {}
   }
 
   // Tabelas pai×filho (wdkAddChild/fnWdkRemoveChild): o render do Fluig
@@ -534,11 +542,6 @@ const formSimJS = `(function () {
     "#fluigcli-sim .dlg .hint{margin-top:10px;color:#5a6b7b;font-size:12px}" +
     "#fluigcli-sim .dlg button{margin-top:14px;width:100%;padding:8px;border:0;border-radius:8px;" +
     "cursor:pointer;background:#eef2f5;font-weight:650}" +
-    // Moldura do modo de tela (responsividade): o conteúdo do form vai para
-    // um wrapper com a largura do dispositivo.
-    "body.fluigcli-screen{background:#39434d}" +
-    "body.fluigcli-screen #fluigcli-viewport{margin:0 auto;background:#fff;min-height:100vh;" +
-    "box-shadow:0 0 0 1px #1d2b36,0 8px 40px rgba(0,0,0,.4)}" +
     "@media (prefers-color-scheme: dark){" +
     "#fluigcli-sim{color:#e6edf3}" +
     "#fluigcli-sim .bar,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
@@ -560,10 +563,9 @@ const formSimJS = `(function () {
 
   var root, els = {};
 
-  // Preferências da barra (posição e modo de tela) — globais do dev server,
-  // não por formulário.
+  // Preferências da barra (posição) — globais do dev server, não por form.
   var UIKEY = "fluigcli.formsim.ui";
-  var ui = { pos: "right", screen: "free" };
+  var ui = { pos: "right" };
   try { ui = Object.assign(ui, JSON.parse(localStorage.getItem(UIKEY) || "{}")); } catch (e) {}
   function saveUI() { try { localStorage.setItem(UIKEY, JSON.stringify(ui)); } catch (e) {} }
 
@@ -577,39 +579,20 @@ const formSimJS = `(function () {
     applyPos();
   }
 
-  // Modo de tela: livre → celular (375) → tablet (768). Só a largura visual —
-  // o form.getMobile() é simulado na Simulação (precisa re-rodar o evento).
-  var screenWidths = { phone: "375px", tablet: "768px" };
-  function viewportWrap() {
-    var wrap = document.getElementById("fluigcli-viewport");
-    if (!wrap) {
-      wrap = document.createElement("div");
-      wrap.id = "fluigcli-viewport";
-      Array.prototype.slice.call(document.body.childNodes).forEach(function (k) {
-        if (k !== root) wrap.appendChild(k);
-      });
-      document.body.insertBefore(wrap, document.body.firstChild);
-    }
-    return wrap;
-  }
+  // Modo de tela: livre → celular (375) → tablet (768). Limitar a largura
+  // por container NÃO dispara as media queries do grid (elas olham o
+  // viewport) — por isso o modo navega para a moldura do dev server
+  // (?screen=…), que põe o preview num IFRAME com viewport próprio. Este
+  // runtime roda DENTRO do iframe (boot.screen diz o modo) e troca o modo
+  // navegando o window.top.
   function applyScreen() {
     var btn = root.querySelector("[data-act=screen]");
-    if (ui.screen !== "phone" && ui.screen !== "tablet") {
-      document.body.classList.remove("fluigcli-screen");
-      var w0 = document.getElementById("fluigcli-viewport");
-      if (w0) w0.style.maxWidth = "";
-      if (btn) btn.textContent = "🖥";
-      return;
-    }
-    var wrap = viewportWrap();
-    document.body.classList.add("fluigcli-screen");
-    wrap.style.maxWidth = screenWidths[ui.screen];
-    if (btn) btn.textContent = ui.screen === "phone" ? "📱375" : "📱768";
+    if (btn) btn.textContent = boot.screen === "phone" ? "📱375" : boot.screen === "tablet" ? "📱768" : "🖥";
   }
   function cycleScreen() {
-    ui.screen = ui.screen === "free" || !ui.screen ? "phone" : ui.screen === "phone" ? "tablet" : "free";
-    saveUI();
-    applyScreen();
+    var next = boot.screen === "phone" ? "tablet" : boot.screen === "tablet" ? "" : "phone";
+    var url = location.pathname + (next ? "?screen=" + next : "");
+    try { (window.top || window).location.href = url; } catch (e) { location.href = url; }
   }
 
   // openPortal abre o render REAL do formulário (streamcontrol) numa aba,

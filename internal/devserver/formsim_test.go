@@ -78,6 +78,43 @@ func TestFormSimInjecao(t *testing.T) {
 	}
 }
 
+// ?screen=phone|tablet serve a moldura de dispositivo: iframe com viewport
+// próprio apontando para ?framed=<modo> (media queries do grid disparam de
+// verdade); o preview interno recebe o modo no bootstrap. Valor inválido de
+// screen cai no preview normal.
+func TestFormPreviewMolduraDeTela(t *testing.T) {
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	defer upstream.Close()
+	ts, _, _ := newTestServer(t, upstream)
+
+	resp, _ := http.Get(ts.URL + "/_dev/forms/Meu%20Form/?screen=phone")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	out := string(body)
+	if !strings.Contains(out, "<iframe") || !strings.Contains(out, "framed=phone") ||
+		!strings.Contains(out, "375") || !strings.Contains(out, "sair do modo tela") {
+		t.Errorf("moldura de celular inesperada:\n%s", out)
+	}
+	if strings.Contains(out, "__fluigcliFormSim") {
+		t.Error("a moldura não deveria carregar o runtime do preview (ele roda no iframe)")
+	}
+
+	resp, _ = http.Get(ts.URL + "/_dev/forms/Meu%20Form/?framed=tablet")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), `"screen":"tablet"`) {
+		t.Errorf("preview interno deveria receber o modo no bootstrap:\n%s", body)
+	}
+
+	// screen inválido → preview normal (screen vazio no bootstrap).
+	resp, _ = http.Get(ts.URL + "/_dev/forms/Meu%20Form/?screen=gigante")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), `"screen":""`) {
+		t.Errorf("screen inválido deveria cair no preview normal:\n%s", body)
+	}
+}
+
 // Formulário com tabela pai×filho (tablename=) ganha a máquina REAL do
 // servidor (wdkdetail.js) injetada antes do runtime — desde que o upstream a
 // tenha; formulário sem tabela não ganha.
