@@ -451,6 +451,170 @@ const formSimJS = `(function () {
     }
   }
 
+  // --- publicação no servidor (🚀) ---
+
+  var deployServers = null; // cache da lista por carga de página
+
+  function deployInfo(msg, isErr) {
+    els.depinfo.className = isErr ? "status err" : "status";
+    els.depinfo.textContent = msg;
+  }
+
+  function selectedDeployServer() {
+    if (!deployServers) return null;
+    for (var i = 0; i < deployServers.length; i++) {
+      if (deployServers[i].name === els.depserver.value) return deployServers[i];
+    }
+    return null;
+  }
+
+  function openDeploy() {
+    if (deployServers) return; // já carregado nesta página
+    api("/_dev/api/formsim/deploy/servers", function (err, data) {
+      if (err || !data || !Array.isArray(data.servers)) {
+        deployInfo("Servidores indisponíveis: " + (err || "resposta inesperada"), true);
+        return;
+      }
+      deployServers = data.servers;
+      var sel = els.depserver;
+      sel.innerHTML = "";
+      var pick = "";
+      deployServers.forEach(function (srv) {
+        var o = document.createElement("option");
+        o.value = srv.name;
+        var marks = [];
+        if (srv.env) marks.push(srv.env === "prod" ? "PRODUÇÃO" : srv.env);
+        if (srv.current) marks.push("conectado");
+        else if (srv.default) marks.push("padrão");
+        o.textContent = srv.name + (marks.length ? " · " + marks.join(" · ") : "");
+        o.title = srv.url;
+        sel.appendChild(o);
+        if (srv.current) pick = srv.name;
+        if (!pick && srv.default) pick = srv.name;
+      });
+      if (pick) sel.value = pick;
+      onDeployServerChange();
+      loadDeployForms();
+    });
+  }
+
+  function onDeployServerChange() {
+    var srv = selectedDeployServer();
+    els.depprod.style.display = srv && srv.env === "prod" ? "" : "none";
+    els.depconfirm.value = "";
+  }
+
+  function loadDeployForms() {
+    var sel = els.depform;
+    sel.disabled = true;
+    sel.innerHTML = "<option value=\"\">— carregando… —</option>";
+    apiPost("/_dev/api/formsim/deploy/forms",
+      { server: els.depserver.value, password: els.deppass.value, folder: boot.folder },
+      function (err, data) {
+        if (data && data.needsPassword) {
+          els.deppassrow.style.display = "";
+          deployInfo("Sem credencial salva para este servidor — digite a senha e Enter.", true);
+          sel.innerHTML = "<option value=\"\">— aguardando a senha —</option>";
+          els.deppass.focus();
+          return;
+        }
+        if (err) {
+          deployInfo("Formulários indisponíveis: " + err, true);
+          return;
+        }
+        els.deppassrow.style.display = "none";
+        sel.disabled = false;
+        sel.innerHTML = "";
+        var oNew = document.createElement("option");
+        oNew.value = "0";
+        oNew.textContent = "— criar novo formulário —";
+        sel.appendChild(oNew);
+        var byName = "";
+        (data.forms || []).forEach(function (f) {
+          var o = document.createElement("option");
+          o.value = String(f.documentId);
+          o.textContent = f.name + " (" + f.documentId + ")";
+          if (f.datasetName) o.title = "dataset: " + f.datasetName;
+          sel.appendChild(o);
+          if (f.name === boot.folder) byName = String(f.documentId);
+        });
+        // Pré-seleção: vínculo do forms.json > nome igual ao da pasta > criar.
+        var linked = data.linkedDocumentId ? String(data.linkedDocumentId) : "";
+        if (linked && sel.querySelector("option[value=\"" + linked + "\"]")) sel.value = linked;
+        else if (byName) sel.value = byName;
+        else sel.value = "0";
+        var dl = document.getElementById("fluigcli-dep-ds");
+        dl.innerHTML = "";
+        (data.datasets || []).forEach(function (name) {
+          var o = document.createElement("option");
+          o.value = name;
+          dl.appendChild(o);
+        });
+        deployInfo(sel.value === "0"
+          ? "Este formulário ainda não existe no servidor — preencha os dados da criação."
+          : "Vai atualizar o formulário selecionado (o vínculo do forms.json aponta para ele).");
+        onDeployFormChange();
+      });
+  }
+
+  function onDeployFormChange() {
+    var create = els.depform.value === "0" || els.depform.value === "";
+    els.depcreate.style.display = create ? "" : "none";
+    els.depexisting.style.display = create ? "none" : "";
+    if (create) {
+      if (!els.depname.value) els.depname.value = boot.folder;
+      if (!els.depcard.value) els.depcard.value = els.depname.value;
+    }
+  }
+
+  function doDeploy() {
+    var srv = selectedDeployServer();
+    if (!srv) { deployInfo("Escolha o servidor.", true); return; }
+    var docId = parseInt(els.depform.value, 10) || 0;
+    var req = {
+      server: srv.name,
+      password: els.deppass.value,
+      folder: boot.folder,
+      documentId: docId,
+      versionMode: els.depversion.value,
+      confirm: els.depconfirm.value.trim()
+    };
+    if (srv.env === "prod" && req.confirm !== srv.name) {
+      deployInfo("PRODUÇÃO: digite o nome exato do servidor (" + srv.name + ") para confirmar.", true);
+      return;
+    }
+    if (docId === 0) {
+      if (els.depform.disabled) { deployInfo("Aguarde a lista de formulários (ou informe a senha).", true); return; }
+      req.create = {
+        name: els.depname.value.trim() || boot.folder,
+        datasetName: els.depdataset.value.trim(),
+        parentId: parseInt(els.depparent.value, 10) || 0,
+        persistenceType: els.deppersist.value,
+        cardDescription: els.depcard.value.trim()
+      };
+      if (!req.create.datasetName) { deployInfo("O nome do dataset é obrigatório na criação.", true); return; }
+      if (req.create.parentId <= 0) { deployInfo("O id da pasta do GED é obrigatório na criação.", true); return; }
+    }
+    deployInfo("Publicando em " + srv.name + "…");
+    apiPost("/_dev/api/formsim/deploy", req, function (err, data) {
+      if (data && data.needsPassword) {
+        els.deppassrow.style.display = "";
+        deployInfo("Sem credencial salva — digite a senha e publique de novo.", true);
+        els.deppass.focus();
+        return;
+      }
+      if (err) {
+        deployInfo("Falha ao publicar: " + err, true);
+        return;
+      }
+      root.classList.remove("open-deploy");
+      showDialog("ok", "Formulário publicado",
+        (data.action === "created" ? "Criado" : "Atualizado") + " no servidor " + data.server +
+        ": " + data.name + " (documentId " + data.documentId + "). O vínculo local (forms.json) foi atualizado.",
+        false);
+    });
+  }
+
   // --- API local do dev server ---
 
   function api(path, cb) {
@@ -464,6 +628,22 @@ const formSimJS = `(function () {
       else cb((data && data.error) || ("HTTP " + x.status), null);
     };
     x.send();
+  }
+
+  // apiPost envia JSON e devolve (err, data) — em erro o data vem junto,
+  // para o chamador ler flags como needsPassword.
+  function apiPost(path, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open("POST", path, true);
+    x.setRequestHeader("Content-Type", "application/json");
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      var data = null;
+      try { data = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status >= 200 && x.status < 300) cb(null, data);
+      else cb((data && data.error) || ("HTTP " + x.status), data);
+    };
+    x.send(JSON.stringify(body));
   }
 
   // Primeira visita: detecta usuário e processo vinculados e recarrega uma vez
@@ -510,6 +690,8 @@ const formSimJS = `(function () {
     "border:1px solid #d5dde5;border-radius:12px;box-shadow:0 8px 28px rgba(16,36,54,.25);padding:14px 16px 16px}" +
     "#fluigcli-sim.open-sim .card.simcard{display:block}" +
     "#fluigcli-sim.open-send .card.sendcard{display:block}" +
+    "#fluigcli-sim.open-deploy .card.deploycard{display:block}" +
+    "#fluigcli-sim .prodwarn{color:#b3352b;font-weight:650}" +
     "#fluigcli-sim h3{margin:0 0 2px;font-size:14px;display:flex;justify-content:space-between;align-items:center}" +
     "#fluigcli-sim h3 button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:2px}" +
     "#fluigcli-sim .sub{color:#5a6b7b;font-size:11.5px;margin:0 0 10px}" +
@@ -659,10 +841,43 @@ const formSimJS = `(function () {
       "<button type=\"button\" class=\"btn\" data-act=\"sendgo\">Validar envio</button>" +
       "<p class=\"sub\" style=\"margin-top:10px\">Roda o events/validateForm.js local — nada é gravado no servidor.</p>" +
       "</div>" +
+      "<div class=\"card deploycard\">" +
+      "<h3>Publicar no servidor <button type=\"button\" title=\"Fechar\" data-act=\"closedeploy\">×</button></h3>" +
+      "<div class=\"status\" data-el=\"depinfo\">Escolha o servidor e o formulário de destino.</div>" +
+      "<label>Servidor</label>" +
+      "<select data-el=\"depserver\"></select>" +
+      "<div data-el=\"deppassrow\" style=\"display:none\">" +
+      "<label>Senha (sem credencial salva para este servidor)</label>" +
+      "<input type=\"password\" data-el=\"deppass\" autocomplete=\"off\">" +
+      "</div>" +
+      "<label>Formulário no servidor</label>" +
+      "<select data-el=\"depform\" disabled><option value=\"\">— carregando… —</option></select>" +
+      "<div data-el=\"depexisting\">" +
+      "<label>Versão</label>" +
+      "<select data-el=\"depversion\"><option value=\"new\">Criar nova versão (recomendado)</option>" +
+      "<option value=\"keep\">Manter a versão atual</option></select>" +
+      "</div>" +
+      "<div data-el=\"depcreate\" style=\"display:none\">" +
+      "<label>Nome do formulário</label><input type=\"text\" data-el=\"depname\">" +
+      "<label>Nome do dataset</label><input type=\"text\" data-el=\"depdataset\" list=\"fluigcli-dep-ds\"><datalist id=\"fluigcli-dep-ds\"></datalist>" +
+      "<label>Id da pasta (GED) onde salvar</label><input type=\"number\" data-el=\"depparent\" min=\"1\">" +
+      "<label>Armazenamento</label>" +
+      "<select data-el=\"deppersist\"><option value=\"db\">Tabelas de banco de dados (recomendado)</option>" +
+      "<option value=\"single\">Numa única tabela (pequena quantidade de registros)</option></select>" +
+      "<label>Campo descritor</label><input type=\"text\" data-el=\"depcard\">" +
+      "</div>" +
+      "<div data-el=\"depprod\" style=\"display:none\">" +
+      "<label class=\"prodwarn\">⚠ PRODUÇÃO — digite o nome do servidor para confirmar</label>" +
+      "<input type=\"text\" data-el=\"depconfirm\" autocomplete=\"off\">" +
+      "</div>" +
+      "<button type=\"button\" class=\"btn\" data-act=\"deploygo\">Publicar</button>" +
+      "<p class=\"sub\" style=\"margin-top:10px\">Mesma semântica do fluigcli form export: atualizar cria versão no servidor e o vínculo local (forms.json) é atualizado.</p>" +
+      "</div>" +
       "<div class=\"bar\">" +
       "<button type=\"button\" data-act=\"open\" title=\"Simulação de processo (etapa, modo, usuário, variáveis)\">⚙<span class=\"dot\"></span></button>" +
       "<button type=\"button\" data-act=\"save\" title=\"Salvar: valida o formulário agora (validateForm) — nada é gravado\">💾</button>" +
       "<button type=\"button\" data-act=\"send\" title=\"Enviar etapa: pergunta a próxima etapa e valida o envio\">▶</button>" +
+      "<button type=\"button\" data-act=\"deploy\" title=\"Publicar o formulário no servidor (atualiza ou cria, como o form export)\">🚀</button>" +
       "<button type=\"button\" data-act=\"screen\" title=\"Alternar largura da tela: livre → celular (375) → tablet (768). getMobile() simula na Simulação\">🖥</button>" +
       "<button type=\"button\" data-act=\"portal\" title=\"Abrir o render real deste formulário no Fluig (nova aba, via proxy)\">↗</button>" +
       "<button type=\"button\" data-act=\"index\" title=\"Voltar ao índice de formulários\">⌂</button>" +
@@ -678,16 +893,23 @@ const formSimJS = `(function () {
       var act = actEl && actEl.getAttribute && actEl.getAttribute("data-act");
       if (act === "open") {
         var was = root.classList.contains("open-sim");
-        root.classList.remove("open-sim", "open-send");
+        root.classList.remove("open-sim", "open-send", "open-deploy");
         if (!was) { root.classList.add("open-sim"); onOpen(false); }
       }
       if (act === "send") {
         var wasS = root.classList.contains("open-send");
-        root.classList.remove("open-sim", "open-send");
+        root.classList.remove("open-sim", "open-send", "open-deploy");
         if (!wasS) { root.classList.add("open-send"); updateTestInfo(); onOpen(false); }
+      }
+      if (act === "deploy") {
+        var wasD = root.classList.contains("open-deploy");
+        root.classList.remove("open-sim", "open-send", "open-deploy");
+        if (!wasD) { root.classList.add("open-deploy"); openDeploy(); }
       }
       if (act === "close") { root.classList.remove("open-sim"); }
       if (act === "closesend") { root.classList.remove("open-send"); }
+      if (act === "closedeploy") { root.classList.remove("open-deploy"); }
+      if (act === "deploygo") { doDeploy(); }
       if (act === "refresh") { onOpen(true); }
       if (act === "apply") { apply(); }
       if (act === "save") { doValidate(false); }
@@ -709,6 +931,15 @@ const formSimJS = `(function () {
     els.nextstate.addEventListener("change", function () {
       if (els.nextstate.value !== "") els.nextstatenum.value = els.nextstate.value;
     });
+    els.depserver.addEventListener("change", function () {
+      els.deppass.value = "";
+      onDeployServerChange();
+      loadDeployForms();
+    });
+    els.deppass.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") loadDeployForms();
+    });
+    els.depform.addEventListener("change", onDeployFormChange);
 
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
     els.nextstatenum.value = cfg.wkNextState == null ? "" : cfg.wkNextState;

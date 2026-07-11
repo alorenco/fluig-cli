@@ -219,6 +219,12 @@ func (s *Server) handleFormSimAPI(w http.ResponseWriter, r *http.Request) {
 		s.serveFormSimStates(w, r, force)
 	case "users":
 		s.serveFormSimUsers(w, r, force)
+	case "deploy/servers":
+		s.serveDeployServers(w)
+	case "deploy/forms":
+		s.serveDeployForms(w, r)
+	case "deploy":
+		s.serveDeploy(w, r)
 	default:
 		http.NotFound(w, r)
 	}

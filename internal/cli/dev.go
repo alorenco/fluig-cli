@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/devserver"
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
@@ -82,18 +85,21 @@ func newDevCmd(app *App) *cobra.Command {
 			// à execução.
 			defer client.SaveSession()
 
+			deployServers, deployConnect := app.deployBridge(server)
 			srv, err := devserver.New(devserver.Options{
-				Root:      root,
-				Upstream:  client.BaseURL(),
-				Jar:       client.SessionJar(),
-				Host:      listen,
-				Port:      port,
-				Debounce:  debounce,
-				Infof:     p.Infof,
-				Warnf:     p.Warnf,
-				Client:    client,
-				FormScope: server.FormScopeKey(),
-				CompanyID: server.CompanyID,
+				Root:          root,
+				Upstream:      client.BaseURL(),
+				Jar:           client.SessionJar(),
+				Host:          listen,
+				Port:          port,
+				Debounce:      debounce,
+				Infof:         p.Infof,
+				Warnf:         p.Warnf,
+				Client:        client,
+				FormScope:     server.FormScopeKey(),
+				CompanyID:     server.CompanyID,
+				DeployServers: deployServers,
+				DeployConnect: deployConnect,
 			})
 			if err != nil {
 				return output.Genericf("não consegui montar o dev server: %v", err)
@@ -125,4 +131,74 @@ func newDevCmd(app *App) *cobra.Command {
 	cmd.Flags().DurationVar(&debounce, "debounce", 500*time.Millisecond, "espera após o salvamento antes de recarregar (agrupa rajadas do editor)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// deployBridge monta a ponte de publicação da barra do dev: a lista de
+// servidores cadastrados e a conexão NÃO-interativa a qualquer um deles
+// (sessão em cache → senha explícita do diálogo → keyring/env). Sem
+// credencial disponível devolve devserver.ErrDeployNeedsPassword — o diálogo
+// pede a senha (que trafega só do navegador ao dev server local; decisão do
+// mantenedor em 2026-07-11, produção incluída com confirmação digitada).
+func (a *App) deployBridge(current *config.Server) ([]devserver.DeployServerInfo, func(ctx context.Context, name, password string) (*fluig.Client, string, error)) {
+	store := a.Store()
+	list, err := store.List()
+	if err != nil {
+		list = nil
+	}
+	defName, _ := store.DefaultName()
+	infos := make([]devserver.DeployServerInfo, 0, len(list))
+	for _, s := range list {
+		infos = append(infos, devserver.DeployServerInfo{
+			Name:    s.Name,
+			Env:     s.Env,
+			URL:     s.BaseURL(),
+			Default: s.Name == defName,
+			Current: s.Name == current.Name,
+		})
+	}
+
+	connect := func(ctx context.Context, name, password string) (*fluig.Client, string, error) {
+		target, err := store.Get(name)
+		if err != nil {
+			return nil, "", err
+		}
+		// Identidade sem prompt: o request HTTP não pode travar no terminal.
+		if target.Username == "" {
+			if v := os.Getenv(config.EnvUsername); v != "" {
+				target.Username, target.UserCode = v, v
+			} else {
+				return nil, "", fmt.Errorf(
+					"o servidor %q não tem usuário definido — rode uma vez no terminal: fluigcli server test %s", name, name)
+			}
+		} else if target.UserCode == "" {
+			target.UserCode = target.Username
+		}
+		// Sessão em cache vale como credencial (igual ao authenticate da CLI).
+		if password == "" && !a.NoSessionCache {
+			if client, err := a.clientFor(target, ""); err == nil && client.RestoreSession(ctx) {
+				return client, target.FormScopeKey(), nil
+			}
+		}
+		pw := password
+		if pw == "" {
+			res, err := (config.PasswordSource{Getenv: os.Getenv, Keyring: a.Keyring}).Resolve(target)
+			if err != nil {
+				return nil, "", devserver.ErrDeployNeedsPassword
+			}
+			pw = res.Password
+		}
+		client, err := a.clientFor(target, pw)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := client.EnsureSession(ctx); err != nil {
+			if errors.Is(err, fluig.ErrAuthFailed) {
+				return nil, "", fmt.Errorf("%w (autenticação recusada em %q)", devserver.ErrDeployNeedsPassword, name)
+			}
+			return nil, "", err
+		}
+		client.SaveSession()
+		return client, target.FormScopeKey(), nil
+	}
+	return infos, connect
 }

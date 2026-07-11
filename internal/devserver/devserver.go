@@ -42,6 +42,13 @@ type Options struct {
 	Client    *fluig.Client // cliente autenticado (processos, etapas, userCode)
 	FormScope string        // chave do servidor no forms.json (Server.FormScopeKey)
 	CompanyID int           // WKCompany simulado
+
+	// Publicação de formulários pela barra (formdeploy.go): lista de
+	// servidores cadastrados e a conexão não-interativa a eles (a CLI monta
+	// a closure com sessão em cache/keyring/env/senha explícita; devolve o
+	// cliente e a FormScopeKey do alvo). ErrDeployNeedsPassword pede senha.
+	DeployServers []DeployServerInfo
+	DeployConnect func(ctx context.Context, serverName, password string) (*fluig.Client, string, error)
 }
 
 // Server é o dev server montado e pronto para rodar.
@@ -57,6 +64,8 @@ type Server struct {
 	theme formThemeProbe // detecção (única) do tema novo no servidor
 	wdk   formWdkProbe   // detecção (única) da máquina wdkdetail.js
 	sim   formSimCache   // cache da API de simulação de formulários
+
+	deploys map[string]deployConn // conexões de publicação por servidor (sob sim.mu)
 }
 
 // probeTimeout limita as sondagens que o dev server faz no upstream.
