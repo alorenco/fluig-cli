@@ -2,6 +2,7 @@ package devserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,6 +71,12 @@ func (s *Server) newProxy() *httputil.ReverseProxy {
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			// Navegador que abortou a requisição (troca de página, live
+			// reload no meio do carregamento) não é erro do servidor — logar
+			// isso só polui a caça a problemas reais.
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			s.opts.Warnf("proxy: erro em %s %s: %v", r.Method, r.URL.Path, err)
 			http.Error(w, "fluigcli dev: o servidor Fluig não respondeu", http.StatusBadGateway)
 		},

@@ -105,7 +105,10 @@ server-side emulada:
   inclusive o live reload ao salvar o próprio `displayFields.js`.
 - O painel mostra o que o evento fez (leituras, `setValue`, avisos). Além do
   básico (`setValue/getValue/getFormMode/setEnabled/getMobile`), a emulação
-  cobre `setVisibleById`, `getChildrenIndexes`, `getCardData` e o interop
+  cobre `setVisibleById`, `getChildrenIndexes`, `getCardData`, o `log.*`
+  (vai para o console do navegador e para o relatório do painel), o
+  `fluigAPI.getUserService().getCurrent()` (dados reais do usuário simulado,
+  via dataset `colleague`) e o interop
   Java comum dos eventos (`new java.util.HashMap()`/`ArrayList`,
   `keySet().iterator()`, `importClass` das classes simuladas). Classe Java
   fora disso (ex.: `java.text.SimpleDateFormat`) não roda no navegador: o

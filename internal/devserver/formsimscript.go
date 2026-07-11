@@ -400,15 +400,101 @@ const formSimJS = `(function () {
       if (cls && cls.__simpleName) { window[cls.__simpleName] = cls; return; }
       warn("importClass: classe não simulada no preview (interop Java do Rhino)");
     };
+    // log.* é a API oficial de log dos eventos server-side (escreve no log do
+    // servidor) — no preview vai para o console do navegador e para o
+    // relatório do painel.
+    function makeLogFn(level) {
+      return function (msg) {
+        var text = "log." + level + ": " + String(msg);
+        report.reads.push(text);
+        var fn = level === "error" ? "error" : level === "warn" ? "warn" : "info";
+        if (window.console && console[fn]) console[fn]("[fluigcli evento] " + text);
+      };
+    }
+    env.log = {
+      info: makeLogFn("info"),
+      warn: makeLogFn("warn"),
+      error: makeLogFn("error"),
+      debug: makeLogFn("debug")
+    };
+    env.fluigAPI = makeFluigAPI();
     return env;
+  }
+
+  // fluigAPI é o SDK server-side dos eventos (validado no render real:
+  // getUserService().getCurrent() preenche dados do usuário). O shim cobre o
+  // usuário atual com dados REAIS (dataset colleague via proxy, síncrono);
+  // serviço/método fora disso falha com o caminho claro no painel.
+  var fluigAPIUserCache = null;
+  function makeFluigAPI() {
+    function proxyMissing(obj, path) {
+      if (!window.Proxy) return obj;
+      return new Proxy(obj, {
+        get: function (t, p) {
+          if (p in t) return t[p];
+          if (typeof p !== "string") return undefined;
+          return function () { throw new Error(path + "." + p + "() não é simulado no preview"); };
+        }
+      });
+    }
+    function currentUser() {
+      if (fluigAPIUserCache) return fluigAPIUserCache;
+      var code = cfg.wkUser || "";
+      var name = "", mail = "", login = "";
+      try {
+        if (window.DatasetFactory && code) {
+          // O tipo da constraint é o ENUM NUMÉRICO do cliente (string "MUST"
+          // dá ClassCastException no servidor — visto em teste do mantenedor).
+          var must = window.ConstraintType && window.ConstraintType.MUST !== undefined
+            ? window.ConstraintType.MUST : 1;
+          var c = window.DatasetFactory.createConstraint("colleagueId", code, code, must);
+          var ds = window.DatasetFactory.getDataset("colleague",
+            ["colleagueId", "colleagueName", "mail", "login"], [c], null);
+          var row = ds && ds.values && ds.values[0];
+          if (row) {
+            name = row.colleagueName || "";
+            mail = row.mail || "";
+            login = row.login || "";
+          }
+        }
+      } catch (e) {
+        warn("fluigAPI.getUserService().getCurrent(): falha ao consultar o dataset colleague — " + ((e && e.message) || e));
+      }
+      if (!code) warn("fluigAPI.getUserService().getCurrent(): sem WKUser simulado — dados vazios (defina na Simulação)");
+      var user = {
+        getCode: function () { return code; },
+        getEmail: function () { return mail; },
+        getFullName: function () { return name; },
+        getLogin: function () { return login || code; },
+        getTenantId: function () { return boot.companyId || 1; },
+        getUserTimeZone: function () { return Intl && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : ""; }
+      };
+      // Getter desconhecido do usuário: aviso + vazio (não derruba o evento).
+      fluigAPIUserCache = window.Proxy ? new Proxy(user, {
+        get: function (t, p) {
+          if (p in t) return t[p];
+          if (typeof p !== "string") return undefined;
+          return function () {
+            warn("fluigAPI.getUserService().getCurrent()." + p + "() não é simulado (devolve vazio)");
+            return "";
+          };
+        }
+      }) : user;
+      return fluigAPIUserCache;
+    }
+    return proxyMissing({
+      getUserService: function () {
+        return proxyMissing({ getCurrent: currentUser }, "fluigAPI.getUserService()");
+      }
+    }, "fluigAPI");
   }
 
   // execEvent roda um fonte de evento no ambiente dado. Deixa o throw subir
   // — quem chama decide o que ele significa (erro no display, bloqueio na
   // validação).
   function execEvent(env, src) {
-    new Function("getValue", "form", "customHTML", "DatasetFactory", "java", "importClass", src)(
-      env.getValue, env.form, env.customHTML, env.DatasetFactory, env.java, env.importClass);
+    new Function("getValue", "form", "customHTML", "DatasetFactory", "java", "importClass", "log", "fluigAPI", src)(
+      env.getValue, env.form, env.customHTML, env.DatasetFactory, env.java, env.importClass, env.log, env.fluigAPI);
   }
 
   function runEvent() {
@@ -455,9 +541,12 @@ const formSimJS = `(function () {
 
   var deployServers = null; // cache da lista por carga de página
 
+  // deployInfo é a linha de status do diálogo — só aparece quando há algo a
+  // dizer (erro ou progresso); vazio esconde.
   function deployInfo(msg, isErr) {
     els.depinfo.className = isErr ? "status err" : "status";
-    els.depinfo.textContent = msg;
+    els.depinfo.textContent = msg || "";
+    els.depinfo.style.display = msg ? "" : "none";
   }
 
   function selectedDeployServer() {
@@ -504,6 +593,31 @@ const formSimJS = `(function () {
     els.depconfirm.value = "";
     folderStack = [];
     foldersLoadedFor = ""; // pastas são por servidor
+    updateDeployButton();
+  }
+
+  // updateDeployButton habilita o Publicar só com tudo OK: busca de
+  // formulários concluída, obrigatórios preenchidos (nome/dataset/descritor/
+  // pasta na criação; dataset/descritor no update) e, em produção, o nome do
+  // servidor confirmado.
+  function updateDeployButton() {
+    var ok = !els.depform.disabled && !!selectedDeployServer();
+    if (ok) {
+      var create = els.depform.value === "0" || els.depform.value === "";
+      if (create) {
+        ok = !!(els.depname.value.trim() &&
+          els.depdataset.value.trim() &&
+          els.depcard.value &&
+          (parseInt(els.depparent.value, 10) || 0) > 0);
+      } else {
+        ok = !!(els.depdataset.value.trim() && els.depcard.value);
+      }
+    }
+    if (ok) {
+      var srv = selectedDeployServer();
+      if (srv && srv.env === "prod" && els.depconfirm.value.trim() !== srv.name) ok = false;
+    }
+    els.depgo.disabled = !ok;
   }
 
   // Campos candidatos a descritor: os inputs nomeados do form local (sem os
@@ -560,12 +674,11 @@ const formSimJS = `(function () {
 
   function renderFolderPath() {
     if (!folderStack.length) {
-      els.deppath.textContent = "Raiz do GED — navegue ou digite o id abaixo.";
+      els.deppath.textContent = "";
       return;
     }
-    var last = folderStack[folderStack.length - 1];
-    els.deppath.textContent = "Publicar em: " + folderStack.map(function (f) { return f.name; }).join(" / ") +
-      " (id " + last.id + ")";
+    els.deppath.textContent = "Publicar em: " +
+      folderStack.map(function (f) { return f.name; }).join(" / ");
   }
 
   function loadDeployFolders(parentId) {
@@ -576,10 +689,14 @@ const formSimJS = `(function () {
       { server: els.depserver.value, password: els.deppass.value, parentId: parentId },
       function (err, data) {
         if (err) {
-          sel.innerHTML = "<option value=\"\">— pastas indisponíveis (digite o id) —</option>";
-          deployInfo("Pastas do GED indisponíveis: " + err, true);
+          // Fallback: sem a navegação, o id pode ser digitado à mão.
+          sel.innerHTML = "<option value=\"\">— pastas indisponíveis —</option>";
+          els.depparent.style.display = "";
+          deployInfo("Pastas do GED indisponíveis (" + err + ") — digite o id da pasta abaixo.", true);
+          updateDeployButton();
           return;
         }
+        els.depparent.style.display = "none";
         foldersLoadedFor = els.depserver.value;
         sel.disabled = false;
         sel.innerHTML = "";
@@ -600,6 +717,7 @@ const formSimJS = `(function () {
           sel.appendChild(o);
         });
         renderFolderPath();
+        updateDeployButton();
       });
   }
 
@@ -623,6 +741,7 @@ const formSimJS = `(function () {
     var sel = els.depform;
     sel.disabled = true;
     sel.innerHTML = "<option value=\"\">— carregando… —</option>";
+    updateDeployButton(); // busca em andamento → Publicar desabilitado
     apiPost("/_dev/api/formsim/deploy/forms",
       { server: els.depserver.value, password: els.deppass.value, folder: boot.folder },
       function (err, data) {
@@ -631,10 +750,12 @@ const formSimJS = `(function () {
           deployInfo("Sem credencial salva para este servidor — digite a senha e Enter.", true);
           sel.innerHTML = "<option value=\"\">— aguardando a senha —</option>";
           els.deppass.focus();
+          updateDeployButton();
           return;
         }
         if (err) {
           deployInfo("Formulários indisponíveis: " + err, true);
+          updateDeployButton();
           return;
         }
         els.deppassrow.style.display = "none";
@@ -667,10 +788,9 @@ const formSimJS = `(function () {
           o.value = name;
           dl.appendChild(o);
         });
-        deployInfo(sel.value === "0"
-          ? "Este formulário ainda não existe no servidor — preencha os dados da criação."
-          : "Vai atualizar o formulário selecionado (o vínculo do forms.json aponta para ele).");
+        deployInfo("");
         onDeployFormChange();
+        updateDeployButton();
       });
   }
 
@@ -726,7 +846,7 @@ const formSimJS = `(function () {
       };
       if (!req.create.datasetName) { deployInfo("O nome do dataset é obrigatório na criação.", true); return; }
       if (!req.create.cardDescription) { deployInfo("Escolha o campo descritor.", true); return; }
-      if (req.create.parentId <= 0) { deployInfo("Escolha a pasta do GED (ou digite o id).", true); return; }
+      if (req.create.parentId <= 0) { deployInfo("Escolha a pasta do GED onde salvar.", true); return; }
     }
     deployInfo("Publicando em " + srv.name + "…");
     apiPost("/_dev/api/formsim/deploy", req, function (err, data) {
@@ -836,6 +956,7 @@ const formSimJS = `(function () {
     "#fluigcli-sim .row>*{flex:1}" +
     "#fluigcli-sim .btn{margin-top:12px;width:100%;padding:8px 10px;border:0;border-radius:8px;cursor:pointer;" +
     "background:#0c9abe;color:#fff;font-weight:650}" +
+    "#fluigcli-sim .btn:disabled{opacity:.45;cursor:not-allowed}" +
     "#fluigcli-sim .btn.sec{background:#eef2f5;color:#1d2b36;margin-top:6px}" +
     "#fluigcli-sim .status{margin:8px 0 0;padding:7px 9px;border-radius:7px;font-size:12px;background:#f2f6f9}" +
     "#fluigcli-sim .status.err{background:#fdecea;color:#8c2f28;white-space:pre-wrap}" +
@@ -945,7 +1066,7 @@ const formSimJS = `(function () {
       "<div class=\"card simcard\">" +
       "<h3>Simulação de processo <button type=\"button\" title=\"Fechar\" data-act=\"close\">×</button></h3>" +
       "<p class=\"sub\">fluigcli dev · " + esc(boot.folder) + "</p>" +
-      "<div class=\"status\" data-el=\"status\"></div>" +
+      "<div class=\"status\" data-el=\"status\" style=\"display:none\"></div>" +
       "<label>Processo</label>" +
       "<div class=\"row\"><select data-el=\"process\"><option value=\"\">— sem processo —</option></select>" +
       "<button type=\"button\" class=\"btn sec\" style=\"flex:0 0 34px;margin:0\" title=\"Recarregar do servidor\" data-act=\"refresh\">↻</button></div>" +
@@ -976,7 +1097,7 @@ const formSimJS = `(function () {
       "</div>" +
       "<div class=\"card deploycard\">" +
       "<h3>Publicar no servidor <button type=\"button\" title=\"Fechar\" data-act=\"closedeploy\">×</button></h3>" +
-      "<div class=\"status\" data-el=\"depinfo\">Escolha o servidor e o formulário de destino.</div>" +
+      "<div class=\"status\" data-el=\"depinfo\" style=\"display:none\"></div>" +
       "<label>Servidor</label>" +
       "<select data-el=\"depserver\"></select>" +
       "<div data-el=\"deppassrow\" style=\"display:none\">" +
@@ -1001,8 +1122,7 @@ const formSimJS = `(function () {
       "<label>Pasta do GED onde salvar</label>" +
       "<select data-el=\"depfolder\" disabled><option value=\"\">— carregando… —</option></select>" +
       "<div class=\"sub\" data-el=\"deppath\" style=\"margin:4px 0 0\"></div>" +
-      "<label>Id da pasta (preenchido pela navegação; aceita digitar)</label>" +
-      "<input type=\"number\" data-el=\"depparent\" min=\"1\">" +
+      "<input type=\"number\" data-el=\"depparent\" min=\"1\" style=\"display:none\" placeholder=\"id da pasta do GED\">" +
       "<label>Armazenamento</label>" +
       "<select data-el=\"deppersist\"><option value=\"db\">Tabelas de banco de dados (recomendado)</option>" +
       "<option value=\"single\">Numa única tabela (pequena quantidade de registros)</option></select>" +
@@ -1011,8 +1131,7 @@ const formSimJS = `(function () {
       "<label class=\"prodwarn\">⚠ PRODUÇÃO — digite o nome do servidor para confirmar</label>" +
       "<input type=\"text\" data-el=\"depconfirm\" autocomplete=\"off\">" +
       "</div>" +
-      "<button type=\"button\" class=\"btn\" data-act=\"deploygo\">Publicar</button>" +
-      "<p class=\"sub\" style=\"margin-top:10px\">Mesma semântica do fluigcli form export: atualizar cria versão no servidor e o vínculo local (forms.json) é atualizado.</p>" +
+      "<button type=\"button\" class=\"btn\" data-act=\"deploygo\" data-el=\"depgo\" disabled>Publicar</button>" +
       "</div>" +
       "<div class=\"bar\">" +
       "<button type=\"button\" data-act=\"open\" title=\"Simulação de processo (etapa, modo, usuário, variáveis)\">⚙<span class=\"dot\"></span></button>" +
@@ -1084,6 +1203,11 @@ const formSimJS = `(function () {
     els.depname.addEventListener("input", applyDsSuggestion);
     els.depdataset.addEventListener("input", function () { dsTouched = true; });
     els.depfolder.addEventListener("change", onDeployFolderPick);
+    // Qualquer edição no cartão reavalia o botão Publicar (os listeners
+    // específicos acima rodam antes — o estado já está atualizado aqui).
+    var depCardEl = root.querySelector(".card.deploycard");
+    depCardEl.addEventListener("input", updateDeployButton);
+    depCardEl.addEventListener("change", updateDeployButton);
 
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
     els.nextstatenum.value = cfg.wkNextState == null ? "" : cfg.wkNextState;
@@ -1102,26 +1226,20 @@ const formSimJS = `(function () {
     applyScreen();
   }
 
+  // renderStatus: a linha de status só aparece para ERRO (a janela fica
+  // limpa; o pontinho do botão ⚙ já indica ok/erro/desligado).
   function renderStatus() {
     var dot = root.querySelector(".dot");
     var st = els.status;
-    if (!boot.event) {
-      st.textContent = "Este formulário não tem events/displayFields.js — as variáveis simuladas só têm efeito através dele.";
-      dot.className = "dot";
-    } else if (cfg.enabled === false) {
-      st.textContent = "Simulação desligada — o formulário está no preview cru.";
-      dot.className = "dot";
-    } else if (report.error) {
+    if (boot.event && cfg.enabled !== false && report.error) {
       st.className = "status err";
       st.textContent = "displayFields falhou: " + report.error;
+      st.style.display = "";
       dot.className = "dot err";
-    } else if (report.ran) {
-      st.textContent = "displayFields executado com WKNumState=" + wkVars().WKNumState +
-        " e modo " + (cfg.formMode || "ADD") + ".";
-      dot.className = "dot ok";
     } else {
-      st.textContent = "displayFields ainda não executou.";
-      dot.className = "dot";
+      st.textContent = "";
+      st.style.display = "none";
+      dot.className = boot.event && cfg.enabled !== false && report.ran ? "dot ok" : "dot";
     }
     var d = [];
     if (report.unknown.length) d.push("<b>getValue não simulado:</b><ul><li>" + report.unknown.map(esc).join("</li><li>") + "</li></ul>");
@@ -1182,6 +1300,7 @@ const formSimJS = `(function () {
   function statusNote(msg) {
     els.status.className = "status err";
     els.status.textContent = msg;
+    els.status.style.display = "";
   }
 
   function fillProcesses(all, detected) {
