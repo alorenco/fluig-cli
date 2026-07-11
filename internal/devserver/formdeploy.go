@@ -89,11 +89,39 @@ type deployAuthReq struct {
 	Folder   string `json:"folder"`
 }
 
-// deployFormInfo é um formulário do servidor para o seletor.
+// deployFormInfo é um formulário do servidor para o seletor (dataset e campo
+// descritor entram nos defaults do diálogo de atualização — padrão Fluig).
 type deployFormInfo struct {
-	DocumentID  int    `json:"documentId"`
-	Name        string `json:"name"`
-	DatasetName string `json:"datasetName"`
+	DocumentID      int    `json:"documentId"`
+	Name            string `json:"name"`
+	DatasetName     string `json:"datasetName"`
+	CardDescription string `json:"cardDescription"`
+}
+
+// serveDeployFolders navega as pastas do GED do servidor alvo: parentId 0 =
+// raízes, senão as subpastas (SOAP ECMFolderService, validado ao vivo).
+func (s *Server) serveDeployFolders(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		deployAuthReq
+		ParentID int `json:"parentId"`
+	}
+	if !decodeDeployBody(w, r, &req) {
+		return
+	}
+	client, _, err := s.deployClient(r.Context(), req.Server, req.Password)
+	if err != nil {
+		deployAuthError(w, err)
+		return
+	}
+	folders, err := client.ListGEDFolders(r.Context(), req.ParentID)
+	if err != nil {
+		simError(w, http.StatusBadGateway, "falha ao listar as pastas do GED: "+err.Error())
+		return
+	}
+	if folders == nil {
+		folders = []fluig.GEDFolder{}
+	}
+	simJSON(w, map[string]any{"folders": folders})
 }
 
 func (s *Server) serveDeployForms(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +147,10 @@ func (s *Server) serveDeployForms(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]deployFormInfo, 0, len(forms))
 	for _, f := range forms {
-		out = append(out, deployFormInfo{DocumentID: f.DocumentID, Name: f.Description, DatasetName: f.DatasetName})
+		out = append(out, deployFormInfo{
+			DocumentID: f.DocumentID, Name: f.Description,
+			DatasetName: f.DatasetName, CardDescription: f.CardDescription,
+		})
 	}
 	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
 
@@ -145,9 +176,14 @@ func (s *Server) serveDeployForms(w http.ResponseWriter, r *http.Request) {
 type deployReq struct {
 	deployAuthReq
 	DocumentID  int    `json:"documentId"`  // >0 = atualizar esse form
-	VersionMode string `json:"versionMode"` // new (default) | keep
+	VersionMode string `json:"versionMode"` // keep (default do diálogo) | new
 	Confirm     string `json:"confirm"`     // nome digitado (exigido em prod)
-	Create      *struct {
+	// Overrides na atualização (padrão Fluig: dataset e campo descritor
+	// aparecem e podem ser ajustados); vazios = preserva o que está no
+	// servidor, como o form export.
+	DatasetName     string `json:"datasetName"`
+	CardDescription string `json:"cardDescription"` // campo descritor
+	Create          *struct {
 		Name            string `json:"name"`
 		DatasetName     string `json:"datasetName"`
 		CardDescription string `json:"cardDescription"`
@@ -243,18 +279,29 @@ func (s *Server) serveDeploy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		versionOption := fluig.VersionNew
-		if req.VersionMode == "keep" {
-			versionOption = fluig.VersionKeep
+		if req.VersionMode == "keep" || req.VersionMode == "" {
+			versionOption = fluig.VersionKeep // padrão Fluig: manter a atual
+		}
+		descriptor := strings.TrimSpace(req.CardDescription)
+		if descriptor == "" {
+			descriptor = existing.CardDescription
+		}
+		dataset := strings.TrimSpace(req.DatasetName)
+		if dataset == "" {
+			dataset = existing.DatasetName
 		}
 		upload.PrincipalFile = fluig.ChoosePrincipalFile(names, req.Folder, existing.Description)
-		res, err := client.UpdateForm(ctx, pub, existing.DocumentID, existing.CardDescription, existing.Description, existing.DatasetName, versionOption, upload)
+		// Assinatura do UpdateForm: o parâmetro "name" vira o descriptionField
+		// (campo descritor) do SOAP e "cardDescription" vira o título — ordem
+		// validada na homologação desde a Fase 4.
+		res, err := client.UpdateForm(ctx, pub, existing.DocumentID, descriptor, existing.Description, dataset, versionOption, upload)
 		if err != nil {
 			simError(w, http.StatusBadGateway, "falha ao atualizar o formulário: "+err.Error())
 			return
 		}
 		docID = deployDocumentIDOf(res, existing.DocumentID)
 		action, formName = "updated", existing.Description
-		fmap.Upsert(project.FormLink{Folder: req.Folder, DocumentID: docID, Name: formName, DatasetName: existing.DatasetName})
+		fmap.Upsert(project.FormLink{Folder: req.Folder, DocumentID: docID, Name: formName, DatasetName: dataset})
 	} else {
 		c := req.Create
 		if c == nil {

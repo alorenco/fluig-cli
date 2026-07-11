@@ -53,6 +53,17 @@ func (d *deployUpstream) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{"items":[{"datasetId":"ds_teste","type":"CUSTOM","custom":true,"active":true},
 			{"datasetId":"ds_outro","type":"CUSTOM","custom":true,"active":true}],"hasNext":false}`)
 	})
+	mux.HandleFunc("/webdesk/ECMFolderService", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		switch r.Header.Get("SOAPAction") {
+		case "getRootFolders":
+			w.Write(readTD("soap_rootFolders.xml"))
+		case "getSubFolders":
+			w.Write(readTD("soap_subFolders.xml"))
+		default:
+			http.Error(w, "op?", http.StatusInternalServerError)
+		}
+	})
 	mux.HandleFunc("/webdesk/ECMCardIndexService", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		action := r.Header.Get("SOAPAction")
@@ -209,18 +220,32 @@ func TestDeployAtualizaECria(t *testing.T) {
 	ts, s := newDeployTestServer(t, up.server(t))
 
 	// Atualização do formulário vinculado (fixture documentId 42; o SOAP de
-	// escrita devolve 99 — o vínculo local segue o servidor).
+	// escrita devolve 99 — o vínculo local segue o servidor). Sem versionMode
+	// o padrão é MANTER a versão (padrão Fluig, versionOption 0); dataset e
+	// campo descritor podem ser ajustados.
 	status, out := postJSON(t, ts.URL+"/_dev/api/formsim/deploy", map[string]any{
-		"server": "homolog", "folder": "Meu Form", "documentId": 42, "versionMode": "new",
+		"server": "homolog", "folder": "Meu Form", "documentId": 42,
+		"datasetName": "ds_ajustado", "cardDescription": "campoNovo",
 	})
 	if status != http.StatusOK || out["action"] != "updated" || out["documentId"].(float64) != 99 {
 		t.Fatalf("update: status=%d %v", status, out)
 	}
 	up.mu.Lock()
-	hasUpdate := strings.Contains(strings.Join(up.soapCalls, ","), "updateSimpleCardIndexWithDatasetAndGeneralInfo")
+	update := up.lastUpdate
 	up.mu.Unlock()
-	if !hasUpdate {
-		t.Error("SOAP de update não foi chamado")
+	if update == "" {
+		t.Fatal("SOAP de update não foi chamado")
+	}
+	if !strings.Contains(update, "<versionOption>0</versionOption>") {
+		t.Errorf("padrão deveria manter a versão (versionOption 0):\n%.400s", update)
+	}
+	if !strings.Contains(update, "<datasetName>ds_ajustado</datasetName>") ||
+		!strings.Contains(update, "<descriptionField>campoNovo</descriptionField>") {
+		t.Errorf("overrides de dataset/descritor não chegaram ao SOAP:\n%.600s", update)
+	}
+	// O título continua o do servidor (cardDescription SOAP = nome do doc).
+	if !strings.Contains(update, "<cardDescription>Formulario de Teste</cardDescription>") {
+		t.Errorf("título do formulário deveria ser preservado:\n%.600s", update)
 	}
 	fm, _ := os.ReadFile(filepath.Join(s.opts.Root, ".fluigcli", "forms.json"))
 	if !strings.Contains(string(fm), `"documentId": 99`) && !strings.Contains(string(fm), `"documentId":99`) {
@@ -273,5 +298,40 @@ func TestDeployProdExigeConfirmacao(t *testing.T) {
 	})
 	if status != http.StatusBadRequest {
 		t.Errorf("servidor desconhecido: status=%d", status)
+	}
+}
+
+// O navegador de pastas do GED: parentId 0 = raízes, >0 = subpastas.
+func TestDeployFolders(t *testing.T) {
+	up := &deployUpstream{}
+	ts, _ := newDeployTestServer(t, up.server(t))
+
+	status, out := postJSON(t, ts.URL+"/_dev/api/formsim/deploy/folders",
+		map[string]any{"server": "homolog", "parentId": 0})
+	if status != http.StatusOK {
+		t.Fatalf("raízes: status=%d %v", status, out)
+	}
+	folders := out["folders"].([]any)
+	if len(folders) != 3 || folders[0].(map[string]any)["name"] != "01 - Documentos Oficiais" {
+		t.Errorf("raízes inesperadas: %v", folders)
+	}
+	status, out = postJSON(t, ts.URL+"/_dev/api/formsim/deploy/folders",
+		map[string]any{"server": "homolog", "parentId": 7374})
+	if status != http.StatusOK {
+		t.Fatalf("subpastas: status=%d %v", status, out)
+	}
+	folders = out["folders"].([]any)
+	if len(folders) != 2 || folders[0].(map[string]any)["id"].(float64) != 7381 {
+		t.Errorf("subpastas inesperadas: %v", folders)
+	}
+	// forms devolve o campo descritor para os defaults do diálogo.
+	status, out = postJSON(t, ts.URL+"/_dev/api/formsim/deploy/forms",
+		map[string]any{"server": "homolog", "folder": "Meu Form"})
+	if status != http.StatusOK {
+		t.Fatal(status)
+	}
+	f0 := out["forms"].([]any)[0].(map[string]any)
+	if f0["cardDescription"] != "titulo" || f0["datasetName"] != "ds_teste" {
+		t.Errorf("dataset/descritor ausentes: %v", f0)
 	}
 }

@@ -223,6 +223,8 @@ func (s *Server) handleFormSimAPI(w http.ResponseWriter, r *http.Request) {
 		s.serveDeployServers(w)
 	case "deploy/forms":
 		s.serveDeployForms(w, r)
+	case "deploy/folders":
+		s.serveDeployFolders(w, r)
 	case "deploy":
 		s.serveDeploy(w, r)
 	default:

@@ -502,6 +502,121 @@ const formSimJS = `(function () {
     var srv = selectedDeployServer();
     els.depprod.style.display = srv && srv.env === "prod" ? "" : "none";
     els.depconfirm.value = "";
+    folderStack = [];
+    foldersLoadedFor = ""; // pastas são por servidor
+  }
+
+  // Campos candidatos a descritor: os inputs nomeados do form local (sem os
+  // ___N das tabelas pai×filho).
+  function formFieldNames() {
+    var seen = {}, out = [];
+    var els2 = document.querySelectorAll("input[name],select[name],textarea[name]");
+    for (var i = 0; i < els2.length; i++) {
+      var n = els2[i].getAttribute("name");
+      if (!n || /___\d+$/.test(n) || seen[n]) continue;
+      seen[n] = true;
+      out.push(n);
+    }
+    return out;
+  }
+
+  // fillDescriptor popula o select do campo descritor com os campos do form;
+  // valor atual do servidor fora da lista vira opção "(atual)".
+  function fillDescriptor(current) {
+    var sel = els.depcard;
+    sel.innerHTML = "<option value=\"\">— escolha o campo —</option>";
+    var found = false;
+    formFieldNames().forEach(function (n) {
+      var o = document.createElement("option");
+      o.value = n;
+      o.textContent = n;
+      sel.appendChild(o);
+      if (n === current) found = true;
+    });
+    if (current && !found) {
+      var o = document.createElement("option");
+      o.value = current;
+      o.textContent = current + " (atual)";
+      sel.appendChild(o);
+    }
+    sel.value = current || "";
+  }
+
+  // Sugestão de dataset na criação: ds_{{nome_formulario}} — segue o nome
+  // digitado até o dev editar o campo do dataset à mão.
+  var dsTouched = false;
+  function dsSuggest(name) {
+    return "ds_" + String(name).toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+  function applyDsSuggestion() {
+    if (dsTouched) return;
+    els.depdataset.value = dsSuggest(els.depname.value || boot.folder);
+  }
+
+  // --- navegador de pastas do GED (por servidor) ---
+
+  var folderStack = [];      // trilha: [{id, name}]
+  var foldersLoadedFor = ""; // servidor cujas pastas estão carregadas
+
+  function renderFolderPath() {
+    if (!folderStack.length) {
+      els.deppath.textContent = "Raiz do GED — navegue ou digite o id abaixo.";
+      return;
+    }
+    var last = folderStack[folderStack.length - 1];
+    els.deppath.textContent = "Publicar em: " + folderStack.map(function (f) { return f.name; }).join(" / ") +
+      " (id " + last.id + ")";
+  }
+
+  function loadDeployFolders(parentId) {
+    var sel = els.depfolder;
+    sel.disabled = true;
+    sel.innerHTML = "<option value=\"\">— carregando… —</option>";
+    apiPost("/_dev/api/formsim/deploy/folders",
+      { server: els.depserver.value, password: els.deppass.value, parentId: parentId },
+      function (err, data) {
+        if (err) {
+          sel.innerHTML = "<option value=\"\">— pastas indisponíveis (digite o id) —</option>";
+          deployInfo("Pastas do GED indisponíveis: " + err, true);
+          return;
+        }
+        foldersLoadedFor = els.depserver.value;
+        sel.disabled = false;
+        sel.innerHTML = "";
+        var o0 = document.createElement("option");
+        o0.value = "";
+        o0.textContent = folderStack.length ? "— escolher subpasta —" : "— escolher pasta —";
+        sel.appendChild(o0);
+        if (folderStack.length) {
+          var up = document.createElement("option");
+          up.value = "__up";
+          up.textContent = "⬅ voltar";
+          sel.appendChild(up);
+        }
+        (data.folders || []).forEach(function (f) {
+          var o = document.createElement("option");
+          o.value = String(f.id);
+          o.textContent = f.name;
+          sel.appendChild(o);
+        });
+        renderFolderPath();
+      });
+  }
+
+  function onDeployFolderPick() {
+    var v = els.depfolder.value;
+    if (v === "") return;
+    if (v === "__up") {
+      folderStack.pop();
+      var last = folderStack.length ? folderStack[folderStack.length - 1] : null;
+      els.depparent.value = last ? last.id : "";
+      loadDeployFolders(last ? last.id : 0);
+      return;
+    }
+    var opt = els.depfolder.selectedOptions[0];
+    folderStack.push({ id: parseInt(v, 10), name: opt.textContent });
+    els.depparent.value = v;
+    loadDeployFolders(parseInt(v, 10)); // desce para permitir refinar
   }
 
   function loadDeployForms() {
@@ -534,6 +649,8 @@ const formSimJS = `(function () {
           var o = document.createElement("option");
           o.value = String(f.documentId);
           o.textContent = f.name + " (" + f.documentId + ")";
+          o.setAttribute("data-dataset", f.datasetName || "");
+          o.setAttribute("data-card", f.cardDescription || "");
           if (f.datasetName) o.title = "dataset: " + f.datasetName;
           sel.appendChild(o);
           if (f.name === boot.folder) byName = String(f.documentId);
@@ -560,10 +677,23 @@ const formSimJS = `(function () {
   function onDeployFormChange() {
     var create = els.depform.value === "0" || els.depform.value === "";
     els.depcreate.style.display = create ? "" : "none";
+    els.depcreate2.style.display = create ? "" : "none";
     els.depexisting.style.display = create ? "none" : "";
     if (create) {
       if (!els.depname.value) els.depname.value = boot.folder;
-      if (!els.depcard.value) els.depcard.value = els.depname.value;
+      dsTouched = false;
+      applyDsSuggestion();
+      fillDescriptor("");
+      // Pastas carregam sob demanda, uma vez por servidor.
+      if (foldersLoadedFor !== els.depserver.value) {
+        folderStack = [];
+        loadDeployFolders(0);
+      }
+    } else {
+      // Padrão Fluig: dataset e descritor do formulário aparecem no update.
+      var opt = els.depform.selectedOptions[0];
+      els.depdataset.value = opt ? opt.getAttribute("data-dataset") || "" : "";
+      fillDescriptor(opt ? opt.getAttribute("data-card") || "" : "");
     }
   }
 
@@ -577,7 +707,9 @@ const formSimJS = `(function () {
       folder: boot.folder,
       documentId: docId,
       versionMode: els.depversion.value,
-      confirm: els.depconfirm.value.trim()
+      confirm: els.depconfirm.value.trim(),
+      datasetName: els.depdataset.value.trim(),
+      cardDescription: els.depcard.value.trim()
     };
     if (srv.env === "prod" && req.confirm !== srv.name) {
       deployInfo("PRODUÇÃO: digite o nome exato do servidor (" + srv.name + ") para confirmar.", true);
@@ -587,13 +719,14 @@ const formSimJS = `(function () {
       if (els.depform.disabled) { deployInfo("Aguarde a lista de formulários (ou informe a senha).", true); return; }
       req.create = {
         name: els.depname.value.trim() || boot.folder,
-        datasetName: els.depdataset.value.trim(),
+        datasetName: req.datasetName,
         parentId: parseInt(els.depparent.value, 10) || 0,
         persistenceType: els.deppersist.value,
-        cardDescription: els.depcard.value.trim()
+        cardDescription: req.cardDescription
       };
       if (!req.create.datasetName) { deployInfo("O nome do dataset é obrigatório na criação.", true); return; }
-      if (req.create.parentId <= 0) { deployInfo("O id da pasta do GED é obrigatório na criação.", true); return; }
+      if (!req.create.cardDescription) { deployInfo("Escolha o campo descritor.", true); return; }
+      if (req.create.parentId <= 0) { deployInfo("Escolha a pasta do GED (ou digite o id).", true); return; }
     }
     deployInfo("Publicando em " + srv.name + "…");
     apiPost("/_dev/api/formsim/deploy", req, function (err, data) {
@@ -852,19 +985,27 @@ const formSimJS = `(function () {
       "</div>" +
       "<label>Formulário no servidor</label>" +
       "<select data-el=\"depform\" disabled><option value=\"\">— carregando… —</option></select>" +
-      "<div data-el=\"depexisting\">" +
-      "<label>Versão</label>" +
-      "<select data-el=\"depversion\"><option value=\"new\">Criar nova versão (recomendado)</option>" +
-      "<option value=\"keep\">Manter a versão atual</option></select>" +
-      "</div>" +
       "<div data-el=\"depcreate\" style=\"display:none\">" +
       "<label>Nome do formulário</label><input type=\"text\" data-el=\"depname\">" +
-      "<label>Nome do dataset</label><input type=\"text\" data-el=\"depdataset\" list=\"fluigcli-dep-ds\"><datalist id=\"fluigcli-dep-ds\"></datalist>" +
-      "<label>Id da pasta (GED) onde salvar</label><input type=\"number\" data-el=\"depparent\" min=\"1\">" +
+      "</div>" +
+      "<label>Nome do dataset</label>" +
+      "<input type=\"text\" data-el=\"depdataset\" list=\"fluigcli-dep-ds\"><datalist id=\"fluigcli-dep-ds\"></datalist>" +
+      "<label>Campo descritor</label>" +
+      "<select data-el=\"depcard\"><option value=\"\">— escolha o campo —</option></select>" +
+      "<div data-el=\"depexisting\">" +
+      "<label>Versão</label>" +
+      "<select data-el=\"depversion\"><option value=\"keep\">Manter a atual (padrão)</option>" +
+      "<option value=\"new\">Criar uma nova</option></select>" +
+      "</div>" +
+      "<div data-el=\"depcreate2\" style=\"display:none\">" +
+      "<label>Pasta do GED onde salvar</label>" +
+      "<select data-el=\"depfolder\" disabled><option value=\"\">— carregando… —</option></select>" +
+      "<div class=\"sub\" data-el=\"deppath\" style=\"margin:4px 0 0\"></div>" +
+      "<label>Id da pasta (preenchido pela navegação; aceita digitar)</label>" +
+      "<input type=\"number\" data-el=\"depparent\" min=\"1\">" +
       "<label>Armazenamento</label>" +
       "<select data-el=\"deppersist\"><option value=\"db\">Tabelas de banco de dados (recomendado)</option>" +
       "<option value=\"single\">Numa única tabela (pequena quantidade de registros)</option></select>" +
-      "<label>Campo descritor</label><input type=\"text\" data-el=\"depcard\">" +
       "</div>" +
       "<div data-el=\"depprod\" style=\"display:none\">" +
       "<label class=\"prodwarn\">⚠ PRODUÇÃO — digite o nome do servidor para confirmar</label>" +
@@ -940,6 +1081,9 @@ const formSimJS = `(function () {
       if (ev.key === "Enter") loadDeployForms();
     });
     els.depform.addEventListener("change", onDeployFormChange);
+    els.depname.addEventListener("input", applyDsSuggestion);
+    els.depdataset.addEventListener("input", function () { dsTouched = true; });
+    els.depfolder.addEventListener("change", onDeployFolderPick);
 
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
     els.nextstatenum.value = cfg.wkNextState == null ? "" : cfg.wkNextState;

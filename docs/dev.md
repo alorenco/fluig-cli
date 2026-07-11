@@ -117,16 +117,20 @@ server-side emulada:
     reais pelo nome ou número) e valida o envio; se o formulário definir
     `beforeSendValidate(numState, nextState)` client-side, ele roda antes,
     como no portal.
-  - **🚀 Publicar** — o `fluigcli form export` em forma de diálogo: escolha
-    o **servidor** (qualquer um cadastrado; o conectado vem selecionado) e o
-    **formulário de destino** — o do vínculo (forms.json) vem pré-selecionado;
-    sem vínculo, um com o nome da pasta ou **criar novo** (nome sugerido =
-    pasta, dataset com sugestões do servidor, id da pasta GED, armazenamento
-    em tabelas de banco — recomendado — ou tabela única, campo descritor).
-    Atualização cria nova versão (ou mantém) e o vínculo local é atualizado.
-    Credencial: sessão em cache/keyring/env — sem nenhuma, o diálogo pede a
-    senha (que trafega apenas até o dev server local). **Produção** exige
-    digitar o nome exato do servidor para confirmar, como a trava do CLI.
+  - **🚀 Publicar** — o `fluigcli form export` em forma de diálogo, no
+    padrão do Fluig: escolha o **servidor** (qualquer um cadastrado; o
+    conectado vem selecionado) e o **formulário de destino** — o do vínculo
+    (forms.json) vem pré-selecionado. **Atualizando**, o diálogo mostra o
+    dataset e o campo descritor do servidor (ajustáveis) e a versão —
+    *manter a atual* é o padrão. **Criando**, sem escolha de versão: nome
+    (sugerido = pasta), dataset sugerido como `ds_{{nome}}`, **pasta do GED
+    navegável** (seletor com as pastas reais do servidor; o id também pode
+    ser digitado) e armazenamento (tabelas de banco — recomendado — ou
+    tabela única). Nos dois casos o **campo descritor é um seletor com os
+    campos do próprio formulário**. O vínculo local é atualizado após
+    publicar. Credencial: sessão em cache/keyring/env — sem nenhuma, o
+    diálogo pede a senha (que trafega apenas até o dev server local).
+    **Produção** exige digitar o nome exato do servidor, como a trava do CLI.
   - **📱 Tela** — alterna num clique: livre → celular (375px) → tablet
     (768px). O formulário abre numa **moldura de dispositivo com iframe**
     (`?screen=phone|tablet`) — iframe tem viewport próprio, então as media
