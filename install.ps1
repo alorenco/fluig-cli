@@ -10,12 +10,30 @@ $ErrorActionPreference = "Stop"
 
 $repo = "alorenco/fluig-cli"
 
+# Garante TLS 1.2 no Windows PowerShell 5.1 (o GitHub exige).
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072
+
 $versao = $env:FLUIGCLI_VERSION
 if ($versao) {
     $versao = $versao.TrimStart("v")
 } else {
-    $release = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest"
-    $versao = $release.tag_name.TrimStart("v")
+    # Descobre a última versão pelo redirect de /releases/latest — como o
+    # install.sh e o fluigcli upgrade fazem. NÃO usa a api.github.com, que
+    # tem rate limit por IP (60/h sem autenticação) e quebra em redes
+    # compartilhadas/CGNAT.
+    $req = [System.Net.WebRequest]::Create("https://github.com/$repo/releases/latest")
+    $req.AllowAutoRedirect = $false
+    try {
+        $resp = $req.GetResponse()
+        $location = $resp.Headers["Location"]
+        $resp.Close()
+    } catch {
+        throw "não consegui consultar a última release — verifique sua conexão (ou informe a versão com `$env:FLUIGCLI_VERSION)"
+    }
+    if (-not $location -or $location -notmatch "/tag/v([^/]+)$") {
+        throw "não consegui descobrir a última versão — informe com: `$env:FLUIGCLI_VERSION = 'x.y.z'"
+    }
+    $versao = $Matches[1]
 }
 
 $arquivo = "fluigcli_${versao}_windows_amd64.zip"
