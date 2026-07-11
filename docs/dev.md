@@ -103,8 +103,10 @@ server-side emulada:
   o preview consulta o dataset real (via proxy) e gera os `<option>` como o
   render do servidor — opção vazia primeiro quando `addBlankLine`, depois as
   linhas na ordem do dataset. Falha na consulta vira aviso no painel.
-- **Teste de gravação (`validateForm`)**: os botões **Salvar** e **Enviar
-  etapa** do painel simulam os dois gatilhos do portal — rodam o
+- **Teste de gravação (`validateForm`)**: um **segundo botão flutuante
+  ("Salvar / Enviar"**, abaixo do de Simulação**)** abre um cartão próprio
+  com os botões **Salvar** e **Enviar etapa**, que simulam os dois gatilhos
+  do portal — rodam o
   `events/validateForm.js` local sobre os valores preenchidos no preview
   (incluindo linhas de tabelas pai×filho) e mostram o resultado num diálogo:
   o `throw` da validação aparece como no portal (HTML renderizado); sucesso

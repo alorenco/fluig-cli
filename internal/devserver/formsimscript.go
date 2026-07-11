@@ -486,9 +486,12 @@ const formSimJS = `(function () {
     "background:#fff;border-radius:999px;padding:7px 14px;box-shadow:0 2px 8px rgba(16,36,54,.18);font-weight:600}" +
     "#fluigcli-sim .dot{width:9px;height:9px;border-radius:50%;background:#9aa7b2}" +
     "#fluigcli-sim .dot.ok{background:#25b26e}#fluigcli-sim .dot.err{background:#e2574c}" +
+    "#fluigcli-sim .chips{display:flex;flex-direction:column;gap:8px;align-items:flex-end}" +
     "#fluigcli-sim .card{display:none;width:340px;max-height:76vh;overflow:auto;background:#fff;" +
     "border:1px solid #d5dde5;border-radius:12px;box-shadow:0 8px 28px rgba(16,36,54,.25);padding:14px 16px 16px}" +
-    "#fluigcli-sim.open .card{display:block}#fluigcli-sim.open .chip{display:none}" +
+    "#fluigcli-sim.open-sim .chips,#fluigcli-sim.open-test .chips{display:none}" +
+    "#fluigcli-sim.open-sim .card.simcard{display:block}" +
+    "#fluigcli-sim.open-test .card.testcard{display:block}" +
     "#fluigcli-sim h3{margin:0 0 2px;font-size:14px;display:flex;justify-content:space-between;align-items:center}" +
     "#fluigcli-sim h3 button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:2px}" +
     "#fluigcli-sim .sub{color:#5a6b7b;font-size:11.5px;margin:0 0 10px}" +
@@ -549,8 +552,11 @@ const formSimJS = `(function () {
     root = document.createElement("div");
     root.id = "fluigcli-sim";
     root.innerHTML = "" +
+      "<div class=\"chips\">" +
       "<div class=\"chip\" data-act=\"open\"><span class=\"dot\"></span>Simulação</div>" +
-      "<div class=\"card\">" +
+      "<div class=\"chip\" data-act=\"opentest\">Salvar / Enviar</div>" +
+      "</div>" +
+      "<div class=\"card simcard\">" +
       "<h3>Simulação de processo <button type=\"button\" title=\"Fechar\" data-act=\"close\">×</button></h3>" +
       "<p class=\"sub\">fluigcli dev · " + esc(boot.folder) + "</p>" +
       "<div class=\"status\" data-el=\"status\"></div>" +
@@ -569,24 +575,32 @@ const formSimJS = `(function () {
       "<div class=\"toggle\"><input type=\"checkbox\" data-el=\"enabled\" id=\"fluigcli-sim-on\">" +
       "<label for=\"fluigcli-sim-on\" style=\"margin:0;font-weight:600\">Simulação ligada</label></div>" +
       "<button type=\"button\" class=\"btn\" data-act=\"apply\">Aplicar e recarregar</button>" +
-      "<div class=\"sep\">Testar gravação (validateForm)</div>" +
-      "<label>Próxima etapa (WKNextState)</label>" +
+      "<details><summary>Execução do displayFields</summary><div data-el=\"detail\" class=\"muted\"></div></details>" +
+      "</div>" +
+      "<div class=\"card testcard\">" +
+      "<h3>Salvar / Enviar <button type=\"button\" title=\"Fechar\" data-act=\"closetest\">×</button></h3>" +
+      "<p class=\"sub\">fluigcli dev · " + esc(boot.folder) + "</p>" +
+      "<div class=\"status\" data-el=\"testinfo\"></div>" +
+      "<label>Próxima etapa (WKNextState) — só para o Enviar</label>" +
       "<select data-el=\"nextstate\" style=\"margin-bottom:6px\"><option value=\"\">— número manual —</option></select>" +
       "<input type=\"number\" data-el=\"nextstatenum\" min=\"0\" step=\"1\">" +
-      "<div class=\"row\" style=\"margin-top:10px\">" +
+      "<div class=\"row\" style=\"margin-top:12px\">" +
       "<button type=\"button\" class=\"btn sec\" style=\"margin:0\" data-act=\"save\">Salvar</button>" +
       "<button type=\"button\" class=\"btn\" style=\"margin:0\" data-act=\"send\">Enviar etapa</button>" +
       "</div>" +
-      "<details><summary>Execução do displayFields</summary><div data-el=\"detail\" class=\"muted\"></div></details>" +
+      "<p class=\"sub\" style=\"margin-top:10px\">Roda o events/validateForm.js local com os valores preenchidos no preview — nada é gravado no servidor.</p>" +
       "</div>";
     document.body.appendChild(root);
 
     root.querySelectorAll("[data-el]").forEach(function (el) { els[el.getAttribute("data-el")] = el; });
 
     root.addEventListener("click", function (ev) {
-      var act = ev.target.getAttribute && ev.target.getAttribute("data-act");
-      if (act === "open") { root.classList.add("open"); onOpen(false); }
-      if (act === "close") { root.classList.remove("open"); }
+      var actEl = ev.target.closest ? ev.target.closest("[data-act]") : ev.target;
+      var act = actEl && actEl.getAttribute && actEl.getAttribute("data-act");
+      if (act === "open") { root.classList.add("open-sim"); root.classList.remove("open-test"); onOpen(false); }
+      if (act === "opentest") { root.classList.add("open-test"); root.classList.remove("open-sim"); updateTestInfo(); onOpen(false); }
+      if (act === "close") { root.classList.remove("open-sim"); }
+      if (act === "closetest") { root.classList.remove("open-test"); }
       if (act === "refresh") { onOpen(true); }
       if (act === "apply") { apply(); }
       if (act === "save") { doValidate(false); }
@@ -685,11 +699,12 @@ const formSimJS = `(function () {
       else if (ctx && !els.user.value && ctx.userCode) { cfg.wkUser = cfg.wkUser || ctx.userCode; fillUsers(null); }
       api("/_dev/api/formsim/processes" + (force ? "?force=1" : ""), function (perr, procs) {
         if (perr) { statusNote("Processos indisponíveis: " + perr); return; }
-        fillProcesses(procs || [], (ctx && ctx.processes) || []);
+        fillProcesses(Array.isArray(procs) ? procs : [],
+          ctx && Array.isArray(ctx.processes) ? ctx.processes : []);
       });
       api("/_dev/api/formsim/users" + (force ? "?force=1" : ""), function (uerr, users) {
         if (uerr) { statusNote("Usuários indisponíveis: " + uerr); return; }
-        fillUsers(users || []);
+        fillUsers(Array.isArray(users) ? users : []);
       });
     });
   }
@@ -733,7 +748,7 @@ const formSimJS = `(function () {
     api("/_dev/api/formsim/states?process=" + encodeURIComponent(processId) + "&version=" + (version || 0), function (err, data) {
       sels.forEach(function (sel) { sel.disabled = false; });
       if (err) { statusNote("Etapas indisponíveis: " + err); return; }
-      (data.states || []).forEach(function (st) {
+      (data && Array.isArray(data.states) ? data.states : []).forEach(function (st) {
         sels.forEach(function (sel) {
           var o = document.createElement("option");
           o.value = String(st.sequence);
@@ -810,6 +825,19 @@ const formSimJS = `(function () {
   function stateLabel(sel, num) {
     var opt = num !== "" && sel.querySelector("option[value=\"" + num + "\"]");
     return opt ? opt.textContent : ("etapa " + num);
+  }
+
+  // updateTestInfo resume o contexto que o teste de gravação vai usar (vem
+  // da simulação aplicada — o cartão de gravação não altera etapa/modo).
+  function updateTestInfo() {
+    var cur = String(cfg.wkNumState == null ? "0" : cfg.wkNumState);
+    var opt = els.state.querySelector("option[value=\"" + cur + "\"]");
+    var info = "Valida com WKNumState=" + cur + (opt ? " (" + opt.textContent + ")" : "") +
+      ", modo " + (cfg.formMode || "ADD") + " — ajuste na Simulação.";
+    if (!boot.validate) {
+      info = "Este formulário não tem events/validateForm.js — o Fluig gravaria sem validar. " + info;
+    }
+    els.testinfo.textContent = info;
   }
 
   function doValidate(send) {
