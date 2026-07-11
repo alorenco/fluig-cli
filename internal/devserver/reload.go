@@ -164,7 +164,10 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 					timer.Stop()
 				}
 				name := relOrSelf(s.opts.Root, ev.Name)
-				timer = time.AfterFunc(s.opts.Debounce, func() {
+				timer = time.AfterFunc(s.reloadDebounceNow(), func() {
+					if !s.reloadEnabled() {
+						return // pausado no dashboard
+					}
 					s.opts.Infof("mudança em %s — recarregando o navegador", name)
 					s.hub.broadcast("reload")
 				})

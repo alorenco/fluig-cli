@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -258,39 +259,51 @@ func watchRecursive(w *fsnotify.Watcher, dir string) error {
 // igual ao da última publicação não vai à rede; artefato inexistente não é
 // criado; e nada de bump de versão (forms com VersionKeep, workflow cirúrgico).
 func (s *watchSession) publish(ctx context.Context, u watchUnit) {
-	ts := time.Now().Format("15:04:05")
+	level, msg := s.publishOutcome(ctx, u)
 	p := s.app.printer
+	switch level {
+	case "success":
+		p.Successf("%s", msg)
+	case "warn":
+		p.Warnf("%s", msg)
+	default:
+		p.Infof("%s", msg)
+	}
+}
+
+// publishOutcome faz a publicação e devolve (nível, mensagem) — o watch
+// imprime no terminal e o dashboard do dev alimenta o feed com o mesmo texto.
+func (s *watchSession) publishOutcome(ctx context.Context, u watchUnit) (level, msg string) {
+	ts := time.Now().Format("15:04:05")
 
 	hash, err := hashPath(u.path)
 	if err != nil {
-		p.Warnf("%s  %s %q: não consegui ler: %v", ts, u.typ, u.id, err)
-		return
+		return "warn", fmt.Sprintf("%s  %s %q: não consegui ler: %v", ts, u.typ, u.id, err)
 	}
 	if s.published[u.path] == hash {
-		p.Infof("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
-		return
+		return "info", fmt.Sprintf("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
 	}
 
 	action, err := s.update(ctx, u)
 	switch {
 	case err != nil:
-		p.Warnf("%s  %s %q: %s", ts, u.typ, u.id, output.AsError(mapFluigError(err)).Message)
+		return "warn", fmt.Sprintf("%s  %s %q: %s", ts, u.typ, u.id, output.AsError(mapFluigError(err)).Message)
 	case action == "missing":
-		p.Warnf("%s  %s", ts, missingMessage(u, s.root))
+		return "warn", fmt.Sprintf("%s  %s", ts, missingMessage(u, s.root))
 	case action == "no-helper":
-		p.Warnf("%s  script %q: a fluiggersWidget não está instalada — instale com: fluigcli server install-helper", ts, u.id)
+		return "warn", fmt.Sprintf("%s  script %q: a fluiggersWidget não está instalada — instale com: fluigcli server install-helper", ts, u.id)
 	case action == "empty":
-		p.Warnf("%s  formulário %q: pasta sem arquivos para enviar", ts, u.id)
+		return "warn", fmt.Sprintf("%s  formulário %q: pasta sem arquivos para enviar", ts, u.id)
 	case action == "unchanged":
 		s.published[u.path] = hash
-		p.Infof("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
+		return "info", fmt.Sprintf("· %s  %s %q sem mudança — nada a publicar", ts, u.typ, u.id)
 	default:
 		s.published[u.path] = hash
 		suffix := ""
 		if u.typ == "form" {
 			suffix = " (versão mantida)"
 		}
-		p.Successf("✓ %s  %s %q publicado%s", ts, u.typ, u.id, suffix)
+		return "success", fmt.Sprintf("✓ %s  %s %q publicado%s", ts, u.typ, u.id, suffix)
 	}
 }
 

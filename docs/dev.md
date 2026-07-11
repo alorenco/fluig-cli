@@ -7,14 +7,33 @@ arquivos que você está editando — sem publicar nada. O ciclo
 
 ```
 $ fluigcli dev
-✓ Dev server de "homolog" em http://127.0.0.1:8787 — Ctrl+C para parar.
-Portal via proxy:       http://127.0.0.1:8787/portal/p/1/home
-Preview de formulários: http://127.0.0.1:8787/_dev/forms/
-Widgets servidas do disco (17):
-  /ramais → wcm/widget/ramais/src/main/webapp
-  ...
+✓ Dev server de "homolog" (hml) no ar — Ctrl+C para parar.
+Dashboard: http://127.0.0.1:8787/
+17 widget(s) do disco · 35 formulário(s) · watch desligado — gerencie no dashboard
 mudança em wcm/widget/ramais/resources/js/ramais.js — recarregando o navegador
 ```
+
+Portal, preview de formulários, widgets servidas e configurações estão no
+**dashboard** (a raiz do dev server).
+
+## Dashboard
+
+A raiz do dev server (`http://127.0.0.1:8787/`) é o **dashboard**: acessos
+rápidos (preview de formulários, portal pelo proxy, widgets servidas do
+disco), o **watch integrado** e configurações leves. Só a raiz exata — o
+portal e todos os demais caminhos seguem pelo proxy normalmente.
+
+- **Watch integrado (publicar ao salvar)**: liga o comportamento do
+  `fluigcli watch` dentro do `dev`, com **escolha por tipo de artefato**
+  (datasets, eventos globais, mecanismos, formulários, scripts de processo).
+  Mesmas garantias do watch: publica só no **servidor conectado**, nunca
+  cria artefato, formulários com a versão mantida e scripts de processo
+  cirúrgicos; salvamento sem mudança não vai à rede. A escolha fica
+  persistida em `.fluigcli/dev.json` (git-ignorado) e as últimas publicações
+  aparecem num feed na própria página (e no terminal, como sempre).
+- **Live reload**: pausar/retomar e ajustar o debounce sem reiniciar o dev.
+- **Limpar caches do painel**: zera contexto/processos/etapas/usuários da
+  simulação e as conexões de publicação.
 
 ## Widgets (o grande ganho)
 

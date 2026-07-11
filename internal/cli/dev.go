@@ -2,19 +2,26 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/devserver"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 func newDevCmd(app *App) *cobra.Command {
@@ -44,7 +51,9 @@ func newDevCmd(app *App) *cobra.Command {
 			"    (fluigcli form link), o processo é detectado e as etapas reais\n" +
 			"    aparecem pelo nome; sem vínculo, digite o número da etapa.\n" +
 			"  • Live reload: ao salvar em forms/ ou wcm/widget/, o navegador\n" +
-			"    recarrega sozinho.\n\n" +
+			"    recarrega sozinho.\n" +
+			"  • Dashboard na raiz (/): acessos rápidos, watch integrado (publicar\n" +
+			"    ao salvar, por tipo de artefato) e configurações do live reload.\n\n" +
 			"Segurança: por padrão escuta só em 127.0.0.1 — o proxy carrega a SUA\n" +
 			"sessão autenticada; quem acessa a porta age no Fluig como você. Em\n" +
 			"servidor de desenvolvimento remoto, use --listen com um endereço de\n" +
@@ -86,6 +95,7 @@ func newDevCmd(app *App) *cobra.Command {
 			defer client.SaveSession()
 
 			deployServers, deployConnect := app.deployBridge(server)
+			watch := newDevWatch(app, client, server, root, debounce)
 			srv, err := devserver.New(devserver.Options{
 				Root:          root,
 				Upstream:      client.BaseURL(),
@@ -100,25 +110,26 @@ func newDevCmd(app *App) *cobra.Command {
 				CompanyID:     server.CompanyID,
 				DeployServers: deployServers,
 				DeployConnect: deployConnect,
+				ServerName:    server.Name,
+				ServerEnv:     server.Env,
+				Username:      server.Username,
+				Watch:         watch,
 			})
 			if err != nil {
 				return output.Genericf("não consegui montar o dev server: %v", err)
 			}
 
-			p.Successf("Dev server de %q em %s — Ctrl+C para parar.", server.Name, srv.URL())
-			if srv.ListensBeyondLoopback() {
-				p.Warnf("escutando fora do loopback (%s): quem alcança essa porta age no Fluig com a SUA sessão — use só em rede privada (tailnet/VPN), nunca em IP público", listen)
+			watch.start(ctx)
+			// Saída enxuta (pedido do mantenedor, 2026-07-11): status, o link
+			// do dashboard e um resumo de uma linha — portal, preview,
+			// widgets e configurações vivem no dashboard.
+			env := ""
+			if server.Env != "" {
+				env = " (" + server.Env + ")"
 			}
-			p.Infof("Portal via proxy:       %s/portal/p/%d/home", srv.URL(), server.CompanyID)
-			p.Infof("Preview de formulários: %s/_dev/forms/", srv.URL())
-			if mounts := srv.Mounts(); len(mounts) > 0 {
-				p.Infof("Widgets servidas do disco (%d):", len(mounts))
-				for _, m := range mounts {
-					p.Infof("  %s", m)
-				}
-			} else {
-				p.Infof("Nenhuma widget local (wcm/widget/) — só proxy e preview de formulários.")
-			}
+			p.Successf("Dev server de %q%s no ar — Ctrl+C para parar.", server.Name, env)
+			p.Infof("Dashboard: %s/", srv.URL())
+			p.Infof("%s", devSummaryLine(root, srv.Mounts(), watch.Status()))
 			if err := srv.Run(ctx); err != nil {
 				return output.Genericf("dev server: %v", err)
 			}
@@ -131,6 +142,235 @@ func newDevCmd(app *App) *cobra.Command {
 	cmd.Flags().DurationVar(&debounce, "debounce", 500*time.Millisecond, "espera após o salvamento antes de recarregar (agrupa rajadas do editor)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// devSummaryLine resume o ambiente numa linha: widgets do disco, formulários
+// do projeto e o estado do watch integrado (que publica sozinho — merece
+// destaque quando ligado).
+func devSummaryLine(root string, mounts []string, watch devserver.WatchStatus) string {
+	forms := 0
+	if entries, err := os.ReadDir(filepath.Join(root, project.FormsDirName)); err == nil {
+		for _, e := range entries {
+			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+				forms++
+			}
+		}
+	}
+	parts := []string{
+		fmt.Sprintf("%d widget(s) do disco", len(mounts)),
+		fmt.Sprintf("%d formulário(s)", forms),
+	}
+	if watch.Enabled && len(watch.Types) > 0 {
+		parts = append(parts, "watch LIGADO ("+strings.Join(watch.Types, ", ")+")")
+	} else {
+		parts = append(parts, "watch desligado")
+	}
+	return strings.Join(parts, " · ") + " — gerencie no dashboard"
+}
+
+// --- watch integrado do dashboard ---
+
+// devWatchConfig é o estado persistido em .fluigcli/dev.json (git-ignorado).
+type devWatchConfig struct {
+	Watch struct {
+		Enabled bool     `json:"enabled"`
+		Types   []string `json:"types"`
+	} `json:"watch"`
+}
+
+func devWatchConfigPath(root string) string {
+	return filepath.Join(root, ".fluigcli", "dev.json")
+}
+
+// devWatch é o watch integrado ao dev: o mesmo loop/publicação do `fluigcli
+// watch` (classifyWatchPath + watchSession.publishOutcome), mas ligável por
+// tipo de artefato pelo dashboard, com feed das últimas publicações.
+type devWatch struct {
+	app      *App
+	root     string
+	debounce time.Duration
+	session  *watchSession
+
+	mu        sync.Mutex
+	enabled   bool
+	types     map[string]bool
+	recent    []string
+	available bool
+}
+
+func newDevWatch(app *App, client *fluig.Client, server *config.Server, root string, debounce time.Duration) *devWatch {
+	dw := &devWatch{
+		app: app, root: root, debounce: debounce,
+		types: map[string]bool{},
+		session: &watchSession{
+			app: app, client: client, root: root,
+			formScope: server.FormScopeKey(), published: map[string]string{},
+		},
+	}
+	// Restaura a escolha persistida da última execução.
+	if b, err := os.ReadFile(devWatchConfigPath(root)); err == nil {
+		var cfg devWatchConfig
+		if json.Unmarshal(b, &cfg) == nil {
+			dw.enabled = cfg.Watch.Enabled
+			for _, t := range cfg.Watch.Types {
+				dw.types[t] = true
+			}
+		}
+	}
+	return dw
+}
+
+// Status implementa devserver.WatchBridge.
+func (dw *devWatch) Status() devserver.WatchStatus {
+	dw.mu.Lock()
+	defer dw.mu.Unlock()
+	types := make([]string, 0, len(dw.types))
+	for t, on := range dw.types {
+		if on {
+			types = append(types, t)
+		}
+	}
+	sort.Strings(types)
+	recent := make([]string, len(dw.recent))
+	copy(recent, dw.recent)
+	return devserver.WatchStatus{Available: dw.available, Enabled: dw.enabled, Types: types, Recent: recent}
+}
+
+// Set implementa devserver.WatchBridge: aplica e persiste a escolha.
+func (dw *devWatch) Set(enabled bool, types []string) error {
+	dw.mu.Lock()
+	dw.enabled = enabled
+	dw.types = map[string]bool{}
+	for _, t := range types {
+		dw.types[t] = true
+	}
+	dw.mu.Unlock()
+
+	var cfg devWatchConfig
+	cfg.Watch.Enabled = enabled
+	cfg.Watch.Types = append([]string{}, types...)
+	sort.Strings(cfg.Watch.Types)
+	b, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.MkdirAll(filepath.Dir(devWatchConfigPath(dw.root)), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(devWatchConfigPath(dw.root), append(b, '\n'), 0o644); err != nil {
+		return fmt.Errorf("não consegui gravar .fluigcli/dev.json: %v", err)
+	}
+	if err := ensureGitignoreEntry(dw.root, ".fluigcli/dev.json", "preferências locais do dev server (não versionar)"); err != nil {
+		dw.app.printer.Warnf("não foi possível atualizar o .gitignore: %v", err)
+	}
+	if enabled && len(types) > 0 {
+		dw.app.printer.Infof("watch integrado ligado (%s)", strings.Join(cfg.Watch.Types, ", "))
+	} else {
+		dw.app.printer.Infof("watch integrado desligado")
+	}
+	return nil
+}
+
+// allowed decide se a unidade salva deve ser publicada agora.
+func (dw *devWatch) allowed(typ string) bool {
+	dw.mu.Lock()
+	defer dw.mu.Unlock()
+	return dw.enabled && dw.types[typ]
+}
+
+// record alimenta o feed do dashboard (mais novo primeiro, máx. 8).
+func (dw *devWatch) record(msg string) {
+	dw.mu.Lock()
+	defer dw.mu.Unlock()
+	dw.recent = append([]string{msg}, dw.recent...)
+	if len(dw.recent) > 8 {
+		dw.recent = dw.recent[:8]
+	}
+}
+
+// start sobe o observador em goroutine (mesma mecânica do runWatch: debounce
+// por unidade; pastas novas entram na observação). O filtro por tipo é
+// avaliado NO DISPARO — mudar a config no dashboard vale na hora.
+func (dw *devWatch) start(ctx context.Context) {
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		dw.app.printer.Warnf("watch integrado indisponível: %v", err)
+		return
+	}
+	watchedAny := false
+	for _, dir := range watchDirs {
+		base := filepath.Join(dw.root, dir)
+		if _, err := os.Stat(base); err != nil {
+			continue
+		}
+		if watchRecursive(w, base) == nil {
+			watchedAny = true
+		}
+	}
+	dw.mu.Lock()
+	dw.available = watchedAny
+	dw.mu.Unlock()
+	if !watchedAny {
+		_ = w.Close()
+		return
+	}
+
+	go func() {
+		defer w.Close()
+		pending := map[string]*time.Timer{}
+		fire := make(chan watchUnit, 32)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-w.Events:
+				if !ok {
+					return
+				}
+				if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Rename) == 0 {
+					continue
+				}
+				if fi, err := os.Stat(ev.Name); err == nil && fi.IsDir() {
+					_ = watchRecursive(w, ev.Name)
+					continue
+				}
+				unit, ok := classifyWatchPath(dw.root, ev.Name)
+				if !ok {
+					continue
+				}
+				if t, ok := pending[unit.path]; ok {
+					t.Stop()
+				}
+				u := unit
+				pending[u.path] = time.AfterFunc(dw.debounce, func() {
+					select {
+					case fire <- u:
+					case <-ctx.Done():
+					}
+				})
+			case u := <-fire:
+				delete(pending, u.path)
+				if !dw.allowed(u.typ) {
+					continue
+				}
+				if _, err := os.Stat(u.path); err != nil {
+					continue
+				}
+				level, msg := dw.session.publishOutcome(ctx, u)
+				dw.record(msg)
+				switch level {
+				case "success":
+					dw.app.printer.Successf("%s", msg)
+				case "warn":
+					dw.app.printer.Warnf("%s", msg)
+				default:
+					dw.app.printer.Infof("%s", msg)
+				}
+			case werr, ok := <-w.Errors:
+				if !ok {
+					return
+				}
+				dw.app.printer.Warnf("watch integrado: %v", werr)
+			}
+		}
+	}()
 }
 
 // deployBridge monta a ponte de publicação da barra do dev: a lista de

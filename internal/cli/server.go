@@ -594,9 +594,13 @@ func newServerUpdateCmd(app *App) *cobra.Command {
 
 // ensureLocalGitignore garante que .fluigcli/servers.local.json (identidade
 // pessoal) esteja no .gitignore do projeto — para não ser versionado por engano.
-// Idempotente: não duplica a entrada nem sobrescreve o resto do arquivo.
 func ensureLocalGitignore(projectRoot string) error {
-	const entry = ".fluigcli/servers.local.json"
+	return ensureGitignoreEntry(projectRoot, ".fluigcli/servers.local.json", "identidade pessoal (não versionar)")
+}
+
+// ensureGitignoreEntry acrescenta uma entrada ao .gitignore do projeto.
+// Idempotente: não duplica a entrada nem sobrescreve o resto do arquivo.
+func ensureGitignoreEntry(projectRoot, entry, comment string) error {
 	path := filepath.Join(projectRoot, ".gitignore")
 	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -611,7 +615,7 @@ func ensureLocalGitignore(projectRoot string) error {
 	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 		prefix = "\n"
 	}
-	block := prefix + "\n# fluigcli: identidade pessoal (não versionar)\n" + entry + "\n"
+	block := prefix + "\n# fluigcli: " + comment + "\n" + entry + "\n"
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err

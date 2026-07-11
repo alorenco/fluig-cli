@@ -49,6 +49,13 @@ type Options struct {
 	// cliente e a FormScopeKey do alvo). ErrDeployNeedsPassword pede senha.
 	DeployServers []DeployServerInfo
 	DeployConnect func(ctx context.Context, serverName, password string) (*fluig.Client, string, error)
+
+	// Dashboard (dashboard.go): identificação do servidor conectado e a
+	// ponte com o watch integrado (nil = seção oculta).
+	ServerName string
+	ServerEnv  string
+	Username   string
+	Watch      WatchBridge
 }
 
 // Server é o dev server montado e pronto para rodar.
@@ -66,6 +73,11 @@ type Server struct {
 	sim   formSimCache   // cache da API de simulação de formulários
 
 	deploys map[string]deployConn // conexões de publicação por servidor (sob sim.mu)
+
+	startedAt   time.Time
+	dashMu      sync.Mutex    // controles dinâmicos do dashboard
+	reloadOff   bool          // live reload pausado
+	debounceNow time.Duration // debounce vigente (ajustável no dashboard)
 }
 
 // probeTimeout limita as sondagens que o dev server faz no upstream.
@@ -91,10 +103,12 @@ func New(opts Options) (*Server, error) {
 		opts.Host = "127.0.0.1"
 	}
 	s := &Server{
-		opts:   opts,
-		mounts: newMountTable(opts.Root),
-		hub:    newHub(),
-		warned: map[string]bool{},
+		opts:        opts,
+		mounts:      newMountTable(opts.Root),
+		hub:         newHub(),
+		warned:      map[string]bool{},
+		startedAt:   time.Now(),
+		debounceNow: opts.Debounce,
 	}
 
 	proxy := s.newProxy()
@@ -103,11 +117,21 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc("/_dev/forms/", s.handleFormPreview)
 	mux.HandleFunc(formSimJSPath, s.handleFormSimJS)
 	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
+	mux.HandleFunc("/_dev/api/dash", s.handleDash)
+	mux.HandleFunc("/_dev/api/dash/watch", s.handleDashWatch)
+	mux.HandleFunc("/_dev/api/dash/reload", s.handleDashReload)
+	mux.HandleFunc("/_dev/api/dash/clear-caches", s.handleDashClearCaches)
 	mux.HandleFunc("/_dev/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/_dev/forms/", http.StatusFound)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			// A raiz exata é o dashboard do dev server; o portal e todos os
+			// demais caminhos seguem para o map-local/proxy normalmente.
+			if r.URL.Path == "/" {
+				s.serveDashboard(w)
+				return
+			}
 			if local, ok := s.mounts.resolve(r.URL.Path); ok {
 				w.Header().Set("Cache-Control", "no-store")
 				http.ServeFile(w, r, local)
@@ -277,9 +301,14 @@ const formsIndexCSS = `
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);
   font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{padding:28px 32px 20px;border-bottom:1px solid var(--line)}
+header .hrow{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
 header h1{margin:0;font-size:22px;font-weight:650}
-header h1 small{color:var(--accent);font-weight:650}
+header h1 small{color:var(--accent);font-weight:650;font-size:22px}
 header p{margin:6px 0 0;color:var(--sub);font-size:13.5px}
+header .back{display:inline-block;padding:7px 14px;border:1px solid var(--line);border-radius:999px;
+  background:var(--card);color:var(--txt);text-decoration:none;font-size:13px;font-weight:600;
+  box-shadow:var(--shadow);transition:border-color .08s,color .08s}
+header .back:hover{border-color:var(--accent);color:var(--accent)}
 main{max-width:1080px;margin:0 auto;padding:24px 32px 48px}
 .bar{display:flex;gap:12px;align-items:center;margin-bottom:20px}
 .bar input{flex:1;max-width:420px;padding:9px 14px;border:1px solid var(--line);
@@ -334,7 +363,8 @@ func (s *Server) serveFormsIndex(w http.ResponseWriter) {
 	fmt.Fprintf(&b, "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"+
 		"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"+
 		"<title>fluigcli dev — formulários</title><style>%s</style></head><body>"+
-		"<header><h1><small>fluigcli dev</small> · Formulários do projeto</h1>"+
+		"<header><div class=\"hrow\"><h1>fluigcli <small>dev</small> · Formulários</h1>"+
+		"<a class=\"back\" href=\"/\">← Dashboard</a></div>"+
 		"<p>Preview local em modo novo registro — datasets, style guide e APIs vêm do servidor via proxy; salvar um arquivo recarrega o navegador.</p></header><main>", formsIndexCSS)
 	if len(cards) == 0 {
 		b.WriteString("<p class=\"empty\">Nenhuma pasta em <code>forms/</code> — baixe do servidor com <code>fluigcli form import</code>.</p>")
