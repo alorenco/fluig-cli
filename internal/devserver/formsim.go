@@ -41,8 +41,12 @@ import (
 
 // --- injeção no HTML do preview ---
 
-// displayFieldsFile é o único evento de formulário executado no render.
-const displayFieldsFile = "displayFields.js"
+// displayFieldsFile é o evento executado no render; validateFormFile é o que
+// o Fluig roda ao salvar/movimentar — o painel simula os dois gatilhos.
+const (
+	displayFieldsFile = "displayFields.js"
+	validateFormFile  = "validateForm.js"
+)
 
 // formWdkJSPath é a máquina real de tabelas pai×filho (wdkAddChild etc.) que
 // o render 2.0 injeta no fim da página do formulário — validado na
@@ -75,13 +79,16 @@ type formWdkProbe struct {
 // do servidor (wdkdetail.js) — o runtime marca as linhas-modelo e semeia o
 // WdksetNewId; sem a máquina (Fluig sem o arquivo), o runtime emula.
 func (s *Server) injectFormSim(page []byte, folder, formDir string) []byte {
-	var event any
-	if b, err := os.ReadFile(filepath.Join(project.FormEventsDir(formDir), displayFieldsFile)); err == nil {
-		event = string(b)
+	readEvent := func(name string) any {
+		if b, err := os.ReadFile(filepath.Join(project.FormEventsDir(formDir), name)); err == nil {
+			return string(b)
+		}
+		return nil
 	}
 	boot, err := json.Marshal(map[string]any{
 		"folder":    folder,
-		"event":     event, // nil sem events/displayFields.js
+		"event":     readEvent(displayFieldsFile), // nil sem events/displayFields.js
+		"validate":  readEvent(validateFormFile),  // nil sem events/validateForm.js
 		"companyId": s.opts.CompanyID,
 	})
 	if err != nil {

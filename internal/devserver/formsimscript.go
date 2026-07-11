@@ -342,10 +342,12 @@ const formSimJS = `(function () {
     return ds;
   }
 
-  function runEvent() {
-    if (!boot.event || cfg.enabled === false) return;
-    var vars = wkVars();
-    var getValue = function (name) {
+  // makeEventEnv monta o ambiente compartilhado de execução dos eventos de
+  // formulário (displayFields e validateForm): shims de getValue (sobre o
+  // mapa vars), form, customHTML, DatasetFactory, java e importClass.
+  function makeEventEnv(vars) {
+    var env = {};
+    env.getValue = function (name) {
       var known = Object.prototype.hasOwnProperty.call(vars, name);
       var v = known ? vars[name] : null;
       report.reads.push(name + " = " + (known ? JSON.stringify(v) : "(não simulado)"));
@@ -371,35 +373,73 @@ const formSimJS = `(function () {
       setHideDeleteButton: function () {},
       setEnhancedSecurityHiddenInputs: function () {}
     };
-    var form = window.Proxy ? new Proxy(formImpl, {
+    env.form = window.Proxy ? new Proxy(formImpl, {
       get: function (t, p) {
         if (p in t) return t[p];
         if (typeof p !== "string") return undefined;
         return function () { warn("form." + p + "() não é simulado (ignorado)"); };
       }
     }) : formImpl;
-    var parts = [];
-    var customHTML = { append: function (h) { parts.push(String(h)); } };
+    env.parts = [];
+    env.customHTML = { append: function (h) { env.parts.push(String(h)); } };
     var realDF = window.DatasetFactory;
-    var DF = realDF ? {
+    env.DatasetFactory = realDF ? {
       getDataset: function (a, b, c, d) { return wrapDataset(realDF.getDataset(a, b, c, d)); },
       createConstraint: function () { return realDF.createConstraint.apply(realDF, arguments); }
-    } : undefined;
-    var javaObj = makeJava();
-    var importClassShim = function (cls) {
+    } : realDF;
+    env.java = makeJava();
+    env.importClass = function (cls) {
       if (cls && cls.__simpleName) { window[cls.__simpleName] = cls; return; }
       warn("importClass: classe não simulada no preview (interop Java do Rhino)");
     };
+    return env;
+  }
+
+  // execEvent roda um fonte de evento no ambiente dado. Deixa o throw subir
+  // — quem chama decide o que ele significa (erro no display, bloqueio na
+  // validação).
+  function execEvent(env, src) {
+    new Function("getValue", "form", "customHTML", "DatasetFactory", "java", "importClass", src)(
+      env.getValue, env.form, env.customHTML, env.DatasetFactory, env.java, env.importClass);
+  }
+
+  function runEvent() {
+    if (!boot.event || cfg.enabled === false) return;
+    var env = makeEventEnv(wkVars());
     try {
-      var src = boot.event +
+      execEvent(env, boot.event +
         "\n;if (typeof displayFields !== \"function\") throw new Error(\"events/displayFields.js não define displayFields(form, customHTML)\");" +
-        "\ndisplayFields(form, customHTML);";
-      new Function("getValue", "form", "customHTML", "DatasetFactory", "java", "importClass", src)(
-        getValue, form, customHTML, DF || realDF, javaObj, importClassShim);
+        "\ndisplayFields(form, customHTML);");
       report.ran = true;
-      if (parts.length) document.body.insertAdjacentHTML("beforeend", parts.join(""));
+      if (env.parts.length) document.body.insertAdjacentHTML("beforeend", env.parts.join(""));
     } catch (e) {
       report.error = String((e && e.message) || e);
+    }
+  }
+
+  // runValidation simula os dois gatilhos do portal: Salvar (validateForm
+  // com WKNextState nulo — a variável só existe no movimento) e Enviar
+  // (beforeSendValidate client-side primeiro, como o portal faz, depois o
+  // validateForm com o WKNextState escolhido). Nada é gravado.
+  // Devolve: {ok:true} | {ok:false, runtime:bool, msg}. O throw de validação
+  // é string (às vezes HTML) → msg renderizável; Error = defeito no evento.
+  function runValidation(send, nextState) {
+    var vars = wkVars();
+    vars.WKNextState = send ? String(nextState) : null;
+    var env = makeEventEnv(vars);
+    try {
+      if (send && typeof window.beforeSendValidate === "function") {
+        window.beforeSendValidate(parseInt(cfg.wkNumState, 10) || 0, parseInt(nextState, 10) || 0);
+      }
+      if (boot.validate) {
+        execEvent(env, boot.validate +
+          "\n;if (typeof validateForm !== \"function\") throw new Error(\"events/validateForm.js não define validateForm(form)\");" +
+          "\nvalidateForm(form);");
+      }
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof Error) return { ok: false, runtime: true, msg: String(e.message || e) };
+      return { ok: false, runtime: false, msg: String(e) };
     }
   }
 
@@ -468,6 +508,19 @@ const formSimJS = `(function () {
     "#fluigcli-sim .muted{color:#5a6b7b}" +
     "#fluigcli-sim .toggle{display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12px}" +
     "#fluigcli-sim .toggle input{width:auto}" +
+    "#fluigcli-sim .sep{margin:14px 0 2px;padding-top:10px;border-top:1px solid #e3e8ee;" +
+    "font-weight:650;font-size:12.5px}" +
+    "#fluigcli-sim .dlg-overlay{position:fixed;inset:0;background:rgba(16,36,54,.45);" +
+    "z-index:2147483001;display:flex;align-items:center;justify-content:center}" +
+    "#fluigcli-sim .dlg{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);" +
+    "width:min(480px,90vw);max-height:70vh;overflow:auto;padding:18px 20px}" +
+    "#fluigcli-sim .dlg h4{margin:0 0 10px;font-size:15px}" +
+    "#fluigcli-sim .dlg.ok h4{color:#1d7a4f}#fluigcli-sim .dlg.block h4{color:#b3352b}" +
+    "#fluigcli-sim .dlg.crash h4{color:#9a6700}" +
+    "#fluigcli-sim .dlg .body{font-size:13.5px;line-height:1.55;word-break:break-word}" +
+    "#fluigcli-sim .dlg .hint{margin-top:10px;color:#5a6b7b;font-size:12px}" +
+    "#fluigcli-sim .dlg button{margin-top:14px;width:100%;padding:8px;border:0;border-radius:8px;" +
+    "cursor:pointer;background:#eef2f5;font-weight:650}" +
     "@media (prefers-color-scheme: dark){" +
     "#fluigcli-sim{color:#e6edf3}" +
     "#fluigcli-sim .chip,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
@@ -476,7 +529,11 @@ const formSimJS = `(function () {
     "#fluigcli-sim .btn.sec{background:#2b3742;color:#e6edf3}" +
     "#fluigcli-sim .status{background:#232d38}" +
     "#fluigcli-sim .status.err{background:#4a2320;color:#f3b0aa}" +
-    "#fluigcli-sim .sub,#fluigcli-sim .muted{color:#93a4b4}}";
+    "#fluigcli-sim .sub,#fluigcli-sim .muted{color:#93a4b4}" +
+    "#fluigcli-sim .sep{border-top-color:#2b3742}" +
+    "#fluigcli-sim .dlg{background:#1b232d}" +
+    "#fluigcli-sim .dlg button{background:#2b3742;color:#e6edf3}" +
+    "#fluigcli-sim .dlg .hint{color:#93a4b4}}";
 
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -512,6 +569,14 @@ const formSimJS = `(function () {
       "<div class=\"toggle\"><input type=\"checkbox\" data-el=\"enabled\" id=\"fluigcli-sim-on\">" +
       "<label for=\"fluigcli-sim-on\" style=\"margin:0;font-weight:600\">Simulação ligada</label></div>" +
       "<button type=\"button\" class=\"btn\" data-act=\"apply\">Aplicar e recarregar</button>" +
+      "<div class=\"sep\">Testar gravação (validateForm)</div>" +
+      "<label>Próxima etapa (WKNextState)</label>" +
+      "<select data-el=\"nextstate\" style=\"margin-bottom:6px\"><option value=\"\">— número manual —</option></select>" +
+      "<input type=\"number\" data-el=\"nextstatenum\" min=\"0\" step=\"1\">" +
+      "<div class=\"row\" style=\"margin-top:10px\">" +
+      "<button type=\"button\" class=\"btn sec\" style=\"margin:0\" data-act=\"save\">Salvar</button>" +
+      "<button type=\"button\" class=\"btn\" style=\"margin:0\" data-act=\"send\">Enviar etapa</button>" +
+      "</div>" +
       "<details><summary>Execução do displayFields</summary><div data-el=\"detail\" class=\"muted\"></div></details>" +
       "</div>";
     document.body.appendChild(root);
@@ -524,6 +589,9 @@ const formSimJS = `(function () {
       if (act === "close") { root.classList.remove("open"); }
       if (act === "refresh") { onOpen(true); }
       if (act === "apply") { apply(); }
+      if (act === "save") { doValidate(false); }
+      if (act === "send") { doValidate(true); }
+      if (act === "dlgclose") { closeDialog(); }
     });
     els.process.addEventListener("change", function () {
       var opt = els.process.selectedOptions[0];
@@ -532,8 +600,12 @@ const formSimJS = `(function () {
     els.state.addEventListener("change", function () {
       if (els.state.value !== "") els.statenum.value = els.state.value;
     });
+    els.nextstate.addEventListener("change", function () {
+      if (els.nextstate.value !== "") els.nextstatenum.value = els.nextstate.value;
+    });
 
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
+    els.nextstatenum.value = cfg.wkNextState == null ? "" : cfg.wkNextState;
     els.mode.value = cfg.formMode || "ADD";
     // Antes da lista de usuários carregar (no primeiro abrir), o select tem
     // só o valor atual — o Aplicar continua funcionando offline.
@@ -654,24 +726,28 @@ const formSimJS = `(function () {
   }
 
   function loadStates(processId, version, keepCurrent) {
-    var sel = els.state;
-    sel.innerHTML = "<option value=\"\">— número manual —</option>";
+    var sels = [els.state, els.nextstate];
+    sels.forEach(function (sel) { sel.innerHTML = "<option value=\"\">— número manual —</option>"; });
     if (!processId) return;
-    sel.disabled = true;
+    sels.forEach(function (sel) { sel.disabled = true; });
     api("/_dev/api/formsim/states?process=" + encodeURIComponent(processId) + "&version=" + (version || 0), function (err, data) {
-      sel.disabled = false;
+      sels.forEach(function (sel) { sel.disabled = false; });
       if (err) { statusNote("Etapas indisponíveis: " + err); return; }
       (data.states || []).forEach(function (st) {
-        var o = document.createElement("option");
-        o.value = String(st.sequence);
-        var kind = st.bpmnType || st.stateType || "";
-        o.textContent = st.sequence + " — " + (st.stateName || "(sem nome)") + (kind ? " · " + kind : "");
-        if (st.stateDescription) o.title = st.stateDescription;
-        sel.appendChild(o);
+        sels.forEach(function (sel) {
+          var o = document.createElement("option");
+          o.value = String(st.sequence);
+          var kind = st.bpmnType || st.stateType || "";
+          o.textContent = st.sequence + " — " + (st.stateName || "(sem nome)") + (kind ? " · " + kind : "");
+          if (st.stateDescription) o.title = st.stateDescription;
+          sel.appendChild(o);
+        });
       });
       els.process.selectedOptions[0] && els.process.selectedOptions[0].setAttribute("data-version", String(data.version || version || 0));
       var cur = keepCurrent ? String(cfg.wkNumState) : els.statenum.value;
-      if (cur !== "" && sel.querySelector("option[value=\"" + cur + "\"]")) sel.value = cur;
+      if (cur !== "" && els.state.querySelector("option[value=\"" + cur + "\"]")) els.state.value = cur;
+      var next = els.nextstatenum.value || (cfg.wkNextState == null ? "" : String(cfg.wkNextState));
+      if (next !== "" && els.nextstate.querySelector("option[value=\"" + next + "\"]")) els.nextstate.value = next;
     });
   }
 
@@ -690,6 +766,82 @@ const formSimJS = `(function () {
     });
     saveCfg(cfg);
     location.reload();
+  }
+
+  // --- teste de gravação (Salvar / Enviar etapa) ---
+
+  function closeDialog() {
+    var d = root.querySelector(".dlg-overlay");
+    if (d) d.parentNode.removeChild(d);
+  }
+
+  // showDialog imita o diálogo do portal. asHTML=true renderiza a msg como
+  // HTML (o throw de validação costuma trazer <b style=…> — conteúdo local
+  // do próprio projeto); caso contrário vai como texto.
+  function showDialog(kind, title, msg, asHTML, hint) {
+    closeDialog();
+    var ov = document.createElement("div");
+    ov.className = "dlg-overlay";
+    var dlg = document.createElement("div");
+    dlg.className = "dlg " + kind;
+    var h = document.createElement("h4");
+    h.textContent = title;
+    var body = document.createElement("div");
+    body.className = "body";
+    if (asHTML) body.innerHTML = msg; else body.textContent = msg;
+    dlg.appendChild(h);
+    dlg.appendChild(body);
+    if (hint) {
+      var p = document.createElement("div");
+      p.className = "hint";
+      p.textContent = hint;
+      dlg.appendChild(p);
+    }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("data-act", "dlgclose");
+    btn.textContent = "Fechar";
+    dlg.appendChild(btn);
+    ov.appendChild(dlg);
+    ov.addEventListener("click", function (ev) { if (ev.target === ov) closeDialog(); });
+    root.appendChild(ov);
+  }
+
+  function stateLabel(sel, num) {
+    var opt = num !== "" && sel.querySelector("option[value=\"" + num + "\"]");
+    return opt ? opt.textContent : ("etapa " + num);
+  }
+
+  function doValidate(send) {
+    var nextState = "";
+    if (send) {
+      nextState = els.nextstatenum.value;
+      if (nextState === "") {
+        showDialog("crash", "Escolha a próxima etapa",
+          "Para simular o Enviar, selecione a próxima etapa (WKNextState) ou digite o número dela.", false);
+        return;
+      }
+      cfg.wkNextState = nextState; // lembra a escolha entre reloads
+      saveCfg(cfg);
+    }
+    if (!boot.validate && !(send && typeof window.beforeSendValidate === "function")) {
+      showDialog("ok", "Sem validação", "Este formulário não tem events/validateForm.js — o Fluig " +
+        (send ? "avançaria a etapa" : "salvaria") + " sem validar.", false);
+      return;
+    }
+    var r = runValidation(send, nextState);
+    if (r.ok) {
+      showDialog("ok", "Validação passou",
+        send ? "O Fluig salvaria o formulário e avançaria para " + stateLabel(els.nextstate, nextState) + "."
+          : "O Fluig salvaria o formulário.",
+        false, "Simulação: nada foi gravado no servidor.");
+    } else if (r.runtime) {
+      showDialog("crash", "Erro no evento de validação", r.msg, false,
+        "Isso é um defeito no script (não uma mensagem de validação) — no portal apareceria um erro genérico.");
+    } else {
+      showDialog("block", send ? "Validação bloqueou o envio" : "Validação bloqueou a gravação", r.msg, true,
+        "Mensagem do throw do validateForm/beforeSendValidate, como o portal exibiria.");
+    }
   }
 
   // Ordem: os stubs do ambiente do portal entram antes de tudo (o form usa

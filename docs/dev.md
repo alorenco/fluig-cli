@@ -103,6 +103,17 @@ server-side emulada:
   o preview consulta o dataset real (via proxy) e gera os `<option>` como o
   render do servidor — opção vazia primeiro quando `addBlankLine`, depois as
   linhas na ordem do dataset. Falha na consulta vira aviso no painel.
+- **Teste de gravação (`validateForm`)**: os botões **Salvar** e **Enviar
+  etapa** do painel simulam os dois gatilhos do portal — rodam o
+  `events/validateForm.js` local sobre os valores preenchidos no preview
+  (incluindo linhas de tabelas pai×filho) e mostram o resultado num diálogo:
+  o `throw` da validação aparece como no portal (HTML renderizado); sucesso
+  informa que o Fluig gravaria/avançaria. No Enviar, escolha a **próxima
+  etapa (WKNextState)** — pelas etapas reais do processo ou número manual —
+  e, se o formulário definir `beforeSendValidate(numState, nextState)`
+  client-side, ele roda antes, como no portal. **Nada é gravado no
+  servidor**; eventos de processo (`beforeTaskSave` etc.) ficam fora — para
+  o ciclo real, use `fluigcli watch`.
 
 Para testar o formulário dentro do processo de verdade (bindings de card,
 anexos, movimentação), continue com o `fluigcli watch` + F5.

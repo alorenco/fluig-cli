@@ -30,8 +30,9 @@ func TestFormSimInjecao(t *testing.T) {
 	out := string(body)
 	if !strings.Contains(out, "window.__fluigcliFormSim=") ||
 		!strings.Contains(out, `"event":null`) ||
+		!strings.Contains(out, `"validate":null`) ||
 		!strings.Contains(out, `src="/_dev/formsim.js"`) {
-		t.Errorf("bootstrap sem evento não injetado:\n%s", out)
+		t.Errorf("bootstrap sem eventos não injetado:\n%s", out)
 	}
 
 	// Com events/displayFields.js, o fonte entra escapado (sem </script> cru).
@@ -43,6 +44,10 @@ func TestFormSimInjecao(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(evDir, "displayFields.js"), []byte(ev), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	vf := "function validateForm(form) { if (getValue(\"WKNextState\") == 9) throw \"bloqueado\"; }\n"
+	if err := os.WriteFile(filepath.Join(evDir, "validateForm.js"), []byte(vf), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	resp, _ = http.Get(ts.URL + "/_dev/forms/Meu%20Form/")
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -52,6 +57,9 @@ func TestFormSimInjecao(t *testing.T) {
 	}
 	if !strings.Contains(out, "WKNumState") {
 		t.Errorf("fonte do evento não embutido:\n%s", out)
+	}
+	if !strings.Contains(out, "WKNextState") || strings.Contains(out, `"validate":null`) {
+		t.Errorf("fonte do validateForm não embutido:\n%s", out)
 	}
 	// A injeção fica antes do </body>.
 	if strings.LastIndex(out, "__fluigcliFormSim") > strings.LastIndex(strings.ToLower(out), "</body>") {
