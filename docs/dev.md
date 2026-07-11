@@ -103,18 +103,31 @@ server-side emulada:
   o preview consulta o dataset real (via proxy) e gera os `<option>` como o
   render do servidor — opção vazia primeiro quando `addBlankLine`, depois as
   linhas na ordem do dataset. Falha na consulta vira aviso no painel.
-- **Teste de gravação (`validateForm`)**: um **segundo botão flutuante
-  ("Salvar / Enviar"**, abaixo do de Simulação**)** abre um cartão próprio
-  com os botões **Salvar** e **Enviar etapa**, que simulam os dois gatilhos
-  do portal — rodam o
-  `events/validateForm.js` local sobre os valores preenchidos no preview
-  (incluindo linhas de tabelas pai×filho) e mostram o resultado num diálogo:
-  o `throw` da validação aparece como no portal (HTML renderizado); sucesso
-  informa que o Fluig gravaria/avançaria. No Enviar, escolha a **próxima
-  etapa (WKNextState)** — pelas etapas reais do processo ou número manual —
-  e, se o formulário definir `beforeSendValidate(numState, nextState)`
-  client-side, ele roda antes, como no portal. **Nada é gravado no
-  servidor**; eventos de processo (`beforeTaskSave` etc.) ficam fora — para
+- **Barra de ferramentas do preview** (canto da página; tooltips em todos os
+  botões; posição direita/centro/esquerda alternável no botão ⇔ e
+  persistida):
+  - **⚙ Simulação** — o cartão de contexto do processo (acima), incluindo o
+    toggle `getMobile() = celular` para eventos que se adaptam ao app.
+  - **💾 Salvar** — um clique valida na hora: roda o
+    `events/validateForm.js` local sobre os valores preenchidos no preview
+    (incluindo linhas de tabelas pai×filho) e mostra o resultado num
+    diálogo: o `throw` da validação aparece como no portal (HTML
+    renderizado); sucesso informa que o Fluig gravaria. **Nada é gravado.**
+  - **▶ Enviar etapa** — pergunta a **próxima etapa (WKNextState)** (etapas
+    reais pelo nome ou número) e valida o envio; se o formulário definir
+    `beforeSendValidate(numState, nextState)` client-side, ele roda antes,
+    como no portal.
+  - **📱 Tela** — alterna a largura do formulário num clique: livre →
+    celular (375px) → tablet (768px), com moldura de dispositivo; só o
+    visual (o `getMobile()` é simulado na Simulação, pois re-executa o
+    evento).
+  - **↗ Abrir no Fluig** — abre numa aba o render **real** do formulário
+    (streamcontrol, via proxy autenticado) para comparar com o preview;
+    requer o processo escolhido na Simulação.
+  - **⌂ Índice** e **🧹 Limpar** — volta a `/_dev/forms/` / recarrega o
+    preview zerando os campos.
+
+  Eventos de processo (`beforeTaskSave` etc.) ficam fora da simulação — para
   o ciclo real, use `fluigcli watch`.
 
 Para testar o formulário dentro do processo de verdade (bindings de card,

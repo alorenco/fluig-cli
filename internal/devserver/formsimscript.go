@@ -359,7 +359,7 @@ const formSimJS = `(function () {
       getValue: getField,
       getFormMode: function () { return cfg.formMode || "ADD"; },
       setEnabled: function (name, enabled) { findFields(name).forEach(function (el) { el.disabled = !enabled; }); },
-      getMobile: function () { return false; },
+      getMobile: function () { return cfg.mobile === true; },
       getCompanyId: function () { return boot.companyId || 1; },
       getCardData: function () { return javaMap(cardDataObj()); },
       getChildrenIndexes: childrenIndexes,
@@ -479,19 +479,29 @@ const formSimJS = `(function () {
   // --- painel flutuante ---
 
   var CSS = "" +
-    "#fluigcli-sim{position:fixed;right:16px;bottom:16px;z-index:2147483000;" +
+    "#fluigcli-sim{position:fixed;bottom:16px;z-index:2147483000;display:flex;" +
+    "flex-direction:column;gap:10px;" +
     "font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1d2b36}" +
+    // Posição da barra: sem transform (transform quebraria o position:fixed
+    // do overlay dos diálogos) — o centro usa left+right+margin auto.
+    "#fluigcli-sim.pos-right{right:16px;align-items:flex-end}" +
+    "#fluigcli-sim.pos-left{left:16px;align-items:flex-start}" +
+    "#fluigcli-sim.pos-center{left:0;right:0;margin:0 auto;width:fit-content;align-items:center}" +
     "#fluigcli-sim *{box-sizing:border-box;font:inherit;color:inherit}" +
-    "#fluigcli-sim .chip{display:flex;align-items:center;gap:8px;cursor:pointer;border:1px solid #d5dde5;" +
-    "background:#fff;border-radius:999px;padding:7px 14px;box-shadow:0 2px 8px rgba(16,36,54,.18);font-weight:600}" +
-    "#fluigcli-sim .dot{width:9px;height:9px;border-radius:50%;background:#9aa7b2}" +
+    "#fluigcli-sim .bar{display:flex;gap:2px;align-items:center;border:1px solid #d5dde5;" +
+    "background:#fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 8px rgba(16,36,54,.18);" +
+    "max-width:360px}" +
+    "#fluigcli-sim .bar button{position:relative;border:0;background:none;cursor:pointer;" +
+    "min-width:34px;height:34px;border-radius:999px;font-size:16px;line-height:1;padding:0 6px}" +
+    "#fluigcli-sim .bar button:hover{background:#eef2f5}" +
+    "#fluigcli-sim .bar button[data-act=screen]{font-size:12.5px;font-weight:650}" +
+    "#fluigcli-sim .dot{position:absolute;top:2px;right:2px;width:8px;height:8px;" +
+    "border-radius:50%;background:#9aa7b2}" +
     "#fluigcli-sim .dot.ok{background:#25b26e}#fluigcli-sim .dot.err{background:#e2574c}" +
-    "#fluigcli-sim .chips{display:flex;flex-direction:column;gap:8px;align-items:flex-end}" +
-    "#fluigcli-sim .card{display:none;width:340px;max-height:76vh;overflow:auto;background:#fff;" +
+    "#fluigcli-sim .card{display:none;width:340px;max-width:92vw;max-height:76vh;overflow:auto;background:#fff;" +
     "border:1px solid #d5dde5;border-radius:12px;box-shadow:0 8px 28px rgba(16,36,54,.25);padding:14px 16px 16px}" +
-    "#fluigcli-sim.open-sim .chips,#fluigcli-sim.open-test .chips{display:none}" +
     "#fluigcli-sim.open-sim .card.simcard{display:block}" +
-    "#fluigcli-sim.open-test .card.testcard{display:block}" +
+    "#fluigcli-sim.open-send .card.sendcard{display:block}" +
     "#fluigcli-sim h3{margin:0 0 2px;font-size:14px;display:flex;justify-content:space-between;align-items:center}" +
     "#fluigcli-sim h3 button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:2px}" +
     "#fluigcli-sim .sub{color:#5a6b7b;font-size:11.5px;margin:0 0 10px}" +
@@ -524,9 +534,15 @@ const formSimJS = `(function () {
     "#fluigcli-sim .dlg .hint{margin-top:10px;color:#5a6b7b;font-size:12px}" +
     "#fluigcli-sim .dlg button{margin-top:14px;width:100%;padding:8px;border:0;border-radius:8px;" +
     "cursor:pointer;background:#eef2f5;font-weight:650}" +
+    // Moldura do modo de tela (responsividade): o conteúdo do form vai para
+    // um wrapper com a largura do dispositivo.
+    "body.fluigcli-screen{background:#39434d}" +
+    "body.fluigcli-screen #fluigcli-viewport{margin:0 auto;background:#fff;min-height:100vh;" +
+    "box-shadow:0 0 0 1px #1d2b36,0 8px 40px rgba(0,0,0,.4)}" +
     "@media (prefers-color-scheme: dark){" +
     "#fluigcli-sim{color:#e6edf3}" +
-    "#fluigcli-sim .chip,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
+    "#fluigcli-sim .bar,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
+    "#fluigcli-sim .bar button:hover{background:#2b3742}" +
     "#fluigcli-sim select,#fluigcli-sim input[type=text],#fluigcli-sim input[type=number],#fluigcli-sim textarea{" +
     "background:#12181f;border-color:#2b3742}" +
     "#fluigcli-sim .btn.sec{background:#2b3742;color:#e6edf3}" +
@@ -544,6 +560,82 @@ const formSimJS = `(function () {
 
   var root, els = {};
 
+  // Preferências da barra (posição e modo de tela) — globais do dev server,
+  // não por formulário.
+  var UIKEY = "fluigcli.formsim.ui";
+  var ui = { pos: "right", screen: "free" };
+  try { ui = Object.assign(ui, JSON.parse(localStorage.getItem(UIKEY) || "{}")); } catch (e) {}
+  function saveUI() { try { localStorage.setItem(UIKEY, JSON.stringify(ui)); } catch (e) {} }
+
+  function applyPos() {
+    root.classList.remove("pos-right", "pos-center", "pos-left");
+    root.classList.add("pos-" + (ui.pos === "center" || ui.pos === "left" ? ui.pos : "right"));
+  }
+  function cyclePos() {
+    ui.pos = ui.pos === "right" ? "center" : ui.pos === "center" ? "left" : "right";
+    saveUI();
+    applyPos();
+  }
+
+  // Modo de tela: livre → celular (375) → tablet (768). Só a largura visual —
+  // o form.getMobile() é simulado na Simulação (precisa re-rodar o evento).
+  var screenWidths = { phone: "375px", tablet: "768px" };
+  function viewportWrap() {
+    var wrap = document.getElementById("fluigcli-viewport");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "fluigcli-viewport";
+      Array.prototype.slice.call(document.body.childNodes).forEach(function (k) {
+        if (k !== root) wrap.appendChild(k);
+      });
+      document.body.insertBefore(wrap, document.body.firstChild);
+    }
+    return wrap;
+  }
+  function applyScreen() {
+    var btn = root.querySelector("[data-act=screen]");
+    if (ui.screen !== "phone" && ui.screen !== "tablet") {
+      document.body.classList.remove("fluigcli-screen");
+      var w0 = document.getElementById("fluigcli-viewport");
+      if (w0) w0.style.maxWidth = "";
+      if (btn) btn.textContent = "🖥";
+      return;
+    }
+    var wrap = viewportWrap();
+    document.body.classList.add("fluigcli-screen");
+    wrap.style.maxWidth = screenWidths[ui.screen];
+    if (btn) btn.textContent = ui.screen === "phone" ? "📱375" : "📱768";
+  }
+  function cycleScreen() {
+    ui.screen = ui.screen === "free" || !ui.screen ? "phone" : ui.screen === "phone" ? "tablet" : "free";
+    saveUI();
+    applyScreen();
+  }
+
+  // openPortal abre o render REAL do formulário (streamcontrol) numa aba,
+  // pela mesma origem do proxy: a URL vem do getDefinitionProcess do
+  // processo escolhido na Simulação. A aba abre em branco JÁ no clique
+  // (gesto do usuário — senão o navegador bloqueia o popup) e navega quando
+  // a resposta chega.
+  function openPortal() {
+    if (!cfg.processId) {
+      showDialog("crash", "Sem processo vinculado",
+        "Escolha o processo do formulário na Simulação (auto-detectado com fluigcli form link) para abrir o render real no Fluig.", false);
+      return;
+    }
+    var tab = window.open("about:blank", "_blank");
+    api("/ecm/api/rest/ecm/workflowView/getDefinitionProcess?processId=" + encodeURIComponent(cfg.processId), function (err, data) {
+      var formHtml = data && data.content && data.content.formHtml;
+      if (err || !formHtml) {
+        if (tab) tab.close();
+        showDialog("crash", "Não consegui obter o render real", String(err || "resposta sem formHtml"), false);
+        return;
+      }
+      var path = String(formHtml).replace(/^https?:\/\/[^\/]+/, "");
+      if (tab) tab.location = path; else window.open(path, "_blank");
+    });
+  }
+
   function buildPanel() {
     var style = document.createElement("style");
     style.textContent = CSS;
@@ -552,10 +644,6 @@ const formSimJS = `(function () {
     root = document.createElement("div");
     root.id = "fluigcli-sim";
     root.innerHTML = "" +
-      "<div class=\"chips\">" +
-      "<div class=\"chip\" data-act=\"open\"><span class=\"dot\"></span>Simulação</div>" +
-      "<div class=\"chip\" data-act=\"opentest\">Salvar / Enviar</div>" +
-      "</div>" +
       "<div class=\"card simcard\">" +
       "<h3>Simulação de processo <button type=\"button\" title=\"Fechar\" data-act=\"close\">×</button></h3>" +
       "<p class=\"sub\">fluigcli dev · " + esc(boot.folder) + "</p>" +
@@ -568,6 +656,8 @@ const formSimJS = `(function () {
       "<input type=\"number\" data-el=\"statenum\" min=\"0\" step=\"1\">" +
       "<label>Modo do formulário</label>" +
       "<select data-el=\"mode\"><option>ADD</option><option>MOD</option><option>VIEW</option></select>" +
+      "<div class=\"toggle\"><input type=\"checkbox\" data-el=\"mobile\" id=\"fluigcli-sim-mob\">" +
+      "<label for=\"fluigcli-sim-mob\" style=\"margin:0;font-weight:600\" title=\"O displayFields recebe form.getMobile() = true, como no app\">getMobile() = celular</label></div>" +
       "<label>Usuário (WKUser)</label>" +
       "<select data-el=\"user\"></select>" +
       "<label>Outras variáveis (CHAVE=valor, uma por linha)</label>" +
@@ -577,18 +667,24 @@ const formSimJS = `(function () {
       "<button type=\"button\" class=\"btn\" data-act=\"apply\">Aplicar e recarregar</button>" +
       "<details><summary>Execução do displayFields</summary><div data-el=\"detail\" class=\"muted\"></div></details>" +
       "</div>" +
-      "<div class=\"card testcard\">" +
-      "<h3>Salvar / Enviar <button type=\"button\" title=\"Fechar\" data-act=\"closetest\">×</button></h3>" +
-      "<p class=\"sub\">fluigcli dev · " + esc(boot.folder) + "</p>" +
+      "<div class=\"card sendcard\">" +
+      "<h3>Enviar etapa <button type=\"button\" title=\"Fechar\" data-act=\"closesend\">×</button></h3>" +
       "<div class=\"status\" data-el=\"testinfo\"></div>" +
-      "<label>Próxima etapa (WKNextState) — só para o Enviar</label>" +
+      "<label>Próxima etapa (WKNextState)</label>" +
       "<select data-el=\"nextstate\" style=\"margin-bottom:6px\"><option value=\"\">— número manual —</option></select>" +
       "<input type=\"number\" data-el=\"nextstatenum\" min=\"0\" step=\"1\">" +
-      "<div class=\"row\" style=\"margin-top:12px\">" +
-      "<button type=\"button\" class=\"btn sec\" style=\"margin:0\" data-act=\"save\">Salvar</button>" +
-      "<button type=\"button\" class=\"btn\" style=\"margin:0\" data-act=\"send\">Enviar etapa</button>" +
+      "<button type=\"button\" class=\"btn\" data-act=\"sendgo\">Validar envio</button>" +
+      "<p class=\"sub\" style=\"margin-top:10px\">Roda o events/validateForm.js local — nada é gravado no servidor.</p>" +
       "</div>" +
-      "<p class=\"sub\" style=\"margin-top:10px\">Roda o events/validateForm.js local com os valores preenchidos no preview — nada é gravado no servidor.</p>" +
+      "<div class=\"bar\">" +
+      "<button type=\"button\" data-act=\"open\" title=\"Simulação de processo (etapa, modo, usuário, variáveis)\">⚙<span class=\"dot\"></span></button>" +
+      "<button type=\"button\" data-act=\"save\" title=\"Salvar: valida o formulário agora (validateForm) — nada é gravado\">💾</button>" +
+      "<button type=\"button\" data-act=\"send\" title=\"Enviar etapa: pergunta a próxima etapa e valida o envio\">▶</button>" +
+      "<button type=\"button\" data-act=\"screen\" title=\"Alternar largura da tela: livre → celular (375) → tablet (768). getMobile() simula na Simulação\">🖥</button>" +
+      "<button type=\"button\" data-act=\"portal\" title=\"Abrir o render real deste formulário no Fluig (nova aba, via proxy)\">↗</button>" +
+      "<button type=\"button\" data-act=\"index\" title=\"Voltar ao índice de formulários\">⌂</button>" +
+      "<button type=\"button\" data-act=\"clean\" title=\"Limpar os campos e recarregar o preview\">🧹</button>" +
+      "<button type=\"button\" data-act=\"pos\" title=\"Posição da barra: direita → centro → esquerda\">⇔</button>" +
       "</div>";
     document.body.appendChild(root);
 
@@ -597,14 +693,27 @@ const formSimJS = `(function () {
     root.addEventListener("click", function (ev) {
       var actEl = ev.target.closest ? ev.target.closest("[data-act]") : ev.target;
       var act = actEl && actEl.getAttribute && actEl.getAttribute("data-act");
-      if (act === "open") { root.classList.add("open-sim"); root.classList.remove("open-test"); onOpen(false); }
-      if (act === "opentest") { root.classList.add("open-test"); root.classList.remove("open-sim"); updateTestInfo(); onOpen(false); }
+      if (act === "open") {
+        var was = root.classList.contains("open-sim");
+        root.classList.remove("open-sim", "open-send");
+        if (!was) { root.classList.add("open-sim"); onOpen(false); }
+      }
+      if (act === "send") {
+        var wasS = root.classList.contains("open-send");
+        root.classList.remove("open-sim", "open-send");
+        if (!wasS) { root.classList.add("open-send"); updateTestInfo(); onOpen(false); }
+      }
       if (act === "close") { root.classList.remove("open-sim"); }
-      if (act === "closetest") { root.classList.remove("open-test"); }
+      if (act === "closesend") { root.classList.remove("open-send"); }
       if (act === "refresh") { onOpen(true); }
       if (act === "apply") { apply(); }
       if (act === "save") { doValidate(false); }
-      if (act === "send") { doValidate(true); }
+      if (act === "sendgo") { doValidate(true); }
+      if (act === "screen") { cycleScreen(); }
+      if (act === "portal") { openPortal(); }
+      if (act === "index") { location.href = "/_dev/forms/"; }
+      if (act === "clean") { location.reload(); }
+      if (act === "pos") { cyclePos(); }
       if (act === "dlgclose") { closeDialog(); }
     });
     els.process.addEventListener("change", function () {
@@ -621,6 +730,7 @@ const formSimJS = `(function () {
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
     els.nextstatenum.value = cfg.wkNextState == null ? "" : cfg.wkNextState;
     els.mode.value = cfg.formMode || "ADD";
+    els.mobile.checked = cfg.mobile === true;
     // Antes da lista de usuários carregar (no primeiro abrir), o select tem
     // só o valor atual — o Aplicar continua funcionando offline.
     fillUsers(null);
@@ -630,6 +740,8 @@ const formSimJS = `(function () {
     for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k)) lines.push(k + "=" + extra[k]); }
     els.vars.value = lines.join("\n");
     renderStatus();
+    applyPos();
+    applyScreen();
   }
 
   function renderStatus() {
@@ -770,6 +882,7 @@ const formSimJS = `(function () {
     cfg.enabled = els.enabled.checked;
     cfg.wkNumState = els.statenum.value === "" ? "0" : els.statenum.value;
     cfg.formMode = els.mode.value;
+    cfg.mobile = els.mobile.checked;
     cfg.wkUser = els.user.value.trim();
     cfg.processId = els.process.value;
     var opt = els.process.selectedOptions[0];
@@ -859,6 +972,7 @@ const formSimJS = `(function () {
     }
     var r = runValidation(send, nextState);
     if (r.ok) {
+      if (send) root.classList.remove("open-send");
       showDialog("ok", "Validação passou",
         send ? "O Fluig salvaria o formulário e avançaria para " + stateLabel(els.nextstate, nextState) + "."
           : "O Fluig salvaria o formulário.",
