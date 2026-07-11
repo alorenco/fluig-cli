@@ -506,7 +506,7 @@ const formSimJS = `(function () {
       "<label>Modo do formulário</label>" +
       "<select data-el=\"mode\"><option>ADD</option><option>MOD</option><option>VIEW</option></select>" +
       "<label>Usuário (WKUser)</label>" +
-      "<input type=\"text\" data-el=\"user\" placeholder=\"userCode do colaborador\">" +
+      "<select data-el=\"user\"></select>" +
       "<label>Outras variáveis (CHAVE=valor, uma por linha)</label>" +
       "<textarea data-el=\"vars\" placeholder=\"WKNumProces=1234\"></textarea>" +
       "<div class=\"toggle\"><input type=\"checkbox\" data-el=\"enabled\" id=\"fluigcli-sim-on\">" +
@@ -535,7 +535,9 @@ const formSimJS = `(function () {
 
     els.statenum.value = cfg.wkNumState == null ? "0" : cfg.wkNumState;
     els.mode.value = cfg.formMode || "ADD";
-    els.user.value = cfg.wkUser || "";
+    // Antes da lista de usuários carregar (no primeiro abrir), o select tem
+    // só o valor atual — o Aplicar continua funcionando offline.
+    fillUsers(null);
     els.enabled.checked = cfg.enabled !== false;
     var lines = [];
     var extra = cfg.vars || {};
@@ -573,16 +575,49 @@ const formSimJS = `(function () {
     els.detail.innerHTML = d.join("") || "Nada executado.";
   }
 
+  // fillUsers popula o seletor de WKUser: ativos primeiro (a lista já vem
+  // ordenada por nome do servidor), inativos marcados; o valor atual sempre
+  // vira opção mesmo fora da lista. Com list=null monta só o valor atual
+  // (estado antes da lista carregar).
+  function fillUsers(list) {
+    var sel = els.user;
+    var current = sel.value || cfg.wkUser || "";
+    sel.innerHTML = "";
+    sel.appendChild(document.createElement("option")); // vazio = sem usuário
+    var found = false;
+    var ordered = (list || []).filter(function (u) { return u.active; })
+      .concat((list || []).filter(function (u) { return !u.active; }));
+    ordered.forEach(function (u) {
+      var o = document.createElement("option");
+      o.value = u.code;
+      o.textContent = u.name + (u.active ? "" : " (inativo)");
+      o.title = u.code;
+      sel.appendChild(o);
+      if (u.code === current) found = true;
+    });
+    if (current && !found) {
+      var cur = document.createElement("option");
+      cur.value = current;
+      cur.textContent = current + " (atual)";
+      sel.appendChild(cur);
+    }
+    sel.value = current;
+  }
+
   var opened = false;
   function onOpen(force) {
     if (opened && !force) return;
     opened = true;
     api("/_dev/api/formsim/context?folder=" + encodeURIComponent(boot.folder) + (force ? "&force=1" : ""), function (err, ctx) {
       if (err) { statusNote("Contexto indisponível: " + err); }
-      else if (ctx && !els.user.value && ctx.userCode) { els.user.value = ctx.userCode; }
+      else if (ctx && !els.user.value && ctx.userCode) { cfg.wkUser = cfg.wkUser || ctx.userCode; fillUsers(null); }
       api("/_dev/api/formsim/processes" + (force ? "?force=1" : ""), function (perr, procs) {
         if (perr) { statusNote("Processos indisponíveis: " + perr); return; }
         fillProcesses(procs || [], (ctx && ctx.processes) || []);
+      });
+      api("/_dev/api/formsim/users" + (force ? "?force=1" : ""), function (uerr, users) {
+        if (uerr) { statusNote("Usuários indisponíveis: " + uerr); return; }
+        fillUsers(users || []);
       });
     });
   }

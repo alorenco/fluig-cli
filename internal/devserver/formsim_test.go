@@ -150,10 +150,23 @@ func TestFormSimAPISemCliente(t *testing.T) {
 }
 
 // simUpstream simula o Fluig para a API do painel: login/ping, findUserByLogin,
-// listagem de processos (com e sem expand=versions) e states.
-func simUpstream(t *testing.T) *httptest.Server {
+// listagem de processos (com e sem expand=versions), states e o dataset
+// colleague (contando as consultas, para o teste de cache).
+func simUpstream(t *testing.T) (*httptest.Server, *int) {
 	t.Helper()
+	datasetHits := new(int)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/dataset/api/v2/dataset-handle/search", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("datasetId") != "colleague" {
+			io.WriteString(w, `{"columns":null,"values":null}`)
+			return
+		}
+		*datasetHits++
+		io.WriteString(w, `{"columns":["colleagueId","colleagueName","active"],"values":[
+			{"colleagueId":"c-alana","colleagueName":"Alana","active":"true"},
+			{"colleagueId":"c-bruno","colleagueName":"Bruno","active":"false"},
+			{"colleagueId":"","colleagueName":"Sem código","active":"true"}]}`)
+	})
 	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
 	})
@@ -187,7 +200,7 @@ func simUpstream(t *testing.T) *httptest.Server {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, datasetHits
 }
 
 // newSimTestServer sobe o dev server com cliente autenticado e vínculo no
@@ -227,7 +240,7 @@ func newSimTestServer(t *testing.T, upstream *httptest.Server) (*httptest.Server
 // O context resolve userCode, o vínculo do forms.json e o processo cujo
 // formId casa com o documentId; states vêm ordenados por sequence.
 func TestFormSimAPIContextEStates(t *testing.T) {
-	upstream := simUpstream(t)
+	upstream, _ := simUpstream(t)
 	ts, _ := newSimTestServer(t, upstream)
 
 	resp, err := http.Get(ts.URL + "/_dev/api/formsim/context?folder=" + url.QueryEscape("Meu Form"))
@@ -308,5 +321,55 @@ func TestFormSimAPIContextEStates(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("context sem folder: status=%d", resp.StatusCode)
+	}
+}
+
+// A lista de usuários (dataset colleague) sai ordenada do servidor, pula
+// linhas sem código e fica em cache — force=1 renova.
+func TestFormSimAPIUsers(t *testing.T) {
+	upstream, datasetHits := simUpstream(t)
+	ts, _ := newSimTestServer(t, upstream)
+
+	get := func(q string) []struct {
+		Code   string `json:"code"`
+		Name   string `json:"name"`
+		Active bool   `json:"active"`
+	} {
+		t.Helper()
+		resp, err := http.Get(ts.URL + "/_dev/api/formsim/users" + q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status=%d body=%s", resp.StatusCode, body)
+		}
+		var users []struct {
+			Code   string `json:"code"`
+			Name   string `json:"name"`
+			Active bool   `json:"active"`
+		}
+		if err := json.Unmarshal(body, &users); err != nil {
+			t.Fatalf("resposta inválida: %v\n%s", err, body)
+		}
+		return users
+	}
+
+	users := get("")
+	if len(users) != 2 {
+		t.Fatalf("esperava 2 usuários (linha sem código fora), veio %d: %+v", len(users), users)
+	}
+	if users[0].Code != "c-alana" || !users[0].Active || users[1].Code != "c-bruno" || users[1].Active {
+		t.Errorf("usuários inesperados: %+v", users)
+	}
+	// Cache: segunda chamada não bate no dataset; force renova.
+	_ = get("")
+	if *datasetHits != 1 {
+		t.Errorf("dataset consultado %d vez(es), queria 1 (cache)", *datasetHits)
+	}
+	_ = get("?force=1")
+	if *datasetHits != 2 {
+		t.Errorf("force=1 deveria renovar a consulta (hits=%d)", *datasetHits)
 	}
 }

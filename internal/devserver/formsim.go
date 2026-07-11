@@ -129,13 +129,24 @@ type formSimStates struct {
 	States    []fluig.ProcessState `json:"states"`
 }
 
+// formSimUser é um usuário para o seletor de WKUser do painel (dataset
+// colleague — validado ao vivo em 2026-07-11: colunas colleagueId/
+// colleagueName/active, active como string "true"/"false").
+type formSimUser struct {
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+}
+
 // formSimCache evita repetir chamadas caras ao upstream durante a execução
-// (expand=versions e states mudam raramente); force=1 no painel renova.
+// (expand=versions, states e a lista de usuários mudam raramente); force=1
+// no painel renova.
 type formSimCache struct {
 	mu        sync.Mutex
 	contexts  map[string]*formSimContext
 	states    map[string]*formSimStates
 	processes []fluig.ProcessSummary
+	users     []formSimUser
 }
 
 func (s *Server) handleFormSimJS(w http.ResponseWriter, r *http.Request) {
@@ -159,9 +170,52 @@ func (s *Server) handleFormSimAPI(w http.ResponseWriter, r *http.Request) {
 		s.serveFormSimProcesses(w, r, force)
 	case "states":
 		s.serveFormSimStates(w, r, force)
+	case "users":
+		s.serveFormSimUsers(w, r, force)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// serveFormSimUsers lista os usuários (dataset colleague) para o seletor de
+// WKUser — uma consulta por execução, ordenada por nome no servidor.
+func (s *Server) serveFormSimUsers(w http.ResponseWriter, r *http.Request, force bool) {
+	s.sim.mu.Lock()
+	cached := s.sim.users
+	s.sim.mu.Unlock()
+	if cached == nil || force {
+		res, err := s.opts.Client.QueryDataset(r.Context(), "colleague", fluig.DatasetQuery{
+			Fields:  []string{"colleagueId", "colleagueName", "active"},
+			OrderBy: "colleagueName",
+		})
+		if err != nil {
+			simError(w, http.StatusBadGateway, "falha ao listar usuários (dataset colleague): "+err.Error())
+			return
+		}
+		str := func(p *string) string {
+			if p == nil {
+				return ""
+			}
+			return *p
+		}
+		users := make([]formSimUser, 0, len(res.Rows))
+		for _, row := range res.Rows {
+			code := str(row["colleagueId"])
+			if code == "" {
+				continue
+			}
+			users = append(users, formSimUser{
+				Code:   code,
+				Name:   str(row["colleagueName"]),
+				Active: strings.EqualFold(str(row["active"]), "true"),
+			})
+		}
+		s.sim.mu.Lock()
+		s.sim.users = users
+		s.sim.mu.Unlock()
+		cached = users
+	}
+	simJSON(w, cached)
 }
 
 func (s *Server) serveFormSimContext(w http.ResponseWriter, r *http.Request, force bool) {

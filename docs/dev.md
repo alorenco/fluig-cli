@@ -73,7 +73,9 @@ server-side emulada:
 
 - `getValue("WK…")` lê do **painel de simulação** (botão flutuante no canto da
   página): etapa (`WKNumState`), modo (`ADD`/`MOD`/`VIEW`), usuário (`WKUser`,
-  já preenchido com o seu) e variáveis extras (`CHAVE=valor`).
+  um seletor com todos os usuários do servidor pelo nome — ativos primeiro,
+  o seu já selecionado; a lista é carregada uma vez e fica em cache) e
+  variáveis extras (`CHAVE=valor`).
 - `form.setValue/getValue/getFormMode/setEnabled` operam no DOM do preview;
   `DatasetFactory` usa os **datasets reais** pela sessão do proxy.
 - **Com o formulário vinculado** (`fluigcli form link`), o processo é
