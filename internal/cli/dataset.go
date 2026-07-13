@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,12 +19,16 @@ import (
 func newDatasetCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dataset",
-		Short: "Lista, importa, exporta e consulta datasets (import = servidor→local; export = local→servidor)",
+		Short: "Lista, importa, exporta, consulta e administra datasets (import = servidor→local; export = local→servidor)",
 	}
 	cmd.AddCommand(newDatasetListCmd(app))
 	cmd.AddCommand(newDatasetImportCmd(app))
 	cmd.AddCommand(newDatasetExportCmd(app))
 	cmd.AddCommand(newDatasetQueryCmd(app))
+	cmd.AddCommand(newDatasetToggleCmd(app, true))
+	cmd.AddCommand(newDatasetToggleCmd(app, false))
+	cmd.AddCommand(newDatasetHistoryCmd(app))
+	cmd.AddCommand(newDatasetRestoreCmd(app))
 	return cmd
 }
 
@@ -305,6 +310,230 @@ func (a *App) confirmCreate(id string, markNew bool) bool {
 	}
 	ok, err := promptYesNo(fmt.Sprintf("Dataset %q não existe no servidor. Criar?", id), false)
 	return err == nil && ok
+}
+
+// --- dataset enable/disable ---
+
+// newDatasetToggleCmd cria os comandos enable e disable (mesma mecânica,
+// direções opostas) — POST /v2/datasets/enable|disable/{id}, nativo REST v2.
+func newDatasetToggleCmd(app *App, enable bool) *cobra.Command {
+	use, short, action, done := "disable <id>...",
+		"Desativa datasets no servidor (sem apagar)", "desativar datasets", "desativado"
+	if enable {
+		use, short, action, done = "enable <id>...",
+			"Reativa datasets desativados no servidor", "ativar datasets", "ativado"
+	}
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if len(args) == 0 {
+				return output.Usagef("informe um ou mais ids de dataset")
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, action)
+			if err != nil {
+				return err
+			}
+
+			var results []itemResult
+			var lastErr error
+			failures := 0
+			for _, id := range args {
+				var terr error
+				if enable {
+					terr = client.EnableDataset(ctx, id)
+				} else {
+					terr = client.DisableDataset(ctx, id)
+				}
+				if terr != nil {
+					failures++
+					lastErr = mapFluigError(terr)
+					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					p.Warnf("dataset %q: %s", id, output.AsError(lastErr).Message)
+					continue
+				}
+				act := "disabled"
+				if enable {
+					act = "enabled"
+				}
+				results = append(results, itemResult{ID: id, Action: act, Success: true})
+				p.Successf("dataset %q %s", id, done)
+			}
+			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(args))
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- dataset history ---
+
+func newDatasetHistoryCmd(app *App) *cobra.Command {
+	var (
+		version       int
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "history <id>",
+		Short: "Mostra o histórico de versões de um dataset (nativo, REST v2)",
+		Long: "Mostra o histórico de versões de um dataset customizado — quem alterou,\n" +
+			"quando e o status de cada versão. Com --version N, imprime o código JS\n" +
+			"daquela versão (bom para comparar ou salvar: ... --version 3 > antigo.js).\n" +
+			"Para voltar a uma versão, use dataset restore.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			id := args[0]
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			versions, err := client.DatasetHistory(ctx, id)
+			if err != nil {
+				return mapFluigError(err)
+			}
+
+			// A API responde lista vazia tanto para dataset inexistente quanto
+			// para dataset sem histórico (não customizado) — distingue pela listagem.
+			if len(versions) == 0 {
+				datasets, lerr := client.ListDatasets(ctx)
+				if lerr != nil {
+					return mapFluigError(lerr)
+				}
+				for _, d := range datasets {
+					if d.ID == id {
+						p.Infof("O dataset %q não tem histórico de versões (apenas datasets customizados têm).", id)
+						p.Done(map[string]any{"datasetId": id, "versions": []any{}})
+						return nil
+					}
+				}
+				return output.NotFoundf("dataset %q não encontrado no servidor", id)
+			}
+
+			// --version N: imprime o código daquela versão.
+			if version > 0 {
+				for _, v := range versions {
+					if v.Version == version {
+						p.Successf("%s", v.Impl)
+						p.Done(map[string]any{"datasetId": id, "version": v})
+						return nil
+					}
+				}
+				return output.NotFoundf("versão %d não encontrada no histórico de %q (use dataset history %s para ver as versões)", version, id, id)
+			}
+
+			latest := versions[len(versions)-1].Version
+			rows := make([][]string, 0, len(versions))
+			jsonVersions := make([]map[string]any, 0, len(versions))
+			for _, v := range versions {
+				lines := strconv.Itoa(strings.Count(strings.TrimRight(v.Impl, "\n"), "\n") + 1)
+				rows = append(rows, []string{strconv.Itoa(v.Version), v.Status, v.Author,
+					v.UpdatedAt.Format("2006-01-02 15:04:05"), lines})
+				jsonVersions = append(jsonVersions, map[string]any{
+					"version":   v.Version,
+					"status":    v.Status,
+					"author":    v.Author,
+					"updatedAt": v.UpdatedAt,
+					"lines":     strings.Count(strings.TrimRight(v.Impl, "\n"), "\n") + 1,
+				})
+			}
+			// Padrão de listagem (ver CLAUDE.md): a versão corrente em verde.
+			p.Table(output.Table{
+				Headers: []string{"Versão", "Status", "Autor", "Atualizado em", "Linhas"},
+				Rows:    rows,
+				Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+					if col == 0 && versions[row].Version == latest {
+						return output.Green(padded)
+					}
+					return padded
+				}),
+			})
+			p.Done(map[string]any{"datasetId": id, "versions": jsonVersions})
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&version, "version", 0, "imprime o código JS da versão indicada (em vez da tabela)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- dataset restore ---
+
+func newDatasetRestoreCmd(app *App) *cobra.Command {
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "restore <id> <version>",
+		Short: "Restaura um dataset para uma versão do histórico (nativo, REST v2)",
+		Long: "Restaura o código de um dataset customizado para uma versão anterior do\n" +
+			"histórico (veja as versões com dataset history <id>). Se o dataset tiver\n" +
+			"um rascunho não publicado, o restore o descarta — a CLI avisa antes.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			id := args[0]
+			version, err := strconv.Atoi(args[1])
+			if err != nil || version <= 0 {
+				return output.Usagef("versão inválida %q (use o número da versão, ex.: dataset restore %s 3)", args[1], id)
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "restaurar uma versão de dataset")
+			if err != nil {
+				return err
+			}
+
+			// Valida a versão contra o histórico ANTES do restore — o servidor
+			// responde 500 genérico para versão inexistente (validado na
+			// homologação em 2026-07-13).
+			versions, err := client.DatasetHistory(ctx, id)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if len(versions) == 0 {
+				return output.NotFoundf("dataset %q não encontrado no servidor (ou sem histórico de versões)", id)
+			}
+			exists := false
+			for _, v := range versions {
+				if v.Version == version {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				return output.NotFoundf("versão %d não encontrada no histórico de %q (veja dataset history %s)", version, id, id)
+			}
+
+			// Aviso de rascunho: falha na validação não impede o restore (o
+			// próprio restore falhará com o erro real, se houver).
+			if hasDraft, derr := client.DatasetHasDraft(ctx, id); derr == nil && hasDraft {
+				p.Warnf("o dataset %q tem um rascunho não publicado — o restore o descarta", id)
+			}
+			if err := app.confirm(fmt.Sprintf("Restaurar o dataset %q para a versão %d?", id, version)); err != nil {
+				return err
+			}
+
+			entry, err := client.RestoreDatasetVersion(ctx, id, version)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			data := map[string]any{"datasetId": id, "restoredTo": version}
+			if entry != nil {
+				p.Successf("dataset %q restaurado para o código da versão %d (nova versão %d, %s)",
+					id, version, entry.Version, entry.Status)
+				data["version"] = entry.Version
+				data["status"] = entry.Status
+			} else {
+				p.Successf("dataset %q restaurado para o código da versão %d", id, version)
+			}
+			p.Done(data)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
 }
 
 // --- dataset query ---

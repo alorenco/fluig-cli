@@ -1,6 +1,7 @@
 # fluigcli dataset — datasets
 
-Importa, exporta e consulta datasets. Convenção de vocabulário:
+Importa, exporta, consulta e administra datasets (ativação, histórico de
+versões e restauração). Convenção de vocabulário:
 
 - **import** = servidor → projeto local
 - **export** = projeto local → servidor
@@ -70,6 +71,51 @@ fluigcli dataset query colleague --fields login --order colleagueName_DESC --jso
 ```
 
 Dataset inexistente (ou consulta com campo/ordenação inválidos) → exit **4**.
+
+## `fluigcli dataset disable <id>...` / `enable <id>...`
+
+Desativa um dataset **sem apagá-lo** (não há API de exclusão de dataset no
+Fluig) e reativa datasets desativados. Nativo (REST v2). Um dataset inativo
+some das consultas, mas continua listado (coluna Ativo = "não") e mantém o
+histórico.
+
+```sh
+fluigcli dataset disable ds_legado
+fluigcli dataset enable ds_legado ds_outro
+```
+
+Dataset inexistente → exit **4**. Em produção, vale a trava de confirmação.
+
+## `fluigcli dataset history <id> [--version N]`
+
+Mostra o histórico de versões de um dataset customizado — versão, status
+(PUBLISHED/DRAFT), autor, data e tamanho do código; a versão corrente aparece
+em verde. Com `--version N`, imprime o **código JS** daquela versão (bom para
+comparar ou salvar em arquivo).
+
+```sh
+fluigcli dataset history ds_clientes
+fluigcli dataset history ds_clientes --version 3 > ds_clientes_v3.js
+fluigcli dataset history ds_clientes --json     # versões sem o código (lines por versão)
+```
+
+Apenas datasets **customizados** têm histórico: para os demais a CLI informa e
+retorna lista vazia. Dataset inexistente → exit **4**.
+
+## `fluigcli dataset restore <id> <version>`
+
+Restaura o código de um dataset para uma versão anterior do histórico. O
+restore **cria uma versão nova** (publicada) com o código da versão alvo — o
+histórico nunca é reescrito. A CLI valida a versão contra o histórico antes,
+avisa se houver rascunho não publicado (o restore o descarta) e pede
+confirmação (`--yes` pula).
+
+```sh
+fluigcli dataset history ds_clientes            # descubra a versão boa
+fluigcli dataset restore ds_clientes 3 --yes
+```
+
+Versão fora do histórico → exit **4** (sem tocar no servidor).
 
 ## Lote e exit codes
 

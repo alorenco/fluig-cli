@@ -35,6 +35,10 @@ func mustParseHostPort(t *testing.T, raw string) hostPort {
 type fluigDatasetStub struct {
 	editedImpl string
 	created    bool
+
+	toggled      []string // POSTs em enable/disable: "enable/<id>"...
+	restoreQuery url.Values
+	hasDraft     bool
 }
 
 func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
@@ -69,6 +73,54 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 			return
 		}
 		w.Write(readTD("rest_datasets_page2.json"))
+	})
+	// REST v2: enable/disable, histórico e restore.
+	toggle := func(op string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			id := strings.TrimPrefix(r.URL.Path, "/dataset/api/v2/datasets/"+op+"/")
+			if id == "nao_existe" {
+				http.Error(w, `{"code":"DatasetNotFoundException","message":"dataset não encontrado"}`, http.StatusNotFound)
+				return
+			}
+			s.toggled = append(s.toggled, op+"/"+id)
+		}
+	}
+	mux.HandleFunc("/dataset/api/v2/datasets/enable/", toggle("enable"))
+	mux.HandleFunc("/dataset/api/v2/datasets/disable/", toggle("disable"))
+	mux.HandleFunc("/dataset/api/v2/dataset-history", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("datasetId") == "zz_fluigcli_test_hist" {
+			if s.restoreQuery == nil {
+				w.Write(readTD("rest_dataset_history.json"))
+				return
+			}
+			// Após um restore o histórico ganha a versão nova (o POST responde
+			// corpo vazio — comportamento real; a CLI descobre a versão aqui).
+			var hist struct {
+				Items   []map[string]any `json:"items"`
+				HasNext bool             `json:"hasNext"`
+			}
+			json.Unmarshal(readTD("rest_dataset_history.json"), &hist)
+			hist.Items = append(hist.Items, map[string]any{
+				"id": 11971, "tenantId": 1, "userTenantId": 7, "userName": "Ana Andrade",
+				"datasetId": "zz_fluigcli_test_hist", "datasetDescription": "fluigcli teste history",
+				"datasetImpl": "function createDataset(){}", "version": 3,
+				"status": "PUBLISHED", "updateTime": 1783975000000,
+			})
+			b, _ := json.Marshal(hist)
+			w.Write(b)
+			return
+		}
+		io.WriteString(w, `{"items":[],"hasNext":false}`)
+	})
+	mux.HandleFunc("/dataset/api/v2/dataset-history/restore/validation", func(w http.ResponseWriter, r *http.Request) {
+		// Formato real da homolog (2026-07-13).
+		io.WriteString(w, `{"datasetId":"`+r.URL.Query().Get("datasetId")+`","datasetDescription":"fluigcli teste history","draft":`+strconv.FormatBool(s.hasDraft)+`}`)
+	})
+	mux.HandleFunc("/dataset/api/v2/dataset-history/restore", func(w http.ResponseWriter, r *http.Request) {
+		s.restoreQuery = r.URL.Query()
+		// Corpo VAZIO, como a homolog real (o swagger promete DatasetHistory,
+		// mas não vem nada — validado 2026-07-13).
+		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("/dataset/api/v2/dataset-handle/search", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("datasetId") == "nao_existe" {
@@ -315,5 +367,180 @@ func TestDatasetListTabela(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("tabela sem %q:\n%s", want, stdout)
 		}
+	}
+}
+
+// disable/enable: POST no endpoint certo, action no envelope e mensagem humana.
+func TestDatasetDisableEnable(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "dataset", "disable", "ds_exemplo", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("disable exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	first, _ := results[0].(map[string]any)
+	if len(results) != 1 || first["action"] != "disabled" || first["success"] != true {
+		t.Errorf("results inesperado: %+v", results)
+	}
+
+	code, _ = runMain(t, "dataset", "enable", "ds_exemplo", "ds_inativo", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("enable exit=%d", code)
+	}
+	want := []string{"disable/ds_exemplo", "enable/ds_exemplo", "enable/ds_inativo"}
+	if strings.Join(stub.toggled, ",") != strings.Join(want, ",") {
+		t.Errorf("POSTs = %v, quer %v", stub.toggled, want)
+	}
+}
+
+// disable de dataset inexistente: 404 da API → exit 4.
+func TestDatasetDisableNotFound(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "disable", "nao_existe", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// history: tabela com as versões (fixture real sanitizada da homolog).
+func TestDatasetHistoryTabela(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "history", "zz_fluigcli_test_hist", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"│", "Versão", "Status", "Autor", "Atualizado em", "Linhas", "PUBLISHED", "Ana Andrade", "1", "2"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+}
+
+// history --json: envelope com as versões (sem o código; lines em vez de impl).
+func TestDatasetHistoryJSON(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "history", "zz_fluigcli_test_hist", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	versions, _ := data["versions"].([]any)
+	if len(versions) != 2 {
+		t.Fatalf("esperava 2 versões, veio %d", len(versions))
+	}
+	v2, _ := versions[1].(map[string]any)
+	if v2["version"].(float64) != 2 || v2["status"] != "PUBLISHED" || v2["author"] != "Ana Andrade" {
+		t.Errorf("versão 2 inesperada: %+v", v2)
+	}
+	if _, temImpl := v2["impl"]; temImpl {
+		t.Error("a listagem não deveria expor o código (use --version N)")
+	}
+}
+
+// history --version N: imprime o código JS da versão.
+func TestDatasetHistoryVersionCode(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "history", "zz_fluigcli_test_hist", "--version", "1", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "d.addRow(['v1']);") {
+		t.Errorf("código da v1 não impresso:\n%s", stdout)
+	}
+
+	code, _ = runMain(t, "dataset", "history", "zz_fluigcli_test_hist", "--version", "9", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("versão inexistente: exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// history de dataset sem histórico (não customizado) → exit 0 com lista vazia;
+// dataset inexistente → exit 4.
+func TestDatasetHistoryVazioOuInexistente(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "history", "colleague", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("sem histórico: exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if versions, _ := data["versions"].([]any); len(versions) != 0 {
+		t.Errorf("esperava versões vazias, veio %v", versions)
+	}
+
+	stub2 := &fluigDatasetStub{}
+	proj2 := datasetProject(t, stub2.server(t).URL)
+	code, _ = runMain(t, "dataset", "history", "sumiu", "--json", "--project", proj2, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("inexistente: exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// restore: manda datasetId+version e devolve a nova versão criada.
+func TestDatasetRestore(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "restore", "zz_fluigcli_test_hist", "1", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.restoreQuery.Get("datasetId") != "zz_fluigcli_test_hist" || stub.restoreQuery.Get("version") != "1" {
+		t.Errorf("query do restore inesperada: %v", stub.restoreQuery)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["restoredTo"].(float64) != 1 || data["version"].(float64) != 3 || data["status"] != "PUBLISHED" {
+		t.Errorf("resultado inesperado: %+v", data)
+	}
+}
+
+// restore sem --yes em modo não-interativo: exit 2, sem tocar no servidor.
+func TestDatasetRestoreExigeConfirmacao(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "restore", "zz_fluigcli_test_hist", "1", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if stub.restoreQuery != nil {
+		t.Error("o restore não deveria ter sido chamado sem confirmação")
+	}
+
+	code, _ = runMain(t, "dataset", "restore", "zz_fluigcli_test_hist", "abc", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("versão não numérica: exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+// restore de versão fora do histórico: exit 4 ANTES de chamar o restore (o
+// servidor real responde 500 genérico — a CLI valida antes).
+func TestDatasetRestoreVersaoInexistente(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "restore", "zz_fluigcli_test_hist", "9", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+	if stub.restoreQuery != nil {
+		t.Error("o restore não deveria ter sido chamado com versão inexistente")
+	}
+
+	code, _ = runMain(t, "dataset", "restore", "sem_historico", "1", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("dataset sem histórico: exit=%d, quer %d", code, output.ExitNotFound)
 	}
 }

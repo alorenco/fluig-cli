@@ -100,7 +100,7 @@ fluigcli diff --json | jq '.data.counts'
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `dataset` | `list` `import` `export` `query` | [docs/dataset.md](docs/dataset.md) |
+| `dataset` | `list` `import` `export` `query` `enable` `disable` `history` `restore` | [docs/dataset.md](docs/dataset.md) |
 | `event` | `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
 | `form` | `list` `import` `export` `link` | [docs/form.md](docs/form.md) |
