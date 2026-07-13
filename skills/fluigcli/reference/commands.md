@@ -73,6 +73,13 @@ não-interativo (sem ele: exit 2).
 | `workflow export <arquivo\|processId>` | atualiza scripts na versão corrente, sem criar versão (via fluiggersWidget) |
 | `workflow publish <processId> [--no-release]` | deploy nativo: cria versão nova com os scripts locais e a libera |
 
+## request — solicitações de workflow (operação)
+
+| comando | efeito |
+|---|---|
+| `request list [--process id] [--status s] [--sla s] [--assignee login] [--requester login] [--limit N]` | busca solicitações (status: open/canceled/finalized; sla: on_time/warning/expired; limit 0 = todas) |
+| `request show <número>` | detalhe da solicitação + histórico de movimentação (`--json` traz request e tasks) |
+
 ## widget
 
 | comando | direção | efeito |

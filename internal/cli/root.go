@@ -147,6 +147,7 @@ func mapFluigError(err error) error {
 // Grupos de comandos do help.
 const (
 	groupDev    = "dev"
+	groupOps    = "ops"
 	groupConfig = "config"
 )
 
@@ -166,6 +167,7 @@ func newRootCmd(app *App) *cobra.Command {
 	root.SetVersionTemplate("fluigcli " + app.Version + "\n")
 	root.AddGroup(
 		&cobra.Group{ID: groupDev, Title: "Desenvolvimento:"},
+		&cobra.Group{ID: groupOps, Title: "Operação:"},
 		&cobra.Group{ID: groupConfig, Title: "Configuração:"},
 	)
 
@@ -198,6 +200,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newWatchCmd(app),
 		newDevCmd(app),
 	)
+	addToGroup(groupOps, newRequestCmd(app))
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").
 	root.AddCommand(newVersionCmd(app))

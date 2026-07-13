@@ -110,6 +110,12 @@ fluigcli diff --json | jq '.data.counts'
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
 | `dev` | dev server com live reload: widgets sem deploy + preview de formulários com simulação de processo (WKNumState/etapas reais) | [docs/dev.md](docs/dev.md) |
 
+**Operação** — usar a plataforma no dia a dia (consultas, automação, integrações):
+
+| Grupo | Comandos | Doc |
+|---|---|---|
+| `request` | `list` `show` — solicitações de workflow com filtros e histórico de movimentação | [docs/request.md](docs/request.md) |
+
 **Configuração**:
 
 | Grupo | Comandos | Doc |
