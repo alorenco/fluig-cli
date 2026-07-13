@@ -57,6 +57,13 @@ func (c *Client) ExportProcessZip(ctx context.Context, processID string) ([]byte
 	}
 	b64, err := soap.ParseExportProcessZip(respBody)
 	if err != nil {
+		// Processo inexistente: na homologação (Voyager 2.0.0) o export não
+		// devolve resultado vazio — a operação retorna null e o servidor
+		// responde a falha WS-I BP R2211 ("RPC/Literal parts cannot be null").
+		var fault *soap.Fault
+		if errors.As(err, &fault) && strings.Contains(fault.Error(), "RPC/Literal parts cannot be null") {
+			return nil, fmt.Errorf("%w: processo %q (export nulo)", ErrNotFound, processID)
+		}
 		return nil, mapSOAPError(err)
 	}
 	b64 = strings.TrimSpace(b64)

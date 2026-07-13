@@ -1,8 +1,8 @@
 # fluigcli workflow — scripts de processo
 
-Lista os processos do servidor, consulta a versão de um processo e faz o deploy
-**cirúrgico** dos scripts de eventos (sem reimportar o processo inteiro).
-Arquivos locais em:
+Lista os processos do servidor, consulta a versão de um processo, baixa os
+scripts de eventos para o projeto (`import`) e faz o deploy **cirúrgico** dos
+scripts (sem reimportar o processo inteiro). Arquivos locais em:
 
 ```
 workflow/scripts/<Processo>.<evento>.js
@@ -21,7 +21,7 @@ fluigcli workflow list --json                 # para agentes/CI
 ```
 
 O `processId` da primeira coluna é o que os demais comandos (`workflow
-version`, `workflow export`) e a convenção de arquivos
+version`, `workflow import`, `workflow export`) e a convenção de arquivos
 (`workflow/scripts/<processId>.<evento>.js`) usam.
 
 ## `fluigcli workflow version <processId>`
@@ -34,6 +34,35 @@ fluigcli workflow version Compras --server homolog
 ```
 
 Processo inexistente → exit **4**.
+
+## `fluigcli workflow import <processId>... | --all`
+
+Baixa os scripts de eventos de processos do servidor para
+`workflow/scripts/<Processo>.<evento>.js` (**servidor → local** — o espelho do
+`export`). **Nativo** (export do processo via SOAP) — não depende da
+fluiggersWidget.
+
+```sh
+fluigcli workflow import Compras --server homolog        # um processo
+fluigcli workflow import Compras Financeiro              # vários
+fluigcli workflow import --all                           # todos os processos do servidor
+```
+
+| Flag | Uso |
+|---|---|
+| `--all` | importa os scripts de todos os processos do servidor |
+
+Comportamento:
+
+- Um script local existente do mesmo evento é **sobrescrito no lugar**, mesmo
+  que esteja em subpasta de `workflow/scripts/`; sem arquivo local, o script é
+  criado em `workflow/scripts/<processId>.<evento>.js`.
+- Vêm os eventos da **versão mais recente** do processo; eventos sem código
+  (registro vazio no export) não viram arquivo.
+- Processo inexistente → exit **4**; em lote, falhas parciais → exit **6** (os
+  demais processos são importados normalmente).
+- `--all` faz um export por processo — pode demorar em servidores com muitos
+  processos.
 
 ## `fluigcli workflow export <arquivo|processId> [flags]`
 

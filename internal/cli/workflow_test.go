@@ -36,12 +36,29 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
-	// getWorkFlowProcessVersion (SOAP nativo) → versão.
+	// SOAP nativo: getWorkFlowProcessVersion → versão; exportProcess → zip do
+	// processo (reusa a fixture comprasProcessXML do diff; Fantasma = vazio).
 	mux.HandleFunc("/webdesk/ECMWorkflowEngineService", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/xml")
-		io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
-			`<ns2:getWorkFlowProcessVersionResponse xmlns:ns2="http://ws.workflow.ecm.technology.totvs.com/">`+
-			`<result>`+strconv.Itoa(s.version)+`</result></ns2:getWorkFlowProcessVersionResponse></soap:Body></soap:Envelope>`)
+		switch r.Header.Get("SOAPAction") {
+		case "getWorkFlowProcessVersion":
+			io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
+				`<ns2:getWorkFlowProcessVersionResponse xmlns:ns2="http://ws.workflow.ecm.technology.totvs.com/">`+
+				`<result>`+strconv.Itoa(s.version)+`</result></ns2:getWorkFlowProcessVersionResponse></soap:Body></soap:Envelope>`)
+		case "exportProcess":
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), ">Fantasma<") {
+				// Processo inexistente: falha real da homologação (resultado nulo).
+				io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
+					`<soap:Fault><faultcode>soap:Server</faultcode>`+
+					`<faultstring>Cannot write part result. RPC/Literal parts cannot be null. (WS-I BP R2211)</faultstring>`+
+					`</soap:Fault></soap:Body></soap:Envelope>`)
+				return
+			}
+			io.WriteString(w, wfExportEnvelope(processZipBase64(t, comprasProcessXML)))
+		default:
+			http.Error(w, "op?", 500)
+		}
 	})
 	mux.HandleFunc("/fluiggersWidget/api/ping", func(w http.ResponseWriter, r *http.Request) {
 		if !s.helperInstalled {
@@ -327,6 +344,136 @@ func TestWorkflowExportRequiresHelper(t *testing.T) {
 	json.Unmarshal([]byte(stdout), &env)
 	if env.Error == nil || env.Error.Code != output.CodeMissingHelper {
 		t.Errorf("erro inesperado: %+v", env.Error)
+	}
+}
+
+// import: baixa os scripts do processo para workflow/scripts/<pid>.<evento>.js.
+func TestWorkflowImportCriaArquivos(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	if len(results) != 3 {
+		t.Fatalf("esperava 3 scripts importados, veio %d\n%s", len(results), stdout)
+	}
+	first, _ := results[0].(map[string]any)
+	if first["id"] != "Compras.afterProcessFinish" || first["action"] != "created" {
+		t.Errorf("results[0] inesperado: %+v", first)
+	}
+	got, err := os.ReadFile(filepath.Join(proj, "workflow", "scripts", "Compras.beforeTaskSave.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "function beforeTaskSave(){ /* codigo A */ }" {
+		t.Errorf("conteúdo inesperado: %q", got)
+	}
+	for _, name := range []string{"Compras.afterProcessFinish.js", "Compras.validateForm.js"} {
+		if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", name)); err != nil {
+			t.Errorf("arquivo %s não foi criado", name)
+		}
+	}
+}
+
+// import: script local existente (mesmo em subpasta) é sobrescrito no lugar.
+func TestWorkflowImportSobrescreveNoLugar(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	sub := filepath.Join(proj, "workflow", "scripts", "compras")
+	os.MkdirAll(sub, 0o755)
+	existing := filepath.Join(sub, "Compras.beforeTaskSave.js")
+	os.WriteFile(existing, []byte("function beforeTaskSave(){ /* local antigo */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	got, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "function beforeTaskSave(){ /* codigo A */ }" {
+		t.Errorf("script na subpasta não foi sobrescrito: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", "Compras.beforeTaskSave.js")); err == nil {
+		t.Error("não deveria criar duplicata no caminho default quando o script já existe em subpasta")
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	for _, r := range results {
+		m, _ := r.(map[string]any)
+		if m["id"] == "Compras.beforeTaskSave" && m["action"] != "updated" {
+			t.Errorf("beforeTaskSave deveria ser updated, veio %v", m["action"])
+		}
+	}
+}
+
+// import --all: importa os scripts de todos os processos do servidor.
+func TestWorkflowImportAll(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "--all", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	if len(results) != 9 { // 3 processos × 3 eventos (o stub exporta o mesmo XML)
+		t.Fatalf("esperava 9 scripts importados, veio %d\n%s", len(results), stdout)
+	}
+	for _, name := range []string{"Compras.beforeTaskSave.js", "AprovacaoContrato.beforeTaskSave.js", "FLUIGADHOCPROCESS.validateForm.js"} {
+		if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", name)); err != nil {
+			t.Errorf("arquivo %s não foi criado", name)
+		}
+	}
+}
+
+// import de processo inexistente: exit 4, nada gravado.
+func TestWorkflowImportProcessoInexistente(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, _ := runMain(t, "workflow", "import", "Fantasma", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts")); err == nil {
+		t.Error("nenhum arquivo deveria ter sido criado")
+	}
+}
+
+// import em lote com uma falha: exit 6 (parcial) e os demais importados.
+func TestWorkflowImportParcial(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "Fantasma", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitPartial, stdout)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", "Compras.beforeTaskSave.js")); err != nil {
+		t.Error("Compras deveria ter sido importado mesmo com a falha do Fantasma")
+	}
+}
+
+// import sem argumentos e sem --all: erro de uso (exit 2).
+func TestWorkflowImportSemArgs(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "workflow", "import", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
 

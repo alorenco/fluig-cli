@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,12 +17,119 @@ import (
 func newWorkflowCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Processos: listagem, versão e deploy de scripts de eventos (export = local → servidor)",
+		Short: "Processos: listagem, versão e scripts de eventos (import = servidor → local; export = local → servidor)",
 	}
 	cmd.AddCommand(newWorkflowListCmd(app))
 	cmd.AddCommand(newWorkflowVersionCmd(app))
+	cmd.AddCommand(newWorkflowImportCmd(app))
 	cmd.AddCommand(newWorkflowExportCmd(app))
 	cmd.AddCommand(newWorkflowPublishCmd(app))
+	return cmd
+}
+
+// --- workflow import (servidor → local) ---
+
+func newWorkflowImportCmd(app *App) *cobra.Command {
+	var (
+		all           bool
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "import <processId>... | --all",
+		Short: "Baixa os scripts de eventos de processos para arquivos locais (servidor → local)",
+		Long: "Baixa os scripts de eventos de processos do servidor para\n" +
+			"workflow/scripts/<Processo>.<evento>.js. Um script local existente do\n" +
+			"mesmo evento é sobrescrito no lugar, mesmo em subpasta.\n\n" +
+			"A leitura usa o export nativo do processo (não requer a fluiggersWidget)\n" +
+			"e traz os eventos da versão mais recente; eventos com script vazio são\n" +
+			"ignorados. Com --all, importa os scripts de todos os processos do\n" +
+			"servidor — é um export por processo, pode demorar.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if !all && len(args) == 0 {
+				return output.Usagef("informe um ou mais processIds ou use --all")
+			}
+			if all && len(args) > 0 {
+				return output.Usagef("use processIds ou --all, não os dois")
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
+
+			pids := args
+			if all {
+				processes, err := client.ListProcesses(ctx)
+				if err != nil {
+					return mapFluigError(err)
+				}
+				pids = nil
+				for _, pr := range processes {
+					pids = append(pids, pr.ID)
+				}
+				if len(pids) == 0 {
+					p.Infof("Nenhum processo encontrado no servidor.")
+				}
+			}
+
+			var results []itemResult
+			var lastErr error
+			failures := 0
+			for _, pid := range pids {
+				events, perr := client.ProcessEventScripts(ctx, pid)
+				if perr != nil {
+					failures++
+					lastErr = mapFluigError(perr)
+					results = append(results, itemResult{ID: pid, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					p.Warnf("processo %q: %s", pid, output.AsError(lastErr).Message)
+					continue
+				}
+				locals, lerr := project.FindProcessScripts(root, pid)
+				if lerr != nil {
+					return lerr
+				}
+				byEvent := make(map[string][]string, len(locals))
+				for _, s := range locals {
+					byEvent[s.Event] = append(byEvent[s.Event], s.Path)
+				}
+
+				names := make([]string, 0, len(events))
+				for ev := range events {
+					// O export traz o registro de todo evento do processo; sem
+					// script o código vem vazio — não vira arquivo (igual ao diff).
+					if strings.TrimSpace(events[ev]) != "" {
+						names = append(names, ev)
+					}
+				}
+				sort.Strings(names)
+				if len(names) == 0 {
+					p.Infof("processo %q não tem scripts de eventos no servidor.", pid)
+					continue
+				}
+				for _, ev := range names {
+					id := pid + "." + ev
+					action, werr := writeProcessScript(p, root, pid, ev, events[ev], byEvent[ev])
+					if werr != nil {
+						failures++
+						lastErr = werr
+						results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(werr).Message})
+						p.Warnf("script %q: %s", id, output.AsError(werr).Message)
+						continue
+					}
+					results = append(results, itemResult{ID: id, Action: action, Success: true})
+					p.Successf("script %q %s", id, action)
+				}
+			}
+			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(pids))
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "importa os scripts de todos os processos do servidor")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 
@@ -349,6 +457,33 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 		return processID, selected, nil
 	}
 	return "", nil, output.Usagef("informe um arquivo .js, ou um processId com --all-events ou --events a,b")
+}
+
+// writeProcessScript grava o código de um evento de processo: sobrescreve o
+// script local existente (paths já encontrados sob workflow/scripts, recursivo)
+// ou cria em workflow/scripts/<processId>.<evento>.js.
+func writeProcessScript(p *output.Printer, root, processID, event, code string, existing []string) (action string, err error) {
+	action = "updated"
+	path := ""
+	if len(existing) > 0 {
+		path = existing[0]
+		if len(existing) > 1 {
+			p.Warnf("%s.%s: %d arquivos com esse nome; sobrescrevendo %s", processID, event, len(existing), path)
+		}
+	} else {
+		path, err = project.SafeJoin(filepath.Join(root, project.WorkflowScriptsDir), processID+"."+event+".js")
+		if err != nil {
+			return "failed", err
+		}
+		action = "created"
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "failed", err
+	}
+	if err := os.WriteFile(path, []byte(code), 0o644); err != nil {
+		return "failed", err
+	}
+	return action, nil
 }
 
 func readWorkflowEvents(scripts []project.ProcessScript) ([]fluig.WorkflowEvent, error) {

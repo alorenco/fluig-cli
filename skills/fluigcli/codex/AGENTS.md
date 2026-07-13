@@ -33,7 +33,7 @@ fluigcli dataset export datasets/ds_x.js --json     # publica (local → servido
 Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `dataset` (list|import|export|query), `event` (list|import|export|delete),
 `mechanism` (list|import|export|delete), `form` (list|import|export|link),
-`workflow` (version|export), `widget` (list|import|export), `diff` (local vs.
+`workflow` (list|version|import|export|publish), `widget` (list|import|export), `diff` (local vs.
 servidor, read-only — use antes de um export). O `watch` (publica ao salvar) e
 o `dev` (dev server local com live reload) são interativos e não são indicados
 para agentes — prefira `diff` + `export`.

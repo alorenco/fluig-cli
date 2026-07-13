@@ -66,6 +66,7 @@ não-interativo (sem ele: exit 2).
 |---|---|
 | `workflow list [--active-only]` | lista os processos do servidor (nativo) |
 | `workflow version <processId>` | mostra a última versão do processo (nativo) |
+| `workflow import <processId>... \| --all` | baixa os scripts de eventos para workflow/scripts/ (servidor → local; sobrescreve no lugar; nativo) |
 | `workflow export <arquivo\|processId>` | atualiza scripts na versão corrente, sem criar versão (via fluiggersWidget) |
 | `workflow publish <processId> [--no-release]` | deploy nativo: cria versão nova com os scripts locais e a libera |
 
