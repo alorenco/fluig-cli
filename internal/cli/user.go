@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"os"
 	"sort"
 	"strings"
 
@@ -11,14 +12,48 @@ import (
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
+// EnvNewUserPassword é a env var da senha do usuário NOVO/alterado — a senha
+// nunca vem por flag (regra de segurança do projeto).
+const envNewUserPassword = "FLUIGCLI_NEW_USER_PASSWORD"
+
 func newUserCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "user",
-		Short: "Usuários da plataforma: consulta (requer privilégio administrativo)",
+		Short: "Usuários da plataforma: consulta e gestão (requer privilégio administrativo)",
 	}
 	cmd.AddCommand(newUserListCmd(app))
 	cmd.AddCommand(newUserShowCmd(app))
+	cmd.AddCommand(newUserCreateCmd(app))
+	cmd.AddCommand(newUserUpdateCmd(app))
+	cmd.AddCommand(newUserActivateCmd(app, true))
+	cmd.AddCommand(newUserActivateCmd(app, false))
 	return cmd
+}
+
+// resolveNewUserPassword obtém a senha do usuário novo/alterado por env var
+// (FLUIGCLI_NEW_USER_PASSWORD) ou, em modo interativo, por prompt oculto —
+// nunca por argumento de linha de comando (regra 5 do projeto).
+func (a *App) resolveNewUserPassword(confirm bool) (string, error) {
+	if pw := os.Getenv(envNewUserPassword); pw != "" {
+		return pw, nil
+	}
+	if !a.Interactive() {
+		return "", output.Usagef("defina a senha do usuário na variável %s (nunca em argumento de linha de comando)", envNewUserPassword)
+	}
+	pw, err := promptPassword("Senha do usuário")
+	if err != nil {
+		return "", err
+	}
+	if confirm {
+		again, err := promptPassword("Confirme a senha")
+		if err != nil {
+			return "", err
+		}
+		if again != pw {
+			return "", output.Usagef("as senhas não conferem")
+		}
+	}
+	return pw, nil
 }
 
 // --- user list ---
@@ -122,5 +157,161 @@ func newUserShowCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- user create ---
+
+func newUserCreateCmd(app *App) *cobra.Command {
+	var (
+		email         string
+		firstName     string
+		lastName      string
+		fullName      string
+		code          string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "create <login>",
+		Short: "Cria um usuário na plataforma",
+		Long: "Cria um usuário. A senha vem da variável " + envNewUserPassword + " ou,\n" +
+			"em modo interativo, de um prompt oculto — nunca por argumento de linha de\n" +
+			"comando. O código (userCode) usa o login quando não informado.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			login := args[0]
+			if email == "" || firstName == "" || lastName == "" {
+				return output.Usagef("informe --email, --first-name e --last-name")
+			}
+			password, err := app.resolveNewUserPassword(true)
+			if err != nil {
+				return err
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "criar usuário")
+			if err != nil {
+				return err
+			}
+			u, err := client.CreateAdminUser(ctx, fluig.AdminUserCreate{
+				Login: login, Code: code, Email: email,
+				FirstName: firstName, LastName: lastName, FullName: fullName,
+				Password: password,
+			})
+			if err != nil {
+				return mapFluigError(err)
+			}
+			p.Successf("usuário %q criado (%s, %s)", u.Login, u.FullName, u.State)
+			p.Done(map[string]any{"user": u})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&email, "email", "", "e-mail (obrigatório)")
+	cmd.Flags().StringVar(&firstName, "first-name", "", "primeiro nome (obrigatório)")
+	cmd.Flags().StringVar(&lastName, "last-name", "", "sobrenome (obrigatório)")
+	cmd.Flags().StringVar(&fullName, "full-name", "", "nome completo (default: primeiro + sobrenome)")
+	cmd.Flags().StringVar(&code, "code", "", "código do usuário / userCode (default: o login)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
+	return cmd
+}
+
+// --- user update ---
+
+func newUserUpdateCmd(app *App) *cobra.Command {
+	var (
+		email         string
+		firstName     string
+		lastName      string
+		fullName      string
+		setPassword   bool
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "update <login>",
+		Short: "Atualiza os dados de um usuário (mescla os campos informados)",
+		Long: "Atualiza só os campos informados (os demais são preservados). Com\n" +
+			"--set-password, redefine a senha lendo de " + envNewUserPassword + " ou\n" +
+			"do prompt oculto — nunca por argumento.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			login := args[0]
+			fields := map[string]string{}
+			if cmd.Flags().Changed("email") {
+				fields["email"] = email
+			}
+			if cmd.Flags().Changed("first-name") {
+				fields["firstName"] = firstName
+			}
+			if cmd.Flags().Changed("last-name") {
+				fields["lastName"] = lastName
+			}
+			if cmd.Flags().Changed("full-name") {
+				fields["fullName"] = fullName
+			}
+			if setPassword {
+				pw, err := app.resolveNewUserPassword(true)
+				if err != nil {
+					return err
+				}
+				fields["password"] = pw
+			}
+			if len(fields) == 0 {
+				return output.Usagef("informe ao menos um campo a alterar (--email, --first-name, --last-name, --full-name ou --set-password)")
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "atualizar usuário")
+			if err != nil {
+				return err
+			}
+			u, err := client.UpdateAdminUser(ctx, login, fields)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			p.Successf("usuário %q atualizado", u.Login)
+			p.Done(map[string]any{"user": u})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&email, "email", "", "novo e-mail")
+	cmd.Flags().StringVar(&firstName, "first-name", "", "novo primeiro nome")
+	cmd.Flags().StringVar(&lastName, "last-name", "", "novo sobrenome")
+	cmd.Flags().StringVar(&fullName, "full-name", "", "novo nome completo")
+	cmd.Flags().BoolVar(&setPassword, "set-password", false, "redefine a senha (lida de "+envNewUserPassword+" ou do prompt)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
+	return cmd
+}
+
+// --- user activate / deactivate ---
+
+func newUserActivateCmd(app *App, activate bool) *cobra.Command {
+	use, short, action, done := "deactivate <login>",
+		"Desativa um usuário (state = BLOCKED)", "desativar usuário", "desativado"
+	if activate {
+		use, short, action, done = "activate <login>",
+			"Reativa um usuário desativado", "ativar usuário", "ativado"
+	}
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			login := args[0]
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, action)
+			if err != nil {
+				return err
+			}
+			if err := client.SetAdminUserActive(ctx, login, activate); err != nil {
+				return mapFluigError(err)
+			}
+			p.Successf("usuário %q %s", login, done)
+			p.Done(map[string]any{"login": login, "active": activate})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
 }

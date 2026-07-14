@@ -85,6 +85,27 @@ func requestTime(raw string) *time.Time {
 	return nil
 }
 
+// flexTime interpreta uma data que a API às vezes devolve como STRING ISO e
+// às vezes como NÚMERO (epoch millis) — o mesmo campo com shapes diferentes
+// conforme o endpoint (ex.: /admin/v1/users devolve string no GET e número no
+// PUT/POST, validado na homologação em 2026-07-14).
+func flexTime(raw json.RawMessage) *time.Time {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	if raw[0] != '"' { // número → epoch millis
+		var ms int64
+		if err := json.Unmarshal(raw, &ms); err == nil && ms > 0 {
+			t := time.UnixMilli(ms)
+			return &t
+		}
+		return nil
+	}
+	var s string
+	_ = json.Unmarshal(raw, &s)
+	return requestTime(s)
+}
+
 // requestItem é o item cru da API (schema Request do swagger, já com os
 // expands de requester e currentMovements).
 type requestItem struct {
@@ -298,6 +319,7 @@ type RequestMoveOptions struct {
 // possivelmente com HTML de destaque — validado na homologação em 2026-07-14.
 func restRequestError(op string, status int, body []byte) error {
 	var parsed struct {
+		Code            string `json:"code"`
 		Message         string `json:"message"`
 		DetailedMessage string `json:"detailedMessage"`
 	}
@@ -310,6 +332,11 @@ func restRequestError(op string, status int, body []byte) error {
 		if raw := plainServerText(body); raw != "" {
 			msg = raw
 		}
+	}
+	// Vários módulos (admin, dataservice) respondem só com o `code` da exceção
+	// (message vazio) — melhor mostrar o código que "HTTP 400" seco.
+	if msg == "" && parsed.Code != "" {
+		msg = parsed.Code
 	}
 	if msg != "" {
 		return fmt.Errorf("%w: %s", errServerRejected, truncate(msg, 512))

@@ -102,6 +102,9 @@ não-interativo (sem ele: exit 2).
 |---|---|
 | `user list [--search prefixoDeNome] [--role r] [--inactive] [--limit N]` | lista usuários (--search é PREFIXO de nome, não substring) |
 | `user show <login>` | detalhe com papéis e grupos |
+| `user create <login> --email --first-name --last-name [--code] [--full-name]` | cria usuário; senha via FLUIGCLI_NEW_USER_PASSWORD ou prompt (NUNCA por flag) |
+| `user update <login> [--email] [--first-name] [--last-name] [--full-name] [--set-password]` | mescla os campos informados |
+| `user activate\|deactivate <login>` | ativa/desativa (desativado = state BLOCKED; não há exclusão na API) |
 
 ## document — GED (operação)
 

@@ -37,7 +37,7 @@ Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
 `document` (list|download|upload|mkdir|delete — GED),
-`user` (list|show — usuários; requer admin), `diff` (local vs.
+`user` (list|show|create|update|activate|deactivate — usuários; requer admin; senha do novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `diff` (local vs.
 servidor, read-only — use antes de um export). O `watch` (publica ao salvar) e
 o `dev` (dev server local com live reload) são interativos e não são indicados
 para agentes — prefira `diff` + `export`.
