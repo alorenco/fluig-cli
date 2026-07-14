@@ -148,6 +148,7 @@ func mapFluigError(err error) error {
 const (
 	groupDev    = "dev"
 	groupOps    = "ops"
+	groupAdmin  = "admin"
 	groupConfig = "config"
 )
 
@@ -168,6 +169,7 @@ func newRootCmd(app *App) *cobra.Command {
 	root.AddGroup(
 		&cobra.Group{ID: groupDev, Title: "Desenvolvimento:"},
 		&cobra.Group{ID: groupOps, Title: "Operação:"},
+		&cobra.Group{ID: groupAdmin, Title: "Administração:"},
 		&cobra.Group{ID: groupConfig, Title: "Configuração:"},
 	)
 
@@ -201,6 +203,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newDevCmd(app),
 	)
 	addToGroup(groupOps, newRequestCmd(app), newTaskCmd(app), newDocumentCmd(app))
+	addToGroup(groupAdmin, newUserCmd(app))
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").
 	root.AddCommand(newVersionCmd(app))

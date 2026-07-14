@@ -95,6 +95,13 @@ não-interativo (sem ele: exit 2).
 |---|---|
 | `task list [--assignee login \| --everyone] [--status s\|all] [--process id] [--requester login] [--sla s] [--limit N]` | sem flags = SUAS tarefas em aberto; status default not_completed |
 
+## user — usuários da plataforma (administração; requer admin)
+
+| comando | efeito |
+|---|---|
+| `user list [--search prefixoDeNome] [--role r] [--inactive] [--limit N]` | lista usuários (--search é PREFIXO de nome, não substring) |
+| `user show <login>` | detalhe com papéis e grupos |
+
 ## document — GED (operação)
 
 | comando | efeito |

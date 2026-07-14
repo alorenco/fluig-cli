@@ -118,6 +118,12 @@ fluigcli diff --json | jq '.data.counts'
 | `task` | `list` — a fila de tarefas: as suas, as de outro usuário ou as de todos | [docs/task.md](docs/task.md) |
 | `document` | `list` `download` `upload` `mkdir` `delete` — GED direto do terminal | [docs/document.md](docs/document.md) |
 
+**Administração** — gestão da plataforma (requer usuário com privilégio administrativo):
+
+| Grupo | Comandos | Doc |
+|---|---|---|
+| `user` | `list` `show` — usuários, papéis e grupos | [docs/user.md](docs/user.md) |
+
 **Configuração**:
 
 | Grupo | Comandos | Doc |
