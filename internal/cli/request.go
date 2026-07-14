@@ -16,18 +16,20 @@ import (
 
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 func newRequestCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "request",
-		Short: "Solicitações de workflow: consulta e acompanhamento",
+		Short: "Solicitações de workflow: consultar, iniciar, movimentar e baixar anexos",
 	}
 	cmd.AddCommand(newRequestListCmd(app))
 	cmd.AddCommand(newRequestShowCmd(app))
 	cmd.AddCommand(newRequestStartCmd(app))
 	cmd.AddCommand(newRequestMoveCmd(app))
 	cmd.AddCommand(newRequestAssigneesCmd(app))
+	cmd.AddCommand(newRequestAttachmentsCmd(app))
 	return cmd
 }
 
@@ -282,6 +284,129 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável pela próxima atividade")
 	cmd.Flags().IntVar(&movement, "movement", 0, "movimento (tarefa) a concluir, quando houver mais de um em aberto")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- request attachments ---
+
+func newRequestAttachmentsCmd(app *App) *cobra.Command {
+	var (
+		download      bool
+		seq           int
+		dir           string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "attachments <número>",
+		Short: "Lista e baixa os anexos de uma solicitação (nativo, REST v2)",
+		Long: "Lista os anexos de uma solicitação; com --download, baixa os arquivos\n" +
+			"para o diretório atual (ou --dir). O formulário da solicitação aparece na\n" +
+			"lista como \"(formulário)\" e não é baixado — só os arquivos anexados.\n" +
+			"--seq baixa um anexo específico.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			id, err := strconv.Atoi(args[0])
+			if err != nil || id <= 0 {
+				return output.Usagef("número de solicitação inválido %q", args[0])
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			atts, err := client.RequestAttachments(ctx, id)
+			if err != nil {
+				return mapFluigError(err)
+			}
+
+			if !download && seq == 0 {
+				if len(atts) == 0 {
+					p.Infof("A solicitação %d não tem anexos.", id)
+				} else {
+					rows := make([][]string, 0, len(atts))
+					for _, a := range atts {
+						name := a.Name
+						if a.MainForm {
+							name = "(formulário)"
+						}
+						rows = append(rows, []string{strconv.Itoa(a.Sequence), name,
+							strconv.Itoa(a.Version), requestUserLabel(a.User), fmtRequestTime(a.Date)})
+					}
+					p.Table(output.Table{
+						Headers: []string{"Seq", "Arquivo", "Versão", "Anexado por", "Em"},
+						Rows:    rows,
+						Style:   output.BoldHeaderStyle(nil),
+					})
+				}
+				p.Done(map[string]any{"attachments": atts})
+				return nil
+			}
+
+			// Download: --seq baixa um; sem --seq baixa todos os arquivos
+			// (o "(formulário)" fica de fora).
+			var targets []fluig.ProcessAttachment
+			if seq > 0 {
+				found := false
+				for _, a := range atts {
+					if a.Sequence == seq {
+						targets, found = []fluig.ProcessAttachment{a}, true
+						break
+					}
+				}
+				// Valida antes de baixar: sequence inexistente responde 400 de
+				// "permissão" no servidor — enganoso (comportamento real).
+				if !found {
+					return output.NotFoundf("anexo %d não existe na solicitação %d (veja request attachments %d)", seq, id, id)
+				}
+			} else {
+				for _, a := range atts {
+					if !a.MainForm {
+						targets = append(targets, a)
+					}
+				}
+				if len(targets) == 0 {
+					p.Infof("A solicitação %d não tem arquivos anexados para baixar.", id)
+					p.Done(map[string]any{"results": []any{}})
+					return nil
+				}
+			}
+
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
+			var results []itemResult
+			var lastErr error
+			failures := 0
+			for _, a := range targets {
+				name := a.Name
+				if name == "" {
+					name = fmt.Sprintf("anexo_%d", a.Sequence)
+				}
+				content, derr := client.DownloadRequestAttachment(ctx, id, a.Sequence)
+				if derr == nil {
+					var path string
+					if path, derr = project.SafeJoin(dir, name); derr == nil {
+						derr = os.WriteFile(path, content, 0o644)
+					}
+				}
+				if derr != nil {
+					failures++
+					lastErr = mapFluigError(derr)
+					results = append(results, itemResult{ID: name, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					p.Warnf("anexo %q: %s", name, output.AsError(lastErr).Message)
+					continue
+				}
+				results = append(results, itemResult{ID: name, Action: "downloaded", Success: true})
+				p.Successf("anexo %q salvo em %s (%d bytes)", name, dir, len(content))
+			}
+			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(targets))
+		},
+	}
+	cmd.Flags().BoolVar(&download, "download", false, "baixa os arquivos anexados (todos, exceto o formulário)")
+	cmd.Flags().IntVar(&seq, "seq", 0, "baixa só o anexo com esse sequence")
+	cmd.Flags().StringVar(&dir, "dir", ".", "diretório de destino dos downloads")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

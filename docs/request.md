@@ -131,6 +131,27 @@ outro usuário responde **404** (o servidor a esconde — comportamento real).
 Lista quem pode assumir a próxima atividade. Quando o diagrama tem mais de um
 destino, o servidor exige a etapa — informe `--target-state`.
 
+## `fluigcli request attachments <número> [flags]`
+
+Lista os anexos de uma solicitação e baixa os arquivos. O próprio
+**formulário** aparece na lista como `(formulário)` — o `--download` baixa
+apenas os arquivos anexados (round-trip byte a byte com o que subiu via
+`request start --attach`).
+
+| Flag | Uso |
+|---|---|
+| `--download` | baixa todos os arquivos anexados (o formulário fica de fora) |
+| `--seq N` | baixa só o anexo com esse sequence |
+| `--dir <pasta>` | diretório de destino (default: o atual) |
+
+```sh
+fluigcli request attachments 196540                       # lista
+fluigcli request attachments 196540 --download --dir ./anexos
+fluigcli request attachments 196540 --seq 2               # um específico
+```
+
+Sequence inexistente → exit **4** (validado contra a lista antes de baixar).
+
 ## Status e SLA (valores da API)
 
 - `status`: `OPEN` (em andamento), `CANCELED`, `FINALIZED`.

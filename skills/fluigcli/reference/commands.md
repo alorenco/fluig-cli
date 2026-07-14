@@ -82,6 +82,7 @@ não-interativo (sem ele: exit 2).
 | `request start <processId> [--fields-file arq.json\|-] [--field k=v]... [--attach arq] [--target-state N] [--assignee login] [--comment s] [--no-send]` | inicia solicitação; --fields-file = objeto JSON plano (use `-` para stdin — o modo natural para agentes; --field sobrepõe); com --attach usa SOAP (a REST não sobe anexo) e requer --target-state; throw de evento vira exit 5 com a mensagem |
 | `request move <número> [--target-state N] [--fields-file arq.json\|-] [--field k=v]... [--comment s]` | conclui a tarefa corrente (descoberta sozinha) e envia adiante; tarefa de outro usuário = 404 |
 | `request assignees <número> [--target-state N]` | possíveis responsáveis da próxima atividade |
+| `request attachments <número> [--download] [--seq N] [--dir pasta]` | lista/baixa os anexos (o "(formulário)" da lista não é baixado; --seq inexistente = exit 4) |
 
 ## widget
 

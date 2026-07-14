@@ -386,6 +386,113 @@ func (c *Client) postMove(ctx context.Context, op, endpoint string, payload map[
 	}
 }
 
+// ProcessAttachment é um anexo listado de uma solicitação. O próprio
+// FORMULÁRIO aparece na lista como um "anexo" com MainForm=true e sem
+// documentName (validado na homologação em 2026-07-14) — os arquivos reais
+// têm MainForm=false.
+type ProcessAttachment struct {
+	Sequence    int          `json:"sequence"`
+	DocumentID  int64        `json:"documentId"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Version     int          `json:"version"`
+	Movement    int          `json:"movement"`
+	MainForm    bool         `json:"mainForm"`
+	Published   bool         `json:"published"`
+	User        *RequestUser `json:"user,omitempty"`
+	Date        *time.Time   `json:"date,omitempty"`
+}
+
+// RequestAttachments lista os anexos de uma solicitação (paginado).
+func (c *Client) RequestAttachments(ctx context.Context, id int) ([]ProcessAttachment, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	var out []ProcessAttachment
+	for page := 1; ; page++ {
+		endpoint := c.url(restRequestsPath+"/"+strconv.Itoa(id)+"/attachments") +
+			"?page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: solicitação %d", ErrNotFound, id)
+		}
+		if status < 200 || status >= 300 {
+			return nil, restRequestError("v2/requests/{id}/attachments", status, body)
+		}
+		var parsed struct {
+			Items []struct {
+				AttachmentSequence  int          `json:"attachmentSequence"`
+				DocumentID          int64        `json:"documentId"`
+				DocumentName        string       `json:"documentName"`
+				DocumentDescription string       `json:"documentDescription"`
+				DocumentVersion     int          `json:"documentVersion"`
+				MovementSequence    int          `json:"movementSequence"`
+				MainForm            bool         `json:"mainForm"`
+				Published           bool         `json:"published"`
+				User                *RequestUser `json:"user"`
+				Date                string       `json:"date"`
+			} `json:"items"`
+			HasNext bool `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de v2/requests/{id}/attachments: %w", err)
+		}
+		for _, it := range parsed.Items {
+			out = append(out, ProcessAttachment{
+				Sequence:    it.AttachmentSequence,
+				DocumentID:  it.DocumentID,
+				Name:        it.DocumentName,
+				Description: it.DocumentDescription,
+				Version:     it.DocumentVersion,
+				Movement:    it.MovementSequence,
+				MainForm:    it.MainForm,
+				Published:   it.Published,
+				User:        it.User,
+				Date:        requestTime(it.Date),
+			})
+		}
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
+}
+
+// DownloadRequestAttachment baixa o conteúdo de um anexo (bytes verbatim —
+// round-trip byte a byte validado na homologação). O chamador deve validar o
+// sequence contra RequestAttachments antes: sequence inexistente responde 400
+// com uma exceção de PERMISSÃO enganosa (comportamento real do servidor).
+func (c *Client) DownloadRequestAttachment(ctx context.Context, id, sequence int) ([]byte, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url(restRequestsPath + "/" + strconv.Itoa(id) + "/attachments/" +
+		strconv.Itoa(sequence) + "/download")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao chamar %s: %w", c.base.Host, err)
+	}
+	// Anexos podem ser grandes — limite próprio, maior que o dos JSONs.
+	body, err := readBody(resp, 256<<20)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: solicitação %d", ErrNotFound, id)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, restRequestError("v2/requests/{id}/attachments/{seq}/download", resp.StatusCode, []byte(body))
+	}
+	return []byte(body), nil
+}
+
 // RequestAttachment é um anexo para o início de solicitação.
 type RequestAttachment struct {
 	FileName string

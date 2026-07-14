@@ -34,7 +34,7 @@ Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `dataset` (list|import|export|query|enable|disable|history|restore), `event` (list|import|export|delete),
 `mechanism` (list|import|export|delete), `form` (list|import|export|link),
 `workflow` (list|version|import|export|publish), `widget` (list|import|export),
-`request` (list|show|start|move|assignees — solicitações de workflow), `diff` (local vs.
+`request` (list|show|start|move|assignees|attachments — solicitações de workflow), `diff` (local vs.
 servidor, read-only — use antes de um export). O `watch` (publica ao salvar) e
 o `dev` (dev server local com live reload) são interativos e não são indicados
 para agentes — prefira `diff` + `export`.

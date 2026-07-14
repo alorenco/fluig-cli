@@ -80,6 +80,10 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 		case "/process-management/api/v2/requests/196526/move":
 			json.NewDecoder(r.Body).Decode(&s.moveBody)
 			io.WriteString(w, moveResponse)
+		case "/process-management/api/v2/requests/196540/attachments":
+			w.Write(readTD("rest_request_attachments.json"))
+		case "/process-management/api/v2/requests/196540/attachments/2/download":
+			w.Write([]byte("PNG-BYTES-DE-TESTE"))
 		case "/process-management/api/v2/requests/196526/possible-assignees":
 			s.assigneesQuery = r.URL.Query()
 			io.WriteString(w, `{"items":[{"code":"c1","name":"Ana Andrade","login":"user1"},`+
@@ -490,5 +494,58 @@ func TestRequestMoveFieldsFile(t *testing.T) {
 	ff, _ := stub.moveBody["formFields"].(map[string]any)
 	if ff["aprNivel1"] != "aprovado" || ff["comentarioNivel1"] != "ok" {
 		t.Errorf("campos do arquivo não repassados: %+v", stub.moveBody)
+	}
+}
+
+// attachments: lista com o formulário marcado; --download baixa só os
+// arquivos (round-trip byte a byte validado ao vivo na homolog).
+func TestRequestAttachments(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "request", "attachments", "196540", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"Seq", "Arquivo", "Anexado por", "(formulário)", "hodometro_teste.png", "Ana Andrade (user1)"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+
+	dir := t.TempDir()
+	code, stdout = runMain(t, "request", "attachments", "196540", "--download", "--dir", dir,
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("--download exit=%d stdout=%s", code, stdout)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "hodometro_teste.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "PNG-BYTES-DE-TESTE" {
+		t.Errorf("conteúdo inesperado: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "anexo_1")); err == nil {
+		t.Error("o (formulário) não deveria ser baixado no --download")
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	first, _ := results[0].(map[string]any)
+	if len(results) != 1 || first["action"] != "downloaded" {
+		t.Errorf("results inesperado: %+v", results)
+	}
+}
+
+// attachments --seq inexistente: exit 4 validado ANTES do download (o
+// servidor real responde 400 de "permissão", enganoso).
+func TestRequestAttachmentsSeqInexistente(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "request", "attachments", "196540", "--seq", "9", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
 	}
 }

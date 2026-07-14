@@ -114,7 +114,7 @@ fluigcli diff --json | jq '.data.counts'
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `request` | `list` `show` `start` `move` `assignees` — consultar, iniciar (com anexos) e movimentar solicitações | [docs/request.md](docs/request.md) |
+| `request` | `list` `show` `start` `move` `assignees` `attachments` — consultar, iniciar (com anexos) e movimentar solicitações | [docs/request.md](docs/request.md) |
 
 **Configuração**:
 
