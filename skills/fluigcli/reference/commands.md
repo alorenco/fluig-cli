@@ -6,6 +6,26 @@ Convenção que vale para todos os recursos:
 Consulte sempre `fluigcli <grupo> <sub> --help` para as flags exatas — abaixo é
 o mapa mental, não a referência completa.
 
+## Por objetivo (índice rápido)
+
+Comece por aqui: identifique a **intenção** e pule para o grupo certo.
+
+| quero… | comando |
+|---|---|
+| publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
+| baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
+| ver o que **mudaria** antes de publicar | `diff` |
+| consultar os dados de um dataset | `dataset query` |
+| consultar / iniciar / movimentar solicitações | `request` |
+| ver a fila de tarefas (a minha ou de outros) | `task list` |
+| navegar / baixar / subir documentos (GED) | `document` |
+| criar / editar registros de um formulário | `form records` |
+| administrar usuários / grupos / papéis | `user` · `group` · `role` |
+| conferir acesso e saúde do servidor | `server test` · `server status` |
+
+Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
+**`export` = local→servidor**.
+
 ## server — servidores e sessão
 
 | comando | efeito |
@@ -201,6 +221,28 @@ ver o resultado no navegador; agentes usam `diff` + `export`.
 | `completion <bash\|zsh\|fish\|powershell>` | script de autocompletar |
 | `skill install \| show` | instala/mostra esta skill de agente |
 
+## Pegadinhas frequentes (evitam falha silenciosa)
+
+- **Busca de usuário**: `user list --search` casa **PREFIXO do nome**
+  (case-insensitive) — não é substring e **não** casa login. "Aless" acha o
+  Alessandro; "lorenco" e "alorenco" não.
+- **Busca de grupo/papel é client-side**: `group list --search`/`--type` e
+  `role list --search` são filtrados **na CLI** (substring em código/descrição)
+  porque o servidor **ignora** esses parâmetros na query. Sem `--limit 0`, o
+  filtro roda só sobre as primeiras páginas.
+- **Filtros de `task`/`request` usam userCode, não login**: `--assignee`/
+  `--requester` esperam o userCode; a CLI converte um login automaticamente,
+  mas **login inexistente = exit 4** (não "lista vazia"). Se vier vazio de
+  verdade, o filtro está certo e não há itens.
+- **`document list` sem argumento = pastas raiz**; para ver o conteúdo é
+  preciso um **folderId válido** (id errado dá vazio/erro, não "sem itens").
+- **Vínculos usuário↔grupo↔papel** só existem pelo lado do grupo/papel
+  (`group add-user`, `role add-user`) — **não** há como editá-los pelo `user`.
+- **Escrita em `prod`** exige `--yes` em modo não-interativo (sem ele: exit 2),
+  para `export`/`delete`/`create`/`update`/`add-user`/`remove-user` etc.
+- **Senha de usuário novo** (`user create`/`--set-password`) vem só de
+  `FLUIGCLI_NEW_USER_PASSWORD` ou prompt — **nunca** por flag.
+
 ## Receitas
 
 **Publicar um dataset editado**
@@ -231,4 +273,32 @@ fluigcli workflow export workflow/MeuProcesso.beforeTaskSave.js --json --server 
 for g in dataset event mechanism form widget ; do
   fluigcli "$g" import --all --json --server homolog || echo "falha em $g" >&2
 done
+```
+
+**Ver a minha fila de tarefas em aberto**
+```sh
+fluigcli task list --json --server homolog | jq -r '.data.tasks[] | "\(.requestId)\t\(.stateName)"'
+```
+
+**Consultar uma solicitação e seu histórico**
+```sh
+fluigcli request show 196540 --json --server homolog ; echo "exit=$?"   # exit 4 = número inexistente
+```
+
+**Baixar um documento do GED pelo id**
+```sh
+fluigcli document download 12345 --dir ./baixados --json --server homolog
+```
+
+**Criar um usuário (senha por env, nunca por flag)**
+```sh
+FLUIGCLI_NEW_USER_PASSWORD='Seg@redo123' fluigcli user create jsilva \
+  --email joao@empresa.com --first-name João --last-name Silva --json --server homolog
+```
+
+**Dar um papel a um usuário / adicioná-lo a um grupo**
+```sh
+fluigcli role add-user aprovadores jsilva --json --server homolog     # papel
+fluigcli group add-user Compras jsilva --json --server homolog        # grupo
+# ambos: papel/grupo ou login inexistente = exit 4
 ```

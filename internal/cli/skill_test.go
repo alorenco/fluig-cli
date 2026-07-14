@@ -209,3 +209,28 @@ func extractCode(t *testing.T) string {
 	}
 	return b.String()
 }
+
+// Guarda anti-drift complementar: todo grupo de comando de topo da CLI precisa
+// ser citado em reference/commands.md. Pega o caso inverso do TestSkillHasNoDrift
+// — um grupo novo entrar na CLI e ninguém documentar na skill (foi o risco ao
+// adicionar `group`/`role`). Comandos utilitários auto-gerados do cobra (help,
+// completion) e ocultos são dispensados.
+func TestSkillCommandsDocCoversEveryGroup(t *testing.T) {
+	root := newRootCmd(&App{})
+	data, err := skillassets.FS.ReadFile("fluigcli/reference/commands.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(data)
+	skip := map[string]bool{"help": true, "completion": true}
+	for _, cmd := range root.Commands() {
+		name := cmd.Name()
+		if cmd.Hidden || cmd.IsAdditionalHelpTopicCommand() || skip[name] {
+			continue
+		}
+		// Citado como cabeçalho "## <name>" ou como comando "`<name> ...`".
+		if !strings.Contains(doc, "## "+name) && !strings.Contains(doc, "`"+name+" ") && !strings.Contains(doc, "`"+name+"`") {
+			t.Errorf("grupo de comando %q não é citado em reference/commands.md — atualize a skill", name)
+		}
+	}
+}

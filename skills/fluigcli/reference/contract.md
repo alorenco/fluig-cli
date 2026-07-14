@@ -63,6 +63,30 @@ case $rc in
 esac
 ```
 
+## Estratégia por exit code (o que o agente faz)
+
+- **exit 2 (uso)**: você errou a flag/argumento — **conserte o comando**, não
+  reenvie igual. Consulte `--help` do subcomando.
+- **exit 3 (auth)**: sessão/senha — confira `FLUIGCLI_PASSWORD`/`FLUIGCLI_USERNAME`
+  e `server test`. Não adianta repetir sem mudar a credencial.
+- **exit 4 (não encontrado)**: id/nome/login inexistente — **corrija o
+  identificador; NÃO repita** o mesmo comando (o retry dá o mesmo 4).
+- **exit 5 (servidor)**: erro do Fluig — pode ser **transitório**; um retry com
+  pequeno backoff (1–2 tentativas) é razoável. Persistiu? Leia
+  `error.message`.
+- **exit 6 (lote parcial)**: alguns itens falharam. `data.results[]` traz
+  `{id, action, success, error}` — **reprocesse só os que falharam**:
+
+  ```sh
+  out=$(fluigcli dataset export datasets/*.js --json --server homolog); rc=$?
+  if [ "$rc" -eq 6 ]; then
+    echo "$out" | jq -r '.data.results[] | select(.success==false) | "\(.id): \(.error)"'
+    # corrija esses e reenvie só eles
+  fi
+  ```
+- **exit 7 (dependência)**: falta a fluiggersWidget — rode
+  `fluigcli server install-helper <name>` uma vez e repita o comando.
+
 ## Flags globais
 
 | flag | env var | efeito |
