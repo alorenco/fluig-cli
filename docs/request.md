@@ -1,8 +1,9 @@
 # fluigcli request — solicitações de workflow
 
-Consulta e acompanha solicitações (instâncias de processo) direto do terminal.
-Primeiro grupo de **Operação** da CLI — uso da plataforma no dia a dia, não
-deploy de artefatos. Tudo nativo (REST v2 `process-management`).
+Consulta, inicia e movimenta solicitações (instâncias de processo) direto do
+terminal. Primeiro grupo de **Operação** da CLI — uso da plataforma no dia a
+dia, não deploy de artefatos. Nativo: REST v2 `process-management` (o start
+com anexo usa o SOAP `startProcess`, pois a REST não tem upload de anexo).
 
 ## `fluigcli request list [flags]`
 
@@ -38,6 +39,54 @@ fluigcli request show 196522 --json    # request + tasks estruturados
 ```
 
 Solicitação inexistente → exit **4**.
+
+## `fluigcli request start <processId> [flags]`
+
+Inicia (abre e envia) uma solicitação, preenchendo o formulário com os
+`--field`. Os eventos do processo e do formulário rodam no servidor
+normalmente — um `throw` de validação volta como mensagem de erro (exit 5).
+
+| Flag | Uso |
+|---|---|
+| `--field campo=valor` | campo do formulário (pode repetir) |
+| `--attach <arquivo>` | anexa o arquivo à solicitação (pode repetir) |
+| `--comment "..."` | comentário do movimento |
+| `--target-state N` | etapa de destino (sequence); com `--attach`/`--no-send` informe-a |
+| `--assignee <login>` | responsável pela próxima atividade (precisa ser apto pelo mecanismo) |
+| `--no-send` | cria **sem enviar** — fica na atividade inicial, com você |
+
+```sh
+fluigcli request start compras_solicitacao --field descricao="Teclado novo" --comment "via CLI"
+fluigcli request start compras_requisicao_abastecimento \
+  --field codEquipamento=1084 --field quantidade=10 ... \
+  --attach hodometro.png --target-state 5
+```
+
+⚠️ **Anexos**: a REST v2 não tem upload de anexo de solicitação (só download)
+— processos que exigem anexo no início (ex.: `hAPI.listAttachments()` no
+`beforeTaskSave`) **só** iniciam com `--attach` (a CLI troca para o SOAP
+`startProcess` automaticamente). Se a atividade seguinte exigir escolha de
+responsável (HTTP 412), a CLI lista as opções e pede `--assignee`.
+
+## `fluigcli request move <número> [flags]`
+
+Conclui a tarefa corrente e envia a solicitação adiante. Sem `--movement`, a
+CLI descobre a tarefa em aberto sozinha (obrigatório quando houver mais de
+uma). Flags: `--target-state`, `--assignee`, `--comment`, `--field` (atualiza
+campos do formulário no movimento), `--movement`.
+
+```sh
+fluigcli request move 196542 --target-state 5 --comment "enviado via CLI"
+fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
+```
+
+⚠️ Você só movimenta **a sua** tarefa: solicitação cuja tarefa aberta é de
+outro usuário responde **404** (o servidor a esconde — comportamento real).
+
+## `fluigcli request assignees <número> [--target-state N]`
+
+Lista quem pode assumir a próxima atividade. Quando o diagrama tem mais de um
+destino, o servidor exige a etapa — informe `--target-state`.
 
 ## Status e SLA (valores da API)
 

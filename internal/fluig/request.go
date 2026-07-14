@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 )
 
 const restRequestsPath = "/process-management/api/v2/requests"
@@ -208,6 +212,270 @@ func (c *Client) GetRequest(ctx context.Context, id int) (*Request, error) {
 	}
 	r := it.toRequest()
 	return &r, nil
+}
+
+// MoveResult é a resposta do start/move (schema MoveResponse do swagger).
+type MoveResult struct {
+	RequestID         int           `json:"requestId"` // processInstanceId
+	ProcessID         string        `json:"processId"`
+	ProcessVersion    int           `json:"processVersion"`
+	NextState         int           `json:"nextState"`
+	NextStateName     string        `json:"nextStateName"`
+	CardID            int64         `json:"cardId,omitempty"`
+	NeedsAssignee     bool          `json:"needsAssignee,omitempty"` // HTTP 412: escolha entre PossibleAssignees
+	PossibleAssignees []RequestUser `json:"possibleAssignees,omitempty"`
+}
+
+type moveResponseRaw struct {
+	ProcessInstanceID       int           `json:"processInstanceId"`
+	ProcessID               string        `json:"processId"`
+	ProcessVersion          int           `json:"processVersion"`
+	NextState               int           `json:"nextState"`
+	NextStateName           string        `json:"nextStateName"`
+	CardID                  int64         `json:"cardId"`
+	ToShowPossibleAssignees bool          `json:"toShowPossibleAssignees"`
+	PossibleAssignees       []RequestUser `json:"possibleAssignees"`
+}
+
+func (raw moveResponseRaw) toResult(needsAssignee bool) *MoveResult {
+	return &MoveResult{
+		RequestID:         raw.ProcessInstanceID,
+		ProcessID:         raw.ProcessID,
+		ProcessVersion:    raw.ProcessVersion,
+		NextState:         raw.NextState,
+		NextStateName:     raw.NextStateName,
+		CardID:            raw.CardID,
+		NeedsAssignee:     needsAssignee || raw.ToShowPossibleAssignees,
+		PossibleAssignees: raw.PossibleAssignees,
+	}
+}
+
+// RequestStartOptions parametriza o início de uma solicitação.
+type RequestStartOptions struct {
+	TargetState    int
+	TargetAssignee string
+	Comment        string
+	FormFields     map[string]string
+	NoSend         bool // só no caminho SOAP: cria sem enviar (fica na atividade inicial)
+}
+
+// RequestMoveOptions parametriza a movimentação de uma solicitação.
+type RequestMoveOptions struct {
+	MovementSequence int // tarefa corrente a concluir (0 = descoberto pelo chamador)
+	TargetState      int
+	TargetAssignee   string
+	Comment          string
+	FormFields       map[string]string
+}
+
+// restRequestError converte a resposta de erro da REST v2 em erro amigável.
+// Nem todo erro vem como ErrorResponse JSON: eventos de processo que dão throw
+// chegam como texto entre chaves ("{Erro ao salvar dados de formulário: ...}"),
+// possivelmente com HTML de destaque — validado na homologação em 2026-07-14.
+func restRequestError(op string, status int, body []byte) error {
+	var parsed struct {
+		Message         string `json:"message"`
+		DetailedMessage string `json:"detailedMessage"`
+	}
+	_ = json.Unmarshal(body, &parsed)
+	msg := parsed.Message
+	if msg == "" {
+		msg = parsed.DetailedMessage
+	}
+	if msg == "" {
+		if raw := plainServerText(body); raw != "" {
+			msg = raw
+		}
+	}
+	if msg != "" {
+		return fmt.Errorf("%w: %s", errServerRejected, truncate(msg, 512))
+	}
+	return &HTTPError{StatusCode: status, URL: op, Body: truncate(string(body), 512)}
+}
+
+// plainServerText extrai o texto legível de um corpo de erro não-JSON:
+// remove as chaves externas, tags HTML e espaço redundante.
+func plainServerText(body []byte) string {
+	s := strings.TrimSpace(string(body))
+	if strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}") && !json.Valid(body) {
+		s = strings.TrimSpace(s[1 : len(s)-1])
+	} else if json.Valid(body) {
+		return ""
+	}
+	var b strings.Builder
+	inTag := false
+	for _, r := range s {
+		switch {
+		case r == '<':
+			inTag = true
+		case r == '>':
+			inTag = false
+			b.WriteRune(' ')
+		case !inTag:
+			b.WriteRune(r)
+		}
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// StartRequest inicia uma solicitação do processo (POST /v2/processes/{id}/start).
+// HTTP 412 = o servidor exige escolher o responsável → MoveResult com
+// NeedsAssignee e a lista PossibleAssignees (nada foi criado).
+func (c *Client) StartRequest(ctx context.Context, processID string, o RequestStartOptions) (*MoveResult, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url("/process-management/api/v2/processes/" + url.PathEscape(processID) + "/start")
+	payload := movePayload(o.TargetState, o.TargetAssignee, o.Comment, o.FormFields)
+	return c.postMove(ctx, "v2/processes/{id}/start", endpoint, payload, fmt.Sprintf("processo %q", processID))
+}
+
+// MoveRequestTo movimenta uma solicitação (POST /v2/requests/{id}/move).
+func (c *Client) MoveRequestTo(ctx context.Context, id int, o RequestMoveOptions) (*MoveResult, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url(restRequestsPath + "/" + strconv.Itoa(id) + "/move")
+	payload := movePayload(o.TargetState, o.TargetAssignee, o.Comment, o.FormFields)
+	if o.MovementSequence > 0 {
+		payload["movementSequence"] = o.MovementSequence
+	}
+	return c.postMove(ctx, "v2/requests/{id}/move", endpoint, payload, fmt.Sprintf("solicitação %d", id))
+}
+
+// movePayload monta o corpo do start/move só com os campos preenchidos.
+func movePayload(targetState int, targetAssignee, comment string, formFields map[string]string) map[string]any {
+	payload := map[string]any{}
+	if targetState != 0 {
+		payload["targetState"] = targetState
+	}
+	if targetAssignee != "" {
+		payload["targetAssignee"] = targetAssignee
+	}
+	if comment != "" {
+		payload["comment"] = comment
+	}
+	if len(formFields) > 0 {
+		payload["formFields"] = formFields
+	}
+	return payload
+}
+
+// postMove executa start/move e interpreta o MoveResponse (200 ok, 412 =
+// escolher responsável) ou o ErrorResponse.
+func (c *Client) postMove(ctx context.Context, op, endpoint string, payload map[string]any, subject string) (*MoveResult, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodPost, endpoint, data)
+	if err != nil {
+		return nil, err
+	}
+	switch status {
+	case http.StatusNotFound:
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, subject)
+	case http.StatusOK, http.StatusPreconditionFailed:
+		var raw moveResponseRaw
+		if err := json.Unmarshal(body, &raw); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de %s: %w", op, err)
+		}
+		return raw.toResult(status == http.StatusPreconditionFailed), nil
+	default:
+		return nil, restRequestError(op, status, body)
+	}
+}
+
+// RequestAttachment é um anexo para o início de solicitação.
+type RequestAttachment struct {
+	FileName string
+	Content  []byte
+}
+
+// StartRequestWithAttachments inicia uma solicitação COM anexos pelo SOAP
+// startProcess — a REST v2 de requests não tem upload de anexo (só download;
+// validado no swagger e na homologação em 2026-07-14, onde processos com
+// anexo obrigatório no início não podem ser iniciados pela REST). Devolve o
+// número da solicitação criada e o mapa bruto do resultado.
+func (c *Client) StartRequestWithAttachments(ctx context.Context, processID string, o RequestStartOptions, atts []RequestAttachment) (int, map[string]string, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return 0, nil, err
+	}
+	userCode, err := c.ResolveUserCode(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	var assignees []string
+	if o.TargetAssignee != "" {
+		u, uerr := c.FindUserByLogin(ctx, o.TargetAssignee)
+		if uerr != nil {
+			return 0, nil, uerr
+		}
+		assignees = []string{u.Code}
+	}
+	keys := make([]string, 0, len(o.FormFields))
+	for k := range o.FormFields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	soapAtts := make([]soap.StartAttachment, 0, len(atts))
+	for _, a := range atts {
+		soapAtts = append(soapAtts, soap.StartAttachment{FileName: a.FileName, Content: a.Content})
+	}
+	reqBody, err := soap.BuildStartProcess(c.opts.CompanyID, c.opts.Username, c.opts.Password,
+		processID, o.TargetState, assignees, o.Comment, userCode, !o.NoSend, soapAtts, o.FormFields, keys)
+	if err != nil {
+		return 0, nil, err
+	}
+	respBody, err := c.postSOAP(ctx, soapWorkflowPath, "startProcess", reqBody)
+	if err != nil {
+		return 0, nil, err
+	}
+	result, err := soap.ParseStartProcess(respBody)
+	if err != nil {
+		return 0, nil, mapSOAPError(err)
+	}
+	// Erro de negócio vem como par ERROR → mensagem (validado na homologação:
+	// ex. responsável não apto para a tarefa).
+	if msg := strings.TrimSpace(result["ERROR"]); msg != "" {
+		return 0, result, fmt.Errorf("%w: %s", errServerRejected, msg)
+	}
+	id, _ := strconv.Atoi(strings.TrimSpace(result["iProcess"]))
+	if id == 0 {
+		return 0, result, fmt.Errorf("%w: startProcess não devolveu o número da solicitação (%v)", errServerRejected, result)
+	}
+	return id, result, nil
+}
+
+// PossibleAssignees lista quem pode assumir a próxima atividade da solicitação
+// (GET /v2/requests/{id}/possible-assignees). targetState é obrigatório quando
+// o diagrama oferece mais de um destino (o servidor rejeita sem ele —
+// validado na homologação em 2026-07-14); 0 = deixa o servidor decidir.
+func (c *Client) PossibleAssignees(ctx context.Context, id, targetState int) ([]RequestUser, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url(restRequestsPath + "/" + strconv.Itoa(id) + "/possible-assignees")
+	if targetState > 0 {
+		endpoint += "?targetState=" + strconv.Itoa(targetState)
+	}
+	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: solicitação %d", ErrNotFound, id)
+	}
+	if status < 200 || status >= 300 {
+		return nil, restRequestError("v2/requests/{id}/possible-assignees", status, body)
+	}
+	var parsed struct {
+		Items []RequestUser `json:"items"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("resposta inesperada de possible-assignees: %w", err)
+	}
+	return parsed.Items, nil
 }
 
 // RequestTasks devolve as tarefas (movimentações) de uma solicitação, na ordem
