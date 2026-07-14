@@ -84,6 +84,12 @@ não-interativo (sem ele: exit 2).
 | `request assignees <número> [--target-state N]` | possíveis responsáveis da próxima atividade |
 | `request attachments <número> [--download] [--seq N] [--dir pasta]` | lista/baixa os anexos (o "(formulário)" da lista não é baixado; --seq inexistente = exit 4) |
 
+## task — fila de tarefas (operação)
+
+| comando | efeito |
+|---|---|
+| `task list [--assignee login \| --everyone] [--status s\|all] [--process id] [--requester login] [--sla s] [--limit N]` | sem flags = SUAS tarefas em aberto; status default not_completed |
+
 ## widget
 
 | comando | direção | efeito |

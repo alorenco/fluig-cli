@@ -10,7 +10,8 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [form](form.md) — formulários
 - [workflow](workflow.md) — scripts de eventos de processo
 - [widget](widget.md) — widgets
-- [request](request.md) — solicitações de workflow (consulta e acompanhamento)
+- [request](request.md) — solicitações de workflow (consultar, iniciar, movimentar, anexos)
+- [task](task.md) — tarefas de workflow (a sua fila e a dos outros)
 - [diff](diff.md) — comparar artefatos locais com o servidor antes de publicar
 - [watch](watch.md) — publicar automaticamente ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload: widgets sem deploy e preview de formulários com simulação de processo (só dev/hml)
