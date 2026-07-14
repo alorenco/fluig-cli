@@ -395,3 +395,100 @@ func TestRequestAssigneesTargetState(t *testing.T) {
 		t.Errorf("targetState não repassado: %v", stub.assigneesQuery)
 	}
 }
+
+// --fields-file: lê o objeto JSON, converte escalares para string e o --field
+// sobrepõe o arquivo (template).
+func TestRequestStartFieldsFile(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	file := filepath.Join(t.TempDir(), "campos.json")
+	os.WriteFile(file, []byte(`{"codEquipamento":1084,"quantidade":"10","completaTanque":false,"observacao":null}`), 0o644)
+
+	code, stdout := runMain(t, "request", "start", "compras_requisicao_abastecimento",
+		"--fields-file", file, "--field", "quantidade=20",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	ff, _ := stub.startBody["formFields"].(map[string]any)
+	if ff["codEquipamento"] != "1084" || ff["completaTanque"] != "false" || ff["observacao"] != "" {
+		t.Errorf("escalares do JSON não convertidos: %+v", ff)
+	}
+	if ff["quantidade"] != "20" {
+		t.Errorf("--field deveria sobrepor o arquivo (quantidade=20): %+v", ff)
+	}
+}
+
+// --fields-file -: lê o JSON do stdin (modo natural para agentes/pipelines).
+func TestRequestStartFieldsStdin(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+	io.WriteString(w, `{"descricao":"via stdin"}`)
+	w.Close()
+
+	code, stdout := runMain(t, "request", "start", "compras_requisicao_abastecimento",
+		"--fields-file", "-", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	ff, _ := stub.startBody["formFields"].(map[string]any)
+	if ff["descricao"] != "via stdin" {
+		t.Errorf("campos do stdin não repassados: %+v", stub.startBody)
+	}
+}
+
+// --fields-file com problemas: JSON inválido e valor aninhado → exit 2;
+// arquivo inexistente → exit 4. Nada chega ao servidor.
+func TestRequestStartFieldsFileErros(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	dir := t.TempDir()
+
+	bad := filepath.Join(dir, "invalido.json")
+	os.WriteFile(bad, []byte(`{"a": `), 0o644)
+	code, _ := runMain(t, "request", "start", "p", "--fields-file", bad, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("JSON inválido: exit=%d, quer %d", code, output.ExitUsage)
+	}
+
+	nested := filepath.Join(dir, "aninhado.json")
+	os.WriteFile(nested, []byte(`{"filhos": [{"a":1}]}`), 0o644)
+	code, _ = runMain(t, "request", "start", "p", "--fields-file", nested, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("valor aninhado: exit=%d, quer %d", code, output.ExitUsage)
+	}
+
+	code, _ = runMain(t, "request", "start", "p", "--fields-file", filepath.Join(dir, "nao_existe.json"), "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("arquivo inexistente: exit=%d, quer %d", code, output.ExitNotFound)
+	}
+	if stub.startBody != nil {
+		t.Error("nada deveria ter chegado ao servidor")
+	}
+}
+
+// move --fields-file: mesmo mecanismo do start.
+func TestRequestMoveFieldsFile(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	file := filepath.Join(t.TempDir(), "aprovacao.json")
+	os.WriteFile(file, []byte(`{"aprNivel1":"aprovado","comentarioNivel1":"ok"}`), 0o644)
+
+	code, stdout := runMain(t, "request", "move", "196526", "--target-state", "13",
+		"--fields-file", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	ff, _ := stub.moveBody["formFields"].(map[string]any)
+	if ff["aprNivel1"] != "aprovado" || ff["comentarioNivel1"] != "ok" {
+		t.Errorf("campos do arquivo não repassados: %+v", stub.moveBody)
+	}
+}

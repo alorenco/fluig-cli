@@ -79,8 +79,8 @@ não-interativo (sem ele: exit 2).
 |---|---|
 | `request list [--process id] [--status s] [--sla s] [--assignee login] [--requester login] [--limit N]` | busca solicitações (status: open/canceled/finalized; sla: on_time/warning/expired; limit 0 = todas) |
 | `request show <número>` | detalhe da solicitação + histórico de movimentação (`--json` traz request e tasks) |
-| `request start <processId> --field k=v... [--attach arq] [--target-state N] [--assignee login] [--comment s] [--no-send]` | inicia solicitação; com --attach usa SOAP (a REST não sobe anexo) e requer --target-state; throw de evento vira exit 5 com a mensagem |
-| `request move <número> [--target-state N] [--field k=v]... [--comment s]` | conclui a tarefa corrente (descoberta sozinha) e envia adiante; tarefa de outro usuário = 404 |
+| `request start <processId> [--fields-file arq.json\|-] [--field k=v]... [--attach arq] [--target-state N] [--assignee login] [--comment s] [--no-send]` | inicia solicitação; --fields-file = objeto JSON plano (use `-` para stdin — o modo natural para agentes; --field sobrepõe); com --attach usa SOAP (a REST não sobe anexo) e requer --target-state; throw de evento vira exit 5 com a mensagem |
+| `request move <número> [--target-state N] [--fields-file arq.json\|-] [--field k=v]... [--comment s]` | conclui a tarefa corrente (descoberta sozinha) e envia adiante; tarefa de outro usuário = 404 |
 | `request assignees <número> [--target-state N]` | possíveis responsáveis da próxima atividade |
 
 ## widget
@@ -147,6 +147,12 @@ fluigcli dataset export datasets/ds_clientes.js --json ; echo "exit=$?"
 **Baixar um formulário inteiro (com anexos) para inspecionar**
 ```sh
 fluigcli form import "Solicitação de Compras" --json --server homolog
+```
+
+**Iniciar uma solicitação com os campos em JSON (via stdin)**
+```sh
+echo '{"descricao":"Teclado novo","quantidade":"1"}' | \
+  fluigcli request start compras_solicitacao --fields-file - --json ; echo "exit=$?"
 ```
 
 **Atualizar o script de um evento de processo**

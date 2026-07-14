@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,6 +47,60 @@ func parseFormFields(raw []string) (map[string]string, error) {
 	return out, nil
 }
 
+// loadFormFields junta os campos do --fields-file (objeto JSON plano; "-" lê
+// do stdin) com os --field. O --field tem precedência — assim o arquivo pode
+// servir de template e a flag variar um campo pontual. Valores escalares do
+// JSON (número/bool/null) são convertidos para a string que a API espera.
+func loadFormFields(fieldsFile string, fieldFlags []string) (map[string]string, error) {
+	flags, err := parseFormFields(fieldFlags)
+	if err != nil {
+		return nil, err
+	}
+	if fieldsFile == "" {
+		return flags, nil
+	}
+	var data []byte
+	if fieldsFile == "-" {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		data, err = os.ReadFile(fieldsFile)
+		if os.IsNotExist(err) {
+			return nil, output.NotFoundf("arquivo %q não encontrado", fieldsFile)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var raw map[string]any
+	if err := dec.Decode(&raw); err != nil {
+		return nil, output.Usagef(`--fields-file: JSON inválido (%v) — esperado um objeto plano {"campo": "valor"}`, err)
+	}
+	out := make(map[string]string, len(raw)+len(flags))
+	for k, v := range raw {
+		switch t := v.(type) {
+		case string:
+			out[k] = t
+		case json.Number:
+			out[k] = t.String()
+		case bool:
+			out[k] = strconv.FormatBool(t)
+		case nil:
+			out[k] = ""
+		default:
+			return nil, output.Usagef("--fields-file: o campo %q tem valor aninhado (objeto/array) — a API aceita só valores simples", k)
+		}
+	}
+	for k, v := range flags {
+		out[k] = v
+	}
+	return out, nil
+}
+
 // reportMoveResult trata o resultado de start/move: sucesso ou a exigência de
 // escolher responsável (HTTP 412 — nada foi movimentado).
 func reportMoveResult(p *output.Printer, res *fluig.MoveResult, successMsg string) error {
@@ -63,6 +120,7 @@ func reportMoveResult(p *output.Printer, res *fluig.MoveResult, successMsg strin
 func newRequestStartCmd(app *App) *cobra.Command {
 	var (
 		fields        []string
+		fieldsFile    string
 		attach        []string
 		comment       string
 		targetState   int
@@ -82,7 +140,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			formFields, err := parseFormFields(fields)
+			formFields, err := loadFormFields(fieldsFile, fields)
 			if err != nil {
 				return err
 			}
@@ -135,7 +193,8 @@ func newRequestStartCmd(app *App) *cobra.Command {
 				res.RequestID, res.ProcessID, res.NextStateName))
 		},
 	}
-	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário: campo=valor (pode repetir)")
+	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário: campo=valor (pode repetir; sobrepõe o --fields-file)")
+	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"} (arquivo ou "-" para stdin)`)
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "arquivo para anexar à solicitação (pode repetir)")
 	cmd.Flags().StringVar(&comment, "comment", "", "comentário do movimento")
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
@@ -150,6 +209,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 func newRequestMoveCmd(app *App) *cobra.Command {
 	var (
 		fields        []string
+		fieldsFile    string
 		comment       string
 		targetState   int
 		assignee      string
@@ -169,7 +229,7 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 			if err != nil || id <= 0 {
 				return output.Usagef("número de solicitação inválido %q", args[0])
 			}
-			formFields, err := parseFormFields(fields)
+			formFields, err := loadFormFields(fieldsFile, fields)
 			if err != nil {
 				return err
 			}
@@ -216,7 +276,8 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 			return reportMoveResult(p, res, fmt.Sprintf("solicitação %d movimentada → %s", id, dest))
 		},
 	}
-	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário a atualizar: campo=valor (pode repetir)")
+	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário a atualizar: campo=valor (pode repetir; sobrepõe o --fields-file)")
+	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"} (arquivo ou "-" para stdin)`)
 	cmd.Flags().StringVar(&comment, "comment", "", "comentário do movimento")
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável pela próxima atividade")

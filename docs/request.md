@@ -48,7 +48,8 @@ normalmente — um `throw` de validação volta como mensagem de erro (exit 5).
 
 | Flag | Uso |
 |---|---|
-| `--field campo=valor` | campo do formulário (pode repetir) |
+| `--field campo=valor` | campo do formulário (pode repetir; **sobrepõe** o `--fields-file`) |
+| `--fields-file <arq \| ->` | campos em **JSON plano** `{"campo":"valor"}`; `-` lê do stdin |
 | `--attach <arquivo>` | anexa o arquivo à solicitação (pode repetir) |
 | `--comment "..."` | comentário do movimento |
 | `--target-state N` | etapa de destino (sequence); com `--attach`/`--no-send` informe-a |
@@ -60,6 +61,48 @@ fluigcli request start compras_solicitacao --field descricao="Teclado novo" --co
 fluigcli request start compras_requisicao_abastecimento \
   --field codEquipamento=1084 --field quantidade=10 ... \
   --attach hodometro.png --target-state 5
+```
+
+### Campos por JSON (`--fields-file`)
+
+Para formulários com muitos campos (ou para agentes de IA e CI), passe os
+campos como um **objeto JSON plano** em vez de repetir `--field`. Valores
+numéricos/booleanos são convertidos para a string que a API espera; objetos e
+arrays aninhados são rejeitados com erro claro.
+
+```sh
+# 1. arquivo — bom para versionar a solicitação de teste no Git do projeto
+cat > requisicao.json <<'EOF'
+{
+  "codColigada": 1,
+  "codCCusto": "001.002.020.0001",
+  "codEquipamento": 1084,
+  "veiculoEquipamento": "(1084) FIAT UNO ECONOMY",
+  "codMotorista": 206,
+  "codPontoAbast": 2,
+  "hodometro": 45210,
+  "codMaterial": 3,
+  "quantidade": 10
+}
+EOF
+fluigcli request start compras_requisicao_abastecimento \
+  --fields-file requisicao.json --attach hodometro.png --target-state 5
+
+# 2. stdin — o modo natural para pipelines e agentes
+echo '{"descricao":"Teclado novo","quantidade":"1"}' | \
+  fluigcli request start compras_solicitacao --fields-file -
+
+# 3. template + variação: o arquivo é a base e o --field sobrepõe um campo
+fluigcli request start compras_requisicao_abastecimento \
+  --fields-file requisicao.json --field quantidade=20 --attach h.png --target-state 5
+```
+
+O `request move` aceita as mesmas flags (`--fields-file`/`--field`) para
+atualizar campos do formulário no movimento:
+
+```sh
+echo '{"aprNivel1":"aprovado","comentarioNivel1":"ok"}' | \
+  fluigcli request move 196542 --target-state 13 --fields-file -
 ```
 
 ⚠️ **Anexos**: a REST v2 não tem upload de anexo de solicitação (só download)
