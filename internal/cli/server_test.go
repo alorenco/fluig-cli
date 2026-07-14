@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alorenco/fluig-cli/internal/config"
@@ -66,5 +69,64 @@ func TestServerTestReportsHelperStatus(t *testing.T) {
 		if got, _ := data["helperInstalled"].(bool); got != installed {
 			t.Errorf("helperInstalled=%v, quer %v", got, installed)
 		}
+	}
+}
+
+// server status: resumo + tabela de monitores (fixtures reais da homolog).
+func TestServerStatus(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	readTD := func(name string) []byte {
+		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	mux.HandleFunc("/environment/api/v2/monitors", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(readTD("rest_monitors.json"))
+	})
+	mux.HandleFunc("/environment/api/v2/statistics", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(readTD("rest_statistics.json"))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	u := mustParseHostPort(t, srv.URL)
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv(config.EnvPassword, "p")
+	server := config.Server{ID: "st-srv", Name: "homolog", Host: u.host, Port: u.port, SSL: false, Username: "u", CompanyID: 1}
+	if err := config.NewStore(proj).Add(server, false); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout := runMain(t, "server", "status", "homolog", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"Uptime:", "Usuários conectados: 35", "Threads: 385 (pico 454)",
+		"Microsoft SQL Server", "Monitor", "LICENSE_SERVER_AVAILABILITY", "OK", "FAILURE", "100%"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("saída sem %q:\n%s", want, stdout)
+		}
+	}
+
+	code, stdout = runMain(t, "server", "status", "homolog", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("--json exit=%d", code)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	stats, _ := data["stats"].(map[string]any)
+	monitors, _ := data["monitors"].([]any)
+	if stats["connectedUsers"].(float64) != 35 || len(monitors) != 8 {
+		t.Errorf("envelope inesperado: stats=%v monitors=%d", stats["connectedUsers"], len(monitors))
 	}
 }

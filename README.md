@@ -128,7 +128,7 @@ fluigcli diff --json | jq '.data.counts'
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `server` | `add` `list` `use` `update` `remove` `test` `logout` `install-helper` | [docs/server.md](docs/server.md) |
+| `server` | `add` `list` `use` `update` `remove` `test` `status` `logout` `install-helper` | [docs/server.md](docs/server.md) |
 
 **Adicionais**:
 

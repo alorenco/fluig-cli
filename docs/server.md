@@ -150,6 +150,19 @@ fluigcli server update homolog --host novo-host.empresa.com.br --port 8080 --ssl
 Remove o servidor e a senha correspondente do keyring. Pede confirmação
 (`--yes` pula).
 
+### `fluigcli server status [<name>]`
+
+Mostra a saúde do servidor: uptime, usuários conectados, threads, memória da
+JVM e do SO, banco de dados (nome, versão, tamanho) e a tabela de
+**monitores** de serviços (OK em verde; NONE esmaecido = serviço não
+configurado). **Requer usuário com privilégio administrativo** — sem ele o
+módulo `/environment` responde 401 (exit 3).
+
+```sh
+fluigcli server status homolog
+fluigcli server status --json     # stats tipadas + monitores, para agentes/CI
+```
+
 ### `fluigcli server test [<name>]`
 
 Faz login, valida a sessão (ping) e busca os dados do usuário. Sem `<name>`,

@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -33,6 +34,7 @@ func newServerCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServerUpdateCmd(app))
 	cmd.AddCommand(newServerRemoveCmd(app))
 	cmd.AddCommand(newServerTestCmd(app))
+	cmd.AddCommand(newServerStatusCmd(app))
 	cmd.AddCommand(newServerInstallHelperCmd(app))
 	cmd.AddCommand(newServerLogoutCmd(app))
 	return cmd
@@ -809,6 +811,102 @@ func newServerTestCmd(app *App) *cobra.Command {
 				"user":            user.Raw,
 				"helperInstalled": helperInstalled,
 			})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- server status ---
+
+// fmtBytesGB formata bytes em GB com uma casa.
+func fmtBytesGB(b int64) string {
+	return fmt.Sprintf("%.1f GB", float64(b)/(1<<30))
+}
+
+// fmtUptime formata milissegundos como "2d 3h 4min".
+func fmtUptime(ms int64) string {
+	d := time.Duration(ms) * time.Millisecond
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	mins := int(d.Minutes()) % 60
+	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh %dmin", days, hours, mins)
+	case hours > 0:
+		return fmt.Sprintf("%dh %dmin", hours, mins)
+	default:
+		return fmt.Sprintf("%dmin", mins)
+	}
+}
+
+func newServerStatusCmd(app *App) *cobra.Command {
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "status [<name>]",
+		Short: "Mostra a saúde do servidor: monitores, memória, banco e uptime (requer admin)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			nameArg := ""
+			if len(args) == 1 {
+				nameArg = args[0]
+				p.Server = nameArg
+			}
+			server, err := app.resolveServer(nameArg)
+			if err != nil {
+				return err
+			}
+			p.Server = server.Name
+
+			ctx := context.Background()
+			client, err := app.authenticate(ctx, server, passwordStdin)
+			if err != nil {
+				return err
+			}
+			stats, err := client.ServerStatistics(ctx)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			monitors, err := client.ServerMonitors(ctx)
+			if err != nil {
+				return mapFluigError(err)
+			}
+
+			p.Successf("Servidor %s (%s)", server.Name, server.BaseURL())
+			p.Successf("Uptime: %s · Usuários conectados: %d · Threads: %d (pico %d)",
+				fmtUptime(stats.UptimeMillis), stats.ConnectedUsers, stats.ThreadCount, stats.ThreadPeak)
+			p.Successf("Memória JVM: %s heap + %s non-heap · SO: %s livres de %s",
+				fmtBytesGB(stats.HeapUsed), fmtBytesGB(stats.NonHeapUsed),
+				fmtBytesGB(stats.OSMemoryFree), fmtBytesGB(stats.OSMemoryTotal))
+			p.Successf("Banco: %s %s · Tamanho: %s",
+				stats.DatabaseName, stats.DatabaseVersion, fmtBytesGB(stats.DatabaseSize))
+
+			if len(monitors) > 0 {
+				rows := make([][]string, 0, len(monitors))
+				for _, m := range monitors {
+					rows = append(rows, []string{m.Name, m.Status, fmt.Sprintf("%.0f%%", m.SuccessRate)})
+				}
+				// OK em verde; NONE esmaecido (serviço não configurado).
+				p.Table(output.Table{
+					Headers: []string{"Monitor", "Status", "Sucesso"},
+					Rows:    rows,
+					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+						if col != 1 {
+							return padded
+						}
+						switch monitors[row].Status {
+						case "OK":
+							return output.Green(padded)
+						case "NONE":
+							return output.Dim(padded)
+						}
+						return padded
+					}),
+				})
+			}
+			p.Done(map[string]any{"stats": stats, "monitors": monitors})
 			return nil
 		},
 	}
