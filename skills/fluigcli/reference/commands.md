@@ -62,6 +62,11 @@ não-interativo (sem ele: exit 2).
 | `form import <documentId\|nome>... \| --all` | servidor → local | baixa formulários para pastas locais (com anexos e eventos) |
 | `form export <pasta>` | local → servidor | envia um formulário local (cria nova versão) |
 | `form link --auto` | — | vincula pastas locais aos forms do servidor por nome (grava em .fluigcli/forms.json, por servidor); sem `--auto` é interativo (não use como agente) |
+| `form records list <form> [--fields a,b] [--filter "campo eq 'v'"] [--limit N]` | — | registros (dados) do formulário; `--json` traz todos os campos |
+| `form records show <form> <cardId>` | — | registro completo com linhas filhas |
+| `form records create <form> --field k=v... \| --fields-file` | — | cria registro (eventos do form NÃO rodam) |
+| `form records update <form> <cardId> --field k=v...` | — | atualiza (MESCLA campos; cria versão nova do registro) |
+| `form records delete <form> <cardId>...` | — | exclui registros (exige `--yes` em modo não-interativo) |
 
 ## workflow — scripts de eventos de processo
 

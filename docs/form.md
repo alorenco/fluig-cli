@@ -85,8 +85,46 @@ fluigcli form export "forms/Formulário de Contato" --version new
 fluigcli form export forms/NovoForm --new --parent-id 15 --dataset-name ds_novoform
 ```
 
+## `fluigcli form records ...` — registros (dados) do formulário
+
+CRUD dos **registros** (cards) de um formulário — os dados, não o layout.
+Útil para consultar/testar formulários e datasets com dados reais, direto do
+terminal ou por agentes de IA. O formulário pode ser indicado pelo
+`documentId` ou pelo nome.
+
+```sh
+# listar (escolha as colunas; --json traz todos os campos)
+fluigcli form records list "Cadastro de Clientes" --fields nome,email --limit 20
+
+# filtrar (sintaxe $filter da API, estilo OData)
+fluigcli form records list 12345 --filter "quantidade eq '99'"
+
+# registro completo (com linhas filhas de tabela pai×filho)
+fluigcli form records show 12345 67890
+
+# criar e atualizar (mesmos --field/--fields-file do request start)
+fluigcli form records create 12345 --field nome="Maria" --field quantidade=10
+echo '{"nome":"Maria","quantidade":"10"}' | fluigcli form records create 12345 --fields-file -
+fluigcli form records update 12345 67890 --field quantidade=99
+
+# excluir (pede confirmação; --yes pula)
+fluigcli form records delete 12345 67890 --yes
+```
+
+Semântica (validada na homologação):
+
+- O **update mescla**: campos não enviados sobrevivem — e cada update cria
+  uma **versão nova do registro** (1000 → 2000...).
+- O servidor acrescenta campos de controle (`anonymization_date`,
+  `anonymization_user_id`) automaticamente.
+- Os **eventos do formulário não rodam** neste caminho (os dados entram como
+  enviados — sem validateForm). Para testar as validações, use o processo
+  (`request start`) ou o preview do `fluigcli dev`.
+
 ## Observações
 
 - Nomes de pasta com acento e espaço são suportados (ex.: `Formulário de Troca`).
 - Apenas arquivos no topo da pasta viram anexos (nomes planos); subpastas além
   de `events/` são ignoradas.
+- O HTML principal precisa ter uma tag `<form>` — sem ela o servidor rejeita
+  a criação ("Formulário não possui tag form").

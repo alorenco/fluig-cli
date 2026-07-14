@@ -32,7 +32,7 @@ fluigcli dataset export datasets/ds_x.js --json     # publica (local → servido
 
 Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `dataset` (list|import|export|query|enable|disable|history|restore), `event` (list|import|export|delete),
-`mechanism` (list|import|export|delete), `form` (list|import|export|link),
+`mechanism` (list|import|export|delete), `form` (list|import|export|link|records — CRUD de registros),
 `workflow` (list|version|import|export|publish), `widget` (list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),

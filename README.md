@@ -103,7 +103,7 @@ fluigcli diff --json | jq '.data.counts'
 | `dataset` | `list` `import` `export` `query` `enable` `disable` `history` `restore` | [docs/dataset.md](docs/dataset.md) |
 | `event` | `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
-| `form` | `list` `import` `export` `link` | [docs/form.md](docs/form.md) |
+| `form` | `list` `import` `export` `link` `records` (CRUD de registros) | [docs/form.md](docs/form.md) |
 | `workflow` | `list` `version` `import` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |

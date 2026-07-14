@@ -23,6 +23,7 @@ func newFormCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newFormImportCmd(app))
 	cmd.AddCommand(newFormExportCmd(app))
 	cmd.AddCommand(newFormLinkCmd(app))
+	cmd.AddCommand(newFormRecordsCmd(app))
 	return cmd
 }
 
