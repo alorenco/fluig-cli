@@ -203,7 +203,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newDevCmd(app),
 	)
 	addToGroup(groupOps, newRequestCmd(app), newTaskCmd(app), newDocumentCmd(app))
-	addToGroup(groupAdmin, newUserCmd(app))
+	addToGroup(groupAdmin, newUserCmd(app), newGroupCmd(app))
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").
 	root.AddCommand(newVersionCmd(app))

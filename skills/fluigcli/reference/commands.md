@@ -106,6 +106,22 @@ não-interativo (sem ele: exit 2).
 | `user update <login> [--email] [--first-name] [--last-name] [--full-name] [--set-password]` | mescla os campos informados |
 | `user activate\|deactivate <login>` | ativa/desativa (desativado = state BLOCKED; não há exclusão na API) |
 
+## group — grupos da plataforma (administração; requer admin)
+
+Grupo = `code` + `description` + `type` (`user` = administrado; `community` =
+automático das comunidades, prefixos MODERATOR_/MEMBER_). Não há campo "nome".
+
+| comando | efeito |
+|---|---|
+| `group list [--type user\|community] [--search texto] [--limit N]` | lista grupos (--type/--search filtram NO CLIENTE; o servidor ignora os params) |
+| `group show <code>` | detalhe do grupo + membros |
+| `group create <code> --description <texto> [--type user\|community]` | cria grupo (descrição obrigatória; type default user); duplicado = exit 5 |
+| `group update <code> --description <texto>` | atualiza a descrição (PUT mescla) |
+| `group delete <code>` | exclui o grupo |
+| `group users <code>` | lista os usuários membros |
+| `group add-user <code> <login>` | adiciona usuário (valida grupo+login antes; a API não valida) |
+| `group remove-user <code> <login>` | remove usuário (não-membro = exit 4) |
+
 ## document — GED (operação)
 
 | comando | efeito |

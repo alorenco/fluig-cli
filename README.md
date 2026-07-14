@@ -123,6 +123,7 @@ fluigcli diff --json | jq '.data.counts'
 | Grupo | Comandos | Doc |
 |---|---|---|
 | `user` | `list` `show` `create` `update` `activate` `deactivate` — usuários, papéis e grupos | [docs/user.md](docs/user.md) |
+| `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` — grupos e membros | [docs/group.md](docs/group.md) |
 
 **Configuração**:
 
