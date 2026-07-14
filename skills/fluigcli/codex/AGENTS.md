@@ -35,7 +35,8 @@ Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
 `mechanism` (list|import|export|delete), `form` (list|import|export|link),
 `workflow` (list|version|import|export|publish), `widget` (list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
-`task` (list — fila de tarefas; sem flags = as suas em aberto), `diff` (local vs.
+`task` (list — fila de tarefas; sem flags = as suas em aberto),
+`document` (list|download|upload|mkdir|delete — GED), `diff` (local vs.
 servidor, read-only — use antes de um export). O `watch` (publica ao salvar) e
 o `dev` (dev server local com live reload) são interativos e não são indicados
 para agentes — prefira `diff` + `export`.

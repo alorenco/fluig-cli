@@ -90,6 +90,16 @@ não-interativo (sem ele: exit 2).
 |---|---|
 | `task list [--assignee login \| --everyone] [--status s\|all] [--process id] [--requester login] [--sla s] [--limit N]` | sem flags = SUAS tarefas em aberto; status default not_completed |
 
+## document — GED (operação)
+
+| comando | efeito |
+|---|---|
+| `document list [<folderId>]` | sem arg = pastas raiz; com id = conteúdo (pastas/arquivos/artigos) |
+| `document download <id>... [--dir pasta]` | baixa pelo id (nome vem dos metadados; byte a byte) |
+| `document upload <file>... --folder <id>` | publica na pasta (upload + publish em uma etapa) |
+| `document mkdir <parentId> <nome>` | cria pasta |
+| `document delete <id>...` | envia para a lixeira (exige `--yes` em modo não-interativo) |
+
 ## widget
 
 | comando | direção | efeito |
