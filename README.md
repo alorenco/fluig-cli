@@ -124,6 +124,7 @@ fluigcli diff --json | jq '.data.counts'
 |---|---|---|
 | `user` | `list` `show` `create` `update` `activate` `deactivate` — usuários, papéis e grupos | [docs/user.md](docs/user.md) |
 | `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` — grupos e membros | [docs/group.md](docs/group.md) |
+| `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` — papéis e vínculos | [docs/role.md](docs/role.md) |
 
 **Configuração**:
 

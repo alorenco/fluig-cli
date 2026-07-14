@@ -15,6 +15,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [document](document.md) — GED: navegar, baixar e publicar documentos
 - [user](user.md) — usuários da plataforma (requer admin)
 - [group](group.md) — grupos da plataforma e membros (requer admin)
+- [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [diff](diff.md) — comparar artefatos locais com o servidor antes de publicar
 - [watch](watch.md) — publicar automaticamente ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload: widgets sem deploy e preview de formulários com simulação de processo (só dev/hml)

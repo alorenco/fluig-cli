@@ -122,6 +122,22 @@ automático das comunidades, prefixos MODERATOR_/MEMBER_). Não há campo "nome"
 | `group add-user <code> <login>` | adiciona usuário (valida grupo+login antes; a API não valida) |
 | `group remove-user <code> <login>` | remove usuário (não-membro = exit 4) |
 
+## role — papéis da plataforma (administração; requer admin)
+
+Papel = `code` + `description` (sem "type"). É a via para dar/tirar um papel de
+um usuário. `user show` lista os papéis; `user list --role` filtra por papel.
+
+| comando | efeito |
+|---|---|
+| `role list [--search texto] [--limit N]` | lista papéis (--search filtra NO CLIENTE) |
+| `role show <code>` | detalhe do papel + usuários vinculados |
+| `role create <code> [--description <texto>]` | cria papel (descrição opcional = o código); duplicado = exit 5 |
+| `role update <code> --description <texto>` | atualiza a descrição (PUT mescla) |
+| `role delete <code>` | exclui o papel |
+| `role users <code>` | lista os usuários com o papel |
+| `role add-user <code> <login>` | dá o papel a um usuário (valida papel+login; exit 4 se faltar) |
+| `role remove-user <code> <login>` | tira o papel (não-vinculado = exit 4) |
+
 ## document — GED (operação)
 
 | comando | efeito |

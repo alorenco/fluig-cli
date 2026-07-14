@@ -1,0 +1,1 @@
+{"items": [{"id": 5, "tenantId": 1, "code": "admin", "description": "admin", "data": null, "_expandables": ["data"]}, {"id": 7, "tenantId": 1, "code": "diretor", "description": "Diretor", "data": null, "_expandables": ["data"]}, {"id": 10, "tenantId": 1, "code": "aprovadores", "description": "aprovadores", "data": null, "_expandables": ["data"]}], "hasNext": false}
