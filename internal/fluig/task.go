@@ -48,17 +48,27 @@ func (c *Client) ListTasks(ctx context.Context, f TaskFilter) ([]TaskSummary, er
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
+	// Assignee/Requester são logins — a API filtra por userCode (ver
+	// resolveUserFilter; login direto responde vazio em silêncio).
+	assigneeCode, err := c.resolveUserFilter(ctx, f.Assignee)
+	if err != nil {
+		return nil, err
+	}
+	requesterCode, err := c.resolveUserFilter(ctx, f.Requester)
+	if err != nil {
+		return nil, err
+	}
 	const pageSize = 100
 	var out []TaskSummary
 	for page := 1; ; page++ {
 		params := url.Values{}
 		params.Set("page", strconv.Itoa(page))
 		params.Set("pageSize", strconv.Itoa(pageSize))
-		if f.Assignee != "" {
-			params.Set("assignee", f.Assignee)
+		if assigneeCode != "" {
+			params.Set("assignee", assigneeCode)
 		}
-		if f.Requester != "" {
-			params.Set("requester", f.Requester)
+		if requesterCode != "" {
+			params.Set("requester", requesterCode)
 		}
 		if f.ProcessID != "" {
 			params.Set("processId", f.ProcessID)

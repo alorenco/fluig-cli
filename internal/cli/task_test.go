@@ -28,6 +28,10 @@ func (s *taskStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
+	// Os filtros de usuário resolvem login → userCode antes da busca.
+	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"content":{"login":"`+r.URL.Query().Get("login")+`","userCode":"uc-`+r.URL.Query().Get("login")+`"}}`)
+	})
 	mux.HandleFunc("/process-management/api/v2/tasks", func(w http.ResponseWriter, r *http.Request) {
 		s.query = r.URL.Query()
 		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_tasks.json"))
@@ -62,7 +66,8 @@ func TestTaskListDefaults(t *testing.T) {
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
 	}
-	if stub.query.Get("assignee") != "user1" || stub.query.Get("status") != "NOT_COMPLETED" {
+	// O login default (user1) é resolvido para o userCode antes da busca.
+	if stub.query.Get("assignee") != "uc-user1" || stub.query.Get("status") != "NOT_COMPLETED" {
 		t.Errorf("defaults não aplicados: %v", stub.query)
 	}
 	for _, want := range []string{"│", "Solicitação", "Processo", "Etapa", "Responsável", "Status",
@@ -87,7 +92,7 @@ func TestTaskListFiltros(t *testing.T) {
 	if q.Get("assignee") != "" || q.Get("status") != "" {
 		t.Errorf("--everyone/--status all deveriam remover os filtros: %v", q)
 	}
-	if q.Get("processId") != "compras_requisicao_abastecimento" || q.Get("requester") != "user2" || q.Get("slaStatus") != "ON_TIME" {
+	if q.Get("processId") != "compras_requisicao_abastecimento" || q.Get("requester") != "uc-user2" || q.Get("slaStatus") != "ON_TIME" {
 		t.Errorf("filtros não repassados: %v", q)
 	}
 	var env output.Envelope

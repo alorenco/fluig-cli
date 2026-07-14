@@ -178,8 +178,10 @@ func TestRequestListJSON(t *testing.T) {
 	}
 
 	q := stub.listQuery
+	// assignee/requester chegam como userCode (o stub resolve qualquer login
+	// para "uc" — a API real filtra por código, não por login).
 	if q.Get("processId") != "contratos_taxa_limpeza" || q.Get("status") != "OPEN" ||
-		q.Get("slaStatus") != "ON_TIME" || q.Get("assignee") != "user1" || q.Get("requester") != "user2" {
+		q.Get("slaStatus") != "ON_TIME" || q.Get("assignee") != "uc" || q.Get("requester") != "uc" {
 		t.Errorf("filtros não repassados: %v", q)
 	}
 	if got := q["expand"]; len(got) != 2 || got[0] != "requester" || got[1] != "currentMovements" {

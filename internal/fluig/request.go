@@ -134,10 +134,34 @@ func (it requestItem) toRequest() Request {
 	return r
 }
 
+// resolveUserFilter converte login → userCode para os filtros assignee/
+// requester: a API compara com o CÓDIGO do usuário, não o login — com login
+// ela responde vazio em silêncio (validado na homologação em 2026-07-14).
+// Login inexistente vira ErrNotFound (melhor que lista vazia enganosa).
+func (c *Client) resolveUserFilter(ctx context.Context, login string) (string, error) {
+	if login == "" {
+		return "", nil
+	}
+	u, err := c.FindUserByLogin(ctx, login)
+	if err != nil || u.Code == "" {
+		return "", fmt.Errorf("%w: usuário %q (filtro de responsável/solicitante usa o login)", ErrNotFound, login)
+	}
+	return u.Code, nil
+}
+
 // ListRequests busca solicitações com os filtros dados (paginado; expande
 // requester e currentMovements — ~1,7 KB por item, validado na homologação).
+// Assignee/Requester são LOGINS (resolvidos para userCode internamente).
 func (c *Client) ListRequests(ctx context.Context, f RequestFilter) ([]Request, error) {
 	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	assigneeCode, err := c.resolveUserFilter(ctx, f.Assignee)
+	if err != nil {
+		return nil, err
+	}
+	requesterCode, err := c.resolveUserFilter(ctx, f.Requester)
+	if err != nil {
 		return nil, err
 	}
 	const pageSize = 100
@@ -157,11 +181,11 @@ func (c *Client) ListRequests(ctx context.Context, f RequestFilter) ([]Request, 
 		if f.SLAStatus != "" {
 			params.Add("slaStatus", f.SLAStatus)
 		}
-		if f.Assignee != "" {
-			params.Set("assignee", f.Assignee)
+		if assigneeCode != "" {
+			params.Set("assignee", assigneeCode)
 		}
-		if f.Requester != "" {
-			params.Set("requester", f.Requester)
+		if requesterCode != "" {
+			params.Set("requester", requesterCode)
 		}
 		body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restRequestsPath)+"?"+params.Encode(), nil)
 		if err != nil {
