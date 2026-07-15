@@ -13,8 +13,8 @@ Dashboard: http://127.0.0.1:8787/
 mudança em wcm/widget/ramais/resources/js/ramais.js — recarregando o navegador
 ```
 
-Portal, preview de formulários, widgets servidas e configurações estão no
-**dashboard** (a raiz do dev server).
+Portal, preview de formulários, **consulta de datasets**, widgets servidas e
+configurações estão no **dashboard** (a raiz do dev server).
 
 ## Dashboard
 
@@ -170,6 +170,40 @@ server-side emulada:
 
 Para testar o formulário dentro do processo de verdade (bindings de card,
 anexos, movimentação), continue com o `fluigcli watch` + F5.
+
+## Datasets
+
+`/_dev/datasets/` (tile **Datasets** no dashboard) é a bancada de consulta de
+datasets — o ciclo *criei/editei um dataset → quero ver o que ele traz*, sem
+sair do navegador. É **só leitura**, direto no servidor conectado pelo proxy
+(mesma sessão autenticada); nada é publicado.
+
+- **Escolha o dataset** num campo com busca (id ou descrição; badge de tipo,
+  `CUSTOM` em verde, `inativo` em vermelho). O ↻ recarrega a lista.
+- **Consultar** executa e mostra o resultado numa tabela com cabeçalho fixo;
+  o rodapé traz o **nº de linhas/colunas** e a **duração** da consulta. Célula
+  nula aparece como `null` esmaecido (distinta de texto vazio).
+- **Ver como Tabela ou JSON** — o JSON é a lista de objetos `campo: valor`
+  (bom para quem consome o dataset por API).
+- **Copiar** joga o resultado como TSV na área de transferência (cola direto
+  no Excel); **Exportar CSV** baixa um `.csv` UTF-8 (abre no Excel em PT-BR).
+- **Configurar parâmetros**:
+  - **Campos** — escolha as colunas do resultado (todas por padrão).
+  - **Ordenar** — um campo (a API aceita só um) + ascendente/descendente.
+  - **Limite** — nº de linhas no resultado (padrão `100`; `0` = sem limite,
+    cuidado com datasets grandes). Quando o resultado bate o limite, sai o
+    aviso "limite atingido — pode haver mais".
+  - **Filtros** — quantos quiser: campo, valor inicial/final, tipo
+    (Must / Must Not / Should) e "usa Like".
+  - **sqlLimit** — o limite no nível do SQL (para datasets SQL), com
+    inicial/final/tipo/Like, como na extensão do Studio.
+- A última configuração de cada dataset (campos, ordenação, limite, filtros)
+  fica salva no navegador (localStorage) e volta ao reabrir o dataset.
+
+As colunas para os seletores vêm de uma consulta-sonda (uma linha). Datasets
+que exigem um filtro obrigatório (ex.: `sqlLimit`) podem não revelar as colunas
+na sonda — nesse caso o painel avisa e as colunas aparecem após a primeira
+consulta.
 
 ## Segurança (por design)
 

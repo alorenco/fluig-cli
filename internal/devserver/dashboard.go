@@ -167,6 +167,7 @@ func (s *Server) handleDashClearCaches(w http.ResponseWriter, r *http.Request) {
 	s.sim.states = nil
 	s.sim.processes = nil
 	s.sim.users = nil
+	s.sim.datasets = nil
 	s.deploys = nil
 	s.sim.mu.Unlock()
 	s.opts.Infof("caches do painel de simulação limpos")

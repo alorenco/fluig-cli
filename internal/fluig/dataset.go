@@ -290,9 +290,13 @@ func (c *Client) QueryDataset(ctx context.Context, name string, q DatasetQuery) 
 		if status < 200 || status >= 300 {
 			return nil, &HTTPError{StatusCode: status, URL: "dataset-handle/search", Body: truncate(string(body), 512)}
 		}
+		// ⚠️ Os valores NÃO são só strings: datasets como `document` trazem
+		// bool/número no mesmo campo (validado na homologação, 2026-07-15) —
+		// por isso decodificamos como json.RawMessage e coagimos para *string
+		// (null → nil; string → texto; bool/número → o literal JSON).
 		var parsed struct {
-			Columns []string             `json:"columns"`
-			Values  []map[string]*string `json:"values"`
+			Columns []string                     `json:"columns"`
+			Values  []map[string]json.RawMessage `json:"values"`
 		}
 		if err := json.Unmarshal(body, &parsed); err != nil {
 			return nil, fmt.Errorf("resposta inesperada de dataset-handle/search: %w", err)
@@ -303,17 +307,24 @@ func (c *Client) QueryDataset(ctx context.Context, name string, q DatasetQuery) 
 		if res.Columns == nil {
 			res.Columns = parsed.Columns
 		}
-		res.Rows = append(res.Rows, parsed.Values...)
+		for _, raw := range parsed.Values {
+			row := make(map[string]*string, len(raw))
+			for k, v := range raw {
+				row[k] = rawToStringPtr(v)
+			}
+			res.Rows = append(res.Rows, row)
+		}
+		pageCount := len(parsed.Values)
 		if remaining > 0 {
-			remaining -= len(parsed.Values)
+			remaining -= pageCount
 			if remaining <= 0 {
 				return res, nil
 			}
 		}
-		if len(parsed.Values) < pageLimit {
+		if pageCount < pageLimit {
 			return res, nil
 		}
-		offset += len(parsed.Values)
+		offset += pageCount
 	}
 }
 
@@ -405,6 +416,24 @@ func mapSOAPError(err error) error {
 		return fmt.Errorf("%w: %s", errServerRejected, fault.Error())
 	}
 	return err
+}
+
+// rawToStringPtr coage um valor JSON de célula de dataset para *string: null
+// (ou ausente) → nil; string → o texto; bool/número/outros → o literal JSON
+// (o dataset-handle/search mistura tipos no mesmo campo — ver QueryDataset).
+func rawToStringPtr(raw json.RawMessage) *string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil
+	}
+	if trimmed[0] == '"' {
+		var s string
+		if err := json.Unmarshal(trimmed, &s); err == nil {
+			return &s
+		}
+	}
+	s := string(trimmed)
+	return &s
 }
 
 func jsonString(raw map[string]json.RawMessage, key string) string {

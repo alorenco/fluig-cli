@@ -194,6 +194,7 @@ type formSimCache struct {
 	states    map[string]*formSimStates
 	processes []fluig.ProcessSummary
 	users     []formSimUser
+	datasets  []fluig.DatasetSummary // lista do dataset lab (datasetlab.go)
 }
 
 func (s *Server) handleFormSimJS(w http.ResponseWriter, r *http.Request) {

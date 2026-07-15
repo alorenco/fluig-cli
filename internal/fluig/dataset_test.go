@@ -79,6 +79,13 @@ func (s *datasetStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, `{"columns":null,"values":null}`)
 			return
 		}
+		// Valores de tipos mistos (bool/número/null), como o dataset `document`.
+		if q.Get("datasetId") == "tipado" {
+			io.WriteString(w, `{"columns":["documentId","active","size","nome"],"values":[
+				{"documentId":42,"active":true,"size":1024,"nome":"contrato.pdf"},
+				{"documentId":43,"active":false,"size":null,"nome":null}]}`)
+			return
+		}
 		if s.handleBig && q.Get("offset") == "0" {
 			// 1ª página cheia (== limit pedido) para forçar a paginação.
 			limit := q.Get("limit")
@@ -292,6 +299,33 @@ func TestQueryDatasetNotFound(t *testing.T) {
 	_, err := c.QueryDataset(context.Background(), "nao_existe", DatasetQuery{})
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("esperava ErrNotFound, veio %v", err)
+	}
+}
+
+// Valores não-string (bool/número/null) são coagidos para *string: o literal
+// JSON vira texto e null vira ausência. Regressão do erro real observado no
+// dataset `document` (2026-07-15): "cannot unmarshal bool into string".
+func TestQueryDatasetValoresTipados(t *testing.T) {
+	stub := &datasetStub{}
+	c := datasetClient(t, stub.server(t).URL)
+	res, err := c.QueryDataset(context.Background(), "tipado", DatasetQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rows) != 2 {
+		t.Fatalf("esperava 2 linhas, veio %d", len(res.Rows))
+	}
+	get := func(row int, col string) string {
+		if v := res.Rows[row][col]; v != nil {
+			return *v
+		}
+		return "<nil>"
+	}
+	if get(0, "documentId") != "42" || get(0, "active") != "true" || get(0, "size") != "1024" || get(0, "nome") != "contrato.pdf" {
+		t.Errorf("linha 0 mal coagida: %v", res.Rows[0])
+	}
+	if get(1, "active") != "false" || res.Rows[1]["size"] != nil || res.Rows[1]["nome"] != nil {
+		t.Errorf("linha 1 (null) mal coagida: %v", res.Rows[1])
 	}
 }
 

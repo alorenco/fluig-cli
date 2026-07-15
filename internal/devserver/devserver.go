@@ -117,6 +117,8 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc("/_dev/forms/", s.handleFormPreview)
 	mux.HandleFunc(formSimJSPath, s.handleFormSimJS)
 	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
+	mux.HandleFunc(datasetLabPath, s.handleDatasetLab)
+	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
 	mux.HandleFunc("/_dev/api/dash", s.handleDash)
 	mux.HandleFunc("/_dev/api/dash/watch", s.handleDashWatch)
 	mux.HandleFunc("/_dev/api/dash/reload", s.handleDashReload)

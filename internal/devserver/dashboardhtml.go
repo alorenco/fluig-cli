@@ -120,6 +120,12 @@ a.tile:hover .go{color:var(--accent);transform:translateX(3px)}
           <div class="meta" id="formsMeta">preview com simulação de processo</div></div>
         <div class="go">→</div>
       </a>
+      <a class="tile" href="/_dev/datasets/">
+        <div class="icon">🗃️</div>
+        <div><div class="name">Datasets</div>
+          <div class="meta">consultar datasets e ver o resultado</div></div>
+        <div class="go">→</div>
+      </a>
     </div>
   </section>
 
