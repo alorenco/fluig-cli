@@ -1,0 +1,320 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://ws.foundation.ecm.technology.totvs.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns1="http://schemas.xmlsoap.org/soap/http" name="ECMColleagueReplacementServiceService" targetNamespace="http://ws.foundation.ecm.technology.totvs.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://ws.foundation.ecm.technology.totvs.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://ws.foundation.ecm.technology.totvs.com/">
+  <xs:complexType name="colleagueReplacementDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="replacementId" type="xs:string"/>
+      <xs:element minOccurs="0" name="validationFinalDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="validationStartDate" type="xs:dateTime"/>
+      <xs:element name="viewGEDTasks" type="xs:boolean"/>
+      <xs:element name="viewWorkflowTasks" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="colleagueReplacementDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:colleagueReplacementDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Exception" type="tns:Exception"/>
+  <xs:complexType name="Exception">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="getReplacementsOfUserResponse">
+    <wsdl:part name="result" type="tns:colleagueReplacementDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getReplacementsOfUser">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateColleagueReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueReplacement" type="tns:colleagueReplacementDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createColleagueReplacementResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacementsOfUser">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateColleagueReplacementResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteColleagueReplacementResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacementsOfUserResponse">
+    <wsdl:part name="result" type="tns:colleagueReplacementDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteColleagueReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getColleagueReplacementResponse">
+    <wsdl:part name="result" type="tns:colleagueReplacementDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Exception">
+    <wsdl:part element="tns:Exception" name="Exception">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getColleagueReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createColleagueReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueReplacement" type="tns:colleagueReplacementDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacedUsersResponse">
+    <wsdl:part name="result" type="tns:colleagueReplacementDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacedUsers">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacement">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="replacementId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getValidReplacementResponse">
+    <wsdl:part name="result" type="tns:colleagueReplacementDto">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="ColleagueReplacementService">
+    <wsdl:operation name="getReplacementsOfUser">
+      <wsdl:input message="tns:getReplacementsOfUser" name="getReplacementsOfUser">
+    </wsdl:input>
+      <wsdl:output message="tns:getReplacementsOfUserResponse" name="getReplacementsOfUserResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateColleagueReplacement">
+      <wsdl:input message="tns:updateColleagueReplacement" name="updateColleagueReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:updateColleagueReplacementResponse" name="updateColleagueReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="deleteColleagueReplacement">
+      <wsdl:input message="tns:deleteColleagueReplacement" name="deleteColleagueReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:deleteColleagueReplacementResponse" name="deleteColleagueReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacementsOfUser">
+      <wsdl:input message="tns:getValidReplacementsOfUser" name="getValidReplacementsOfUser">
+    </wsdl:input>
+      <wsdl:output message="tns:getValidReplacementsOfUserResponse" name="getValidReplacementsOfUserResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getColleagueReplacement">
+      <wsdl:input message="tns:getColleagueReplacement" name="getColleagueReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:getColleagueReplacementResponse" name="getColleagueReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createColleagueReplacement">
+      <wsdl:input message="tns:createColleagueReplacement" name="createColleagueReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:createColleagueReplacementResponse" name="createColleagueReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacedUsers">
+      <wsdl:input message="tns:getValidReplacedUsers" name="getValidReplacedUsers">
+    </wsdl:input>
+      <wsdl:output message="tns:getValidReplacedUsersResponse" name="getValidReplacedUsersResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacement">
+      <wsdl:input message="tns:getValidReplacement" name="getValidReplacement">
+    </wsdl:input>
+      <wsdl:output message="tns:getValidReplacementResponse" name="getValidReplacementResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="ECMColleagueReplacementServiceServiceSoapBinding" type="tns:ColleagueReplacementService">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="getReplacementsOfUser">
+      <soap:operation soapAction="getReplacementsOfUser" style="rpc"/>
+      <wsdl:input name="getReplacementsOfUser">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getReplacementsOfUserResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateColleagueReplacement">
+      <soap:operation soapAction="updateColleagueReplacement" style="rpc"/>
+      <wsdl:input name="updateColleagueReplacement">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateColleagueReplacementResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="deleteColleagueReplacement">
+      <soap:operation soapAction="deleteColleagueReplacement" style="rpc"/>
+      <wsdl:input name="deleteColleagueReplacement">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="deleteColleagueReplacementResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacementsOfUser">
+      <soap:operation soapAction="getValidReplacementsOfUser" style="rpc"/>
+      <wsdl:input name="getValidReplacementsOfUser">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getValidReplacementsOfUserResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getColleagueReplacement">
+      <soap:operation soapAction="getColleagueReplacement" style="rpc"/>
+      <wsdl:input name="getColleagueReplacement">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getColleagueReplacementResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createColleagueReplacement">
+      <soap:operation soapAction="createColleagueReplacement" style="rpc"/>
+      <wsdl:input name="createColleagueReplacement">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createColleagueReplacementResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacedUsers">
+      <soap:operation soapAction="getValidReplacedUsers" style="rpc"/>
+      <wsdl:input name="getValidReplacedUsers">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getValidReplacedUsersResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getValidReplacement">
+      <soap:operation soapAction="getValidReplacement" style="rpc"/>
+      <wsdl:input name="getValidReplacement">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getValidReplacementResponse">
+        <soap:body namespace="http://ws.foundation.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="ECMColleagueReplacementServiceService">
+    <wsdl:port binding="tns:ECMColleagueReplacementServiceServiceSoapBinding" name="ColleagueReplacementServicePort">
+      <soap:address location="http://10.1.2.253:8080/webdesk/ECMColleagueReplacementService"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

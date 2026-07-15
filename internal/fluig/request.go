@@ -77,7 +77,7 @@ func requestTime(raw string) *time.Time {
 	if raw == "" {
 		return nil
 	}
-	for _, layout := range []string{"2006-01-02T15:04:05.999-0700", time.RFC3339Nano} {
+	for _, layout := range []string{"2006-01-02T15:04:05.999-0700", time.RFC3339Nano, "2006-01-02T15:04:05"} {
 		if t, err := time.Parse(layout, raw); err == nil {
 			return &t
 		}

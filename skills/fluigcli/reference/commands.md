@@ -21,6 +21,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | administrar usuários / grupos / papéis | `user` · `group` · `role` |
+| definir substituto / delegar tarefas de um usuário | `replacement` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
 
 Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
@@ -157,6 +158,25 @@ um usuário. `user show` lista os papéis; `user list --role` filtra por papel.
 | `role users <code>` | lista os usuários com o papel |
 | `role add-user <code> <login>` | dá o papel a um usuário (valida papel+login; exit 4 se faltar) |
 | `role remove-user <code> <login>` | tira o papel (não-vinculado = exit 4) |
+
+## replacement — substitutos de usuário (administração; requer admin)
+
+Delegação de tarefas: o TITULAR é quem será substituído; o SUBSTITUTO assume as
+tarefas de workflow/GED no período. Os argumentos de usuário são **logins**
+(resolvidos para userCode internamente; login inexistente = exit 4, nunca filtro
+ignorado). Alias: `substitute`.
+
+| comando | efeito |
+|---|---|
+| `replacement list [--user login] [--replaced-by login] [--limit N]` | lista as substituições (filtros por titular/substituto) |
+| `replacement show <login> [--valid-only]` | substituições de um usuário, com escopo Workflow/GED; `--valid-only` = só as vigentes hoje |
+| `replacement create <titular> <substituto> --end YYYY-MM-DD [--start YYYY-MM-DD] [--workflow-tasks] [--ged-tasks]` | define um substituto (--start default hoje; par+período duplicado = exit 5) |
+| `replacement update <titular> <substituto> [--start] [--end] [--workflow-tasks] [--ged-tasks]` | altera a substituição (merge; par inexistente = exit 4) |
+| `replacement delete <titular> <substituto>` | remove a substituição (inexistente = exit 4) |
+
+`--workflow-tasks` (default true) e `--ged-tasks` (default false) definem o
+escopo. `list` vem da REST v2 (sem as flags de escopo); `show` vem do SOAP (com
+as flags, e inclui as vigências expiradas).
 
 ## document — GED (operação)
 

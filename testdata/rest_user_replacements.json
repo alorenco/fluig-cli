@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "startAt": "2025-01-15T00:00:00.000-0400",
+      "endAt": "2050-12-31T00:00:00.000-0400",
+      "replacementJustify": "Férias",
+      "processIdList": [],
+      "user": {
+        "code": "0f8ff1ed-5068-4d92-8b61-31af79fc1451",
+        "name": "Ana Andrade",
+        "mail": "ana.andrade@exemplo.com",
+        "login": "aandrade",
+        "local": null,
+        "_expandables": ["local"]
+      },
+      "replacedByUser": {
+        "code": "5532a729-7ef0-4f6f-bbb8-01cfd2eef584",
+        "name": "Bruno Barros",
+        "mail": "bruno.barros@exemplo.com",
+        "login": "bbarros",
+        "local": null,
+        "_expandables": ["local"]
+      }
+    },
+    {
+      "startAt": "2020-11-27T00:00:00.000-0400",
+      "endAt": "2050-12-31T00:00:00.000-0400",
+      "replacementJustify": "",
+      "processIdList": [],
+      "user": {
+        "code": "1209648f6df211ea92c00a5864603108",
+        "name": "Carla Costa",
+        "mail": "carla.costa@exemplo.com",
+        "login": "ccosta",
+        "local": null,
+        "_expandables": ["local"]
+      },
+      "replacedByUser": {
+        "code": "w1hk0x171tabcet51556165023722",
+        "name": "Diego Dias",
+        "mail": "diego.dias@exemplo.com",
+        "login": "ddias",
+        "local": null,
+        "_expandables": ["local"]
+      }
+    }
+  ],
+  "hasNext": false
+}
