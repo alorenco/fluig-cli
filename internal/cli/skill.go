@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,6 +20,17 @@ import (
 const (
 	skillBlockStart = "<!-- fluigcli:start (gerado por `fluigcli skill install`; não edite à mão) -->"
 	skillBlockEnd   = "<!-- fluigcli:end -->"
+)
+
+const (
+	// skillVersionFile carimba, na skill instalada, a versão do fluigcli que a
+	// gerou — o aviso de skill desatualizada compara essa versão com a do
+	// binário (em vez de bytes, que confundiriam edição local com versão velha).
+	skillVersionFile = ".fluigcli-version"
+	// envNoSkillCheck desativa o aviso de skill desatualizada.
+	envNoSkillCheck = "FLUIGCLI_NO_SKILL_CHECK"
+	// skillNoticeMaxAge limita o aviso de skill a 1×/dia por versão.
+	skillNoticeMaxAge = 24 * time.Hour
 )
 
 // skillFileResult descreve o que aconteceu com um arquivo na instalação.
@@ -69,6 +83,11 @@ func newSkillInstallCmd(app *App) *cobra.Command {
 					return err
 				}
 				results = append(results, r...)
+				// Carimba a versão que gerou esta skill (best-effort; não falha
+				// a instalação se não conseguir gravar).
+				if err := writeSkillVersionStamp(claudeSkillDir(base), app.Version); err != nil {
+					p.Warnf("não foi possível registrar a versão da skill: %v", err)
+				}
 			}
 			if target == "codex" || target == "all" {
 				r, err := installCodexSkill(base)
@@ -287,6 +306,106 @@ func codexSkillBlock() (string, error) {
 		return "", output.Genericf("falha ao ler o guia do Codex embutido: %s", err)
 	}
 	return strings.TrimRight(string(data), "\n"), nil
+}
+
+// claudeSkillDir devolve o diretório da skill do Claude Code sob base.
+func claudeSkillDir(base string) string {
+	return filepath.Join(base, ".claude", "skills", "fluigcli")
+}
+
+// writeSkillVersionStamp grava a versão do fluigcli que gerou a skill. Versões
+// sem sentido (build dev ou vazia) não são carimbadas — o aviso as ignora.
+func writeSkillVersionStamp(skillDir, version string) error {
+	if version == "" || version == "dev" {
+		return nil
+	}
+	return os.WriteFile(filepath.Join(skillDir, skillVersionFile), []byte(version+"\n"), 0o644)
+}
+
+// readSkillVersionStamp lê a versão carimbada na skill instalada ("" se ausente).
+func readSkillVersionStamp(skillDir string) string {
+	data, err := os.ReadFile(filepath.Join(skillDir, skillVersionFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// projectSkillInstalled indica se a skill do Claude Code está instalada no
+// projeto atual e devolve o diretório dela.
+func (a *App) projectSkillInstalled() (string, bool) {
+	root := a.ProjectRoot()
+	if root == "" {
+		return "", false
+	}
+	dir := claudeSkillDir(root)
+	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
+		return "", false
+	}
+	return dir, true
+}
+
+// skillNoticeCachePath devolve o arquivo de throttle do aviso de skill.
+func skillNoticeCachePath() (string, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "fluigcli", "skill-check.json"), nil
+}
+
+// skillNoticeShouldShow aplica o throttle: avisa no máximo 1×/dia por versão do
+// binário (reavisa quando a versão muda). Best-effort — falha de I/O deixa
+// avisar. Registra o momento/versão do aviso quando devolve true.
+func skillNoticeShouldShow(cachePath, version string, now time.Time) bool {
+	var st struct {
+		NotifiedAt time.Time `json:"notified_at"`
+		Version    string    `json:"version"`
+	}
+	if raw, err := os.ReadFile(cachePath); err == nil {
+		_ = json.Unmarshal(raw, &st)
+	}
+	if st.Version == version && !st.NotifiedAt.IsZero() && now.Sub(st.NotifiedAt) < skillNoticeMaxAge {
+		return false
+	}
+	st.NotifiedAt, st.Version = now, version
+	if raw, err := json.Marshal(st); err == nil {
+		_ = os.MkdirAll(filepath.Dir(cachePath), 0o700)
+		_ = os.WriteFile(cachePath, raw, 0o600)
+	}
+	return true
+}
+
+// maybeNotifySkillUpdate sugere reinstalar a skill quando a versão carimbada na
+// skill instalada no projeto difere da do binário. Best-effort, só no stderr e
+// em TTY; silencioso em build dev, sem projeto/skill, com FLUIGCLI_NO_SKILL_CHECK
+// ou nos comandos skill/upgrade/completion.
+func maybeNotifySkillUpdate(app *App) {
+	if app.Version == "" || app.Version == "dev" {
+		return
+	}
+	if v := os.Getenv(envNoSkillCheck); v == "1" || strings.EqualFold(v, "true") {
+		return
+	}
+	if !output.StderrIsTTY() || app.printer == nil {
+		return
+	}
+	if c := app.printer.Command; strings.HasPrefix(c, "skill") || strings.HasPrefix(c, "upgrade") || strings.HasPrefix(c, "completion") {
+		return
+	}
+	dir, ok := app.projectSkillInstalled()
+	if !ok {
+		return
+	}
+	if readSkillVersionStamp(dir) == app.Version {
+		return
+	}
+	cachePath, err := skillNoticeCachePath()
+	if err != nil || !skillNoticeShouldShow(cachePath, app.Version, time.Now()) {
+		return
+	}
+	fmt.Fprintf(os.Stderr,
+		"\na skill do fluigcli neste projeto é de uma versão anterior — atualize com: fluigcli skill install --force\n")
 }
 
 // isHome informa se dir é o diretório do usuário (define o layout do Codex).

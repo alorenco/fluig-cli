@@ -54,6 +54,16 @@ Comportamento:
 Com `--json`, `data` traz `{target, files:[{path, status}]}`, com `status` em
 `written` · `updated` · `unchanged` · `skipped`.
 
+### Aviso de versão desatualizada
+
+Ao instalar o alvo `claude`, a CLI grava a versão que gerou a skill em
+`.claude/skills/fluigcli/.fluigcli-version`. Depois de um `fluigcli upgrade`, ou
+em qualquer comando rodado num projeto cuja skill seja de uma versão anterior, a
+CLI **sugere no stderr** rodar `fluigcli skill install --force` (no máximo
+1×/dia por versão, só em terminal interativo, nunca no `--json`). É só uma
+sugestão. Desative com `FLUIGCLI_NO_SKILL_CHECK=1`. Ver também
+[upgrade](upgrade.md).
+
 ## `fluigcli skill show`
 
 Imprime o guia no stdout — útil para inspecionar ou canalizar para outra

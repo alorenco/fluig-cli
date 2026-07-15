@@ -271,6 +271,7 @@ func Main(version, commit, date string) int {
 	err := root.Execute()
 	if err == nil {
 		maybeNotifyUpdate(app)
+		maybeNotifySkillUpdate(app)
 		return output.ExitOK
 	}
 

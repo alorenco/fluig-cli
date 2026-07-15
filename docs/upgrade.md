@@ -31,6 +31,24 @@ Para desativar (ex.: em CI ou por preferência):
 export FLUIGCLI_NO_UPDATE_CHECK=1
 ```
 
+## Aviso de skill desatualizada
+
+A skill de agente (`fluigcli skill install`) evolui junto com a CLI. Ao instalar,
+a CLI **carimba a versão** que gerou a skill (`.claude/skills/fluigcli/.fluigcli-version`).
+
+- Logo após um `upgrade` bem-sucedido, se a skill estiver instalada no projeto
+  atual, a CLI **sugere** atualizá-la: `fluigcli skill install --force`.
+- Em qualquer comando, se a skill instalada no projeto for de uma versão
+  anterior à do binário, a CLI avisa **no stderr** (no máximo **1×/dia por
+  versão**, só em terminal interativo, nunca no `--json`). É só uma sugestão —
+  nada é reescrito sem você rodar o `skill install`.
+
+Para desativar esse aviso:
+
+```sh
+export FLUIGCLI_NO_SKILL_CHECK=1
+```
+
 ## Saída `--json`
 
 ```json

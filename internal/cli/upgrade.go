@@ -118,6 +118,12 @@ func newUpgradeCmd(app *App) *cobra.Command {
 			if runtime.GOOS == "windows" {
 				p.Infof("O binário antigo ficou como %s.old — pode apagar quando quiser.", exe)
 			}
+			// Se a skill está instalada neste projeto, ela ficou de uma versão
+			// anterior — sugere atualizar (o skill install seguinte já usa o
+			// binário novo). Só sugere; não escreve nada no projeto.
+			if _, ok := app.projectSkillInstalled(); ok {
+				p.Infof("A skill do fluigcli está instalada neste projeto — atualize-a com: fluigcli skill install --force")
+			}
 			p.Done(upgradeResult{Current: current, Latest: target, Updated: true, Path: exe})
 			return nil
 		},
