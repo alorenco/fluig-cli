@@ -23,3 +23,18 @@ export function loading(target: string | Element | Window = window): { show(): v
 		hide: () => console.log('[loading] hide'),
 	}
 }
+
+/** Diálogo de confirmação do style guide (fallback: confirm nativo). */
+export function confirmDialog(message: string, title = 'Confirmação'): Promise<boolean> {
+	return new Promise((resolve) => {
+		const F = (window as any).FLUIGC
+		if (F?.message?.confirm) {
+			F.message.confirm(
+				{ message, title, labelYes: 'Continuar', labelNo: 'Cancelar' },
+				(result: boolean) => resolve(!!result),
+			)
+		} else {
+			resolve(window.confirm(message))
+		}
+	})
+}
