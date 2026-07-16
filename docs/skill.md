@@ -4,7 +4,7 @@ Instala e exibe a Skill que ensina agentes de IA (Claude Code, Codex e afins) a
 usar o fluigcli corretamente: o contrato de saída `--json`, os exit codes e o
 mapa de comandos.
 
-O conteúdo canônico fica versionado em [`skills/fluigcli/`](../skills/fluigcli/)
+O conteúdo canônico fica versionado em [`skills/fluigcli/`](https://github.com/alorenco/fluig-cli/tree/main/skills/fluigcli)
 e é **embutido no binário** — a instalação não acessa a rede. Assim há uma única
 fonte da verdade: o mesmo material que você lê no repositório é o que é instalado.
 

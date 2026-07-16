@@ -15,3 +15,8 @@
 /ROADMAP.md
 /CLAUDE.md
 /FLUIG-APIS.md
+
+# Site de documentação (VitePress) — toolchain e build ficam fora do Git
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/

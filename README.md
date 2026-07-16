@@ -21,6 +21,8 @@ não-interativo, saída JSON e exit codes estáveis. Hoje cobre datasets,
 formulários, eventos globais, mecanismos de atribuição, scripts de processo e
 widgets — e a lista de recursos continua crescendo.
 
+📖 **Documentação completa:** <https://alorenco.github.io/fluig-cli/>
+
 ## Instalação
 
 **Linux e macOS:**
