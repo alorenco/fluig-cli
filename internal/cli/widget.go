@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -14,17 +15,81 @@ import (
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
+	"github.com/alorenco/fluig-cli/internal/scaffold"
 )
 
 func newWidgetCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "widget",
-		Short: "Lista, importa e exporta widgets (export = local → servidor; deploy nativo)",
+		Short: "Cria, lista, importa e exporta widgets (export = local → servidor; deploy nativo)",
 	}
+	cmd.AddCommand(newWidgetNewCmd(app))
 	cmd.AddCommand(newWidgetListCmd(app))
 	cmd.AddCommand(newWidgetImportCmd(app))
 	cmd.AddCommand(newWidgetExportCmd(app))
 	return cmd
+}
+
+// --- widget new (scaffold local, sem servidor) ---
+
+func newWidgetNewCmd(app *App) *cobra.Command {
+	var (
+		title    string
+		category string
+		template string
+	)
+	cmd := &cobra.Command{
+		Use:   "new <code>",
+		Short: "Cria um widget local a partir de um template (scaffold)",
+		Long: "Gera em wcm/widget/<code> o esqueleto completo de um widget no padrão\n" +
+			"oficial do Fluig (application.info, view/edit.ftl, i18n, JS SuperWidget,\n" +
+			"CSS, ícone e README com o passo a passo). Nada é enviado ao servidor —\n" +
+			"publique depois com `fluigcli widget export <code>`.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
+			code := args[0]
+			if err := scaffold.ValidateCode(code); err != nil {
+				return output.Usagef("%s", err)
+			}
+			widgetDir := project.WidgetDir(root, code)
+			files, err := scaffold.CreateWidget(widgetDir, scaffold.Options{
+				Code:          code,
+				Title:         title,
+				Category:      category,
+				Template:      template,
+				DeveloperName: scaffoldDeveloperName(),
+			})
+			switch {
+			case errors.Is(err, scaffold.ErrUnknownTemplate), errors.Is(err, scaffold.ErrDirExists):
+				return output.Usagef("%s", err)
+			case err != nil:
+				return err
+			}
+			relDir := filepath.ToSlash(filepath.Join(project.WidgetsDir, code))
+			p.Successf("widget %q criado em %s (template %s, %d arquivos)", code, relDir, template, len(files))
+			p.Infof("Próximos passos: leia o %s/README.md; desenvolva com `fluigcli dev`; publique com `fluigcli widget export %s`.", relDir, code)
+			p.Done(map[string]any{"widget": code, "template": template, "dir": relDir, "files": files})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&title, "title", "", "título do widget (padrão: o próprio código)")
+	cmd.Flags().StringVar(&category, "category", "SYSTEM", "categoria no application.info")
+	cmd.Flags().StringVar(&template, "template", "classic", "template do esqueleto (disponível: classic)")
+	return cmd
+}
+
+// scaffoldDeveloperName resolve o developer.name do application.info: o usuário
+// do SO, com fallback neutro.
+func scaffoldDeveloperName() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return "fluigcli"
 }
 
 // --- widget list (fluiggersWidget; fallback nativo) ---

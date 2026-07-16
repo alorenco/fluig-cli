@@ -1,0 +1,7 @@
+/* Estilos da widget [[.Code]].
+   Prefixe todo seletor com o container da widget para não vazar para o
+   restante do portal (o CSS entra global na página). */
+
+[id^="[[.CamelCode]]_"] .panel-title {
+	font-weight: bold;
+}

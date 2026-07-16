@@ -248,3 +248,53 @@ func TestWidgetListTabela(t *testing.T) {
 		}
 	}
 }
+
+// widget new gera o esqueleto no projeto, sem tocar o servidor.
+func TestWidgetNew(t *testing.T) {
+	proj := t.TempDir()
+	code, stdout := runMain(t, "widget", "new", "meu_painel", "--title", "Meu Painel", "--project", proj, "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("stdout não é JSON: %v\n%s", err, stdout)
+	}
+	data, _ := env.Data.(map[string]any)
+	if data["widget"] != "meu_painel" || data["template"] != "classic" || data["dir"] != "wcm/widget/meu_painel" {
+		t.Errorf("data inesperado: %+v", data)
+	}
+	files, _ := data["files"].([]any)
+	if len(files) != 13 {
+		t.Errorf("files = %d, quer 13: %v", len(files), files)
+	}
+	// Espelho no disco: manifesto e README no lugar.
+	for _, rel := range []string{
+		"wcm/widget/meu_painel/src/main/resources/application.info",
+		"wcm/widget/meu_painel/README.md",
+	} {
+		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("arquivo esperado ausente: %s (%v)", rel, err)
+		}
+	}
+
+	// Repetir o comando é erro de uso (a pasta já existe).
+	code, _ = runMain(t, "widget", "new", "meu_painel", "--project", proj, "--json")
+	if code != output.ExitUsage {
+		t.Errorf("repetição: exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+// Código e template inválidos são erro de uso (exit 2), sem criar nada.
+func TestWidgetNewValidacoes(t *testing.T) {
+	proj := t.TempDir()
+	if code, _ := runMain(t, "widget", "new", "Maiusculo", "--project", proj, "--json"); code != output.ExitUsage {
+		t.Errorf("code inválido: exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if code, _ := runMain(t, "widget", "new", "ok_widget", "--template", "vue", "--project", proj, "--json"); code != output.ExitUsage {
+		t.Errorf("template inexistente: exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if entries, _ := os.ReadDir(proj); len(entries) != 0 {
+		t.Errorf("nada deveria ter sido criado: %v", entries)
+	}
+}

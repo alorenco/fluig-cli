@@ -11,9 +11,32 @@ wcm/widget/<NomeWidget>/
     └── webapp/resources/   # js, css, imagens
 ```
 
+- **new** = scaffold local (cria o esqueleto; nada vai ao servidor).
 - **export** = projeto local → servidor (deploy). **Nativo** (`uploadfile`).
 - **import** = servidor → projeto local. Via **fluiggersWidget** (o Fluig não
   expõe o download do pacote da widget nativamente — confirmado na Voyager 2.0.0).
+
+## `fluigcli widget new <code>`
+
+Cria `wcm/widget/<code>/` com o esqueleto completo no padrão oficial do Fluig
+(o mesmo dos samples da TOTVS): `application.info`, `view.ftl`/`edit.ftl`,
+properties de i18n (base + pt_BR/en_US/es), `jboss-web.xml` com o
+context-root, JS no padrão `SuperWidget` (com um binding de exemplo), CSS,
+ícone e um `README.md` com o passo a passo de desenvolvimento e deploy — o
+README fica na raiz da widget e **não** entra no WAR.
+
+```sh
+fluigcli widget new meu_painel --title "Meu Painel"
+fluigcli widget export meu_painel   # publica quando quiser
+```
+
+- `<code>` vira context-root, id de DOM e global JS: minúsculas, dígitos e
+  `_`, começando por letra (ex.: `meu_painel` → global `MeuPainel`).
+- Flags: `--title` (padrão: o código), `--category` (padrão: `SYSTEM`) e
+  `--template` (padrão: `classic`, o esqueleto sem toolchain; templates
+  `vue`/`react` estão no roadmap).
+- A pasta não pode existir; código/template inválidos = exit 2, sem criar nada.
+- No `--json`: `{widget, template, dir, files}`.
 
 ## `fluigcli widget list`
 

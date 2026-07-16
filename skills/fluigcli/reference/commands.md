@@ -12,6 +12,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 
 | quero… | comando |
 |---|---|
+| criar um widget novo do zero (esqueleto no padrão oficial) | `widget new <code>` |
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
@@ -192,6 +193,7 @@ as flags, e inclui as vigências expiradas).
 
 | comando | direção | efeito |
 |---|---|---|
+| `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir) |
 | `widget list` | — | lista os widgets do servidor (fluiggersWidget; sem ela usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo) |
