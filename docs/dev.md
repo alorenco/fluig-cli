@@ -60,6 +60,25 @@ descompactar, sem limpeza de cache.** Vale também para widgets-biblioteca
   neles não recarrega (recarregar mentiria que a mudança apareceu) — sai um
   aviso pedindo `fluigcli widget export <code>`.
 
+### Widgets SPA (templates vue/react do `widget new`)
+
+Widget com `package.json` na raiz é tratada como SPA compilada:
+
+- **`--npm-watch`**: o dev server roda o `npm run watch` de cada widget SPA
+  do projeto (saída no log com o prefixo `[<code>]`) e encerra tudo junto no
+  Ctrl+C — desenvolvimento no portal real com **um comando só**. Widget sem
+  `node_modules/` é pulada com aviso (rode `npm install` e reinicie); sem a
+  flag, rode o `npm run watch` você mesmo.
+- Editar a **fonte** da SPA (`src/vue/`, `src/react/`, `vite.config.ts`...)
+  não dispara reload nem aviso: quem recarrega é a escrita do **bundle** em
+  `src/main/webapp/resources/` feita pelo Vite (js + css na mesma rajada =
+  um reload só, pelo debounce).
+- Na largada, o dev avisa **bundle ausente ou desatualizado** (fonte mais
+  nova que o js compilado) — sem isso o portal serviria o js velho e a
+  mudança "não apareceria".
+- `node_modules/` fica fora da observação (um `npm install` com o dev no ar
+  não estoura o limite de watches do SO nem gera reloads).
+
 ## Formulários
 
 `/_dev/forms/` lista os formulários do projeto; cada um tem preview local
@@ -227,6 +246,7 @@ consulta.
   tailnet funciona sem configuração extra.
 - `--debounce <dur>` (padrão `500ms`): espera após o salvamento antes de
   recarregar, agrupando rajadas do editor.
+- `--npm-watch`: roda o `npm run watch` das widgets SPA (ver a seção acima).
 - O live reload observa `forms/` e `wcm/widget/` (SSE injetado nas páginas
   HTML; nada é alterado no servidor).
 - Redirects e URLs absolutas que o portal embute (ex.: `WCMAPI.serverURL`)

@@ -132,6 +132,9 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 				if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Rename|fsnotify.Remove) == 0 {
 					continue
 				}
+				if inNodeModules(ev.Name) {
+					continue
+				}
 				inWidgets := within(s.opts.Root, project.WidgetsDir, ev.Name)
 				if inWidgets {
 					// Widget nova ou jboss-web.xml editado mudam o map-local.
@@ -151,6 +154,9 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 						// o render local.
 						s.clearWarn("ftl:" + m.appCode)
 					} else if code, serverSide := widgetServerSidePath(s.opts.Root, ev.Name); serverSide {
+						if spaSourceEvent(s.opts.Root, code, ev.Name) {
+							continue
+						}
 						// Avisa no máximo uma vez por widget a cada rajada.
 						if time.Since(warned[code]) > 2*time.Second {
 							warned[code] = time.Now()
@@ -181,17 +187,45 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 	return func() { _ = w.Close() }, nil
 }
 
-// addRecursive observa dir e todas as subpastas.
+// addRecursive observa dir e todas as subpastas — exceto node_modules (widget
+// SPA): milhares de pastas que estourariam o limite de watches do SO.
 func addRecursive(w *fsnotify.Watcher, dir string) error {
 	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
-			return w.Add(p)
+		if !d.IsDir() {
+			return nil
 		}
-		return nil
+		if strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" {
+			return fs.SkipDir
+		}
+		return w.Add(p)
 	})
+}
+
+// inNodeModules identifica eventos dentro de node_modules (ex.: npm install
+// com o dev server no ar) — ignorados por completo.
+func inNodeModules(path string) bool {
+	sep := string(filepath.Separator)
+	return strings.Contains(path, sep+"node_modules"+sep) ||
+		strings.HasSuffix(path, sep+"node_modules")
+}
+
+// spaSourceEvent identifica mudança em fonte/toolchain de widget SPA (tudo
+// fora de src/main/ numa widget com package.json): não recarrega nem avisa —
+// o npm watch compila e a escrita do bundle em src/main/webapp/resources é
+// quem dispara o reload.
+func spaSourceEvent(root, code, path string) bool {
+	widgetDir := filepath.Join(root, project.WidgetsDir, code)
+	if !isSPAWidgetDir(widgetDir) {
+		return false
+	}
+	rel, err := filepath.Rel(widgetDir, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return false
+	}
+	return !strings.HasPrefix(filepath.ToSlash(rel), "src/main/")
 }
 
 // within informa se path está sob <root>/<sub>.

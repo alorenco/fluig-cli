@@ -62,13 +62,14 @@ nenhuma credencial fica em arquivo. Salvou um `.vue`, a tela atualiza na hora.
 ### Modo 2 — dentro do portal real
 
 ```sh
-npm run watch    # terminal 1: recompila o bundle a cada save
-fluigcli dev     # terminal 2: proxy do portal com live reload
+fluigcli dev --npm-watch    # na raiz do projeto: um comando só
 ```
 
-Navegue no portal pela porta local do `fluigcli dev`: o bundle é servido do
-disco e o navegador recarrega ao salvar. Use este modo para validar a widget
-no contexto real da página (outras widgets, tema, permissões).
+O dev server sobe o `npm run watch` de cada widget SPA do projeto (log
+prefixado com o código da widget), serve o bundle do disco e recarrega o
+navegador ao salvar. Navegue no portal pela porta local para validar a
+widget no contexto real da página (outras widgets, tema, permissões). Sem a
+flag, rode `npm run watch` você mesmo em outro terminal.
 
 ## Preferências por instância (edit.ftl)
 

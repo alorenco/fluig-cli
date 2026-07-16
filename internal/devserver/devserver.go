@@ -34,6 +34,7 @@ type Options struct {
 	Host     string         // endereço de escuta (padrão 127.0.0.1; ver ListensBeyondLoopback)
 	Port     int            // porta local
 	Debounce time.Duration  // espera após o salvamento antes de recarregar
+	NpmWatch bool           // roda `npm run watch` das widgets SPA (vue/react)
 	Infof    func(format string, args ...any)
 	Warnf    func(format string, args ...any)
 
@@ -192,6 +193,13 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 	defer stopWatch()
+
+	// Widgets SPA: avisa bundle ausente/desatualizado (o portal serviria o js
+	// velho) e, com --npm-watch, mantém o `npm run watch` delas rodando.
+	s.warnStaleBundles()
+	if s.opts.NpmWatch {
+		s.startNpmWatch(ctx)
+	}
 
 	srv := &http.Server{Handler: s.handler}
 	done := make(chan struct{})

@@ -227,7 +227,7 @@ prefira `diff` + `export`.
 
 | comando | efeito |
 |---|---|
-| `dev` | proxy local autenticado do portal: serve JS/CSS **e o markup do view.ftl** das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` — com painel de simulação de processo (executa o `events/displayFields.js` local com WKNumState/WKUser/formMode escolhidos; form vinculado por `form link` ganha as etapas reais pelo nome) — e recarrega o navegador ao salvar |
+| `dev` | proxy local autenticado do portal: serve JS/CSS **e o markup do view.ftl** das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` — com painel de simulação de processo (executa o `events/displayFields.js` local com WKNumState/WKUser/formMode escolhidos; form vinculado por `form link` ganha as etapas reais pelo nome) — e recarrega o navegador ao salvar; `--npm-watch` roda o `npm run watch` das widgets SPA (vue/react) junto |
 
 Só roda em servidor `dev`/`hml`; escuta em `127.0.0.1` por padrão (`--listen`
 muda, com aviso — ex.: IP de tailnet em servidor remoto); sem `--json`.
