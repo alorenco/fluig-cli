@@ -218,7 +218,7 @@ func inNodeModules(path string) bool {
 // quem dispara o reload.
 func spaSourceEvent(root, code, path string) bool {
 	widgetDir := filepath.Join(root, project.WidgetsDir, code)
-	if !isSPAWidgetDir(widgetDir) {
+	if !project.IsSPAWidgetDir(widgetDir) {
 		return false
 	}
 	rel, err := filepath.Rel(widgetDir, path)

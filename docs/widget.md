@@ -75,6 +75,10 @@ fluigcli widget export meu_painel   # publica quando quiser
     dark mode funciona sozinho) — sem UI kit embutido.
   - O `README.md` gerado na widget traz o passo a passo completo
     (pré-requisitos, dev, build, deploy).
+  - Deploy em um comando: `fluigcli widget export <code> --build` roda o
+    `npm run build` antes de empacotar (falha de build = exit 2, nada é
+    enviado). Sem `--build`, o export avisa quando o bundle está
+    desatualizado em relação à fonte.
 
 ## `fluigcli widget list`
 

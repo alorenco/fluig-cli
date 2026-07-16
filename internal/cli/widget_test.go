@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -314,5 +315,82 @@ func TestWidgetNewVue(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("arquivo esperado ausente: %s (%v)", rel, err)
 		}
+	}
+}
+
+// --build em widget sem package.json é erro de uso, sem tocar o servidor.
+func TestWidgetExportBuildSemPackageJSON(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	base := filepath.Join(proj, "wcm", "widget", "cla")
+	os.MkdirAll(filepath.Join(base, "src", "main", "resources"), 0o755)
+	os.WriteFile(filepath.Join(base, "src", "main", "resources", "application.info"), []byte("x"), 0o644)
+
+	code, _ := runMain(t, "widget", "export", "cla", "--build", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "" {
+		t.Errorf("nada deveria ter sido enviado; upload=%q", stub.uploadedName)
+	}
+}
+
+// --build com falha do npm aborta com exit 2 antes do upload.
+func TestWidgetExportBuildFalha(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	base := filepath.Join(proj, "wcm", "widget", "spa")
+	write := func(rel, content string) {
+		p := filepath.Join(base, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(content), 0o644)
+	}
+	write("package.json", "{}")
+	write("src/main/resources/application.info", "x")
+
+	orig := npmBuildCommand
+	npmBuildCommand = func(dir string) *exec.Cmd { return exec.Command("comando-que-nao-existe-xyz") }
+	defer func() { npmBuildCommand = orig }()
+
+	code, _ := runMain(t, "widget", "export", "spa", "--build", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "" {
+		t.Errorf("build falhou mas houve upload=%q", stub.uploadedName)
+	}
+}
+
+// --build com sucesso segue para o empacotamento/upload normal.
+func TestWidgetExportBuildOK(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	base := filepath.Join(proj, "wcm", "widget", "spa2")
+	write := func(rel, content string) {
+		p := filepath.Join(base, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(content), 0o644)
+	}
+	write("package.json", "{}")
+	write("src/main/resources/application.info", "x")
+	write("src/main/webapp/resources/js/spa2.js", "bundle")
+
+	orig := npmBuildCommand
+	// "go version" existe em qualquer máquina que roda os testes.
+	npmBuildCommand = func(dir string) *exec.Cmd { return exec.Command("go", "version") }
+	defer func() { npmBuildCommand = orig }()
+
+	code, _ := runMain(t, "widget", "export", "spa2", "--build", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "spa2.war" {
+		t.Errorf("upload=%q, quer spa2.war", stub.uploadedName)
 	}
 }

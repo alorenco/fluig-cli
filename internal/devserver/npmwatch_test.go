@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 // monta uma widget SPA falsa: package.json + fonte + (opcional) bundle.
@@ -37,7 +39,7 @@ func TestFindSPAWidgets(t *testing.T) {
 	// widget classic (sem package.json) não conta
 	os.MkdirAll(filepath.Join(root, "wcm", "widget", "classica", "src"), 0o755)
 
-	ws := findSPAWidgets(root)
+	ws := project.FindSPAWidgets(root)
 	if len(ws) != 1 || ws[0].Code != "spa_um" {
 		t.Fatalf("findSPAWidgets = %+v", ws)
 	}
@@ -47,25 +49,25 @@ func TestStaleBundle(t *testing.T) {
 	root := t.TempDir()
 
 	// Sem bundle: precisa avisar.
-	w := spaWidget{Code: "sem_bundle", Dir: fakeSPAWidget(t, root, "sem_bundle", false)}
-	if got := staleBundle(w); got == "" {
+	w := project.SPAWidget{Code: "sem_bundle", Dir: fakeSPAWidget(t, root, "sem_bundle", false)}
+	if got := project.StaleBundle(w); got == "" {
 		t.Errorf("sem bundle deveria avisar")
 	}
 
 	// Bundle mais novo que a fonte: em dia.
-	w2 := spaWidget{Code: "em_dia", Dir: fakeSPAWidget(t, root, "em_dia", true)}
+	w2 := project.SPAWidget{Code: "em_dia", Dir: fakeSPAWidget(t, root, "em_dia", true)}
 	old := time.Now().Add(-time.Hour)
 	for _, rel := range []string{"package.json", "src/vue/App.vue"} {
 		os.Chtimes(filepath.Join(w2.Dir, filepath.FromSlash(rel)), old, old)
 	}
-	if got := staleBundle(w2); got != "" {
+	if got := project.StaleBundle(w2); got != "" {
 		t.Errorf("bundle em dia avisou: %q", got)
 	}
 
 	// Fonte editada depois do build: desatualizado (node_modules não conta).
 	novo := time.Now().Add(time.Hour)
 	os.Chtimes(filepath.Join(w2.Dir, "src", "vue", "App.vue"), novo, novo)
-	if got := staleBundle(w2); got == "" {
+	if got := project.StaleBundle(w2); got == "" {
 		t.Errorf("fonte mais nova deveria avisar")
 	}
 }

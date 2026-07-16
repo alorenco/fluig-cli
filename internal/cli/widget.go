@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -264,7 +265,10 @@ func (a *App) importOneWidget(ctx context.Context, client *fluig.Client, root st
 // --- widget export (local → servidor, deploy nativo) ---
 
 func newWidgetExportCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var (
+		build         bool
+		passwordStdin bool
+	)
 	cmd := &cobra.Command{
 		Use:   "export <NomeWidget>",
 		Short: "Empacota e publica um widget no servidor (deploy nativo)",
@@ -279,6 +283,22 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 			widgetDir := project.WidgetDir(root, name)
 			if info, err := os.Stat(widgetDir); err != nil || !info.IsDir() {
 				return output.NotFoundf("widget %q não encontrado em %s", name, project.WidgetsDir)
+			}
+
+			// Widget SPA (vue/react): --build compila antes de empacotar;
+			// sem --build, bundle desatualizado vira aviso (o WAR levaria o
+			// js velho e a mudança "não apareceria").
+			switch {
+			case build && !project.IsSPAWidgetDir(widgetDir):
+				return output.Usagef("--build exige um widget com package.json (template vue/react); %q não tem", name)
+			case build:
+				if err := runNpmBuild(p, widgetDir); err != nil {
+					return err
+				}
+			case project.IsSPAWidgetDir(widgetDir):
+				if reason := project.StaleBundle(project.SPAWidget{Code: name, Dir: widgetDir}); reason != "" {
+					p.Warnf("widget %q: %s — ou publique com widget export --build", name, reason)
+				}
 			}
 
 			refs, err := project.CollectWidgetWARFiles(widgetDir)
@@ -314,6 +334,31 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&build, "build", false, "roda `npm run build` no widget (template vue/react) antes de empacotar")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// npmBuildCommand monta o comando do build (variável para os testes trocarem).
+var npmBuildCommand = func(dir string) *exec.Cmd {
+	cmd := exec.Command("npm", "run", "build")
+	cmd.Dir = dir
+	return cmd
+}
+
+// runNpmBuild compila o bundle da widget SPA antes do empacotamento. A saída
+// do npm vai para o stderr (o stdout é do envelope JSON); falha de build =
+// exit 2, sem tocar o servidor.
+func runNpmBuild(p *output.Printer, dir string) error {
+	if _, err := exec.LookPath("npm"); err != nil {
+		return output.Usagef("--build: npm não encontrado no PATH — instale o Node.js (ver .nvmrc da widget)")
+	}
+	p.Infof("compilando o bundle (npm run build)…")
+	cmd := npmBuildCommand(dir)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return output.Usagef("npm run build falhou (%v) — nada foi enviado ao servidor", err)
+	}
+	return nil
 }

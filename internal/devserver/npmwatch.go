@@ -17,77 +17,11 @@ import (
 // diferente no live reload (a fonte é compilada pelo Vite, não servida) e
 // pode rodar o `npm run watch` delas (--npm-watch).
 
-// spaWidget descreve uma widget com toolchain npm.
-type spaWidget struct {
-	Code string // nome da pasta (== código/context-root nos templates da CLI)
-	Dir  string // caminho absoluto da widget
-}
-
-// findSPAWidgets varre wcm/widget/ atrás de widgets com package.json.
-func findSPAWidgets(root string) []spaWidget {
-	base := filepath.Join(root, project.WidgetsDir)
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		return nil
-	}
-	var out []spaWidget
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		dir := filepath.Join(base, e.Name())
-		if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
-			out = append(out, spaWidget{Code: e.Name(), Dir: dir})
-		}
-	}
-	return out
-}
-
-// isSPAWidgetDir informa se a pasta de uma widget tem toolchain npm.
-func isSPAWidgetDir(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, "package.json"))
-	return err == nil
-}
-
-// staleBundle compara o bundle compilado com as fontes da SPA. Devolve o
-// motivo do aviso ("" = em dia). Heurística por mtime: qualquer arquivo fora
-// de src/main/ e node_modules/ mais novo que o js indica fonte não compilada.
-func staleBundle(w spaWidget) string {
-	bundle := filepath.Join(w.Dir, "src", "main", "webapp", "resources", "js", w.Code+".js")
-	info, err := os.Stat(bundle)
-	if err != nil {
-		return "sem bundle compilado — rode: npm install && npm run build"
-	}
-	built := info.ModTime()
-	stale := false
-	_ = filepath.WalkDir(w.Dir, func(p string, d os.DirEntry, err error) error {
-		if err != nil || stale {
-			return filepath.SkipAll
-		}
-		if d.IsDir() {
-			name := d.Name()
-			if name == "node_modules" || name == "main" && filepath.Base(filepath.Dir(p)) == "src" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if fi, err := d.Info(); err == nil && fi.ModTime().After(built) {
-			stale = true
-			return filepath.SkipAll
-		}
-		return nil
-	})
-	if stale {
-		return "fonte mais nova que o bundle — rode: npm run build (ou use fluigcli dev --npm-watch)"
-	}
-	return ""
-}
-
 // warnStaleBundles avisa (na largada) sobre widgets SPA com bundle ausente ou
 // desatualizado — o portal serve o js velho e a mudança "não aparece".
 func (s *Server) warnStaleBundles() {
-	for _, w := range findSPAWidgets(s.opts.Root) {
-		if reason := staleBundle(w); reason != "" {
+	for _, w := range project.FindSPAWidgets(s.opts.Root) {
+		if reason := project.StaleBundle(w); reason != "" {
 			s.opts.Warnf("widget %s: %s", w.Code, reason)
 		}
 	}
@@ -103,7 +37,7 @@ var npmCommand = func(dir string) *exec.Cmd {
 // startNpmWatch dá spawn no `npm run watch` de cada widget SPA e replica a
 // saída no log com o prefixo da widget. Os processos morrem com o contexto.
 func (s *Server) startNpmWatch(ctx context.Context) {
-	widgets := findSPAWidgets(s.opts.Root)
+	widgets := project.FindSPAWidgets(s.opts.Root)
 	if len(widgets) == 0 {
 		s.opts.Warnf("--npm-watch: nenhuma widget com package.json em %s", project.WidgetsDir)
 		return
@@ -123,7 +57,7 @@ func (s *Server) startNpmWatch(ctx context.Context) {
 
 // runNpmWatch mantém um `npm run watch` vivo para a widget (re-lança em caso
 // de queda, com um respiro para não ciclar em erro permanente).
-func (s *Server) runNpmWatch(ctx context.Context, w spaWidget) {
+func (s *Server) runNpmWatch(ctx context.Context, w project.SPAWidget) {
 	for {
 		cmd := npmCommand(w.Dir)
 		setProcGroup(cmd)
