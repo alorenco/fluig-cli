@@ -1,0 +1,7 @@
+/* Estilos próprios da widget (importado no main.tsx; o build emite tudo em
+   css/[[.Code]].css). O React não tem <style scoped> — SEMPRE prefixe os
+   seletores com o container da widget para não vazar para o portal. */
+
+[id^="[[.CamelCode]]_"] .table {
+	margin-bottom: 12px;
+}

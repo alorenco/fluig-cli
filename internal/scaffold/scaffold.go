@@ -50,6 +50,7 @@ var codeRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 var templateLayers = map[string][]string{
 	"classic": {"classic"},
 	"vue":     {"_spa_core", "vue"},
+	"react":   {"_spa_core", "react"},
 }
 
 // Options parametriza a geração de um widget.

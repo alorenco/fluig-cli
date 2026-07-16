@@ -300,3 +300,55 @@ func TestSpaCoreNaoSelecionavel(t *testing.T) {
 		t.Errorf("_spa_core deveria ser template desconhecido, err=%v", err)
 	}
 }
+
+// Guarda anti-drift da B2: os helpers puros do kit (sem framework) precisam
+// ser byte a byte idênticos entre as variantes vue e react — uma correção em
+// um sem o outro é drift.
+func TestKitSemDriftEntreVariantes(t *testing.T) {
+	for _, f := range []string{"dataset.ts", "fluigc.ts", "i18n.ts"} {
+		vue, err := templatesFS.ReadFile("templates/vue/src/vue/fluig/" + f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		react, err := templatesFS.ReadFile("templates/react/src/react/fluig/" + f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(vue) != string(react) {
+			t.Errorf("fluig/%s divergiu entre vue e react — sincronize as duas cópias", f)
+		}
+	}
+}
+
+// O template react compõe o mesmo núcleo _spa_core da vue.
+func TestCreateWidgetReact(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "painel_react")
+	files, err := CreateWidget(dir, Options{Code: "painel_react", Template: "react", DeveloperName: "tester"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[filepath.ToSlash(f)] = true
+	}
+	for _, w := range []string{
+		"README.md", "package.json", "vite.config.ts", "tsconfig.json", "index.html",
+		"src/react/main.tsx", "src/react/App.tsx", "src/react/app.css",
+		"src/react/hooks/useDataset.ts", "src/react/fluig/dataset.ts",
+		"src/main/resources/application.info",
+		"src/main/resources/view.ftl",
+		"src/main/webapp/resources/css/painel_react.css",
+	} {
+		if !got[w] {
+			t.Errorf("arquivo esperado não gerado: %s", w)
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "src/react/main.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "win.PainelReact = win.SuperWidget.extend({") ||
+		!strings.Contains(string(b), "`painel_react-root-${instanceId}`") {
+		t.Errorf("main.tsx sem a ponte parametrizada")
+	}
+}

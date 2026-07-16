@@ -193,7 +193,7 @@ as flags, e inclui as vigências expiradas).
 
 | comando | direção | efeito |
 |---|---|---|
-| `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic\|vue`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir; template vue = SPA Vue 3+Vite, build com `npm run build` antes do export) |
+| `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic\|vue\|react`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir; templates vue/react = SPA Vue 3/React 19 + Vite, build com `npm run build` antes do export) |
 | `widget list` | — | lista os widgets do servidor (fluiggersWidget; sem ela usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo) |

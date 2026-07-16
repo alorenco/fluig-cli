@@ -42,6 +42,12 @@ fluigcli widget export meu_painel   # publica quando quiser
 
 - **`classic`** (padrão) — o esqueleto oficial puro, sem toolchain: FTL +
   JS `SuperWidget` + CSS. Nada para instalar; edite e publique.
+- **`react`** — igual ao `vue`, trocando a camada do framework: SPA
+  **React 19 + TypeScript + Vite**, fontes em `src/react/` (`main.tsx` monta
+  um root por instância; kit em hooks — `useDataset` etc.; estilos em
+  `app.css`, sempre prefixados com o container, já que o React não tem CSS
+  com escopo automático). Todo o resto — casca, dev, build, deploy — é
+  idêntico ao template vue abaixo.
 - **`vue`** — SPA **Vue 3 + TypeScript + Vite** dentro da casca oficial:
 
   ```sh
