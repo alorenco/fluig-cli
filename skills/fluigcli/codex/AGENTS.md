@@ -30,15 +30,21 @@ fluigcli dataset list --json
 fluigcli dataset export datasets/ds_x.js --json     # publica (local → servidor)
 ```
 
-Grupos: `server` (add|list|use|update|remove|test|logout|install-helper),
-`dataset` (list|import|export|query|enable|disable|history|restore), `event` (list|import|export|delete),
-`mechanism` (list|import|export|delete), `form` (list|import|export|link|records — CRUD de registros),
-`workflow` (list|version|import|export|publish), `widget` (list|import|export),
+Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
+`dataset` (new|list|import|export|query|enable|disable|history|restore), `event` (new|list|import|export|delete),
+`mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros),
+`workflow` (new-script|list|version|import|export|publish), `widget` (new|list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
 `document` (list|download|upload|mkdir|delete — GED),
-`user` (list|show|create|update|activate|deactivate — usuários; requer admin; senha do novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `diff` (local vs.
-servidor, read-only — use antes de um export). O `watch` (publica ao salvar) e
+`user` (list|show|create|update|activate|deactivate — requer admin; senha do
+novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
++ users|add-user|remove-user; requerem admin), `replacement` (list|show|create|
+update|delete — substituto/delegação de tarefas; requer admin), `diff` (local
+vs. servidor, read-only — use antes de um export). Os `new`/`new-script` são
+scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o
+`workflow new-script <pid> <evento>` gera a assinatura correta do evento — o
+catálogo está no `--help`). O `watch` (publica ao salvar) e
 o `dev` (dev server local com live reload) são interativos e não são indicados
 para agentes — prefira `diff` + `export`.
 

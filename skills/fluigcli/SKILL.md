@@ -79,7 +79,11 @@ fluigcli dataset export --help
 ## Fluxo típico de deploy
 
 1. `fluigcli server test <name> --json` → confirmar acesso (exit 0).
-2. Editar os artefatos nas pastas convencionais do projeto (`datasets/`, `forms/`…).
+2. Editar os artefatos nas pastas convencionais do projeto (`datasets/`,
+   `forms/`…). Para criar um artefato **do zero**, use o scaffold do grupo
+   (`dataset new`, `form new`, `event new`, `mechanism new`, `widget new`,
+   `workflow new-script <pid> <evento>`) — gera o esqueleto local correto,
+   sem tocar o servidor.
 3. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
 4. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
 

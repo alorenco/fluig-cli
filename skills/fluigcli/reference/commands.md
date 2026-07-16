@@ -273,6 +273,33 @@ ver o resultado no navegador; agentes usam `diff` + `export`.
 
 ## Receitas
 
+**Criar um artefato do zero e publicar** (os `new` são locais, nunca
+sobrescrevem e já sugerem o export certo)
+```sh
+fluigcli dataset new ds_clientes --json
+# edite datasets/ds_clientes.js e publique:
+fluigcli dataset export datasets/ds_clientes.js --new --json --server homolog
+
+fluigcli form new frm_pedido --title "Pedido de Compra" --json
+fluigcli form export forms/frm_pedido --new --json --server homolog
+```
+
+**Criar o script de um evento de processo com a assinatura correta**
+```sh
+fluigcli workflow new-script --help          # catálogo: eventos + assinaturas + quando rodam
+fluigcli workflow new-script Compras beforeTaskSave --json
+# edite workflow/scripts/Compras.beforeTaskSave.js e publique:
+fluigcli workflow export Compras --json --server homolog
+```
+
+**Criar uma widget SPA (vue/react) e publicar**
+```sh
+fluigcli widget new meu_painel --template vue --title "Meu Painel" --json
+(cd wcm/widget/meu_painel && npm install)
+# --build compila antes de empacotar; falha de build = exit 2, nada é enviado
+fluigcli widget export meu_painel --build --json --server homolog
+```
+
 **Publicar um dataset editado**
 ```sh
 export FLUIGCLI_SERVER=homolog FLUIGCLI_PASSWORD="$SENHA"
