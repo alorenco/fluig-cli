@@ -1,5 +1,10 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+[[- if .Vuetify]]
+// Tree-shaking do Vuetify: só os componentes usados entram no bundle, com o
+// CSS injetado por componente (sem importar 'vuetify/styles' no main.ts).
+import vuetify from 'vite-plugin-vuetify'
+[[- end]]
 
 // Código da widget: define o nome dos arquivos do bundle, que o
 // application.info declara (application.resource.js/css).
@@ -11,7 +16,11 @@ const widgetCode = '[[.Code]]'
 const fluigcliDev = 'http://127.0.0.1:8787'
 
 export default defineConfig({
-  plugins: [vue()],
+  // URLs relativas nos assets referenciados pelo CSS (ex.: fontes de ícones):
+  // o portal serve o bundle de /<context-root>/resources/ — um caminho
+  // absoluto /assets/... daria 404. Só afeta o build; o dev usa '/'.
+  base: '',
+  plugins: [vue()[[if .Vuetify]], vuetify()[[end]]],
   server: {
     host: '127.0.0.1',
     proxy: {

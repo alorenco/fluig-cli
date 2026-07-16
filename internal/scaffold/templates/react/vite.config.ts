@@ -11,6 +11,10 @@ const widgetCode = '[[.Code]]'
 const fluigcliDev = 'http://127.0.0.1:8787'
 
 export default defineConfig({
+  // URLs relativas nos assets referenciados pelo CSS (ex.: fontes de ícones):
+  // o portal serve o bundle de /<context-root>/resources/ — um caminho
+  // absoluto /assets/... daria 404. Só afeta o build; o dev usa '/'.
+  base: '',
   plugins: [react()],
   server: {
     host: '127.0.0.1',

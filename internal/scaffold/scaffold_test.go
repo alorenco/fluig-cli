@@ -2,6 +2,7 @@ package scaffold
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -317,6 +318,101 @@ func TestKitSemDriftEntreVariantes(t *testing.T) {
 		if string(vue) != string(react) {
 			t.Errorf("fluig/%s divergiu entre vue e react — sincronize as duas cópias", f)
 		}
+	}
+}
+
+// A variante --vuetify liga os blocos condicionais da camada vue (deps,
+// plugin, use(createVuetify)) e sobrepõe só o App.vue pela camada _vuetify.
+func TestCreateWidgetVueVuetify(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "painel_vtf")
+	files, err := CreateWidget(dir, Options{Code: "painel_vtf", Template: "vue", Vuetify: true, DeveloperName: "tester"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[filepath.ToSlash(f)] = true
+	}
+	// Mesma árvore do vue (a camada _vuetify não acrescenta arquivo, só troca).
+	for _, w := range []string{
+		"package.json", "vite.config.ts", "src/vue/main.ts", "src/vue/App.vue",
+		"src/vue/fluig/dataset.ts", "src/main/resources/view.ftl",
+	} {
+		if !got[w] {
+			t.Errorf("arquivo esperado não gerado: %s", w)
+		}
+	}
+
+	read := func(rel string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	if s := read("package.json"); !strings.Contains(s, `"vuetify": "^3"`) ||
+		!strings.Contains(s, `"@mdi/font": "^7"`) || !strings.Contains(s, `"vite-plugin-vuetify": "^2"`) {
+		t.Errorf("package.json sem as deps do Vuetify:\n%s", s)
+	}
+	if s := read("vite.config.ts"); !strings.Contains(s, "vite-plugin-vuetify") ||
+		!strings.Contains(s, "plugins: [vue(), vuetify()]") || !strings.Contains(s, "base: ''") {
+		t.Errorf("vite.config.ts sem plugin/base do Vuetify:\n%s", s)
+	}
+	if s := read("src/vue/main.ts"); !strings.Contains(s, "createVuetify") ||
+		!strings.Contains(s, ".use(createVuetify())") || !strings.Contains(s, "@mdi/font/css/materialdesignicons.css") {
+		t.Errorf("main.ts sem o uso do Vuetify:\n%s", s)
+	}
+	if s := read("src/vue/App.vue"); !strings.Contains(s, "<v-card") || !strings.Contains(s, "mdi-magnify") {
+		t.Errorf("App.vue não é a variante Vuetify:\n%s", s)
+	}
+	if s := read("README.md"); !strings.Contains(s, "Vuetify 3") || strings.Contains(s, "## Visual: Fluig Style Guide") {
+		t.Errorf("README sem a seção Vuetify")
+	}
+}
+
+// SEM a flag, o template vue continua limpo (condicionais desligadas) — e a
+// variante só existe para o vue.
+func TestVuetifyDesligadoESoNoVue(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "puro")
+	if _, err := CreateWidget(dir, Options{Code: "puro", Template: "vue"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"package.json", "vite.config.ts", "src/vue/main.ts", "src/vue/App.vue"} {
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(b)), "vuetify") {
+			t.Errorf("%s do vue puro menciona vuetify", rel)
+		}
+	}
+
+	for _, tpl := range []string{"classic", "react"} {
+		if _, err := CreateWidget(filepath.Join(t.TempDir(), "x"), Options{Code: "x", Template: tpl, Vuetify: true}); !errors.Is(err, ErrVuetifyTemplate) {
+			t.Errorf("--vuetify com template %s: err=%v, quer ErrVuetifyTemplate", tpl, err)
+		}
+	}
+}
+
+// A camada _vuetify não pode duplicar o kit (fluig/, composables/) nem a
+// ponte — só o App.vue: qualquer outro arquivo ali criaria drift com o vue.
+func TestVuetifyLayerSoAppVue(t *testing.T) {
+	var extras []string
+	err := fs.WalkDir(templatesFS, "templates/_vuetify", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if p != "templates/_vuetify/src/vue/App.vue" {
+			extras = append(extras, p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(extras) > 0 {
+		t.Errorf("camada _vuetify com arquivos além do App.vue (mova a diferença para [[if .Vuetify]] na camada vue): %v", extras)
 	}
 }
 

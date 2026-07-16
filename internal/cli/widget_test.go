@@ -318,6 +318,39 @@ func TestWidgetNewVue(t *testing.T) {
 	}
 }
 
+// widget new --template vue --vuetify gera a variante Vuetify; a flag fora do
+// template vue é erro de uso.
+func TestWidgetNewVuetify(t *testing.T) {
+	proj := t.TempDir()
+	code, stdout := runMain(t, "widget", "new", "meu_vtf", "--template", "vue", "--vuetify", "--project", proj, "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := env.Data.(map[string]any)
+	if data["template"] != "vue" || data["vuetify"] != true {
+		t.Errorf("data inesperado: %+v", data)
+	}
+	pkg, err := os.ReadFile(filepath.Join(proj, "wcm", "widget", "meu_vtf", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(pkg), `"vuetify": "^3"`) {
+		t.Errorf("package.json sem vuetify: %s", pkg)
+	}
+
+	// Fora do vue (default classic) = exit 2, sem criar nada.
+	if code, _ := runMain(t, "widget", "new", "outro", "--vuetify", "--project", proj, "--json"); code != output.ExitUsage {
+		t.Errorf("--vuetify sem --template vue: exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "wcm", "widget", "outro")); !os.IsNotExist(err) {
+		t.Errorf("pasta não deveria ter sido criada")
+	}
+}
+
 // --build em widget sem package.json é erro de uso, sem tocar o servidor.
 func TestWidgetExportBuildSemPackageJSON(t *testing.T) {
 	stub := &widgetStub{}

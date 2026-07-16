@@ -1,7 +1,7 @@
 # [[.Title]]
 
-Widget Fluig criada com `fluigcli widget new --template vue`: uma SPA
-**Vue 3 + TypeScript + Vite** dentro da casca oficial de widget. Para o
+Widget Fluig criada com `fluigcli widget new --template vue[[if .Vuetify]] --vuetify[[end]]`: uma SPA
+**Vue 3 + TypeScript + Vite[[if .Vuetify]] + Vuetify 3[[end]]** dentro da casca oficial de widget. Para o
 servidor Fluig ela é uma widget comum (WAR com `application.info` + FTLs);
 para você é um projeto Vue moderno com hot reload e build de um comando.
 
@@ -22,7 +22,7 @@ para você é um projeto Vue moderno com hot reload e build de um comando.
 ├── index.html               ← página do dev local (npm run dev) — NÃO vai pro WAR
 ├── src/vue/                 ← o código da SPA — NÃO vai pro WAR
 │   ├── main.ts              ← ponte SuperWidget ↔ Vue (monta 1 app por instância)
-│   ├── App.vue              ← componente raiz (exemplo com style guide + dataset)
+│   ├── App.vue              ← componente raiz (exemplo com [[if .Vuetify]]Vuetify[[else]]style guide[[end]] + dataset)
 │   ├── composables/useDataset.ts
 │   └── fluig/               ← kit: dataset.ts, fluigc.ts (toast/loading), i18n.ts
 └── src/main/                ← SÓ ISTO entra no WAR (fluigcli widget export)
@@ -88,6 +88,25 @@ e leia `props.configs.<nome>` no Vue (exemplo: `customTitle`).
 - O que a **SPA** mostra usa `src/vue/fluig/i18n.ts` (o idioma vem de
   `WCMAPI.getLocale()` no portal).
 
+[[- if .Vuetify]]
+## Visual: Vuetify 3
+
+A UI vem do **Vuetify 3 via npm** — a amarra de versão das widgets antigas
+(Vuetify por CDN + Vue global) não existe aqui. O `vite-plugin-vuetify` faz
+tree-shaking: só os componentes usados entram no bundle. Ícones por
+**@mdi/font**: strings `mdi-*` funcionam como nas widgets Vuetify antigas
+(bom para conversões); a fonte vai no WAR e é servida pelo próprio Fluig,
+sem CDN. Pontos de atenção:
+
+- O **tema do Vuetify não segue o tema do portal** (o dark mode do Fluig não
+  escurece o Vuetify sozinho) — se precisar, configure
+  `createVuetify({ theme: ... })` no `main.ts`.
+- Peso de referência do exemplo gerado: JS ~190 KB (68 gzip) + CSS ~390 KB
+  (61 gzip) + fonte de ícones ~400 KB (woff2) — bem servível na intranet,
+  mas maior que o template vue puro (69 KB); prefira o vue puro para widgets
+  novas simples.
+- O style guide do portal continua na página (`FLUIGC.toast` do kit etc.).
+[[- else]]
 ## Visual: Fluig Style Guide
 
 O portal carrega o CSS do style guide e o `FLUIGC` em toda página — use as
@@ -95,6 +114,7 @@ classes dele (`panel`, `form-group`, `btn`, `table`, utilitários `fs-*`) e as
 variáveis `--fs-color-*` em vez de bibliotecas de UI: o **dark mode e o tema
 do portal funcionam sozinhos**. Referência: `{host}/style-guide/`. Estilos
 próprios ficam no `<style scoped>` dos componentes (não vazam para o portal).
+[[- end]]
 
 ## Regras de ouro
 

@@ -39,6 +39,7 @@ func newWidgetNewCmd(app *App) *cobra.Command {
 		title    string
 		category string
 		template string
+		vuetify  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "new <code>",
@@ -64,18 +65,24 @@ func newWidgetNewCmd(app *App) *cobra.Command {
 				Title:         title,
 				Category:      category,
 				Template:      template,
+				Vuetify:       vuetify,
 				DeveloperName: scaffoldDeveloperName(),
 			})
 			switch {
-			case errors.Is(err, scaffold.ErrUnknownTemplate), errors.Is(err, scaffold.ErrDirExists):
+			case errors.Is(err, scaffold.ErrUnknownTemplate), errors.Is(err, scaffold.ErrDirExists),
+				errors.Is(err, scaffold.ErrVuetifyTemplate):
 				return output.Usagef("%s", err)
 			case err != nil:
 				return err
 			}
+			tplLabel := template
+			if vuetify {
+				tplLabel += " + Vuetify"
+			}
 			relDir := filepath.ToSlash(filepath.Join(project.WidgetsDir, code))
-			p.Successf("widget %q criado em %s (template %s, %d arquivos)", code, relDir, template, len(files))
+			p.Successf("widget %q criado em %s (template %s, %d arquivos)", code, relDir, tplLabel, len(files))
 			p.Infof("Próximos passos: leia o %s/README.md; desenvolva com `fluigcli dev`; publique com `fluigcli widget export %s`.", relDir, code)
-			p.Done(map[string]any{"widget": code, "template": template, "dir": relDir, "files": files})
+			p.Done(map[string]any{"widget": code, "template": template, "vuetify": vuetify, "dir": relDir, "files": files})
 			return nil
 		},
 	}
@@ -83,6 +90,8 @@ func newWidgetNewCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&category, "category", "SYSTEM", "categoria no application.info")
 	cmd.Flags().StringVar(&template, "template", "classic",
 		"template do esqueleto (disponíveis: "+strings.Join(scaffold.Templates(), ", ")+")")
+	cmd.Flags().BoolVar(&vuetify, "vuetify", false,
+		"variante Vuetify 3 do template vue (UI kit via npm com tree-shaking; ícones @mdi/font — bom para converter widgets Vuetify antigas)")
 	return cmd
 }
 

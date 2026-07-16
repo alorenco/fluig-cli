@@ -7,6 +7,12 @@
 // (formulário clássico + UPDATEPREFERENCES), sem Vue.
 import { createApp } from 'vue'
 import App from './App.vue'
+[[- if .Vuetify]]
+import { createVuetify } from 'vuetify'
+// Ícones por fonte: strings `mdi-*` funcionam como nas widgets Vuetify
+// antigas (a fonte vai no WAR). O CSS dos componentes vem do vite-plugin-vuetify.
+import '@mdi/font/css/materialdesignicons.css'
+[[- end]]
 
 const win = window as any
 
@@ -74,7 +80,7 @@ function mount(instanceId: string | number, attempt = 0) {
 	} catch {
 		// preferências corrompidas viram objeto vazio
 	}
-	createApp(App, { instanceId: String(instanceId), configs }).mount(el)
+	createApp(App, { instanceId: String(instanceId), configs })[[if .Vuetify]].use(createVuetify())[[end]].mount(el)
 }
 
 // npm run dev: instancia direto, com o id "local" do index.html.

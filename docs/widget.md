@@ -79,6 +79,23 @@ fluigcli widget export meu_painel   # publica quando quiser
     `npm run build` antes de empacotar (falha de build = exit 2, nada é
     enviado). Sem `--build`, o export avisa quando o bundle está
     desatualizado em relação à fonte.
+- **`vue` + `--vuetify`** — variante do template vue com **Vuetify 3 via
+  npm** (`vite-plugin-vuetify` com tree-shaking: só os componentes usados
+  entram no bundle) e ícones **@mdi/font** (strings `mdi-*` funcionam como
+  nas widgets Vuetify antigas — é o caminho para **converter** widgets
+  Vuetify presas em stack velha por CDN, mantendo o visual):
+
+  ```sh
+  fluigcli widget new meu_painel --template vue --vuetify --title "Meu Painel"
+  ```
+
+  Tudo do template vue vale aqui (dev, build, deploy); muda o `App.vue` de
+  exemplo (componentes Vuetify) e as dependências. Fontes de ícone vão no
+  WAR e são servidas pelo próprio Fluig (URLs relativas no CSS — sem CDN).
+  Pesos de referência: JS ~190 KB (68 gzip) + CSS ~390 KB (61 gzip) + fonte
+  ~400 KB (woff2). ⚠️ O tema do Vuetify não segue o dark mode do portal
+  sozinho (configure `createVuetify({theme})` se precisar). Para widget
+  nova sem legado Vuetify, prefira o template vue puro (69 KB).
 
 ## `fluigcli widget list`
 

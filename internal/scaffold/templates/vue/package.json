@@ -10,12 +10,19 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "vue": "^3"
+[[- if .Vuetify]]
+    "@mdi/font": "^7",
+[[- end]]
+    "vue": "^3"[[if .Vuetify]],
+    "vuetify": "^3"[[end]]
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6",
     "typescript": "^5",
     "vite": "^7",
+[[- if .Vuetify]]
+    "vite-plugin-vuetify": "^2",
+[[- end]]
     "vue-tsc": "^3"
   }
 }

@@ -37,6 +37,8 @@ var (
 	ErrUnknownTemplate = errors.New("template desconhecido")
 	// ErrDirExists indica que a pasta de destino já existe.
 	ErrDirExists = errors.New("a pasta de destino já existe")
+	// ErrVuetifyTemplate indica a variante Vuetify pedida fora do template vue.
+	ErrVuetifyTemplate = errors.New("a variante Vuetify só existe para o template vue")
 )
 
 // codeRe valida o código do widget: ele vira context-root, id de DOM, nome de
@@ -60,6 +62,7 @@ type Options struct {
 	Title         string // título humano; vazio = Code
 	Category      string // categoria no application.info; vazio = SYSTEM
 	Template      string // nome do template; vazio = classic
+	Vuetify       bool   // variante Vuetify 3 (só com Template "vue")
 	DeveloperCode string // developer.code do application.info; vazio = DeveloperName
 	DeveloperName string // developer.name; vazio = "fluigcli"
 }
@@ -71,6 +74,7 @@ type widgetData struct {
 	Title         string // título cru (para README/FTL, UTF-8 livre)
 	TitleProp     string // título com escape \uXXXX (para .properties/.info)
 	Category      string
+	Vuetify       bool // liga os blocos [[if .Vuetify]] da camada vue
 	DeveloperCode string
 	DeveloperName string
 }
@@ -107,6 +111,15 @@ func CreateWidget(dir string, opt Options) ([]string, error) {
 	layers, ok := templateLayers[tplName]
 	if !ok {
 		return nil, fmt.Errorf("%w: %q (disponíveis: %s)", ErrUnknownTemplate, tplName, strings.Join(Templates(), ", "))
+	}
+	if opt.Vuetify {
+		// Variante do template vue: os blocos [[if .Vuetify]] da camada vue
+		// trazem deps/plugin/uso do Vuetify; a camada _vuetify sobrepõe só o
+		// App.vue (o kit fluig/ continua vindo da camada vue — sem drift).
+		if tplName != "vue" {
+			return nil, fmt.Errorf("%w (template %q)", ErrVuetifyTemplate, tplName)
+		}
+		layers = append(append([]string{}, layers...), "_vuetify")
 	}
 	if _, err := os.Stat(dir); err == nil {
 		return nil, fmt.Errorf("%w: %s", ErrDirExists, dir)
@@ -185,6 +198,7 @@ func newWidgetData(opt Options) widgetData {
 		Title:         title,
 		TitleProp:     propEscape(title),
 		Category:      category,
+		Vuetify:       opt.Vuetify,
 		DeveloperCode: devCode,
 		DeveloperName: devName,
 	}
