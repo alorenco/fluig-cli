@@ -1,0 +1,9 @@
+# Toolchain do frontend — nunca versionar
+node_modules/
+
+# Ambiente local do Vite (nunca coloque credenciais aqui; a autenticação
+# no Fluig é sempre do fluigcli — sessão/keyring)
+.env.local
+
+# A SAÍDA DO BUILD (src/main/webapp/resources/js|css) é versionada de
+# propósito: permite `fluigcli widget export` sem Node instalado (ex.: CI).

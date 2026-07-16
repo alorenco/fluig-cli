@@ -1,0 +1,21 @@
+{
+  "name": "[[.Code]]",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "watch": "vite build --watch",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "vue": "^3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6",
+    "typescript": "^5",
+    "vite": "^7",
+    "vue-tsc": "^3"
+  }
+}

@@ -32,11 +32,43 @@ fluigcli widget export meu_painel   # publica quando quiser
 
 - `<code>` vira context-root, id de DOM e global JS: minúsculas, dígitos e
   `_`, começando por letra (ex.: `meu_painel` → global `MeuPainel`).
-- Flags: `--title` (padrão: o código), `--category` (padrão: `SYSTEM`) e
-  `--template` (padrão: `classic`, o esqueleto sem toolchain; templates
-  `vue`/`react` estão no roadmap).
+- Flags: `--title` (padrão: o código), `--category` (padrão: `SYSTEM` —
+  categoria é **texto livre** e vira uma aba própria na galeria do editor de
+  páginas; a galeria lista por **título**, nunca pelo código) e `--template`.
 - A pasta não pode existir; código/template inválidos = exit 2, sem criar nada.
 - No `--json`: `{widget, template, dir, files}`.
+
+### Templates
+
+- **`classic`** (padrão) — o esqueleto oficial puro, sem toolchain: FTL +
+  JS `SuperWidget` + CSS. Nada para instalar; edite e publique.
+- **`vue`** — SPA **Vue 3 + TypeScript + Vite** dentro da casca oficial:
+
+  ```sh
+  fluigcli widget new meu_painel --template vue --title "Meu Painel"
+  cd wcm/widget/meu_painel
+  npm install && npm run build
+  fluigcli widget export meu_painel
+  ```
+
+  - O código da SPA fica em `src/vue/` (fora do WAR); o build emite **1 JS +
+    1 CSS** com o nome da widget direto em `src/main/webapp/resources/` — a
+    saída é versionada, então o `widget export` funciona sem Node (ex.: CI).
+  - **Dois modos de dev**: `npm run dev` (Vite com HMR; a página simula o
+    portal com o style guide real e o proxy aponta para o `fluigcli dev`,
+    que injeta a **sessão autenticada** — nenhuma credencial em `.env`) e
+    `npm run watch` + `fluigcli dev` (a widget dentro do portal real, com
+    live reload).
+  - Multi-instância por construção: a ponte em `src/vue/main.ts` monta um
+    app Vue por `instanceId`.
+  - Preferências por instância prontas: `edit.ftl` (formulário clássico) →
+    `UPDATEPREFERENCES` → prop `configs` no `App.vue`.
+  - Kit incluído: `useDataset` (consulta de datasets), wrappers de
+    `FLUIGC.toast`/`loading` e i18n da SPA (`WCMAPI.getLocale()`).
+  - Visual: classes do **Fluig Style Guide** (o portal já carrega o CSS;
+    dark mode funciona sozinho) — sem UI kit embutido.
+  - O `README.md` gerado na widget traz o passo a passo completo
+    (pré-requisitos, dev, build, deploy).
 
 ## `fluigcli widget list`
 

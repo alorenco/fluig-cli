@@ -291,10 +291,28 @@ func TestWidgetNewValidacoes(t *testing.T) {
 	if code, _ := runMain(t, "widget", "new", "Maiusculo", "--project", proj, "--json"); code != output.ExitUsage {
 		t.Errorf("code inválido: exit=%d, quer %d", code, output.ExitUsage)
 	}
-	if code, _ := runMain(t, "widget", "new", "ok_widget", "--template", "vue", "--project", proj, "--json"); code != output.ExitUsage {
+	if code, _ := runMain(t, "widget", "new", "ok_widget", "--template", "naoexiste", "--project", proj, "--json"); code != output.ExitUsage {
 		t.Errorf("template inexistente: exit=%d, quer %d", code, output.ExitUsage)
 	}
 	if entries, _ := os.ReadDir(proj); len(entries) != 0 {
 		t.Errorf("nada deveria ter sido criado: %v", entries)
+	}
+}
+
+// widget new --template vue gera a SPA + casca (composição de camadas).
+func TestWidgetNewVue(t *testing.T) {
+	proj := t.TempDir()
+	code, stdout := runMain(t, "widget", "new", "meu_spa", "--template", "vue", "--project", proj, "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, rel := range []string{
+		"wcm/widget/meu_spa/package.json",
+		"wcm/widget/meu_spa/src/vue/main.ts",
+		"wcm/widget/meu_spa/src/main/resources/view.ftl",
+	} {
+		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("arquivo esperado ausente: %s (%v)", rel, err)
+		}
 	}
 }

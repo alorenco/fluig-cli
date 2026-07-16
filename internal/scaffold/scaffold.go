@@ -42,6 +42,16 @@ var (
 // arquivo e global JS — minúsculo, começando por letra, só [a-z0-9_].
 var codeRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
+// templateLayers define cada template como uma pilha de camadas: os arquivos
+// das camadas seguintes sobrepõem os das anteriores (mesmo caminho relativo).
+// Camadas com prefixo "_" são núcleos compartilhados, não selecionáveis —
+// é o que garante que as variantes de framework (vue, react) não divirjam na
+// casca Fluig (application.info, FTLs, WEB-INF...).
+var templateLayers = map[string][]string{
+	"classic": {"classic"},
+	"vue":     {"_spa_core", "vue"},
+}
+
 // Options parametriza a geração de um widget.
 type Options struct {
 	Code          string // código do widget (obrigatório)
@@ -63,17 +73,11 @@ type widgetData struct {
 	DeveloperName string
 }
 
-// Templates lista os templates de widget disponíveis, em ordem alfabética.
+// Templates lista os templates de widget selecionáveis, em ordem alfabética.
 func Templates() []string {
-	entries, err := templatesFS.ReadDir("templates")
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
-		}
+	names := make([]string, 0, len(templateLayers))
+	for name := range templateLayers {
+		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names
@@ -98,8 +102,8 @@ func CreateWidget(dir string, opt Options) ([]string, error) {
 	if tplName == "" {
 		tplName = "classic"
 	}
-	base := "templates/" + tplName
-	if _, err := fs.Stat(templatesFS, base); err != nil {
+	layers, ok := templateLayers[tplName]
+	if !ok {
 		return nil, fmt.Errorf("%w: %q (disponíveis: %s)", ErrUnknownTemplate, tplName, strings.Join(Templates(), ", "))
 	}
 	if _, err := os.Stat(dir); err == nil {
@@ -108,38 +112,50 @@ func CreateWidget(dir string, opt Options) ([]string, error) {
 		return nil, err
 	}
 
-	var created []string
-	err := fs.WalkDir(templatesFS, base, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		rel := strings.TrimPrefix(p, base+"/")
-		rel = strings.ReplaceAll(rel, "__code__", opt.Code)
-		raw, err := templatesFS.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		content := raw
-		if !isBinary(p) {
-			content, err = render(p, raw, data)
+	// Resolve as camadas primeiro (a última vence), depois escreve.
+	files := map[string][]byte{}
+	for _, layer := range layers {
+		base := "templates/" + layer
+		err := fs.WalkDir(templatesFS, base, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel := strings.TrimPrefix(p, base+"/")
+			rel = strings.ReplaceAll(rel, "__code__", opt.Code)
+			raw, err := templatesFS.ReadFile(p)
 			if err != nil {
 				return err
 			}
+			content := raw
+			if !isBinary(p) {
+				content, err = render(p, raw, data)
+				if err != nil {
+					return err
+				}
+			}
+			files[rel] = content
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
+	}
+
+	created := make([]string, 0, len(files))
+	for rel := range files {
+		created = append(created, rel)
+	}
+	sort.Strings(created)
+	for _, rel := range created {
 		dst := filepath.Join(dir, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
+			os.RemoveAll(dir) // não deixa árvore pela metade
+			return nil, err
 		}
-		if err := os.WriteFile(dst, content, 0o644); err != nil {
-			return err
+		if err := os.WriteFile(dst, files[rel], 0o644); err != nil {
+			os.RemoveAll(dir)
+			return nil, err
 		}
-		created = append(created, rel)
-		return nil
-	})
-	if err != nil {
-		// Não deixa uma árvore pela metade para trás.
-		os.RemoveAll(dir)
-		return nil, err
 	}
 	return created, nil
 }

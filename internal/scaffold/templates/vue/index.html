@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>[[.Title]] — dev local (fora do portal)</title>
+	<!-- Style guide REAL do seu Fluig, servido pelo fluigcli dev via proxy do
+	     Vite — o visual aqui é o mesmo do portal. Suba `fluigcli dev` antes. -->
+	<link rel="stylesheet" href="/style-guide/css/fluig-style-guide-flat.min.css" />
+	<script src="/portal/resources/js/jquery/jquery-3.7.1.min.js"></script>
+	<script src="/style-guide/js/fluig-style-guide.min.js"></script>
+	<style>
+		/* Só para o dev local — este arquivo NÃO entra no WAR. */
+		body { margin: 24px; background: #f4f4f4; }
+		.dev-frame { max-width: 780px; margin: 0 auto; }
+	</style>
+</head>
+<body>
+	<!-- Simula o container que o portal cria para a widget -->
+	<div id="[[.CamelCode]]_local" class="super-widget wcm-widget-class fluig-style-guide dev-frame">
+		<div id="[[.Code]]-root-local"></div>
+	</div>
+	<script type="module" src="/src/vue/main.ts"></script>
+</body>
+</html>

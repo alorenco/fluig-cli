@@ -1,0 +1,118 @@
+# [[.Title]]
+
+Widget Fluig criada com `fluigcli widget new --template vue`: uma SPA
+**Vue 3 + TypeScript + Vite** dentro da casca oficial de widget. Para o
+servidor Fluig ela é uma widget comum (WAR com `application.info` + FTLs);
+para você é um projeto Vue moderno com hot reload e build de um comando.
+
+## Pré-requisitos
+
+- **Node.js** (versão no `.nvmrc`). Com [nvm](https://github.com/nvm-sh/nvm):
+  `nvm install && nvm use` nesta pasta. Sem nvm: instale o Node LTS de
+  <https://nodejs.org>.
+- **fluigcli** configurado no projeto (`fluigcli server list` deve mostrar o
+  servidor de desenvolvimento).
+- Java/Maven **não** são necessários.
+
+## Estrutura
+
+```
+[[.Code]]/
+├── README.md, package.json, vite.config.ts, tsconfig.json, .nvmrc
+├── index.html               ← página do dev local (npm run dev) — NÃO vai pro WAR
+├── src/vue/                 ← o código da SPA — NÃO vai pro WAR
+│   ├── main.ts              ← ponte SuperWidget ↔ Vue (monta 1 app por instância)
+│   ├── App.vue              ← componente raiz (exemplo com style guide + dataset)
+│   ├── composables/useDataset.ts
+│   └── fluig/               ← kit: dataset.ts, fluigc.ts (toast/loading), i18n.ts
+└── src/main/                ← SÓ ISTO entra no WAR (fluigcli widget export)
+    ├── resources/           ← application.info, view.ftl, edit.ftl, .properties
+    └── webapp/
+        ├── WEB-INF/         ← jboss-web.xml (context-root)
+        └── resources/
+            ├── js/[[.Code]].js    ← SAÍDA do build (versionada de propósito)
+            ├── css/[[.Code]].css  ← SAÍDA do build
+            └── images/icon.png
+```
+
+Como o empacotamento só olha `src/main/`, o toolchain inteiro fica fora do
+WAR por construção. A saída do build é **versionada** para permitir
+`fluigcli widget export` sem Node (ex.: numa esteira de CI).
+
+## Desenvolvimento
+
+Instale as dependências uma vez:
+
+```sh
+npm install
+```
+
+### Modo 1 — SPA isolada com hot reload (o dia a dia)
+
+```sh
+fluigcli dev     # terminal 1, na raiz do projeto (porta 8787)
+npm run dev      # terminal 2, nesta pasta
+```
+
+Abra a URL que o Vite mostrar. A página simula o container do portal com o
+**style guide real** e as chamadas `/api/*` passam pelo `fluigcli dev`, que
+injeta a **sessão autenticada** — datasets e APIs respondem de verdade e
+nenhuma credencial fica em arquivo. Salvou um `.vue`, a tela atualiza na hora.
+
+### Modo 2 — dentro do portal real
+
+```sh
+npm run watch    # terminal 1: recompila o bundle a cada save
+fluigcli dev     # terminal 2: proxy do portal com live reload
+```
+
+Navegue no portal pela porta local do `fluigcli dev`: o bundle é servido do
+disco e o navegador recarrega ao salvar. Use este modo para validar a widget
+no contexto real da página (outras widgets, tema, permissões).
+
+## Preferências por instância (edit.ftl)
+
+No modo de edição da página o portal renderiza o `edit.ftl` (formulário
+clássico, sem Vue). O botão Salvar envia os campos nomeados via
+`WCMSpaceAPI.PageService.UPDATEPREFERENCES` e o `view.ftl` devolve o JSON no
+atributo `data-configs` — a SPA o recebe pronto na prop `configs` do
+`App.vue`. Para criar uma preferência nova: acrescente o campo no `edit.ftl`
+e leia `props.configs.<nome>` no Vue (exemplo: `customTitle`).
+
+## i18n
+
+- O que o **servidor** renderiza (título na galeria, edit.ftl) usa os
+  `.properties` de `src/main/resources` — texto não-ASCII precisa de escape
+  `\uXXXX` (padrão java.util.Properties).
+- O que a **SPA** mostra usa `src/vue/fluig/i18n.ts` (o idioma vem de
+  `WCMAPI.getLocale()` no portal).
+
+## Visual: Fluig Style Guide
+
+O portal carrega o CSS do style guide e o `FLUIGC` em toda página — use as
+classes dele (`panel`, `form-group`, `btn`, `table`, utilitários `fs-*`) e as
+variáveis `--fs-color-*` em vez de bibliotecas de UI: o **dark mode e o tema
+do portal funcionam sozinhos**. Referência: `{host}/style-guide/`. Estilos
+próprios ficam no `<style scoped>` dos componentes (não vazam para o portal).
+
+## Regras de ouro
+
+- A widget pode aparecer **mais de uma vez por página** — nunca use id fixo
+  no DOM; o `main.ts` já monta um app por `instanceId`. Nos FTLs, todo id
+  leva `${instanceId}`.
+- Chamadas à API usam a **sessão do usuário logado** — nunca coloque
+  credencial, token ou URL de outro ambiente no código.
+- `src/main/resources` e os FTLs raramente mudam; quando mudarem, é preciso
+  republicar (`widget export`) — o live reload cobre só JS/CSS.
+
+## Deploy
+
+```sh
+npm run build                    # typecheck + bundle em src/main/webapp/resources
+fluigcli widget export [[.Code]] # empacota o WAR e publica no servidor
+```
+
+A instalação é assíncrona no Fluig (acompanhe na Central de Componentes).
+Depois adicione a widget a uma página: no editor, ela aparece na categoria
+**[[.Category]]** com o título "[[.Title]]" — a galeria lista por título,
+não pelo código.

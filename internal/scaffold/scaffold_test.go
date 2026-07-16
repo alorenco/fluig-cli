@@ -219,3 +219,84 @@ func TestCreateWidgetErros(t *testing.T) {
 		t.Errorf("pasta existente: err=%v", err)
 	}
 }
+
+// O template vue compõe o núcleo _spa_core com a camada do framework; o
+// toolchain fica fora de src/main (e portanto fora do WAR).
+func TestCreateWidgetVue(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "painel_vue")
+	files, err := CreateWidget(dir, Options{Code: "painel_vue", Template: "vue", DeveloperName: "tester"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[filepath.ToSlash(f)] = true
+	}
+	for _, w := range []string{
+		// camada vue (toolchain + SPA)
+		"README.md", "package.json", "vite.config.ts", "tsconfig.json", "index.html",
+		".nvmrc", ".gitignore",
+		"src/vue/main.ts", "src/vue/App.vue", "src/vue/vite-env.d.ts",
+		"src/vue/fluig/dataset.ts", "src/vue/fluig/fluigc.ts", "src/vue/fluig/i18n.ts",
+		"src/vue/composables/useDataset.ts",
+		// núcleo _spa_core (casca Fluig)
+		"src/main/resources/application.info",
+		"src/main/resources/view.ftl",
+		"src/main/resources/edit.ftl",
+		"src/main/resources/painel_vue.properties",
+		"src/main/webapp/WEB-INF/jboss-web.xml",
+		"src/main/webapp/resources/images/icon.png",
+	} {
+		if !got[w] {
+			t.Errorf("arquivo esperado não gerado: %s", w)
+		}
+	}
+
+	// Placeholders resolvidos nos pontos críticos da ponte.
+	read := func(rel string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	if s := read("vite.config.ts"); !strings.Contains(s, "const widgetCode = 'painel_vue'") {
+		t.Errorf("vite.config.ts sem o código: %s", s)
+	}
+	if s := read("src/vue/main.ts"); !strings.Contains(s, "win.PainelVue = win.SuperWidget.extend({") ||
+		!strings.Contains(s, "`painel_vue-root-${instanceId}`") {
+		t.Errorf("main.ts sem a ponte parametrizada")
+	}
+	if s := read("src/main/resources/view.ftl"); !strings.Contains(s, `id="painel_vue-root-${instanceId}"`) ||
+		!strings.Contains(s, "widgetSettings") {
+		t.Errorf("view.ftl sem o div de montagem/configs: %s", s)
+	}
+	if s := read("src/main/resources/edit.ftl"); !strings.Contains(s, "data-save-settings") {
+		t.Errorf("edit.ftl sem o botão de salvar")
+	}
+
+	// O WAR não pode conter o toolchain.
+	refs, err := project.CollectWidgetWARFiles(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range refs {
+		if strings.Contains(r.WARPath, "package.json") || strings.Contains(r.WARPath, "vite") ||
+			strings.Contains(r.WARPath, "node_modules") || strings.Contains(r.WARPath, "src/vue") {
+			t.Errorf("toolchain vazou para o WAR: %s", r.WARPath)
+		}
+	}
+}
+
+// Núcleos (prefixo _) não são selecionáveis como template.
+func TestSpaCoreNaoSelecionavel(t *testing.T) {
+	for _, n := range Templates() {
+		if strings.HasPrefix(n, "_") {
+			t.Errorf("núcleo %q não deveria ser selecionável", n)
+		}
+	}
+	if _, err := CreateWidget(filepath.Join(t.TempDir(), "w"), Options{Code: "w", Template: "_spa_core"}); !errors.Is(err, ErrUnknownTemplate) {
+		t.Errorf("_spa_core deveria ser template desconhecido, err=%v", err)
+	}
+}

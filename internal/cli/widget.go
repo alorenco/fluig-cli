@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -79,7 +80,8 @@ func newWidgetNewCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&title, "title", "", "título do widget (padrão: o próprio código)")
 	cmd.Flags().StringVar(&category, "category", "SYSTEM", "categoria no application.info")
-	cmd.Flags().StringVar(&template, "template", "classic", "template do esqueleto (disponível: classic)")
+	cmd.Flags().StringVar(&template, "template", "classic",
+		"template do esqueleto (disponíveis: "+strings.Join(scaffold.Templates(), ", ")+")")
 	return cmd
 }
 
