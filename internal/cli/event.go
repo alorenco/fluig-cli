@@ -20,6 +20,7 @@ func newEventCmd(app *App) *cobra.Command {
 		Use:   "event",
 		Short: "Lista, importa, exporta e exclui eventos globais (import = servidor→local; export = local→servidor)",
 	}
+	cmd.AddCommand(newEventNewCmd(app))
 	cmd.AddCommand(newEventListCmd(app))
 	cmd.AddCommand(newEventImportCmd(app))
 	cmd.AddCommand(newEventExportCmd(app))

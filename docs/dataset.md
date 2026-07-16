@@ -10,7 +10,22 @@ Arquivos locais ficam em `datasets/<id>.js` (um arquivo por dataset, subpastas
 permitidas). O nome do dataset é o basename do arquivo sem `.js`.
 
 Todos os comandos precisam de um servidor alvo (`--server`/`FLUIGCLI_SERVER`) e
-autenticam segundo a precedência de senha da [config](server.md).
+autenticam segundo a precedência de senha da [config](server.md) — exceto o
+`dataset new`, que é local.
+
+## `fluigcli dataset new <name>`
+
+Cria `datasets/<name>.js` com o esqueleto de um dataset customizado
+(`defineStructure`, `createDataset` e a sincronização `onSync`/`onMobileSync`
+comentada). **Só local** — nada é enviado ao servidor; publique depois com
+`dataset export`. Falha (exit 2) se já existir um `<name>.js` sob `datasets/`
+(inclusive em subpasta — evita a ambiguidade na hora do export).
+
+```sh
+fluigcli dataset new ds_clientes
+# edite datasets/ds_clientes.js e publique:
+fluigcli dataset export datasets/ds_clientes.js --new
+```
 
 ## `fluigcli dataset list [--custom-only] [--search <texto>]`
 

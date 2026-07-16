@@ -6,6 +6,18 @@ Importa, exporta e exclui eventos globais. Arquivos locais em `events/<id>.js`
 - **import** = servidor → projeto local
 - **export** = projeto local → servidor
 
+## `fluigcli event new <name>`
+
+Cria `events/<name>.js` com a função do evento — o nome do arquivo é o **id do
+evento global** que a plataforma dispara (ex.: `displayCustomThemes`,
+`beforeConvertViewToPDF`); os parâmetros variam por evento, ajuste a assinatura
+gerada. **Só local** — publique depois com `event export`.
+
+```sh
+fluigcli event new displayCustomThemes
+fluigcli event export events/displayCustomThemes.js
+```
+
 ## `fluigcli event list`
 
 Lista os eventos globais do servidor.

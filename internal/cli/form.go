@@ -19,6 +19,7 @@ func newFormCmd(app *App) *cobra.Command {
 		Use:   "form",
 		Short: "Lista, importa e exporta formulários (import = servidor→local; export = local→servidor)",
 	}
+	cmd.AddCommand(newFormNewCmd(app))
 	cmd.AddCommand(newFormListCmd(app))
 	cmd.AddCommand(newFormImportCmd(app))
 	cmd.AddCommand(newFormExportCmd(app))

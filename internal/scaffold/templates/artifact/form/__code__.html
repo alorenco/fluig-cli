@@ -1,0 +1,26 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>[[.Title]]</title>
+</head>
+<body>
+<form name="[[.Name]]" role="form">
+    <h1>[[.Title]]</h1>
+
+    <div class="form-group">
+        <label for="descricao">Descrição</label>
+        <input type="text" class="form-control" id="descricao" name="descricao">
+    </div>
+
+    <!-- Select populado por dataset no render do servidor (e no preview do dev):
+    <select class="form-control" name="responsavel"
+            dataset="colleague" datasetkey="colleagueId"
+            datasetvalue="colleagueName" addBlankLine="true"></select>
+    -->
+
+    <!-- Tabela pai×filho (linhas dinâmicas): use <table tablename="itens">
+         com os inputs SEM sufixo na primeira linha — o servidor injeta a
+         máquina wdkdetail (o preview do `fluigcli dev` também). -->
+</form>
+</body>
+</html>

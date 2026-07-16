@@ -19,6 +19,7 @@ func newWorkflowCmd(app *App) *cobra.Command {
 		Use:   "workflow",
 		Short: "Processos: listagem, versão e scripts de eventos (import = servidor → local; export = local → servidor)",
 	}
+	cmd.AddCommand(newWorkflowNewScriptCmd(app))
 	cmd.AddCommand(newWorkflowListCmd(app))
 	cmd.AddCommand(newWorkflowVersionCmd(app))
 	cmd.AddCommand(newWorkflowImportCmd(app))

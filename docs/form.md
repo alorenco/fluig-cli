@@ -46,6 +46,20 @@ Para criar/inicializar o vínculo:
 - no export: `--name "<nome no servidor>"` ou `--document-id <id>` apontam o alvo
   (e o vínculo fica salvo para as próximas vezes).
 
+## `fluigcli form new <name> [--title "..."]`
+
+Cria `forms/<name>/` com o esqueleto de um formulário: HTML principal já com a
+tag `<form>` (exigência do servidor na criação) e os eventos comuns
+(`events/displayFields.js` e `events/validateForm.js`), prontos para a
+simulação do [`fluigcli dev`](dev.md). **Só local** — publique depois com
+`form export --new`.
+
+```sh
+fluigcli form new frm_pedido --title "Pedido de Compra"
+fluigcli dev                                   # preview em /_dev/forms/
+fluigcli form export forms/frm_pedido --new    # cria no servidor
+```
+
 ## `fluigcli form list`
 
 Lista os formulários do servidor (documentId, nome, dataset, versão).

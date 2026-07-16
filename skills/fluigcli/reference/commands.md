@@ -13,6 +13,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | quero… | comando |
 |---|---|
 | criar um widget novo do zero (esqueleto no padrão oficial) | `widget new <code>` |
+| criar um artefato novo do zero (esqueleto local) | `dataset new` · `form new` · `event new` · `mechanism new` · `workflow new-script` |
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
@@ -51,6 +52,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
+| `dataset new <name>` | local | cria `datasets/<name>.js` com o esqueleto de dataset customizado (nada vai ao servidor; publique com export --new) |
 | `dataset list [--custom-only] [--search t]` | — | lista os datasets do servidor (id, tipo, descrição, ativo) |
 | `dataset import <id>... \| --all` | servidor → local | baixa datasets para arquivos locais |
 | `dataset export <file>...` | local → servidor | envia datasets locais |
@@ -63,6 +65,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
+| `event new <name>` | local | cria `events/<name>.js` (o nome é o id do evento global; ajuste os parâmetros da função) |
 | `event list` | — | lista os eventos globais |
 | `event import <id>... \| --all` | servidor → local | baixa eventos globais |
 | `event export <file>...` | local → servidor | envia eventos globais |
@@ -72,6 +75,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
+| `mechanism new <name>` | local | cria `mechanisms/<name>.js` com o esqueleto (devolver userCodes, não logins) |
 | `mechanism list` | — | lista os mecanismos customizados |
 | `mechanism import <id>... \| --all` | servidor → local | baixa mecanismos |
 | `mechanism export <file>...` | local → servidor | envia mecanismos |
@@ -81,6 +85,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | direção | efeito |
 |---|---|---|
+| `form new <name> [--title t]` | local | cria `forms/<name>/` (HTML com `<form>` + events/ comuns, prontos para o preview do dev) |
 | `form list` | — | lista os formulários |
 | `form import <documentId\|nome>... \| --all` | servidor → local | baixa formulários para pastas locais (com anexos e eventos) |
 | `form export <pasta>` | local → servidor | envia um formulário local (cria nova versão) |
@@ -95,6 +100,7 @@ não-interativo (sem ele: exit 2).
 
 | comando | efeito |
 |---|---|
+| `workflow new-script <processId> <evento>` | cria `workflow/scripts/<processId>.<evento>.js` com a assinatura correta do evento (catálogo no `--help`; local) |
 | `workflow list [--active-only]` | lista os processos do servidor (nativo) |
 | `workflow version <processId>` | mostra a última versão do processo (nativo) |
 | `workflow import <processId>... \| --all` | baixa os scripts de eventos para workflow/scripts/ (servidor → local; sobrescreve no lugar; nativo) |

@@ -17,6 +17,7 @@ func newMechanismCmd(app *App) *cobra.Command {
 		Use:   "mechanism",
 		Short: "Lista, importa, exporta e exclui mecanismos de atribuição (import = servidor→local; export = local→servidor)",
 	}
+	cmd.AddCommand(newMechanismNewCmd(app))
 	cmd.AddCommand(newMechanismListCmd(app))
 	cmd.AddCommand(newMechanismImportCmd(app))
 	cmd.AddCommand(newMechanismExportCmd(app))

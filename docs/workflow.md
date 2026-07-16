@@ -9,6 +9,21 @@ workflow/scripts/<Processo>.<evento>.js
 # ex.: workflow/scripts/Compras.beforeTaskSave.js  → processId "Compras", evento "beforeTaskSave"
 ```
 
+## `fluigcli workflow new-script <processId> <evento>`
+
+Cria `workflow/scripts/<processId>.<evento>.js` com a **assinatura correta do
+evento** (parâmetros e um lembrete das APIs `hAPI`/`getValue` disponíveis) —
+sem copiar de outro processo. O evento é validado contra o catálogo (aceita
+qualquer caixa e grava a forma canônica); o `--help` lista todos os eventos com
+assinatura e quando rodam. **Só local** — publique depois com `workflow export`
+(cirúrgico) ou `workflow publish` (nativo).
+
+```sh
+fluigcli workflow new-script Compras beforeTaskSave
+fluigcli workflow new-script Compras validateAvailableStates
+fluigcli workflow new-script --help    # catálogo completo de eventos
+```
+
 ## `fluigcli workflow list [--active-only]`
 
 Lista os processos do servidor em tabela (ID, descrição, categoria, ativo).

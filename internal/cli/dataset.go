@@ -21,6 +21,7 @@ func newDatasetCmd(app *App) *cobra.Command {
 		Use:   "dataset",
 		Short: "Lista, importa, exporta, consulta e administra datasets (import = servidor→local; export = local→servidor)",
 	}
+	cmd.AddCommand(newDatasetNewCmd(app))
 	cmd.AddCommand(newDatasetListCmd(app))
 	cmd.AddCommand(newDatasetImportCmd(app))
 	cmd.AddCommand(newDatasetExportCmd(app))

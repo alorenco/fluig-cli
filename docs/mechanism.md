@@ -6,6 +6,18 @@ locais em `mechanisms/<id>.js` (o nome é o basename sem `.js`).
 - **import** = servidor → projeto local
 - **export** = projeto local → servidor
 
+## `fluigcli mechanism new <name>`
+
+Cria `mechanisms/<name>.js` com o esqueleto do mecanismo customizado — a
+função que devolve a lista de usuários aptos a receber a tarefa (sempre por
+**userCode/matrícula**, nunca por login). **Só local** — publique depois com
+`mechanism export`.
+
+```sh
+fluigcli mechanism new mec_gestor_area
+fluigcli mechanism export mechanisms/mec_gestor_area.js --name "Gestor da Área"
+```
+
 ## `fluigcli mechanism list`
 
 Lista os mecanismos customizados do servidor.

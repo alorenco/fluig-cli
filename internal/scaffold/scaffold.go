@@ -1,6 +1,7 @@
-// Package scaffold gera esqueletos de artefatos Fluig (por ora, widgets) a
-// partir de templates embutidos no binário. Sem cobra nem I/O de terminal —
-// a tradução de erros para mensagens/exit codes fica em internal/cli.
+// Package scaffold gera esqueletos de artefatos Fluig (widgets, datasets,
+// formulários, eventos globais, mecanismos e scripts de processo) a partir de
+// templates embutidos no binário. Sem cobra nem I/O de terminal — a tradução
+// de erros para mensagens/exit codes fica em internal/cli.
 //
 // Convenções dos templates (templates/<nome>/...):
 //   - Arquivos de texto passam por text/template com delimitadores [[ ]]
@@ -35,7 +36,7 @@ var (
 	// ErrUnknownTemplate indica template inexistente.
 	ErrUnknownTemplate = errors.New("template desconhecido")
 	// ErrDirExists indica que a pasta de destino já existe.
-	ErrDirExists = errors.New("a pasta do widget já existe")
+	ErrDirExists = errors.New("a pasta de destino já existe")
 )
 
 // codeRe valida o código do widget: ele vira context-root, id de DOM, nome de
@@ -189,7 +190,7 @@ func newWidgetData(opt Options) widgetData {
 	}
 }
 
-func render(name string, raw []byte, data widgetData) ([]byte, error) {
+func render(name string, raw []byte, data any) ([]byte, error) {
 	t, err := template.New(name).Delims("[[", "]]").Parse(string(raw))
 	if err != nil {
 		return nil, fmt.Errorf("template %s: %w", name, err)
