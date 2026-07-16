@@ -101,10 +101,14 @@ sem CDN. Pontos de atenção:
 - O **tema do Vuetify não segue o tema do portal** (o dark mode do Fluig não
   escurece o Vuetify sozinho) — se precisar, configure
   `createVuetify({ theme: ... })` no `main.ts`.
-- Peso de referência do exemplo gerado: JS ~190 KB (68 gzip) + CSS ~390 KB
-  (61 gzip) + fonte de ícones ~400 KB (woff2) — bem servível na intranet,
+- Peso de referência do exemplo gerado: JS ~190 KB (68 gzip) + CSS ~640 KB
+  (91 gzip) + fonte de ícones ~400 KB (woff2) — bem servível na intranet,
   mas maior que o template vue puro (69 KB); prefira o vue puro para widgets
   novas simples.
+- **Não remova o `import 'vuetify/styles'` do `main.ts`**: além do reset, é
+  ele que traz as variáveis de state-layer (`--v-hover-opacity`...) e as
+  classes de cor — sem ele, hover e itens selecionados ficam com overlay
+  **preto sólido**.
 - O style guide do portal continua na página (`FLUIGC.toast` do kit etc.).
 [[- else]]
 ## Visual: Fluig Style Guide

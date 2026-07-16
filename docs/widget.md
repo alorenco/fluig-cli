@@ -92,7 +92,7 @@ fluigcli widget export meu_painel   # publica quando quiser
   Tudo do template vue vale aqui (dev, build, deploy); muda o `App.vue` de
   exemplo (componentes Vuetify) e as dependências. Fontes de ícone vão no
   WAR e são servidas pelo próprio Fluig (URLs relativas no CSS — sem CDN).
-  Pesos de referência: JS ~190 KB (68 gzip) + CSS ~390 KB (61 gzip) + fonte
+  Pesos de referência: JS ~190 KB (68 gzip) + CSS ~640 KB (91 gzip) + fonte
   ~400 KB (woff2). ⚠️ O tema do Vuetify não segue o dark mode do portal
   sozinho (configure `createVuetify({theme})` se precisar). Para widget
   nova sem legado Vuetify, prefira o template vue puro (69 KB).

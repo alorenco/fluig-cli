@@ -359,8 +359,12 @@ func TestCreateWidgetVueVuetify(t *testing.T) {
 		!strings.Contains(s, "plugins: [vue(), vuetify()]") || !strings.Contains(s, "base: ''") {
 		t.Errorf("vite.config.ts sem plugin/base do Vuetify:\n%s", s)
 	}
+	// O import 'vuetify/styles' é OBRIGATÓRIO: sem a base, as variáveis de
+	// state-layer somem e hover/seleção ficam com overlay preto sólido
+	// (regressão pega ao vivo na homolog em 2026-07-16).
 	if s := read("src/vue/main.ts"); !strings.Contains(s, "createVuetify") ||
-		!strings.Contains(s, ".use(createVuetify())") || !strings.Contains(s, "@mdi/font/css/materialdesignicons.css") {
+		!strings.Contains(s, ".use(createVuetify())") || !strings.Contains(s, "import 'vuetify/styles'") ||
+		!strings.Contains(s, "@mdi/font/css/materialdesignicons.css") {
 		t.Errorf("main.ts sem o uso do Vuetify:\n%s", s)
 	}
 	if s := read("src/vue/App.vue"); !strings.Contains(s, "<v-card") || !strings.Contains(s, "mdi-magnify") {

@@ -9,8 +9,13 @@ import { createApp } from 'vue'
 import App from './App.vue'
 [[- if .Vuetify]]
 import { createVuetify } from 'vuetify'
+// A base do Vuetify é OBRIGATÓRIA: além do reset, ela define as variáveis de
+// state-layer (--v-hover-opacity etc.) e as classes de cor (text-red-darken-1).
+// Sem ela, hover/seleção ficam com overlay PRETO sólido. O CSS dos componentes
+// usados vem do vite-plugin-vuetify (tree-shaking).
+import 'vuetify/styles'
 // Ícones por fonte: strings `mdi-*` funcionam como nas widgets Vuetify
-// antigas (a fonte vai no WAR). O CSS dos componentes vem do vite-plugin-vuetify.
+// antigas (a fonte vai no WAR).
 import '@mdi/font/css/materialdesignicons.css'
 [[- end]]
 
