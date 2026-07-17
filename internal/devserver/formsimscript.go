@@ -931,7 +931,7 @@ const formSimJS = `(function () {
     "#fluigcli-sim *{box-sizing:border-box;font:inherit;color:inherit}" +
     "#fluigcli-sim .bar{display:flex;gap:2px;align-items:center;border:1px solid #d5dde5;" +
     "background:#fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 8px rgba(16,36,54,.18);" +
-    "max-width:min(400px,94vw)}" +
+    "max-width:min(440px,94vw)}" +
     "#fluigcli-sim .bar button{position:relative;border:0;background:none;cursor:pointer;" +
     "min-width:34px;height:34px;border-radius:999px;font-size:16px;line-height:1;padding:0 6px}" +
     "#fluigcli-sim .bar button:hover{background:#eef2f5}" +
@@ -990,7 +990,13 @@ const formSimJS = `(function () {
     "#fluigcli-sim .dlg .hint{margin-top:10px;color:#5a6b7b;font-size:12px}" +
     "#fluigcli-sim .dlg button{margin-top:14px;width:100%;padding:8px;border:0;border-radius:8px;" +
     "cursor:pointer;background:#eef2f5;font-weight:650}" +
-    "@media (prefers-color-scheme: dark){" +
+    "";
+
+  // Dark mode do painel: acompanha o TEMA DO PREVIEW (classe theme-dark no
+  // <html>, alternada pelo botão 🌓 — como o portal 2.0 faz), não o tema do
+  // sistema — assim formulário e painel nunca discordam. Sem preferência
+  // salva, o applyTheme inicializa a classe pelo prefers-color-scheme.
+  var DARK = "" +
     "#fluigcli-sim{color:#e6edf3}" +
     "#fluigcli-sim .bar,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
     "#fluigcli-sim .bar button:hover{background:#2b3742}" +
@@ -1004,11 +1010,10 @@ const formSimJS = `(function () {
     "#fluigcli-sim .dlg{background:#1b232d}" +
     "#fluigcli-sim .dlg button{background:#2b3742;color:#e6edf3}" +
     "#fluigcli-sim .dlg .hint{color:#93a4b4}" +
-    // Achados da auditoria no dark: fundo escuro (o claro fixo deixava a
-    // mensagem ilegível com o texto herdado #e6edf3) e acentos mais claros.
     "#fluigcli-sim .afind{background:#12181f}" +
     "#fluigcli-sim .afind .aloc{color:#93a4b4}" +
-    "#fluigcli-sim .afind .asug{color:#5fd3a6}}";
+    "#fluigcli-sim .afind .asug{color:#5fd3a6}";
+  CSS += DARK.replace(/#fluigcli-sim/g, "html.theme-dark #fluigcli-sim");
 
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1030,6 +1035,26 @@ const formSimJS = `(function () {
     ui.pos = ui.pos === "right" ? "center" : ui.pos === "center" ? "left" : "right";
     saveUI();
     applyPos();
+  }
+
+  // Tema claro/escuro do preview: o tema 2.0 é a classe theme-dark no <html>
+  // (o CSS flat define as variáveis dos dois modos) — alternar a classe troca
+  // o tema do FORMULÁRIO, igual ao portal. Sem preferência salva, segue o
+  // tema do sistema. O painel acompanha (regras html.theme-dark, não media
+  // query), para painel e formulário nunca discordarem.
+  function currentTheme() {
+    if (ui.theme === "dark" || ui.theme === "light") return ui.theme;
+    try {
+      return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch (e) { return "light"; }
+  }
+  function applyTheme() {
+    document.documentElement.classList.toggle("theme-dark", currentTheme() === "dark");
+  }
+  function cycleTheme() {
+    ui.theme = currentTheme() === "dark" ? "light" : "dark";
+    saveUI();
+    applyTheme();
   }
 
   // Modo de tela: livre → celular (375) → tablet (768). Limitar a largura
@@ -1217,6 +1242,7 @@ const formSimJS = `(function () {
       "<button type=\"button\" data-act=\"send\" title=\"Enviar etapa: pergunta a próxima etapa e valida o envio\">▶</button>" +
       "<button type=\"button\" data-act=\"deploy\" title=\"Publicar o formulário no servidor (atualiza ou cria, como o form export)\">🚀</button>" +
       "<button type=\"button\" data-act=\"screen\" title=\"Alternar largura da tela: livre → celular (375) → tablet (768). getMobile() simula na Simulação\">🖥</button>" +
+      "<button type=\"button\" data-act=\"theme\" title=\"Alternar o tema do preview: claro ↔ escuro (classe theme-dark do Fluig 2.0 — cores fixas do form não acompanham)\">🌓</button>" +
       "<button type=\"button\" data-act=\"portal\" title=\"Abrir o render real deste formulário no Fluig (nova aba, via proxy)\">↗</button>" +
       "<button type=\"button\" data-act=\"index\" title=\"Voltar ao índice de formulários\">⌂</button>" +
       "<button type=\"button\" data-act=\"clean\" title=\"Limpar os campos e recarregar o preview\">🧹</button>" +
@@ -1259,6 +1285,7 @@ const formSimJS = `(function () {
       if (act === "save") { doValidate(false); }
       if (act === "sendgo") { doValidate(true); }
       if (act === "screen") { cycleScreen(); }
+      if (act === "theme") { cycleTheme(); }
       if (act === "portal") { openPortal(); }
       if (act === "index") { location.href = "/_dev/forms/"; }
       if (act === "clean") { location.reload(); }
@@ -1550,6 +1577,7 @@ const formSimJS = `(function () {
   // Ordem: os stubs do ambiente do portal entram antes de tudo (o form usa
   // no document.ready e nos onclick); o evento roda JÁ (antes do load do
   // formulário, que lê os campos preenchidos por ele); o painel em seguida.
+  applyTheme(); // antes de tudo: evita flash de tema errado
   installPortalStub();
   installWdkMachine();
   populateDatasetSelects(); // antes do evento: displayFields pode selecionar valor

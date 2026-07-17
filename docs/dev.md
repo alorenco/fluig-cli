@@ -98,6 +98,15 @@ aplica as mesmas transformações, condicionadas ao servidor ter o tema novo
 (num Fluig 1.x nada é alterado). É só apresentação: **os arquivos locais não
 são tocados**.
 
+### Tema claro/escuro no preview (botão 🌓)
+
+O botão **🌓** da barra alterna o tema do preview como o portal 2.0 faz —
+trocando a classe `theme-dark` no `<html>`, que vira todas as variáveis
+`--fs-*` do CSS flat. É o jeito mais rápido de **ver** o que o audit aponta:
+cores fixas (`#hex`) não acompanham a troca e ficam "presas" no tema antigo.
+Sem preferência salva, o preview segue o tema do sistema; a escolha persiste
+entre recarregamentos (localStorage) e o painel flutuante acompanha.
+
 ### Auditoria de Style Guide no preview (botão 🎨)
 
 Cada preview roda automaticamente o [`fluigcli audit`](audit.md) na pasta do
