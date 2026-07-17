@@ -120,14 +120,33 @@ type requestItem struct {
 	EndDate            string       `json:"endDate"`
 	FormRecordID       int64        `json:"formRecordId"`
 	FormID             int64        `json:"formId"`
-	CurrentMovements   []struct {
-		MovementSequence int    `json:"movementSequence"`
-		SLAStatus        string `json:"slaStatus"`
-		State            struct {
-			Sequence  int    `json:"sequence"`
-			StateName string `json:"stateName"`
-		} `json:"state"`
-	} `json:"currentMovements"`
+	// currentMovements existe só a partir do Fluig 2.0 (validado nos swaggers
+	// de homologação 2.0 e produção 1.8); em 1.8 a etapa atual vem de
+	// activities filtrado por active=true — ver ListRequests/toRequest.
+	CurrentMovements []movementItem `json:"currentMovements"`
+	Activities       []movementItem `json:"activities"`
+}
+
+// movementItem é uma movimentação/atividade da solicitação (ProcessActivity do
+// swagger). Serve tanto para currentMovements (2.0) quanto para activities
+// (1.8); Active só é relevante no segundo caso.
+type movementItem struct {
+	MovementSequence int    `json:"movementSequence"`
+	SLAStatus        string `json:"slaStatus"`
+	Active           bool   `json:"active"`
+	State            struct {
+		Sequence  int    `json:"sequence"`
+		StateName string `json:"stateName"`
+	} `json:"state"`
+}
+
+func (m movementItem) toStep() RequestStep {
+	return RequestStep{
+		Movement:  m.MovementSequence,
+		Sequence:  m.State.Sequence,
+		StateName: m.State.StateName,
+		SLAStatus: m.SLAStatus,
+	}
 }
 
 func (it requestItem) toRequest() Request {
@@ -144,15 +163,31 @@ func (it requestItem) toRequest() Request {
 		FormRecordID:       it.FormRecordID,
 		FormID:             it.FormID,
 	}
-	for _, m := range it.CurrentMovements {
-		r.CurrentSteps = append(r.CurrentSteps, RequestStep{
-			Movement:  m.MovementSequence,
-			Sequence:  m.State.Sequence,
-			StateName: m.State.StateName,
-			SLAStatus: m.SLAStatus,
-		})
+	// Fluig 2.0: a etapa atual vem pronta em currentMovements. Fluig 1.8: o
+	// campo não existe, então derivamos das activities ativas (mesmo shape).
+	if len(it.CurrentMovements) > 0 {
+		for _, m := range it.CurrentMovements {
+			r.CurrentSteps = append(r.CurrentSteps, m.toStep())
+		}
+	} else {
+		for _, m := range it.Activities {
+			if m.Active {
+				r.CurrentSteps = append(r.CurrentSteps, m.toStep())
+			}
+		}
 	}
 	return r
+}
+
+// currentStepExpand escolhe o campo de expand que traz a etapa atual conforme
+// a versão do Fluig: currentMovements no 2.0+, activities no 1.8 (onde
+// currentMovements não existe). Versão desconhecida → activities (defensivo:
+// existe nas duas gerações). O erro de versão não é fatal para a listagem.
+func (c *Client) currentStepExpand(ctx context.Context) string {
+	if ver, err := c.ServerVersion(ctx); err == nil && ver.AtLeast(2, 0) {
+		return "currentMovements"
+	}
+	return "activities"
 }
 
 // resolveUserFilter converte login → userCode para os filtros assignee/
@@ -185,6 +220,7 @@ func (c *Client) ListRequests(ctx context.Context, f RequestFilter) ([]Request, 
 	if err != nil {
 		return nil, err
 	}
+	stepExpand := c.currentStepExpand(ctx)
 	const pageSize = 100
 	var out []Request
 	for page := 1; ; page++ {
@@ -192,7 +228,7 @@ func (c *Client) ListRequests(ctx context.Context, f RequestFilter) ([]Request, 
 		params.Set("page", strconv.Itoa(page))
 		params.Set("pageSize", strconv.Itoa(pageSize))
 		params.Add("expand", "requester")
-		params.Add("expand", "currentMovements")
+		params.Add("expand", stepExpand)
 		if f.ProcessID != "" {
 			params.Add("processId", f.ProcessID)
 		}
@@ -240,7 +276,7 @@ func (c *Client) GetRequest(ctx context.Context, id int) (*Request, error) {
 		return nil, err
 	}
 	endpoint := c.url(restRequestsPath+"/"+strconv.Itoa(id)) +
-		"?expand=requester&expand=currentMovements"
+		"?expand=requester&expand=" + c.currentStepExpand(ctx)
 	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err

@@ -865,6 +865,12 @@ func newServerStatusCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// A versão do produto não exige admin — busca antes das estatísticas
+			// (que exigem) para o dado aparecer mesmo onde falta privilégio.
+			version, verr := client.ServerVersion(ctx)
+			if verr != nil {
+				p.Warnf("não foi possível identificar a versão do servidor: %v", verr)
+			}
 			stats, err := client.ServerStatistics(ctx)
 			if err != nil {
 				return mapFluigError(err)
@@ -875,6 +881,7 @@ func newServerStatusCmd(app *App) *cobra.Command {
 			}
 
 			p.Successf("Servidor %s (%s)", server.Name, server.BaseURL())
+			p.Successf("Versão do Fluig: %s", version.String())
 			p.Successf("Uptime: %s · Usuários conectados: %d · Threads: %d (pico %d)",
 				fmtUptime(stats.UptimeMillis), stats.ConnectedUsers, stats.ThreadCount, stats.ThreadPeak)
 			p.Successf("Memória JVM: %s heap + %s non-heap · SO: %s livres de %s",
@@ -906,7 +913,7 @@ func newServerStatusCmd(app *App) *cobra.Command {
 					}),
 				})
 			}
-			p.Done(map[string]any{"stats": stats, "monitors": monitors})
+			p.Done(map[string]any{"version": version, "stats": stats, "monitors": monitors})
 			return nil
 		},
 	}

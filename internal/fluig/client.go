@@ -43,6 +43,8 @@ type Client struct {
 	userCode   string // cache do userCode real (findUserByLogin)
 	sessionKey string // host|usuário — chave do cache de sessão
 	cache      SessionCache
+
+	serverVersion *ServerVersion // cache da versão do produto (ServerVersion)
 }
 
 const defaultTimeout = 30 * time.Second

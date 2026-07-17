@@ -27,6 +27,15 @@ fluigcli request list --assignee mjara --sla expired
 fluigcli request list --limit 0 --json          # todas, para agentes/CI
 ```
 
+::: tip Compatibilidade Fluig 1.8 × 2.0
+A "etapa atual" é obtida de formas diferentes conforme a versão do servidor
+(detectada por `/api/public/wcm/version`): no **Fluig 2.0+** vem do expand
+`currentMovements`; no **Fluig 1.8** esse campo não existe na API, então a CLI
+usa o expand `activities` e considera a atividade ativa (`active=true`). O
+resultado (`currentSteps` no `--json`) é idêntico nas duas versões — nada muda
+para quem consome o comando.
+:::
+
 ## `fluigcli request show <número>`
 
 Mostra uma solicitação: processo/versão, status, solicitante, período, etapa

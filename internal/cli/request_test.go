@@ -21,6 +21,8 @@ import (
 type requestStub struct {
 	listQuery url.Values
 
+	version        string // versão do produto devolvida (vazio → Voyager 2.0)
+	legacyList     bool   // serve a fixture 1.8 (activities) na listagem
 	startBody      map[string]any
 	moveBody       map[string]any
 	needsAssignee  bool   // start responde 412 com possibleAssignees
@@ -43,8 +45,21 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
+	// Versão do produto (ServerVersion): default = Fluig 2.0 (currentMovements).
+	mux.HandleFunc("/api/public/wcm/version", func(w http.ResponseWriter, r *http.Request) {
+		v := s.version
+		if v == "" {
+			v = "TOTVS Fluig Plataforma - Voyager 2.0.0-260707"
+		}
+		io.WriteString(w, `{"value":"`+v+`"}`)
+	})
 	mux.HandleFunc("/process-management/api/v2/requests", func(w http.ResponseWriter, r *http.Request) {
 		s.listQuery = r.URL.Query()
+		if s.legacyList {
+			// Fluig 1.8: sem currentMovements; etapa atual vem de activities.
+			w.Write([]byte(`{"items":[` + string(readTD("rest_request_show_legacy.json")) + `],"hasNext":false}`))
+			return
+		}
 		w.Write(readTD("rest_requests_expand.json"))
 	})
 	// MoveResponse de sucesso (shape do swagger; o 200 real ainda não foi
@@ -186,6 +201,39 @@ func TestRequestListJSON(t *testing.T) {
 	}
 	if got := q["expand"]; len(got) != 2 || got[0] != "requester" || got[1] != "currentMovements" {
 		t.Errorf("expand inesperado: %v", got)
+	}
+}
+
+// Fluig 1.8: currentMovements não existe → a listagem pede expand=activities e
+// a "Etapa atual" é derivada da activity ativa (regressão real de produção).
+func TestRequestListLegado18(t *testing.T) {
+	stub := &requestStub{version: "TOTVS Fluig Plataforma - Crystal Mist 1.8.2-260707", legacyList: true}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "list", "--process", "compras_requisicao_abastecimento",
+		"--status", "open", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	// O expand da etapa vira "activities" (não currentMovements) no 1.8.
+	if got := stub.listQuery["expand"]; len(got) != 2 || got[1] != "activities" {
+		t.Errorf("expand devia ser [requester activities] no 1.8: %v", got)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	requests, _ := data["requests"].([]any)
+	if len(requests) != 1 {
+		t.Fatalf("esperava 1 solicitação, veio %d", len(requests))
+	}
+	first, _ := requests[0].(map[string]any)
+	steps, _ := first["currentSteps"].([]any)
+	// Só a activity ativa vira etapa atual (a inativa "Início" é descartada).
+	if len(steps) != 1 {
+		t.Fatalf("esperava 1 etapa (a ativa), veio %d: %+v", len(steps), first["currentSteps"])
+	}
+	step, _ := steps[0].(map[string]any)
+	if step["stateName"] != "Aprovar Requisição" || step["sequence"].(float64) != 5 {
+		t.Errorf("etapa ativa inesperada: %+v", step)
 	}
 }
 
