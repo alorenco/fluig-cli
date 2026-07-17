@@ -17,6 +17,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
+| conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
 | consultar os dados de um dataset | `dataset query` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
@@ -217,6 +218,20 @@ Use antes de um `export` para saber o que mudaria. Em formulários, um arquivo
 `only-server` seria **removido** por um `form export` da pasta; anexos binários
 são comparados byte a byte (sem diff textual). Scripts de processo usam o
 export nativo do processo — não requerem a fluiggersWidget.
+
+## audit — conformidade com o Style Guide 2.0
+
+| comando | efeito |
+|---|---|
+| `audit [<path>...]` | linter read-only de forms/ e wcm/widget/ contra o tema fixo do Fluig 2.0; `--sync` atualiza o catálogo do servidor; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
+
+Regras: SG001 CSS legado (aviso) · SG002 recurso externo/CDN (erro) · SG003
+cor fixa hex/rgb (erro, com a **variável do tema sugerida** no campo
+`suggestion`) · SG006 classe `fs-*` inexistente (aviso). No `--json`
+reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **use a
+sugestão de cada finding para corrigir e rode de novo até exit 0**. Exceções
+em `.fluigcli/audit.json` (`{"ignore":[globs]}`); vendorado/minificado e
+bundle de SPA já são ignorados sozinhos.
 
 ## watch — publicar ao salvar (interativo)
 

@@ -18,6 +18,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [replacement](replacement.md) — substitutos de usuário / delegação de tarefas (requer admin)
 - [diff](diff.md) — comparar artefatos locais com o servidor antes de publicar
+- [audit](audit.md) — auditar formulários e widgets contra o Fluig Style Guide 2.0
 - [watch](watch.md) — publicar automaticamente ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload: widgets sem deploy e preview de formulários com simulação de processo (só dev/hml)
 - [skill](skill.md) — Skill para agentes de IA (Claude Code / Codex)

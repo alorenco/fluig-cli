@@ -29,6 +29,9 @@ const (
 	CodeServerError   = "SERVER_ERROR"
 	CodePartial       = "PARTIAL_FAILURE"
 	CodeMissingHelper = "HELPER_NOT_INSTALLED"
+	// CodeAuditFailed marca auditoria reprovada por --fail-on: não é um erro
+	// de execução (a auditoria rodou), é o veredito — o exit é o genérico 1.
+	CodeAuditFailed = "AUDIT_FAILED"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -55,6 +58,12 @@ func newError(code string, exit int, format string, args ...any) *Error {
 
 func Genericf(format string, args ...any) *Error {
 	return newError(CodeGeneric, ExitGeneric, format, args...)
+}
+
+// AuditFailedf sinaliza auditoria reprovada (--fail-on): exit 1 com código
+// próprio no envelope (o data com os achados vai via Printer.FailData).
+func AuditFailedf(format string, args ...any) *Error {
+	return newError(CodeAuditFailed, ExitGeneric, format, args...)
 }
 
 func Usagef(format string, args ...any) *Error {

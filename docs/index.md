@@ -57,6 +57,7 @@ local → servidor. Comandos e flags em inglês; mensagens em pt-BR.
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
+| [audit](./audit) | auditar forms/widgets contra o Style Guide 2.0 |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |
 | [request](./request) | solicitações: consultar, iniciar, movimentar, anexos |

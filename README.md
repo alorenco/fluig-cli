@@ -109,6 +109,7 @@ fluigcli diff --json | jq '.data.counts'
 | `workflow` | `new-script` `list` `version` `import` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
+| `audit` | audita forms/widgets contra o Style Guide 2.0 (cores fixas, CDNs, CSS legado) | [docs/audit.md](docs/audit.md) |
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
 | `dev` | dev server com live reload: widgets sem deploy + preview de formulários com simulação de processo (WKNumState/etapas reais) | [docs/dev.md](docs/dev.md) |
 

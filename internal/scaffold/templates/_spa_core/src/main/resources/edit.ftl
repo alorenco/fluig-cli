@@ -10,7 +10,9 @@
 			<h3 class="panel-title">${i18n.getTranslation('application.title')}</h3>
 		</div>
 		<div class="panel-body">
-			<form role="form" class="fs-prevent-default">
+			<#-- onsubmit=false: Enter num campo não pode recarregar o editor
+			     de páginas (o salvar é o botão data-save-settings, sem submit). -->
+			<form role="form" onsubmit="return false">
 				<div class="form-group">
 					<label for="[[.Code]]-customtitle-${instanceId}">${i18n.getTranslation('edit.customTitle')}</label>
 					<input type="text" class="form-control" id="[[.Code]]-customtitle-${instanceId}" name="customTitle" value="${(settings.customTitle)!''}">

@@ -99,6 +99,24 @@ func (p *Printer) Partial(data any) {
 	})
 }
 
+// FailData finaliza uma execução que CONCLUIU mas reprova (ex.: auditoria com
+// --fail-on): o envelope sai ok=false com o data completo E o erro tipado —
+// espelho do Partial com código/mensagem próprios. Em modo humano não imprime
+// (a mensagem vem do erro que o comando retorna na sequência).
+func (p *Printer) FailData(data any, code, message string) {
+	if !p.JSON || p.emitted {
+		return
+	}
+	p.emitted = true
+	p.writeEnvelope(Envelope{
+		OK:      false,
+		Command: p.Command,
+		Server:  p.Server,
+		Data:    data,
+		Error:   &EnvelopeError{Code: code, Message: message},
+	})
+}
+
 // Fail reporta o erro (envelope em stdout no modo JSON; mensagem pt-BR em
 // stderr no modo humano) e retorna o exit code correspondente.
 func (p *Printer) Fail(err error) int {

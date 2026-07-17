@@ -84,8 +84,11 @@ fluigcli dataset export --help
    (`dataset new`, `form new`, `event new`, `mechanism new`, `widget new`,
    `workflow new-script <pid> <evento>`) — gera o esqueleto local correto,
    sem tocar o servidor.
-3. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
-4. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
+3. Em formulário ou widget: `fluigcli audit <path> --json` → conformidade com
+   o Style Guide 2.0 (exit 1 = reprovado; corrija pelas `suggestion` dos
+   `data.findings[]` e repita até exit 0).
+4. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
+5. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
 
 ## Limites
 

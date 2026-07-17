@@ -38,6 +38,7 @@ export default defineConfig({
           { text: 'workflow — scripts de processo', link: '/workflow' },
           { text: 'widget — widgets', link: '/widget' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
+          { text: 'audit — conformidade com o style guide', link: '/audit' },
           { text: 'watch — publicar ao salvar', link: '/watch' },
           { text: 'dev — dev server com live reload', link: '/dev' },
         ],

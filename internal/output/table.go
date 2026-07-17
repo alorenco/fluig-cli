@@ -82,11 +82,13 @@ func (t Table) Render(w io.Writer) {
 // --- cores (ANSI) ---
 
 const (
-	ansiReset = "\x1b[0m"
-	ansiBold  = "\x1b[1m"
-	ansiDim   = "\x1b[2m"
-	ansiCyan  = "\x1b[36m"
-	ansiGreen = "\x1b[32m"
+	ansiReset  = "\x1b[0m"
+	ansiBold   = "\x1b[1m"
+	ansiDim    = "\x1b[2m"
+	ansiCyan   = "\x1b[36m"
+	ansiGreen  = "\x1b[32m"
+	ansiYellow = "\x1b[33m"
+	ansiRed    = "\x1b[31m"
 )
 
 // ColorEnabled indica se devemos emitir ANSI em stdout: só quando stdout é um
@@ -98,12 +100,14 @@ func ColorEnabled() bool {
 	return StdoutIsTTY()
 }
 
-// Bold, Dim, Cyan e Green embrulham s em códigos ANSI (sem checar TTY — quem
-// chama decide via ColorEnabled).
-func Bold(s string) string  { return ansiBold + s + ansiReset }
-func Dim(s string) string   { return ansiDim + s + ansiReset }
-func Cyan(s string) string  { return ansiCyan + s + ansiReset }
-func Green(s string) string { return ansiGreen + s + ansiReset }
+// Bold, Dim, Cyan, Green, Yellow e Red embrulham s em códigos ANSI (sem
+// checar TTY — quem chama decide via ColorEnabled).
+func Bold(s string) string   { return ansiBold + s + ansiReset }
+func Dim(s string) string    { return ansiDim + s + ansiReset }
+func Cyan(s string) string   { return ansiCyan + s + ansiReset }
+func Green(s string) string  { return ansiGreen + s + ansiReset }
+func Yellow(s string) string { return ansiYellow + s + ansiReset }
+func Red(s string) string    { return ansiRed + s + ansiReset }
 
 // BoldHeaderStyle é o Style padrão das tabelas de listagem: cabeçalho em
 // negrito e demais células delegadas a cellStyle (opcional; nil = sem cor
