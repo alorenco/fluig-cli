@@ -105,7 +105,9 @@ trocando a classe `theme-dark` no `<html>`, que vira todas as variáveis
 `--fs-*` do CSS flat. É o jeito mais rápido de **ver** o que o audit aponta:
 cores fixas (`#hex`) não acompanham a troca e ficam "presas" no tema antigo.
 Sem preferência salva, o preview segue o tema do sistema; a escolha persiste
-entre recarregamentos (localStorage) e o painel flutuante acompanha.
+entre recarregamentos (localStorage). A barra e as janelas do fluigcli usam
+sempre o **tema oposto** ao do formulário (form claro → painel escuro, e
+vice-versa) — contraste constante, sem se confundir com o conteúdo.
 
 ### Auditoria de Style Guide no preview (botão 🎨)
 

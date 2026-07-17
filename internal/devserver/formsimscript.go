@@ -995,10 +995,11 @@ const formSimJS = `(function () {
     "cursor:pointer;background:#eef2f5;font-weight:650}" +
     "";
 
-  // Dark mode do painel: acompanha o TEMA DO PREVIEW (classe theme-dark no
-  // <html>, alternada pelo botão 🌓 — como o portal 2.0 faz), não o tema do
-  // sistema — assim formulário e painel nunca discordam. Sem preferência
-  // salva, o applyTheme inicializa a classe pelo prefers-color-scheme.
+  // O painel do fluigcli (barra + janelas) usa SEMPRE o tema OPOSTO ao do
+  // formulário (regra do mantenedor, 2026-07-17): form claro → painel
+  // escuro; form escuro (classe theme-dark do 🌓) → painel claro. Contraste
+  // constante e o painel nunca se confunde com o form. DARK sobrescreve a
+  // base incondicionalmente; LIGHT (abaixo) restaura os claros sob theme-dark.
   var DARK = "" +
     "#fluigcli-sim{color:#e6edf3}" +
     "#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
@@ -1015,7 +1016,26 @@ const formSimJS = `(function () {
     "#fluigcli-sim .afind{background:#12181f}" +
     "#fluigcli-sim .afind .aloc{color:#93a4b4}" +
     "#fluigcli-sim .afind .asug{color:#5fd3a6}";
-  CSS += DARK.replace(/#fluigcli-sim/g, "html.theme-dark #fluigcli-sim");
+  CSS += DARK;
+  var LIGHT = "" +
+    "#fluigcli-sim{color:#1d2b36}" +
+    "#fluigcli-sim .bar,#fluigcli-sim .card{background:#fff;border-color:#d5dde5}" +
+    "#fluigcli-sim .bar button{color:#1d2b36}" +
+    "#fluigcli-sim .bar button:hover{background:#eef2f5}" +
+    "#fluigcli-sim select,#fluigcli-sim input[type=text],#fluigcli-sim input[type=number],#fluigcli-sim textarea{" +
+    "background:#fff;border-color:#c9d3dc}" +
+    "#fluigcli-sim .btn.sec{background:#eef2f5;color:#1d2b36}" +
+    "#fluigcli-sim .status{background:#f2f6f9}" +
+    "#fluigcli-sim .status.err{background:#fdecea;color:#8c2f28}" +
+    "#fluigcli-sim .sub,#fluigcli-sim .muted{color:#5a6b7b}" +
+    "#fluigcli-sim .sep{border-top-color:#e3e8ee}" +
+    "#fluigcli-sim .dlg{background:#fff}" +
+    "#fluigcli-sim .dlg button{background:#eef2f5;color:#1d2b36}" +
+    "#fluigcli-sim .dlg .hint{color:#5a6b7b}" +
+    "#fluigcli-sim .afind{background:#f6f8fa}" +
+    "#fluigcli-sim .afind .aloc{color:#5a6b7b}" +
+    "#fluigcli-sim .afind .asug{color:#1b6e53}";
+  CSS += LIGHT.replace(/#fluigcli-sim/g, "html.theme-dark #fluigcli-sim");
 
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
