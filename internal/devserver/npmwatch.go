@@ -3,6 +3,7 @@ package devserver
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -27,6 +28,65 @@ func (s *Server) warnStaleBundles() {
 	}
 }
 
+// setNpmState registra o estado do `npm run watch` de uma widget, exposto no
+// card de widgets SPA do dashboard.
+func (s *Server) setNpmState(code, state string) {
+	s.npmMu.Lock()
+	defer s.npmMu.Unlock()
+	if s.npmState == nil {
+		s.npmState = map[string]string{}
+	}
+	s.npmState[code] = state
+}
+
+// npmStateOf devolve o estado registrado ("" = nenhum spawn para a widget).
+func (s *Server) npmStateOf(code string) string {
+	s.npmMu.Lock()
+	defer s.npmMu.Unlock()
+	return s.npmState[code]
+}
+
+// npmWatchOn informa se o npm watch está ligado (toggle do dashboard).
+func (s *Server) npmWatchOn() bool {
+	s.npmMu.Lock()
+	defer s.npmMu.Unlock()
+	return s.npmOn
+}
+
+// SetNpmWatch liga/desliga os `npm run watch` das widgets SPA em execução —
+// o toggle do dashboard, sem reiniciar o dev. Os processos ligados aqui
+// morrem tanto no desligar (cancel derivado) quanto no Ctrl+C do dev (o
+// contexto deriva do Run).
+func (s *Server) SetNpmWatch(enabled bool) error {
+	s.npmMu.Lock()
+	if enabled == s.npmOn {
+		s.npmMu.Unlock()
+		return nil
+	}
+	if enabled {
+		if s.runCtx == nil {
+			s.npmMu.Unlock()
+			return errors.New("o dev server ainda não terminou de subir — tente de novo")
+		}
+		ctx, cancel := context.WithCancel(s.runCtx)
+		s.npmCancel = cancel
+		s.npmOn = true
+		s.npmMu.Unlock()
+		s.startNpmWatch(ctx)
+		return nil
+	}
+	cancel := s.npmCancel
+	s.npmCancel = nil
+	s.npmOn = false
+	s.npmState = map[string]string{}
+	s.npmMu.Unlock()
+	if cancel != nil {
+		cancel()
+		s.opts.Infof("npm watch desligado pelo dashboard")
+	}
+	return nil
+}
+
 // npmCommand monta o comando do watch (variável para os testes trocarem).
 var npmCommand = func(dir string) *exec.Cmd {
 	cmd := exec.Command("npm", "run", "watch")
@@ -44,11 +104,15 @@ func (s *Server) startNpmWatch(ctx context.Context) {
 	}
 	if _, err := exec.LookPath("npm"); err != nil {
 		s.opts.Warnf("--npm-watch: npm não encontrado no PATH — instale o Node.js (ver .nvmrc da widget)")
+		for _, w := range widgets {
+			s.setNpmState(w.Code, "npm não encontrado no PATH")
+		}
 		return
 	}
 	for _, w := range widgets {
 		if _, err := os.Stat(filepath.Join(w.Dir, "node_modules")); err != nil {
-			s.opts.Warnf("--npm-watch: widget %s sem node_modules — rode npm install em %s e reinicie", w.Code, relOrSelf(s.opts.Root, w.Dir))
+			s.opts.Warnf("npm watch: widget %s sem node_modules — rode npm install em %s e religue o npm watch no dashboard", w.Code, relOrSelf(s.opts.Root, w.Dir))
+			s.setNpmState(w.Code, "sem node_modules — rode npm install e religue o npm watch")
 			continue
 		}
 		go s.runNpmWatch(ctx, w)
@@ -65,9 +129,11 @@ func (s *Server) runNpmWatch(ctx context.Context, w project.SPAWidget) {
 		cmd.Stderr = cmd.Stdout // intercala no mesmo pipe
 		if err := cmd.Start(); err != nil {
 			s.opts.Warnf("npm watch %s: %v", w.Code, err)
+			s.setNpmState(w.Code, "falhou ao iniciar: "+err.Error())
 			return
 		}
 		s.opts.Infof("npm watch %s: compilando a cada save (pid %d)", w.Code, cmd.Process.Pid)
+		s.setNpmState(w.Code, "rodando")
 		go s.relayNpmOutput(w.Code, stdout)
 
 		done := make(chan error, 1)
@@ -82,6 +148,7 @@ func (s *Server) runNpmWatch(ctx context.Context, w project.SPAWidget) {
 				return
 			}
 			s.opts.Warnf("npm watch %s terminou (%v) — reiniciando em 5s", w.Code, err)
+			s.setNpmState(w.Code, "reiniciando após queda")
 			select {
 			case <-ctx.Done():
 				return

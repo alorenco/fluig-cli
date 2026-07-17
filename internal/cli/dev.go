@@ -142,7 +142,7 @@ func newDevCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&listen, "listen", "127.0.0.1", "endereço de escuta — mude para um IP de rede privada (ex.: tailnet) ao desenvolver em servidor remoto")
 	cmd.Flags().IntVar(&port, "port", 8787, "porta do dev server")
 	cmd.Flags().DurationVar(&debounce, "debounce", 500*time.Millisecond, "espera após o salvamento antes de recarregar (agrupa rajadas do editor)")
-	cmd.Flags().BoolVar(&npmWatch, "npm-watch", false, "roda o `npm run watch` das widgets SPA (vue/react) junto com o dev server")
+	cmd.Flags().BoolVar(&npmWatch, "npm-watch", false, "roda o `npm run watch` das widgets SPA (vue/react) junto com o dev server (dá para ligar/desligar depois no dashboard)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

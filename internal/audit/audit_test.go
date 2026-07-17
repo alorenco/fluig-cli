@@ -349,3 +349,13 @@ func TestRunAlvoExplicito(t *testing.T) {
 		t.Errorf("scanned=%d, quero 1", res.Scanned)
 	}
 }
+
+// Toda regra precisa de um título (o hint das UIs) — pega regra nova sem ele.
+func TestRuleTitlesCompletas(t *testing.T) {
+	for _, rule := range []string{RuleLegacyCSS, RuleExternalRes, RuleHardcodedHex,
+		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog} {
+		if RuleTitles[rule] == "" {
+			t.Errorf("regra %s sem título em RuleTitles", rule)
+		}
+	}
+}

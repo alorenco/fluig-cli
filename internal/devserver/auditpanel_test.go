@@ -72,3 +72,72 @@ func TestAuditAPIValidacao(t *testing.T) {
 		}
 	}
 }
+
+// O resumo do projeto agrega counts e regras; o cache segura o resultado até
+// a invalidação (fsnotify no uso real; aqui direto).
+func TestAuditProjectAPI(t *testing.T) {
+	ts, s, _ := newDashTestServer(t)
+	dir := filepath.Join(s.opts.Root, "forms", "MeuForm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	html := `<link href="/style-guide/css/fluig-style-guide.min.css">
+<form name="f"><div style="color:#fff">x</div></form>`
+	if err := os.WriteFile(filepath.Join(dir, "MeuForm.html"), []byte(html), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	get := func() (counts map[string]int, rules []struct {
+		Rule     string `json:"rule"`
+		Severity string `json:"severity"`
+		Count    int    `json:"count"`
+	}, scanned int) {
+		t.Helper()
+		resp, err := http.Get(ts.URL + "/_dev/api/audit/project")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status=%d body=%s", resp.StatusCode, body)
+		}
+		var out struct {
+			Counts map[string]int `json:"counts"`
+			Rules  []struct {
+				Rule     string `json:"rule"`
+				Severity string `json:"severity"`
+				Count    int    `json:"count"`
+			} `json:"rules"`
+			Scanned int `json:"scanned"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatalf("resposta não é JSON: %v\n%s", err, body)
+		}
+		return out.Counts, out.Rules, out.Scanned
+	}
+
+	counts, rules, scanned := get()
+	// O projeto de teste tem o form com 1 erro + 2 avisos e mais arquivos
+	// limpos (utils.css, js da widget) — o resumo agrega por regra.
+	if counts["error"] != 1 || counts["warning"] != 2 || scanned < 2 {
+		t.Fatalf("resumo inesperado: counts=%v scanned=%d rules=%v", counts, scanned, rules)
+	}
+	if len(rules) == 0 || rules[0].Count == 0 {
+		t.Fatalf("regras agregadas vazias: %v", rules)
+	}
+
+	// Novo achado NÃO aparece enquanto o cache vale…
+	css := ".y{color:#ff0000}\n"
+	if err := os.WriteFile(filepath.Join(dir, "novo.css"), []byte(css), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if counts, _, _ = get(); counts["error"] != 1 {
+		t.Fatalf("cache deveria segurar o resultado antigo: %v", counts)
+	}
+	// …e aparece depois da invalidação (o gatilho real é o fsnotify do save).
+	s.invalidateProjectAudit()
+	if counts, _, _ = get(); counts["error"] != 2 {
+		t.Fatalf("após invalidar, o novo erro deveria contar: %v", counts)
+	}
+}

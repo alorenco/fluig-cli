@@ -71,8 +71,9 @@ type Server struct {
 
 	theme formThemeProbe // detecção (única) do tema novo no servidor
 	wdk   formWdkProbe   // detecção (única) da máquina wdkdetail.js
-	sim   formSimCache   // cache da API de simulação de formulários
-	audit auditState     // catálogo do linter de style guide (auditpanel.go)
+	sim    formSimCache      // cache da API de simulação de formulários
+	audit  auditState        // catálogo do linter de style guide (auditpanel.go)
+	status serverStatusCache // cache do status do servidor (status.go)
 
 	deploys map[string]deployConn // conexões de publicação por servidor (sob sim.mu)
 
@@ -80,6 +81,12 @@ type Server struct {
 	dashMu      sync.Mutex    // controles dinâmicos do dashboard
 	reloadOff   bool          // live reload pausado
 	debounceNow time.Duration // debounce vigente (ajustável no dashboard)
+
+	npmMu     sync.Mutex         // estado do npm watch (npmwatch.go)
+	npmState  map[string]string  // widget → estado legível ("" = sem spawn)
+	npmOn     bool               // npm watch ligado (toggle do dashboard)
+	npmCancel context.CancelFunc // derruba os watchers vigentes ao desligar
+	runCtx    context.Context    // ctx do Run — base dos spawns dinâmicos
 }
 
 // probeTimeout limita as sondagens que o dev server faz no upstream.
@@ -122,8 +129,11 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(datasetLabPath, s.handleDatasetLab)
 	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
 	mux.HandleFunc(auditAPIPath, s.handleAuditAPI)
+	mux.HandleFunc(auditProjectAPIPath, s.handleAuditProjectAPI)
+	mux.HandleFunc(statusAPIPath, s.handleStatusAPI)
 	mux.HandleFunc("/_dev/api/dash", s.handleDash)
 	mux.HandleFunc("/_dev/api/dash/watch", s.handleDashWatch)
+	mux.HandleFunc("/_dev/api/dash/npm-watch", s.handleDashNpmWatch)
 	mux.HandleFunc("/_dev/api/dash/reload", s.handleDashReload)
 	mux.HandleFunc("/_dev/api/dash/clear-caches", s.handleDashClearCaches)
 	mux.HandleFunc("/_dev/", func(w http.ResponseWriter, r *http.Request) {
@@ -197,10 +207,14 @@ func (s *Server) Run(ctx context.Context) error {
 	defer stopWatch()
 
 	// Widgets SPA: avisa bundle ausente/desatualizado (o portal serviria o js
-	// velho) e, com --npm-watch, mantém o `npm run watch` delas rodando.
+	// velho) e, com --npm-watch, mantém o `npm run watch` delas rodando —
+	// o dashboard liga/desliga depois sem reiniciar (SetNpmWatch).
 	s.warnStaleBundles()
+	s.npmMu.Lock()
+	s.runCtx = ctx
+	s.npmMu.Unlock()
 	if s.opts.NpmWatch {
-		s.startNpmWatch(ctx)
+		_ = s.SetNpmWatch(true)
 	}
 
 	srv := &http.Server{Handler: s.handler}

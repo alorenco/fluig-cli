@@ -2,12 +2,15 @@ package devserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -92,10 +95,14 @@ func TestDashboardAPI(t *testing.T) {
 			Env  string `json:"env"`
 			User string `json:"user"`
 		} `json:"server"`
-		PortalPath string   `json:"portalPath"`
-		FormsCount int      `json:"formsCount"`
-		Mounts     []string `json:"mounts"`
-		Watch      *struct {
+		PortalPath string `json:"portalPath"`
+		FormsCount int    `json:"formsCount"`
+		Spa        []struct {
+			Code  string `json:"code"`
+			Stale string `json:"stale"`
+			Npm   string `json:"npm"`
+		} `json:"spa"`
+		Watch *struct {
 			Enabled bool     `json:"enabled"`
 			Types   []string `json:"types"`
 			Recent  []string `json:"recent"`
@@ -114,8 +121,10 @@ func TestDashboardAPI(t *testing.T) {
 	if dash.Server.Name != "homolog" || dash.Server.Env != "hml" || dash.Server.User != "alorenco" {
 		t.Errorf("server: %+v", dash.Server)
 	}
-	if dash.PortalPath != "/portal/p/1/home" || dash.FormsCount != 1 || len(dash.Mounts) != 2 {
-		t.Errorf("portal/forms/mounts: %q %d %v", dash.PortalPath, dash.FormsCount, dash.Mounts)
+	// A seção de mounts saiu do dashboard (decisão do mantenedor, 2026-07-17);
+	// sem widget SPA no projeto, o payload spa vem vazio (card oculto).
+	if dash.PortalPath != "/portal/p/1/home" || dash.FormsCount != 1 || len(dash.Spa) != 0 {
+		t.Errorf("portal/forms/spa: %q %d %v", dash.PortalPath, dash.FormsCount, dash.Spa)
 	}
 	if dash.Watch == nil || !dash.Watch.Enabled || len(dash.Watch.Recent) != 1 || len(dash.WatchTypes) != 5 {
 		t.Errorf("watch: %+v types=%d", dash.Watch, len(dash.WatchTypes))
@@ -164,5 +173,93 @@ func TestDashboardAPI(t *testing.T) {
 	s.sim.mu.Unlock()
 	if code != http.StatusOK || !cleared {
 		t.Errorf("clear-caches: code=%d cleared=%v", code, cleared)
+	}
+}
+
+// Widget SPA no projeto: o payload spa traz o motivo do bundle desatualizado
+// e o estado do npm watch (desligado quando o dev roda sem --npm-watch).
+func TestDashboardSPA(t *testing.T) {
+	ts, s, _ := newDashTestServer(t)
+	spaDir := filepath.Join(s.opts.Root, "wcm", "widget", "minha_spa")
+	if err := os.MkdirAll(filepath.Join(spaDir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(spaDir, "package.json"), []byte(`{"name":"minha_spa"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, _ := http.Get(ts.URL + "/_dev/api/dash")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var dash struct {
+		Spa []struct {
+			Code  string `json:"code"`
+			Stale string `json:"stale"`
+			Npm   string `json:"npm"`
+		} `json:"spa"`
+	}
+	if err := json.Unmarshal(body, &dash); err != nil {
+		t.Fatalf("dash inválido: %v\n%s", err, body)
+	}
+	if len(dash.Spa) != 1 || dash.Spa[0].Code != "minha_spa" {
+		t.Fatalf("spa: %+v", dash.Spa)
+	}
+	if !strings.Contains(dash.Spa[0].Stale, "sem bundle compilado") {
+		t.Errorf("stale: %q", dash.Spa[0].Stale)
+	}
+	if dash.Spa[0].Npm != "parado" {
+		t.Errorf("npm (watch desligado): %q", dash.Spa[0].Npm)
+	}
+
+	// Com estado registrado pelo spawn, ele prevalece.
+	s.setNpmState("minha_spa", "rodando")
+	resp, _ = http.Get(ts.URL + "/_dev/api/dash")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err := json.Unmarshal(body, &dash); err != nil {
+		t.Fatal(err)
+	}
+	if dash.Spa[0].Npm != "rodando" {
+		t.Errorf("npm (estado registrado): %q", dash.Spa[0].Npm)
+	}
+}
+
+// O toggle do npm watch liga/desliga sem reiniciar: antes do Run responde
+// 503; com o dev rodando alterna o estado (refletido no payload do dash).
+func TestDashboardNpmWatchToggle(t *testing.T) {
+	ts, s, _ := newDashTestServer(t)
+	post := func(enabled bool) (int, []byte) {
+		b, _ := json.Marshal(map[string]any{"enabled": enabled})
+		r, err := http.Post(ts.URL+"/_dev/api/dash/npm-watch", "application/json", bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		out, _ := io.ReadAll(r.Body)
+		return r.StatusCode, out
+	}
+	// Sem o Run (runCtx nil), ligar é recusado com uma mensagem clara.
+	if code, body := post(true); code != http.StatusServiceUnavailable {
+		t.Fatalf("antes do Run: code=%d body=%s", code, body)
+	}
+	// Com o dev "rodando" (ctx injetado — o projeto de teste não tem widget
+	// SPA, então nada é spawnado), o toggle alterna e o dash reflete.
+	s.npmMu.Lock()
+	s.runCtx = context.Background()
+	s.npmMu.Unlock()
+	if code, body := post(true); code != http.StatusOK || !s.npmWatchOn() {
+		t.Fatalf("ligar: code=%d on=%v body=%s", code, s.npmWatchOn(), body)
+	}
+	resp, _ := http.Get(ts.URL + "/_dev/api/dash")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var dash struct {
+		NpmWatch bool `json:"npmWatch"`
+	}
+	if err := json.Unmarshal(body, &dash); err != nil || !dash.NpmWatch {
+		t.Errorf("dash.npmWatch deveria ser true: %v %s", err, body)
+	}
+	if code, _ := post(false); code != http.StatusOK || s.npmWatchOn() {
+		t.Errorf("desligar: code=%d on=%v", code, s.npmWatchOn())
 	}
 }

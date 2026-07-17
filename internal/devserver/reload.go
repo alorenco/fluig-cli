@@ -135,6 +135,9 @@ func (s *Server) startWatcher(ctx context.Context) (stop func(), err error) {
 				if inNodeModules(ev.Name) {
 					continue
 				}
+				// Qualquer salvamento em forms/ ou wcm/widget/ pode mudar o
+				// resumo do audit do dashboard — invalida o cache.
+				s.invalidateProjectAudit()
 				inWidgets := within(s.opts.Root, project.WidgetsDir, ev.Name)
 				if inWidgets {
 					// Widget nova ou jboss-web.xml editado mudam o map-local.

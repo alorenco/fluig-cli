@@ -74,6 +74,25 @@ func (s *Server) handleDash(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Watch != nil {
 		watch = s.opts.Watch.Status()
 	}
+	// Widgets SPA: só o acionável — bundle desatualizado e o estado do npm
+	// watch (ligável pelo dashboard). Sem widget SPA o card não aparece.
+	npmOn := s.npmWatchOn()
+	spa := []map[string]any{}
+	for _, wgt := range project.FindSPAWidgets(s.opts.Root) {
+		npm := s.npmStateOf(wgt.Code)
+		if npm == "" {
+			if npmOn {
+				npm = "aguardando spawn"
+			} else {
+				npm = "parado"
+			}
+		}
+		spa = append(spa, map[string]any{
+			"code":  wgt.Code,
+			"stale": project.StaleBundle(wgt),
+			"npm":   npm,
+		})
+	}
 	s.dashMu.Lock()
 	reload := map[string]any{"enabled": !s.reloadOff, "debounceMs": s.debounceNow.Milliseconds()}
 	s.dashMu.Unlock()
@@ -93,7 +112,8 @@ func (s *Server) handleDash(w http.ResponseWriter, r *http.Request) {
 		"uptimeSeconds": int(time.Since(s.startedAt).Seconds()),
 		"portalPath":    "/portal/p/" + strconv.Itoa(companyID) + "/home",
 		"formsCount":    formsCount,
-		"mounts":        s.Mounts(),
+		"spa":           spa,
+		"npmWatch":      npmOn,
 		"watch":         watch,
 		"watchTypes":    types,
 		"reload":        reload,
@@ -129,6 +149,27 @@ func (s *Server) handleDashWatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	simJSON(w, s.opts.Watch.Status())
+}
+
+// handleDashNpmWatch liga/desliga o `npm run watch` das widgets SPA sem
+// reiniciar o dev (pedido do mantenedor, 2026-07-17).
+func (s *Server) handleDashNpmWatch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.Method != http.MethodPost {
+		simError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if !decodeDeployBody(w, r, &req) {
+		return
+	}
+	if err := s.SetNpmWatch(req.Enabled); err != nil {
+		simError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	simJSON(w, map[string]any{"enabled": s.npmWatchOn()})
 }
 
 // handleDashReload pausa/retoma o live reload e ajusta o debounce.
@@ -170,6 +211,10 @@ func (s *Server) handleDashClearCaches(w http.ResponseWriter, r *http.Request) {
 	s.sim.datasets = nil
 	s.deploys = nil
 	s.sim.mu.Unlock()
+	s.invalidateProjectAudit()
+	s.status.mu.Lock()
+	s.status.payload = nil
+	s.status.mu.Unlock()
 	s.opts.Infof("caches do painel de simulação limpos")
 	simJSON(w, map[string]any{"ok": true})
 }

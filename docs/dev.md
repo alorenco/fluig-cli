@@ -18,11 +18,32 @@ configurações estão no **dashboard** (a raiz do dev server).
 
 ## Dashboard
 
-A raiz do dev server (`http://127.0.0.1:8787/`) é o **dashboard**: acessos
-rápidos (preview de formulários, portal pelo proxy, widgets servidas do
-disco), o **watch integrado** e configurações leves. Só a raiz exata — o
-portal e todos os demais caminhos seguem pelo proxy normalmente.
+A raiz do dev server (`http://127.0.0.1:8787/`) é o **dashboard**. Só a raiz
+exata — o portal e todos os demais caminhos seguem pelo proxy normalmente.
+De cima para baixo:
 
+- **Servidor conectado**: o ambiente em destaque (homologação/desenvolvimento
+  — produção sairia em cor de alerta, mas o `dev` nem inicia apontando para
+  produção) e a mesma saúde do `fluigcli server status`, num card compacto de
+  duas linhas: **versão do Fluig**, uptime, usuários conectados, threads,
+  memória JVM/SO e banco, com o detalhe de cada número no **hint** (passe o
+  mouse). Os monitores de serviço viram pontos coloridos (hint = nome/status);
+  só os em **FAILURE** aparecem nomeados. A versão aparece sempre; as
+  estatísticas e os monitores exigem usuário admin — sem o privilégio, o
+  painel avisa e segue funcionando. Atualiza a cada 60 s.
+- **Acessos**: portal pelo proxy, preview de formulários e o
+  [Dataset Lab](#dataset-lab).
+- **Widgets SPA** (só aparece quando o projeto tem widget vue/react): estado
+  do bundle por widget — **bundle desatualizado** quando a fonte é mais nova
+  que o compilado (o portal serviria o js velho) — e do `npm run watch`. O
+  **toggle "npm watch" liga e desliga os watchers sem reiniciar o dev** (o
+  `--npm-watch` da linha de comando vira só o estado inicial); ao desligar,
+  os processos são encerrados na hora.
+- **Style guide**: o resumo do [`fluigcli audit`](audit.md) no projeto
+  inteiro — total de erros/avisos e as regras mais violadas (o **hint** de
+  cada regra explica o que ela aponta). Recalcula ao salvar qualquer arquivo
+  de `forms/` ou `wcm/widget/`; detalhes por arquivo ficam no comando
+  `fluigcli audit` ou no botão 🎨 do preview de cada formulário.
 - **Watch integrado (publicar ao salvar)**: liga o comportamento do
   `fluigcli watch` dentro do `dev`, com **escolha por tipo de artefato**
   (datasets, eventos globais, mecanismos, formulários, scripts de processo).

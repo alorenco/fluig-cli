@@ -32,6 +32,19 @@ const (
 	RuleNativeDialog = "SG007" // alert/confirm/prompt nativos em vez de FLUIGC
 )
 
+// RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
+// dev) e de futuros relatórios. Toda regra nova precisa entrar aqui (guarda em
+// audit_test.go).
+var RuleTitles = map[string]string{
+	RuleLegacyCSS:    "Referência ao CSS legado do style guide (fluig-style-guide.min.css, descontinuado no 2.0) — troque pelo flat",
+	RuleExternalRes:  "Recurso externo (CDN, fontes remotas) — sirva do projeto ou do servidor",
+	RuleHardcodedHex: "Cor fixa (hex/rgb) — use variável do tema para funcionar no claro e no escuro",
+	RuleImportant:    "!important sobrescrevendo classe do style guide — quebra o tema",
+	RuleInlineStyle:  "Estilo inline (style=) — escapa do tema e do CSS do projeto",
+	RuleUnknownClass: "Classe fs-* que não existe no catálogo do style guide (provável typo)",
+	RuleNativeDialog: "alert/confirm/prompt nativos — use FLUIGC.message/toast",
+}
+
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o
 // `audit --fix` grava no lugar do trecho apontado (correção determinística).
 type Finding struct {
