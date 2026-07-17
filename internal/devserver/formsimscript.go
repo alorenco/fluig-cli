@@ -1003,7 +1003,12 @@ const formSimJS = `(function () {
     "#fluigcli-sim .sep{border-top-color:#2b3742}" +
     "#fluigcli-sim .dlg{background:#1b232d}" +
     "#fluigcli-sim .dlg button{background:#2b3742;color:#e6edf3}" +
-    "#fluigcli-sim .dlg .hint{color:#93a4b4}}";
+    "#fluigcli-sim .dlg .hint{color:#93a4b4}" +
+    // Achados da auditoria no dark: fundo escuro (o claro fixo deixava a
+    // mensagem ilegível com o texto herdado #e6edf3) e acentos mais claros.
+    "#fluigcli-sim .afind{background:#12181f}" +
+    "#fluigcli-sim .afind .aloc{color:#93a4b4}" +
+    "#fluigcli-sim .afind .asug{color:#5fd3a6}}";
 
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
