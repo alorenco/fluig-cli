@@ -929,12 +929,15 @@ const formSimJS = `(function () {
     "#fluigcli-sim.pos-left{left:16px;align-items:flex-start}" +
     "#fluigcli-sim.pos-center{left:0;right:0;margin:0 auto;width:fit-content;align-items:center}" +
     "#fluigcli-sim *{box-sizing:border-box;font:inherit;color:inherit}" +
-    "#fluigcli-sim .bar{display:flex;gap:2px;align-items:center;border:1px solid #d5dde5;" +
-    "background:#fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 8px rgba(16,36,54,.18);" +
+    // A barra é SEMPRE escura (pedido do mantenedor): contraste alto sobre o
+    // formulário claro e visual idêntico nos dois temas. Só os cards seguem o
+    // tema do preview.
+    "#fluigcli-sim .bar{display:flex;gap:2px;align-items:center;border:1px solid #2b3742;" +
+    "background:#1b232d;border-radius:999px;padding:5px 8px;box-shadow:0 2px 8px rgba(16,36,54,.35);" +
     "max-width:min(440px,94vw)}" +
-    "#fluigcli-sim .bar button{position:relative;border:0;background:none;cursor:pointer;" +
+    "#fluigcli-sim .bar button{position:relative;border:0;background:none;cursor:pointer;color:#e6edf3;" +
     "min-width:34px;height:34px;border-radius:999px;font-size:16px;line-height:1;padding:0 6px}" +
-    "#fluigcli-sim .bar button:hover{background:#eef2f5}" +
+    "#fluigcli-sim .bar button:hover{background:#2b3742}" +
     // Tela estreita (modo celular do preview): botões mais juntos para os 10
     // ícones caberem em 375px sem cortar o último.
     "@media (max-width:430px){#fluigcli-sim .bar{gap:0;padding:5px 6px}" +
@@ -998,8 +1001,7 @@ const formSimJS = `(function () {
   // salva, o applyTheme inicializa a classe pelo prefers-color-scheme.
   var DARK = "" +
     "#fluigcli-sim{color:#e6edf3}" +
-    "#fluigcli-sim .bar,#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
-    "#fluigcli-sim .bar button:hover{background:#2b3742}" +
+    "#fluigcli-sim .card{background:#1b232d;border-color:#2b3742}" +
     "#fluigcli-sim select,#fluigcli-sim input[type=text],#fluigcli-sim input[type=number],#fluigcli-sim textarea{" +
     "background:#12181f;border-color:#2b3742}" +
     "#fluigcli-sim .btn.sec{background:#2b3742;color:#e6edf3}" +
