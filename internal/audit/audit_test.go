@@ -127,8 +127,8 @@ func TestRunRegras(t *testing.T) {
 	}
 	// SG001 legado ×1; SG002 externos: fonts + cdn script + @import css = 3;
 	// SG003: #fff no <style>, #006400 no style=, rgb() no css = 3;
-	// SG006: fs-bg-whit ×1 (fs-bg-white existe; ${expressao} ignorada).
-	want := map[string]int{RuleLegacyCSS: 1, RuleExternalRes: 3, RuleHardcodedHex: 3, RuleUnknownClass: 1}
+	// SG005: o style= inline ×1; SG006: fs-bg-whit ×1 (${expressao} ignorada).
+	want := map[string]int{RuleLegacyCSS: 1, RuleExternalRes: 3, RuleHardcodedHex: 3, RuleInlineStyle: 1, RuleUnknownClass: 1}
 	for rule, n := range want {
 		if byRule[rule] != n {
 			t.Errorf("%s: %d achado(s), quero %d\n%v", rule, byRule[rule], n, res.Findings)
@@ -140,13 +140,13 @@ func TestRunRegras(t *testing.T) {
 	// Severidades e sugestões nos pontos-chave.
 	for _, f := range res.Findings {
 		switch f.Rule {
-		case RuleLegacyCSS, RuleUnknownClass:
-			if f.Severity != SeverityWarning {
-				t.Errorf("%s deveria ser aviso: %+v", f.Rule, f)
-			}
-		default:
+		case RuleExternalRes, RuleHardcodedHex:
 			if f.Severity != SeverityError {
 				t.Errorf("%s deveria ser erro: %+v", f.Rule, f)
+			}
+		default:
+			if f.Severity != SeverityWarning {
+				t.Errorf("%s deveria ser aviso: %+v", f.Rule, f)
 			}
 		}
 		if f.Rule == RuleUnknownClass && !strings.Contains(f.Suggestion, "fs-bg-white") {
@@ -197,6 +197,135 @@ func TestRunIgnorados(t *testing.T) {
 	if len(res.Ignored) != 4 { // form (config) + form vendor.css? não: pasta inteira ignorada cobre os dois; .min.css; spa.css
 		// forms/MeuForm/MeuForm.html e vendor.css (config, 2) + lib.min.css + spa.css
 		t.Errorf("ignored=%d, quero 4: %v", len(res.Ignored), res.Ignored)
+	}
+}
+
+// SG004: !important só quando o seletor usa classe do style guide — em
+// classe própria do projeto não é da nossa conta.
+func TestImportantSobreOTema(t *testing.T) {
+	cat, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := []byte(`.minha-classe { color: var(--fs-color-action-default) !important; }
+.panel-title { font-size: 20px !important; }
+@media (max-width: 700px) {
+  .btn { padding: 2px !important; }
+}`)
+	fs := scanCSS("w.css", css, cat)
+	var rules []string
+	for _, f := range fs {
+		if f.Rule == RuleImportant {
+			rules = append(rules, f.Message)
+			if f.Severity != SeverityWarning {
+				t.Errorf("SG004 deveria ser aviso: %+v", f)
+			}
+		}
+	}
+	if len(rules) != 2 { // panel-title e .btn (dentro do @media); .minha-classe não
+		t.Errorf("SG004=%d, quero 2: %v", len(rules), rules)
+	}
+}
+
+// SG007: diálogo nativo em JS de widget e em <script> de markup; FLUIGC.message
+// não conta; eventos de formulário (server-side) ficam de fora da varredura.
+func TestNativeDialog(t *testing.T) {
+	js := []byte(`if (x) alert('oi')
+FLUIGC.message.alert({message:'ok'})
+window.confirm('vai?')
+var prompta = naoprompt(1)`)
+	fs := scanJS("w.js", js)
+	if len(fs) != 2 {
+		t.Fatalf("SG007=%d, quero 2 (alert + window.confirm): %+v", len(fs), fs)
+	}
+	root := t.TempDir()
+	evDir := filepath.Join(root, "forms", "F", "events")
+	os.MkdirAll(evDir, 0o755)
+	os.WriteFile(filepath.Join(evDir, "validateForm.js"), []byte(`alert('server side')`), 0o644)
+	cat, _ := Embedded()
+	res, err := Run(root, nil, cat, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Findings) != 0 {
+		t.Errorf("evento server-side não deveria ser auditado: %+v", res.Findings)
+	}
+}
+
+// Overrides de severidade: off descarta, error promove.
+func TestSeverityOverride(t *testing.T) {
+	cat, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := violationProject(t)
+	res, err := Run(root, nil, cat, Config{Severity: map[string]string{
+		"SG005": "off",
+		"SG001": "error",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range res.Findings {
+		if f.Rule == RuleInlineStyle {
+			t.Errorf("SG005 off ainda apareceu: %+v", f)
+		}
+		if f.Rule == RuleLegacyCSS && f.Severity != SeverityError {
+			t.Errorf("SG001 promovido deveria ser erro: %+v", f)
+		}
+	}
+	if err := (Config{Severity: map[string]string{"SG001": "banana"}}).Validate(); err == nil {
+		t.Error("severidade inválida deveria falhar na validação")
+	}
+}
+
+// --fix: legado → flat e hex exato → var(...); o cinza aproximado e o rgb()
+// ficam como estão (não são determinísticos no texto).
+func TestApplyFixes(t *testing.T) {
+	cat, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	dir := filepath.Join(root, "forms", "F")
+	os.MkdirAll(dir, 0o755)
+	html := `<link href="/style-guide/css/fluig-style-guide.min.css">
+<form name="f"><div style="color:#fff; background:#fdfdfd; border-color:#ffffff">x</div></form>`
+	file := filepath.Join(dir, "F.html")
+	os.WriteFile(file, []byte(html), 0o644)
+
+	res, err := Run(root, nil, cat, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixed, err := ApplyFixes(root, res.Findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fixed != 3 { // legado + #fff + #ffffff (o #fdfdfd fica)
+		t.Errorf("fixed=%d, quero 3", fixed)
+	}
+	got, _ := os.ReadFile(file)
+	s := string(got)
+	for _, want := range []string{
+		"fluig-style-guide-flat.min.css",
+		"color:var(--fs-color-neutral-light-00);",
+		"border-color:var(--fs-color-neutral-light-00)",
+		"background:#fdfdfd", // cinza aproximado NÃO é corrigido automaticamente
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("arquivo corrigido sem %q:\n%s", want, s)
+		}
+	}
+	// Reauditar: os corrigidos somem; ficam o cinza (#fdfdfd) e o SG005.
+	res2, err := Run(root, nil, cat, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range res2.Findings {
+		if f.Rule == RuleLegacyCSS {
+			t.Errorf("legado deveria ter sido corrigido: %+v", f)
+		}
 	}
 }
 

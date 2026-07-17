@@ -23,18 +23,98 @@ var (
 	classAttrRe    = regexp.MustCompile(`(?i)class\s*=\s*("[^"]*"|'[^']*')`)
 	styleOpenRe    = regexp.MustCompile(`(?i)<style\b`)
 	styleCloseRe   = regexp.MustCompile(`(?i)</style>`)
+	scriptOpenRe   = regexp.MustCompile(`(?i)<script\b`)
+	scriptCloseRe  = regexp.MustCompile(`(?i)</script>`)
+	// alert/confirm/prompt nativos — aceita window. na frente, mas não outros
+	// prefixos com ponto (FLUIGC.message.alert não conta).
+	nativeDialogRe = regexp.MustCompile(`(^|[^.\w])((?:window\.)?(?:alert|confirm|prompt))\s*\(`)
+	selectorClass  = regexp.MustCompile(`\.(-?[a-zA-Z][a-zA-Z0-9_-]+)`)
 )
 
 // scanCSS roda as regras sobre um arquivo .css.
 func scanCSS(rel string, content []byte, cat *Catalog) []Finding {
+	clean := splitLinesNoComments(string(content))
 	var out []Finding
-	for i, line := range splitLinesNoComments(string(content)) {
+	for i, line := range clean {
 		n := i + 1
 		out = append(out, checkLegacy(rel, n, line)...)
 		if cssURLExtRe.MatchString(line) {
 			out = append(out, externalFinding(rel, n, line, "recurso externo no CSS"))
 		}
 		out = append(out, colorFindings(rel, n, line, cat, "cor fixa %s no CSS")...)
+	}
+	out = append(out, importantFindings(rel, strings.Join(clean, "\n"), cat)...)
+	return out
+}
+
+// importantFindings acha !important em regras cujo seletor usa classe do
+// style guide — é briga direta com o tema fixo. !important em classe própria
+// do projeto não é apontado.
+func importantFindings(rel, css string, cat *Catalog) []Finding {
+	var out []Finding
+	var stack []string // seletores abertos (inclui @media etc.)
+	var pending strings.Builder
+	line := 1
+	flush := func() string {
+		s := pending.String()
+		pending.Reset()
+		return s
+	}
+	checkDecl := func(decl string, declLine int) {
+		if !strings.Contains(decl, "!important") {
+			return
+		}
+		for _, sel := range stack {
+			for _, m := range selectorClass.FindAllStringSubmatch(sel, -1) {
+				if cat.HasClass(m[1]) {
+					out = append(out, Finding{
+						Rule: RuleImportant, Severity: SeverityWarning, File: rel, Line: declLine,
+						Message:    fmt.Sprintf("!important sobre a classe %q do style guide — briga com o tema em vez de compor com ele", m[1]),
+						Suggestion: "prefira uma classe própria (ou as utilitárias fs-*) e deixe o tema mandar",
+					})
+					return
+				}
+			}
+		}
+	}
+	for i := 0; i < len(css); i++ {
+		switch c := css[i]; c {
+		case '\n':
+			line++
+			pending.WriteByte(' ')
+		case '{':
+			stack = append(stack, flush())
+		case '}':
+			checkDecl(flush(), line)
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		case ';':
+			checkDecl(flush(), line)
+		default:
+			pending.WriteByte(c)
+		}
+	}
+	return out
+}
+
+// scanJS roda as regras sobre JS de widget/anexo (client-side).
+func scanJS(rel string, content []byte) []Finding {
+	var out []Finding
+	for i, line := range strings.Split(string(content), "\n") {
+		out = append(out, nativeDialogFindings(rel, i+1, line)...)
+	}
+	return out
+}
+
+func nativeDialogFindings(rel string, n int, line string) []Finding {
+	var out []Finding
+	for _, m := range nativeDialogRe.FindAllStringSubmatch(line, -1) {
+		out = append(out, Finding{
+			Rule: RuleNativeDialog, Severity: SeverityWarning, File: rel, Line: n,
+			Message:    fmt.Sprintf("diálogo nativo do navegador (%s) — fora do padrão visual do Fluig", m[2]),
+			Suggestion: "use FLUIGC.toast / FLUIGC.message.confirm / FLUIGC.message.alert (style guide)",
+		})
 	}
 	return out
 }
@@ -43,7 +123,7 @@ func scanCSS(rel string, content []byte, cat *Catalog) []Finding {
 // style= e em blocos <style>, e classes fs-* inexistentes.
 func scanMarkup(rel string, content []byte, cat *Catalog) []Finding {
 	var out []Finding
-	inStyle := false
+	inStyle, inScript := false, false
 	for i, line := range strings.Split(string(content), "\n") {
 		n := i + 1
 		out = append(out, checkLegacy(rel, n, line)...)
@@ -54,23 +134,37 @@ func scanMarkup(rel string, content []byte, cat *Catalog) []Finding {
 			out = append(out, externalFinding(rel, n, line, "recurso externo (link)"))
 		}
 
-		// Cores fixas: em style="..." sempre; no conteúdo da linha quando
-		// dentro de <style> (CSS embutido no HTML).
+		// Estilo inline: o atributo em si é aviso (SG005); cores dentro dele
+		// são erro (SG003). Cores também valem no CSS embutido em <style>.
 		for _, m := range styleAttrRe.FindAllStringSubmatch(line, -1) {
+			out = append(out, Finding{
+				Rule: RuleInlineStyle, Severity: SeverityWarning, File: rel, Line: n,
+				Message:    "estilo inline (style=) — escapa do tema e do CSS do formulário/widget",
+				Suggestion: "mova a regra para o CSS próprio (classe) ou use as utilitárias fs-*",
+			})
 			out = append(out, colorFindings(rel, n, m[1], cat, "cor fixa %s em style= inline")...)
 		}
-		wasInStyle := inStyle
+		wasInStyle, wasInScript := inStyle, inScript
 		if styleOpenRe.MatchString(line) {
 			inStyle = true
 		}
 		if styleCloseRe.MatchString(line) {
 			inStyle = false
 		}
+		if scriptOpenRe.MatchString(line) && !scriptSrcExtRe.MatchString(line) {
+			inScript = true
+		}
+		if scriptCloseRe.MatchString(line) {
+			inScript = false
+		}
 		if wasInStyle {
 			out = append(out, colorFindings(rel, n, line, cat, "cor fixa %s em <style> embutido")...)
 			if cssURLExtRe.MatchString(line) {
 				out = append(out, externalFinding(rel, n, line, "recurso externo no CSS embutido"))
 			}
+		}
+		if wasInScript {
+			out = append(out, nativeDialogFindings(rel, n, line)...)
 		}
 
 		// Classes fs-* inexistentes (typos) — ignora interpolações.
@@ -105,6 +199,8 @@ func checkLegacy(rel string, n int, line string) []Finding {
 		Rule: RuleLegacyCSS, Severity: SeverityWarning, File: rel, Line: n,
 		Message:    "referência ao CSS legado do style guide (descontinuado no Fluig 2.0)",
 		Suggestion: "troque para style-guide/css/fluig-style-guide-flat.min.css — no render da solicitação o servidor reescreve sozinho, mas fora dele o arquivo é 404",
+		Fix:        "fluig-style-guide-flat.min.css",
+		fixOld:     legacyCSSName,
 	}}
 }
 
@@ -125,20 +221,27 @@ func externalFinding(rel string, n int, line, what string) Finding {
 func colorFindings(rel string, n int, s string, cat *Catalog, msgFmt string) []Finding {
 	seen := map[string]struct{}{}
 	var out []Finding
-	add := func(display, hex string) {
+	add := func(display, hex string, fixable bool) {
 		if _, dup := seen[display]; dup {
 			return
 		}
 		seen[display] = struct{}{}
-		out = append(out, Finding{
+		f := Finding{
 			Rule: RuleHardcodedHex, Severity: SeverityError, File: rel, Line: n,
 			Message:    fmt.Sprintf(msgFmt, display) + " — quebra o tema fixo e o dark mode do 2.0",
 			Suggestion: cat.SuggestColor(hex),
-		})
+		}
+		// Correção determinística só quando o valor bate EXATO com uma
+		// variável do tema (mesmo render no light) e o token é hex literal.
+		if v, exact := cat.ExactVar(hex); exact && fixable {
+			f.Fix = "var(" + v + ")"
+			f.fixOld = display
+		}
+		out = append(out, f)
 	}
 	for _, m := range hexColorRe.FindAllString(s, -1) {
 		if hex, ok := normalizeHex(m); ok {
-			add(m, hex)
+			add(m, hex, true)
 		}
 	}
 	for _, m := range rgbColorRe.FindAllStringSubmatch(s, -1) {
@@ -146,7 +249,9 @@ func colorFindings(rel string, n int, s string, cat *Catalog, msgFmt string) []F
 		g, _ := strconv.Atoi(m[2])
 		b, _ := strconv.Atoi(m[3])
 		if r <= 255 && g <= 255 && b <= 255 {
-			add(m[0]+")", rgbToHex(r, g, b))
+			// rgb() fica sem --fix: o casamento textual exato do trecho não é
+			// garantido (espaçamento/alfa) — a sugestão orienta o manual.
+			add(m[0]+")", rgbToHex(r, g, b), false)
 		}
 	}
 	return out

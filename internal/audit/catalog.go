@@ -193,6 +193,16 @@ func (c *Catalog) NearestClass(name string) string {
 	return best
 }
 
+// ExactVar devolve a variável do tema cujo valor light é exatamente a cor.
+func (c *Catalog) ExactVar(raw string) (string, bool) {
+	hex, ok := normalizeHex(raw)
+	if !ok {
+		return "", false
+	}
+	v, hit := c.valueToVar[hex]
+	return v, hit
+}
+
 // SuggestColor devolve a sugestão de correção para uma cor fixa (hex ou
 // rgb já convertido para hex #rrggbb).
 func (c *Catalog) SuggestColor(raw string) string {

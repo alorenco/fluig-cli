@@ -223,15 +223,20 @@ export nativo do processo — não requerem a fluiggersWidget.
 
 | comando | efeito |
 |---|---|
-| `audit [<path>...]` | linter read-only de forms/ e wcm/widget/ contra o tema fixo do Fluig 2.0; `--sync` atualiza o catálogo do servidor; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
+| `audit [<path>...]` | linter de forms/ e wcm/widget/ contra o tema fixo do Fluig 2.0; `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
 
-Regras: SG001 CSS legado (aviso) · SG002 recurso externo/CDN (erro) · SG003
-cor fixa hex/rgb (erro, com a **variável do tema sugerida** no campo
-`suggestion`) · SG006 classe `fs-*` inexistente (aviso). No `--json`
-reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **use a
-sugestão de cada finding para corrigir e rode de novo até exit 0**. Exceções
-em `.fluigcli/audit.json` (`{"ignore":[globs]}`); vendorado/minificado e
-bundle de SPA já são ignorados sozinhos.
+Regras: SG001 CSS legado (aviso, `--fix` troca p/ flat) · SG002 recurso
+externo/CDN (erro) · SG003 cor fixa hex/rgb (erro; hex com valor idêntico a
+variável do tema ganha `fix` e o `--fix` aplica; o resto vem com a variável
+sugerida em `suggestion`) · SG004 `!important` sobre classe do tema (aviso) ·
+SG005 estilo inline (aviso) · SG006 classe `fs-*` inexistente (aviso) ·
+SG007 alert/confirm/prompt nativos (aviso — use FLUIGC). No `--json`
+reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **rode
+`audit --fix`, corrija o restante pelas sugestões e repita até exit 0**.
+Config em `.fluigcli/audit.json`: `{"ignore":[globs],
+"severity":{"SG005":"off"}}`; vendorado/minificado e bundle de SPA já são
+ignorados sozinhos. Como escrever certo de primeira:
+[`styleguide.md`](styleguide.md).
 
 ## watch — publicar ao salvar (interativo)
 

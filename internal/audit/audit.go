@@ -1,10 +1,12 @@
 package audit
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -18,15 +20,19 @@ const (
 	SeverityWarning Severity = "warning"
 )
 
-// Regras da fase 1 (ids estáveis — fazem parte do contrato --json).
+// Regras (ids estáveis — fazem parte do contrato --json).
 const (
 	RuleLegacyCSS    = "SG001" // referência ao CSS legado do style guide
 	RuleExternalRes  = "SG002" // recurso externo (CDN, fontes) em vez de local
 	RuleHardcodedHex = "SG003" // cor fixa (hex/rgb) em vez de variável do tema
+	RuleImportant    = "SG004" // !important sobre classe do style guide
+	RuleInlineStyle  = "SG005" // style= inline (escapa do tema e do CSS do projeto)
 	RuleUnknownClass = "SG006" // classe fs-* inexistente no catálogo
+	RuleNativeDialog = "SG007" // alert/confirm/prompt nativos em vez de FLUIGC
 )
 
-// Finding é um achado da auditoria.
+// Finding é um achado da auditoria. Fix, quando presente, é o texto que o
+// `audit --fix` grava no lugar do trecho apontado (correção determinística).
 type Finding struct {
 	Rule       string   `json:"rule"`
 	Severity   Severity `json:"severity"`
@@ -34,6 +40,9 @@ type Finding struct {
 	Line       int      `json:"line"`
 	Message    string   `json:"message"`
 	Suggestion string   `json:"suggestion,omitempty"`
+	Fix        string   `json:"fix,omitempty"`
+
+	fixOld string // trecho exato substituído pelo --fix (interno)
 }
 
 // Result é o resultado de uma execução da auditoria.
@@ -43,11 +52,25 @@ type Result struct {
 	Ignored  []string // arquivos pulados (com o motivo)
 }
 
-// Config são as exceções do projeto (.fluigcli/audit.json). Cada entrada de
-// Ignore casa por: caminho relativo exato, prefixo de diretório (termina em
-// "/") ou glob sobre o caminho/nome do arquivo.
+// Config são as exceções e ajustes do projeto (.fluigcli/audit.json). Cada
+// entrada de Ignore casa por: caminho relativo exato, prefixo de diretório
+// (termina em "/") ou glob sobre o caminho/nome do arquivo. Severity muda o
+// nível de uma regra ("error", "warning") ou a desliga ("off").
 type Config struct {
-	Ignore []string `json:"ignore"`
+	Ignore   []string          `json:"ignore"`
+	Severity map[string]string `json:"severity"`
+}
+
+// Validate confere os overrides de severidade.
+func (c Config) Validate() error {
+	for rule, sev := range c.Severity {
+		switch sev {
+		case "error", "warning", "off":
+		default:
+			return fmt.Errorf("severidade inválida para %s: %q (use error, warning ou off)", rule, sev)
+		}
+	}
+	return nil
 }
 
 // defaultTargets são as pastas cobertas pelo style guide.
@@ -93,6 +116,7 @@ func Run(root string, targets []string, cat *Catalog, cfg Config) (*Result, erro
 			return nil, walkErr
 		}
 	}
+	res.Findings = applySeverity(res.Findings, cfg)
 	sort.Slice(res.Findings, func(i, j int) bool {
 		if res.Findings[i].File != res.Findings[j].File {
 			return res.Findings[i].File < res.Findings[j].File
@@ -100,6 +124,69 @@ func Run(root string, targets []string, cat *Catalog, cfg Config) (*Result, erro
 		return res.Findings[i].Line < res.Findings[j].Line
 	})
 	return res, nil
+}
+
+// applySeverity aplica os overrides de severidade do projeto ("off" descarta).
+func applySeverity(findings []Finding, cfg Config) []Finding {
+	if len(cfg.Severity) == 0 {
+		return findings
+	}
+	out := findings[:0]
+	for _, f := range findings {
+		switch cfg.Severity[f.Rule] {
+		case "off":
+			continue
+		case "error":
+			f.Severity = SeverityError
+		case "warning":
+			f.Severity = SeverityWarning
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// ApplyFixes grava as correções determinísticas (achados com Fix) e devolve
+// quantas aplicou. As linhas não mudam de número — só o trecho é trocado.
+func ApplyFixes(root string, findings []Finding) (int, error) {
+	byFile := map[string][]Finding{}
+	for _, f := range findings {
+		if f.Fix != "" && f.fixOld != "" {
+			byFile[f.File] = append(byFile[f.File], f)
+		}
+	}
+	applied := 0
+	for rel, fs := range byFile {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			return applied, err
+		}
+		lines := strings.Split(string(raw), "\n")
+		changed := false
+		for _, f := range fs {
+			if f.Line < 1 || f.Line > len(lines) {
+				continue
+			}
+			// \b evita corromper tokens maiores (ex.: #fff dentro de #ffffff).
+			re, err := regexp.Compile(regexp.QuoteMeta(f.fixOld) + `\b`)
+			if err != nil {
+				continue
+			}
+			replaced := re.ReplaceAllString(lines[f.Line-1], f.Fix)
+			if replaced != lines[f.Line-1] {
+				lines[f.Line-1] = replaced
+				changed = true
+				applied++
+			}
+		}
+		if changed {
+			if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+				return applied, err
+			}
+		}
+	}
+	return applied, nil
 }
 
 // auditFile decide se o arquivo entra na auditoria e roda as regras.
@@ -113,7 +200,13 @@ func auditFile(root, p string, cat *Catalog, cfg Config, spaCache map[string]boo
 	ext := strings.ToLower(filepath.Ext(p))
 	isCSS := ext == ".css"
 	isMarkup := ext == ".html" || ext == ".htm" || ext == ".ftl"
-	if !isCSS && !isMarkup {
+	isJS := ext == ".js"
+	if !isCSS && !isMarkup && !isJS {
+		return
+	}
+	// Eventos de formulário rodam NO SERVIDOR (Rhino) — as regras de browser
+	// (diálogo nativo etc.) não se aplicam lá.
+	if isJS && strings.HasPrefix(rel, "forms/") && strings.Contains(rel, "/events/") {
 		return
 	}
 	if ignored(cfg, rel) {
@@ -137,9 +230,12 @@ func auditFile(root, p string, cat *Catalog, cfg Config, spaCache map[string]boo
 		return
 	}
 	res.Scanned++
-	if isCSS {
+	switch {
+	case isCSS:
 		res.Findings = append(res.Findings, scanCSS(rel, content, cat)...)
-	} else {
+	case isJS:
+		res.Findings = append(res.Findings, scanJS(rel, content)...)
+	default:
 		res.Findings = append(res.Findings, scanMarkup(rel, content, cat)...)
 	}
 }

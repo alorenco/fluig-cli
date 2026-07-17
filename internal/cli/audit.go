@@ -17,6 +17,7 @@ func newAuditCmd(app *App) *cobra.Command {
 	var (
 		syncCatalog bool
 		failOn      string
+		fix         bool
 	)
 	cmd := &cobra.Command{
 		Use:   "audit [<path>...]",
@@ -24,15 +25,22 @@ func newAuditCmd(app *App) *cobra.Command {
 		Long: "Linter estático de conformidade com o Fluig Style Guide 2.0: varre forms/ e\n" +
 			"wcm/widget/ (ou os caminhos informados) e aponta o que briga com o tema fixo\n" +
 			"da plataforma. Nada é alterado nem enviado ao servidor.\n\n" +
-			"Regras da fase 1:\n" +
+			"Regras:\n" +
 			"  SG001 (aviso)  referência ao CSS legado do style guide (404 no 2.0)\n" +
 			"  SG002 (erro)   recurso externo — CDN, Google Fonts etc.\n" +
 			"  SG003 (erro)   cor fixa (hex/rgb) em CSS ou style= — sugere a variável do tema\n" +
-			"  SG006 (aviso)  classe fs-* que não existe no catálogo do servidor\n\n" +
+			"  SG004 (aviso)  !important sobre classe do style guide\n" +
+			"  SG005 (aviso)  estilo inline (style=)\n" +
+			"  SG006 (aviso)  classe fs-* que não existe no catálogo do servidor\n" +
+			"  SG007 (aviso)  alert/confirm/prompt nativos em vez do FLUIGC\n\n" +
+			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
+			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
+			"relatório para correção manual.\n\n" +
 			"O catálogo (classes e variáveis) vem embutido no binário; --sync o atualiza\n" +
 			"do servidor alvo (o style guide é público, não requer login). Arquivos\n" +
 			"minificados/vendorados e bundles gerados de widget SPA são ignorados;\n" +
-			"exceções do projeto ficam em .fluigcli/audit.json ({\"ignore\": [globs]}).",
+			"em .fluigcli/audit.json ficam as exceções ({\"ignore\": [globs]}) e os\n" +
+			"ajustes de nível ({\"severity\": {\"SG005\": \"off\"}}).",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -71,6 +79,20 @@ func newAuditCmd(app *App) *cobra.Command {
 			res, err := audit.Run(root, args, cat, cfg)
 			if err != nil {
 				return err
+			}
+			fixed := 0
+			if fix {
+				fixed, err = audit.ApplyFixes(root, res.Findings)
+				if err != nil {
+					return err
+				}
+				if fixed > 0 {
+					p.Successf("%d correção(ões) determinística(s) aplicada(s) — confira com git diff.", fixed)
+					// Reaudita: o relatório final reflete o que sobrou.
+					if res, err = audit.Run(root, args, cat, cfg); err != nil {
+						return err
+					}
+				}
 			}
 
 			errCount, warnCount := 0, 0
@@ -125,6 +147,7 @@ func newAuditCmd(app *App) *cobra.Command {
 			data := map[string]any{
 				"findings": findings,
 				"counts":   map[string]int{"error": errCount, "warning": warnCount},
+				"fixed":    fixed,
 				"scanned":  res.Scanned,
 				"ignored":  res.Ignored,
 				"catalog":  catalogSource,
@@ -141,6 +164,7 @@ func newAuditCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&syncCatalog, "sync", false, "atualiza o catálogo (classes/variáveis) do style guide do servidor alvo antes de auditar")
 	cmd.Flags().StringVar(&failOn, "fail-on", "error", "reprova (exit 1) quando houver achados do nível: error, warning ou none")
+	cmd.Flags().BoolVar(&fix, "fix", false, "aplica as correções determinísticas nos arquivos (CSS legado → flat; hex idêntico a variável → var(...))")
 	return cmd
 }
 
@@ -156,6 +180,9 @@ func loadAuditConfig(root string) (audit.Config, error) {
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return cfg, output.Usagef(".fluigcli/audit.json inválido: %s", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return cfg, output.Usagef(".fluigcli/audit.json: %s", err)
 	}
 	return cfg, nil
 }
