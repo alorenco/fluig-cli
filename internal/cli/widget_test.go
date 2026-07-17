@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -413,8 +414,14 @@ func TestWidgetExportBuildOK(t *testing.T) {
 	write("src/main/webapp/resources/js/spa2.js", "bundle")
 
 	orig := npmBuildCommand
-	// "go version" existe em qualquer máquina que roda os testes.
-	npmBuildCommand = func(dir string) *exec.Cmd { return exec.Command("go", "version") }
+	// No-op por SO: `go version` gravava telemetria no XDG_CONFIG_HOME do
+	// teste e corria com o cleanup do TempDir (flake visto no CI Linux).
+	npmBuildCommand = func(dir string) *exec.Cmd {
+		if runtime.GOOS == "windows" {
+			return exec.Command("cmd", "/c", "exit 0")
+		}
+		return exec.Command("true")
+	}
 	defer func() { npmBuildCommand = orig }()
 
 	code, _ := runMain(t, "widget", "export", "spa2", "--build", "--json", "--project", proj, "--server", "homolog")
