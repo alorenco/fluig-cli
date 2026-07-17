@@ -931,10 +931,14 @@ const formSimJS = `(function () {
     "#fluigcli-sim *{box-sizing:border-box;font:inherit;color:inherit}" +
     "#fluigcli-sim .bar{display:flex;gap:2px;align-items:center;border:1px solid #d5dde5;" +
     "background:#fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 8px rgba(16,36,54,.18);" +
-    "max-width:360px}" +
+    "max-width:min(400px,94vw)}" +
     "#fluigcli-sim .bar button{position:relative;border:0;background:none;cursor:pointer;" +
     "min-width:34px;height:34px;border-radius:999px;font-size:16px;line-height:1;padding:0 6px}" +
     "#fluigcli-sim .bar button:hover{background:#eef2f5}" +
+    // Tela estreita (modo celular do preview): botões mais juntos para os 10
+    // ícones caberem em 375px sem cortar o último.
+    "@media (max-width:430px){#fluigcli-sim .bar{gap:0;padding:5px 6px}" +
+    "#fluigcli-sim .bar button{min-width:29px;padding:0 3px;font-size:14px}}" +
     "#fluigcli-sim .bar button[data-act=screen]{font-size:12.5px;font-weight:650}" +
     "#fluigcli-sim .dot{position:absolute;top:2px;right:2px;width:8px;height:8px;" +
     "border-radius:50%;background:#9aa7b2}" +
@@ -1202,8 +1206,8 @@ const formSimJS = `(function () {
       esc(boot.folder) + " --fix</code>. A auditoria reexecuta a cada salvamento.</p>" +
       "</div>" +
       "<div class=\"bar\">" +
-      "<button type=\"button\" data-act=\"audit\" title=\"Style Guide 2.0: auditoria deste formulário (fluigcli audit)\">🎨<span class=\"dot\" data-el=\"auditdot\"></span></button>" +
       "<button type=\"button\" data-act=\"open\" title=\"Simulação de processo (etapa, modo, usuário, variáveis)\">⚙<span class=\"dot\"></span></button>" +
+      "<button type=\"button\" data-act=\"audit\" title=\"Style Guide 2.0: auditoria deste formulário (fluigcli audit)\">🎨<span class=\"dot\" data-el=\"auditdot\"></span></button>" +
       "<button type=\"button\" data-act=\"save\" title=\"Salvar: valida o formulário agora (validateForm) — nada é gravado\">💾</button>" +
       "<button type=\"button\" data-act=\"send\" title=\"Enviar etapa: pergunta a próxima etapa e valida o envio\">▶</button>" +
       "<button type=\"button\" data-act=\"deploy\" title=\"Publicar o formulário no servidor (atualiza ou cria, como o form export)\">🚀</button>" +
