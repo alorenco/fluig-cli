@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -59,6 +60,25 @@ type Result struct {
 type Config struct {
 	Ignore   []string          `json:"ignore"`
 	Severity map[string]string `json:"severity"`
+}
+
+// LoadConfig lê e valida o .fluigcli/audit.json do projeto (ausente = vazio).
+func LoadConfig(root string) (Config, error) {
+	var cfg Config
+	raw, err := os.ReadFile(filepath.Join(root, ".fluigcli", "audit.json"))
+	if os.IsNotExist(err) {
+		return cfg, nil
+	}
+	if err != nil {
+		return cfg, err
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return cfg, fmt.Errorf(".fluigcli/audit.json inválido: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return cfg, fmt.Errorf(".fluigcli/audit.json: %w", err)
+	}
+	return cfg, nil
 }
 
 // Validate confere os overrides de severidade.

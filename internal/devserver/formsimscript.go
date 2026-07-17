@@ -944,6 +944,14 @@ const formSimJS = `(function () {
     "#fluigcli-sim.open-sim .card.simcard{display:block}" +
     "#fluigcli-sim.open-send .card.sendcard{display:block}" +
     "#fluigcli-sim.open-deploy .card.deploycard{display:block}" +
+    "#fluigcli-sim.open-audit .card.auditcard{display:block}" +
+    "#fluigcli-sim .dot.warn{background:#e5a50a}" +
+    "#fluigcli-sim .afind{border-left:3px solid #9aa7b2;padding:5px 8px;margin:7px 0;background:#f6f8fa;" +
+    "border-radius:0 7px 7px 0;font-size:11.5px;line-height:1.45}" +
+    "#fluigcli-sim .afind.err{border-left-color:#e2574c}" +
+    "#fluigcli-sim .afind.warn{border-left-color:#e5a50a}" +
+    "#fluigcli-sim .afind .aloc{font-family:ui-monospace,Consolas,monospace;color:#5a6b7b;font-size:10.5px}" +
+    "#fluigcli-sim .afind .asug{color:#1b6e53;margin-top:2px}" +
     "#fluigcli-sim .prodwarn{color:#b3352b;font-weight:650}" +
     "#fluigcli-sim h3{margin:0 0 2px;font-size:14px;display:flex;justify-content:space-between;align-items:center}" +
     "#fluigcli-sim h3 button{border:0;background:none;cursor:pointer;font-size:16px;line-height:1;padding:2px}" +
@@ -1055,6 +1063,59 @@ const formSimJS = `(function () {
     });
   }
 
+  // --- Auditoria de Style Guide (fluigcli audit) ---
+  // Roda no dev server sobre a pasta deste formulário; como o preview
+  // recarrega a cada salvamento, o resultado acompanha a edição.
+  var auditData = null;
+  function runAudit() {
+    api("/_dev/api/audit?form=" + encodeURIComponent(boot.folder), function (err, data) {
+      if (err || !data) {
+        if (els.auditdot) els.auditdot.className = "dot";
+        if (els.auditsummary) els.auditsummary.textContent = "fluigcli audit · falhou: " + err;
+        return;
+      }
+      auditData = data;
+      renderAudit();
+    });
+  }
+  function renderAudit() {
+    var e = auditData.counts.error, w = auditData.counts.warning;
+    els.auditdot.className = "dot " + (e ? "err" : (w ? "warn" : "ok"));
+    els.auditsummary.textContent = "fluigcli audit · " +
+      (e + w === 0 ? "nenhuma pendência ✓" : e + " erro(s) e " + w + " aviso(s)") +
+      " · " + auditData.scanned + " arquivo(s)";
+    var list = els.auditlist;
+    list.innerHTML = "";
+    var prefix = "forms/" + boot.folder + "/";
+    var max = 80;
+    auditData.findings.slice(0, max).forEach(function (f) {
+      var div = document.createElement("div");
+      div.className = "afind " + (f.severity === "error" ? "err" : "warn");
+      var loc = document.createElement("div");
+      loc.className = "aloc";
+      var file = f.file.indexOf(prefix) === 0 ? f.file.slice(prefix.length) : f.file;
+      loc.textContent = f.rule + " · " + file + ":" + f.line;
+      var msg = document.createElement("div");
+      msg.textContent = f.message;
+      div.appendChild(loc);
+      div.appendChild(msg);
+      if (f.suggestion) {
+        var sug = document.createElement("div");
+        sug.className = "asug";
+        sug.textContent = "→ " + f.suggestion + (f.fix ? " (corrigível com --fix)" : "");
+        div.appendChild(sug);
+      }
+      list.appendChild(div);
+    });
+    if (auditData.findings.length > max) {
+      var more = document.createElement("p");
+      more.className = "sub";
+      more.textContent = "… e mais " + (auditData.findings.length - max) +
+        " achado(s) — veja tudo com fluigcli audit forms/" + boot.folder;
+      list.appendChild(more);
+    }
+  }
+
   function buildPanel() {
     var style = document.createElement("style");
     style.textContent = CSS;
@@ -1133,7 +1194,15 @@ const formSimJS = `(function () {
       "</div>" +
       "<button type=\"button\" class=\"btn\" data-act=\"deploygo\" data-el=\"depgo\" disabled>Publicar</button>" +
       "</div>" +
+      "<div class=\"card auditcard\">" +
+      "<h3>Style Guide 2.0 <button type=\"button\" title=\"Fechar\" data-act=\"auditclose\">×</button></h3>" +
+      "<p class=\"sub\" data-el=\"auditsummary\">fluigcli audit · executando…</p>" +
+      "<div data-el=\"auditlist\"></div>" +
+      "<p class=\"sub\" style=\"margin-top:10px\">Correções determinísticas: <code>fluigcli audit forms/" +
+      esc(boot.folder) + " --fix</code>. A auditoria reexecuta a cada salvamento.</p>" +
+      "</div>" +
       "<div class=\"bar\">" +
+      "<button type=\"button\" data-act=\"audit\" title=\"Style Guide 2.0: auditoria deste formulário (fluigcli audit)\">🎨<span class=\"dot\" data-el=\"auditdot\"></span></button>" +
       "<button type=\"button\" data-act=\"open\" title=\"Simulação de processo (etapa, modo, usuário, variáveis)\">⚙<span class=\"dot\"></span></button>" +
       "<button type=\"button\" data-act=\"save\" title=\"Salvar: valida o formulário agora (validateForm) — nada é gravado\">💾</button>" +
       "<button type=\"button\" data-act=\"send\" title=\"Enviar etapa: pergunta a próxima etapa e valida o envio\">▶</button>" +
@@ -1153,19 +1222,25 @@ const formSimJS = `(function () {
       var act = actEl && actEl.getAttribute && actEl.getAttribute("data-act");
       if (act === "open") {
         var was = root.classList.contains("open-sim");
-        root.classList.remove("open-sim", "open-send", "open-deploy");
+        root.classList.remove("open-sim", "open-send", "open-deploy", "open-audit");
         if (!was) { root.classList.add("open-sim"); onOpen(false); }
       }
       if (act === "send") {
         var wasS = root.classList.contains("open-send");
-        root.classList.remove("open-sim", "open-send", "open-deploy");
+        root.classList.remove("open-sim", "open-send", "open-deploy", "open-audit");
         if (!wasS) { root.classList.add("open-send"); updateTestInfo(); onOpen(false); }
       }
       if (act === "deploy") {
         var wasD = root.classList.contains("open-deploy");
-        root.classList.remove("open-sim", "open-send", "open-deploy");
+        root.classList.remove("open-sim", "open-send", "open-deploy", "open-audit");
         if (!wasD) { root.classList.add("open-deploy"); openDeploy(); }
       }
+      if (act === "audit") {
+        var wasA = root.classList.contains("open-audit");
+        root.classList.remove("open-sim", "open-send", "open-deploy", "open-audit");
+        if (!wasA) { root.classList.add("open-audit"); if (!auditData) runAudit(); }
+      }
+      if (act === "auditclose") { root.classList.remove("open-audit"); }
       if (act === "close") { root.classList.remove("open-sim"); }
       if (act === "closesend") { root.classList.remove("open-send"); }
       if (act === "closedeploy") { root.classList.remove("open-deploy"); }
@@ -1471,6 +1546,7 @@ const formSimJS = `(function () {
   populateDatasetSelects(); // antes do evento: displayFields pode selecionar valor
   runEvent();
   buildPanel();
+  runAudit(); // o 🎨 já abre com o veredito do style guide
   if (firstVisit) autodetect();
 })();
 `

@@ -72,6 +72,7 @@ type Server struct {
 	theme formThemeProbe // detecção (única) do tema novo no servidor
 	wdk   formWdkProbe   // detecção (única) da máquina wdkdetail.js
 	sim   formSimCache   // cache da API de simulação de formulários
+	audit auditState     // catálogo do linter de style guide (auditpanel.go)
 
 	deploys map[string]deployConn // conexões de publicação por servidor (sob sim.mu)
 
@@ -120,6 +121,7 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
 	mux.HandleFunc(datasetLabPath, s.handleDatasetLab)
 	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
+	mux.HandleFunc(auditAPIPath, s.handleAuditAPI)
 	mux.HandleFunc("/_dev/api/dash", s.handleDash)
 	mux.HandleFunc("/_dev/api/dash/watch", s.handleDashWatch)
 	mux.HandleFunc("/_dev/api/dash/reload", s.handleDashReload)

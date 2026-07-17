@@ -2,10 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -168,21 +165,11 @@ func newAuditCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-// loadAuditConfig lê as exceções do projeto em .fluigcli/audit.json (ausente = vazio).
+// loadAuditConfig lê as exceções do projeto (problema no arquivo = erro de uso).
 func loadAuditConfig(root string) (audit.Config, error) {
-	var cfg audit.Config
-	raw, err := os.ReadFile(filepath.Join(root, ".fluigcli", "audit.json"))
-	if os.IsNotExist(err) {
-		return cfg, nil
-	}
+	cfg, err := audit.LoadConfig(root)
 	if err != nil {
-		return cfg, err
-	}
-	if err := json.Unmarshal(raw, &cfg); err != nil {
-		return cfg, output.Usagef(".fluigcli/audit.json inválido: %s", err)
-	}
-	if err := cfg.Validate(); err != nil {
-		return cfg, output.Usagef(".fluigcli/audit.json: %s", err)
+		return cfg, output.Usagef("%s", err)
 	}
 	return cfg, nil
 }

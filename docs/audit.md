@@ -67,6 +67,12 @@ Cada entrada de `ignore` casa por caminho exato, prefixo de pasta (termina em
 `/`) ou glob no caminho/nome do arquivo; `severity` muda o nível por regra
 (`error`, `warning`) ou a desliga (`off`). O `--json` lista o que foi ignorado.
 
+## No preview do `dev`
+
+O [`fluigcli dev`](dev.md) roda esta auditoria automaticamente no preview de
+cada formulário (botão **🎨** da barra: verde/amarelo/vermelho) e reexecuta a
+cada salvamento — os achados aparecem na tela, com as mesmas sugestões.
+
 ## Exit code e CI
 
 Por padrão a auditoria **reprova com exit 1** quando há achados de nível

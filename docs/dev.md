@@ -98,6 +98,17 @@ aplica as mesmas transformações, condicionadas ao servidor ter o tema novo
 (num Fluig 1.x nada é alterado). É só apresentação: **os arquivos locais não
 são tocados**.
 
+### Auditoria de Style Guide no preview (botão 🎨)
+
+Cada preview roda automaticamente o [`fluigcli audit`](audit.md) na pasta do
+formulário e mostra o veredito no botão **🎨** da barra: ponto **verde**
+(nenhuma pendência), **amarelo** (só avisos) ou **vermelho** (erros). O clique
+abre o painel com os achados — regra, arquivo:linha, mensagem e a sugestão de
+correção (inclusive qual variável do tema usar no lugar de uma cor fixa, e o
+que o `audit --fix` resolve sozinho). Como salvar um arquivo recarrega o
+preview, **a auditoria reexecuta a cada salvamento** — dá para corrigir e ver
+a lista encolher em tempo real. Respeita o `.fluigcli/audit.json` do projeto.
+
 ### Simulação de processo (painel flutuante)
 
 Formulário de processo costuma "sumir" em preview: o `events/displayFields.js`
