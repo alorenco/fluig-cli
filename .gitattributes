@@ -1,0 +1,9 @@
+# Conteúdo embutido no binário (go:embed) precisa de bytes idênticos em
+# qualquer SO: o autocrlf do runner Windows converte o checkout para CRLF e
+# quebra a comparação byte a byte dos testes do scaffold/skill.
+internal/scaffold/templates/** text eol=lf
+skills/** text eol=lf
+testdata/** text eol=lf
+
+# Binários nunca passam por conversão de EOL.
+*.png binary
