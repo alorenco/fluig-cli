@@ -10,41 +10,34 @@ import (
 	"strings"
 )
 
-// Context-roots dos componentes auxiliares reconhecidos. O fluigcli publica o
-// fluigcliHelper (próprio, embutido no binário); a fluiggersWidget da
-// comunidade continua aceita como fallback em servidores que já a tenham.
+// HelperFluigcli é o context-root do componente auxiliar do fluigcli
+// (fluigcliHelper), publicado pelo `server install-helper` com o WAR embutido
+// no binário (helper/).
+const HelperFluigcli = "fluigcliHelper"
+
 const (
-	HelperFluigcli  = "fluigcliHelper"
-	HelperFluiggers = "fluiggersWidget"
+	helperPingPath      = "/" + HelperFluigcli + "/api/ping"
+	helperWidgetsPath   = "/" + HelperFluigcli + "/api/widgets"
+	helperWorkflowsBase = "/" + HelperFluigcli + "/api/workflows/"
 )
 
-// helperRoots em ordem de preferência na resolução.
-var helperRoots = []string{HelperFluigcli, HelperFluiggers}
-
-// ResolveHelper descobre qual componente auxiliar está publicado no servidor
-// (ping → pong em cada context-root, preferindo o fluigcliHelper) e devolve o
-// context-root; "" = nenhum instalado. Resultado cacheado por execução.
-func (c *Client) ResolveHelper(ctx context.Context) (string, error) {
-	if c.helperRoot != nil {
-		return *c.helperRoot, nil
+// HelperInstalled verifica se o fluigcliHelper está publicado (ping → pong).
+// Resultado cacheado por execução.
+func (c *Client) HelperInstalled(ctx context.Context) (bool, error) {
+	if c.helperInstalled != nil {
+		return *c.helperInstalled, nil
 	}
 	if err := c.EnsureSession(ctx); err != nil {
-		return "", err
+		return false, err
 	}
-	root := ""
-	for _, r := range helperRoots {
-		if c.helperPong(ctx, r) {
-			root = r
-			break
-		}
-	}
-	c.helperRoot = &root
-	return root, nil
+	installed := c.helperPong(ctx)
+	c.helperInstalled = &installed
+	return installed, nil
 }
 
-// helperPong verifica se GET /<root>/api/ping responde 200 "pong".
-func (c *Client) helperPong(ctx context.Context, root string) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url("/"+root+"/api/ping"), nil)
+// helperPong verifica se GET do ping responde 200 "pong".
+func (c *Client) helperPong(ctx context.Context) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url(helperPingPath), nil)
 	if err != nil {
 		return false
 	}
@@ -59,11 +52,16 @@ func (c *Client) helperPong(ctx context.Context, root string) bool {
 	return resp.StatusCode == http.StatusOK && strings.Contains(strings.ToLower(body), "pong")
 }
 
-// HelperInstalled informa se algum componente auxiliar está publicado
-// (fluigcliHelper ou fluiggersWidget).
-func (c *Client) HelperInstalled(ctx context.Context) (bool, error) {
-	root, err := c.ResolveHelper(ctx)
-	return root != "", err
+// requireHelper devolve ErrHelperMissing quando o fluigcliHelper não responde.
+func (c *Client) requireHelper(ctx context.Context) error {
+	installed, err := c.HelperInstalled(ctx)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return ErrHelperMissing
+	}
+	return nil
 }
 
 // WorkflowEvent é um evento de processo a atualizar (name + código JS).
@@ -83,21 +81,17 @@ type WorkflowUpdateResult struct {
 }
 
 // UpdateWorkflowEvents atualiza (cirurgicamente) eventos de um processo via
-// componente auxiliar: PUT /<helper>/api/workflows/{processId}/{version}/events
+// fluigcliHelper: PUT /fluigcliHelper/api/workflows/{processId}/{version}/events
 // com corpo [{name, contents}]. Requer o helper instalado.
 func (c *Client) UpdateWorkflowEvents(ctx context.Context, processID string, version int, events []WorkflowEvent) (*WorkflowUpdateResult, error) {
-	root, err := c.ResolveHelper(ctx)
-	if err != nil {
+	if err := c.requireHelper(ctx); err != nil {
 		return nil, err
-	}
-	if root == "" {
-		return nil, ErrHelperMissing
 	}
 	payload, err := json.Marshal(events)
 	if err != nil {
 		return nil, err
 	}
-	endpoint := c.url("/"+root+"/api/workflows/") + processID + "/" + strconv.Itoa(version) + "/events"
+	endpoint := c.url(helperWorkflowsBase) + processID + "/" + strconv.Itoa(version) + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
@@ -117,11 +111,11 @@ func (c *Client) UpdateWorkflowEvents(ctx context.Context, processID string, ver
 		return nil, fmt.Errorf("%w: processo %q versão %d", ErrNotFound, processID, version)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: root + " events", Body: truncate(body, 512)}
+		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: HelperFluigcli + " events", Body: truncate(body, 512)}
 	}
 	var res WorkflowUpdateResult
 	if err := json.Unmarshal([]byte(body), &res); err != nil {
-		return nil, fmt.Errorf("resposta inesperada do %s: %w", root, err)
+		return nil, fmt.Errorf("resposta inesperada do %s: %w", HelperFluigcli, err)
 	}
 	if res.HasError {
 		return &res, fmt.Errorf("%w: %s", errServerRejected, strings.Join(res.Errors, "; "))

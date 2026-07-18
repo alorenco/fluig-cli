@@ -16,8 +16,8 @@ Segurança: o container exige sessão do portal em `/api/*` (security-domain
 `TOTVSTech`) e o `BaseController` restringe a administradores do tenant.
 
 Baseado no [fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)
-da comunidade Fluiggers (MIT) — mesmos endpoints e semântica; o fluigcli
-prefere este helper e mantém fallback para a fluiggersWidget já instalada.
+da comunidade Fluiggers (MIT) — mesmos endpoints e semântica. Desde 2026-07-18
+este é o ÚNICO componente auxiliar que a CLI reconhece.
 
 ## Build
 

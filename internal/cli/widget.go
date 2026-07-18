@@ -110,11 +110,10 @@ func newWidgetListCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Lista os widgets do servidor",
-		Long: "Lista os widgets customizados do servidor. Com o componente auxiliar\n" +
-			"(fluigcliHelper ou fluiggersWidget) instalado usa a listagem dele (completa,\n" +
-			"com o arquivo .war de cada widget); sem ele, cai para a API nativa de\n" +
-			"page-management — que funciona, mas pode omitir widgets e não traz o\n" +
-			"arquivo exigido pelo widget import.",
+		Long: "Lista os widgets customizados do servidor. Com o fluigcliHelper instalado\n" +
+			"usa a listagem dele (completa, com o arquivo .war de cada widget); sem ele,\n" +
+			"cai para a API nativa de page-management — que funciona, mas pode omitir\n" +
+			"widgets e não traz o arquivo exigido pelo widget import.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -123,14 +122,13 @@ func newWidgetListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			source := fluig.HelperFluigcli
 			widgets, err := client.ListWidgets(ctx)
-			// source = context-root do helper que respondeu (já cacheado).
-			source, _ := client.ResolveHelper(ctx)
 			if errors.Is(err, fluig.ErrHelperMissing) {
 				// Fallback nativo: melhor uma listagem possivelmente incompleta
 				// do que exit 7 num comando só de leitura.
 				source = "native"
-				p.Warnf("componente auxiliar não instalado — usando a listagem nativa, que pode omitir widgets e não traz o arquivo do widget import; para a listagem completa: fluigcli server install-helper %s", p.Server)
+				p.Warnf("fluigcliHelper não instalado — usando a listagem nativa, que pode omitir widgets e não traz o arquivo do widget import; para a listagem completa: fluigcli server install-helper %s", p.Server)
 				widgets, err = client.ListWidgetsNative(ctx)
 			}
 			if err != nil {

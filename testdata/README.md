@@ -52,7 +52,7 @@ reduzidas — a estrutura e os tipos são os reais).
 
 > Descoberta: nem SOAP nem a REST v2 (`/process-management`) têm endpoint de
 > script/evento — só processo inteiro. Update cirúrgico só via componente
-> auxiliar (fluigcliHelper; a fluiggersWidget da comunidade também serve).
+> auxiliar (fluigcliHelper).
 > Ver a referência das APIs nativas no CLAUDE.md.
 
 ## workflow list (ROADMAP 2026-07-09)
@@ -87,9 +87,9 @@ reduzidas — a estrutura e os tipos são os reais).
 Sem fixtures novas (empacotamento/desempacotamento do WAR é testado com zips
 sintéticos in-memory). Investigação: APIs nativas de widget (`/wcm/api/v2/widgets`,
 `/api/public/wcm/widget`) respondem `NotFoundException`; listagem/download só via
-`GET /<helper>/api/widgets[/{filename}]` (fluigcliHelper ou fluiggersWidget).
+`GET /fluigcliHelper/api/widgets[/{filename}]`.
 Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ application/json
-(406 do RESTEasy — visto ao vivo em 2026-07-18 nos dois helpers).
+(406 do RESTEasy — visto ao vivo em 2026-07-18).
 
 ## dataset REST v2 (ROADMAP 2026-07-09)
 

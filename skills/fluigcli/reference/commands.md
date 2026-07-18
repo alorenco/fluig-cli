@@ -42,7 +42,7 @@ Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
 | `server test [<name>]` | login + ping + dados do usuário; reporta qual componente auxiliar está instalado |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
 | `server status [<name>]` | saúde do servidor: uptime, memória, banco e monitores (requer admin) |
-| `server install-helper [<name>]` | instala o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo; a fluiggersWidget da comunidade também é aceita) |
+| `server install-helper [<name>]` | instala o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo) |
 
 Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de

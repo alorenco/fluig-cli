@@ -38,7 +38,7 @@ func BuildWAR(files []WARFile) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Widget é um widget listado pela fluiggersWidget (para import).
+// Widget é um widget listado pelo fluigcliHelper (para import).
 type Widget struct {
 	Code        string `json:"code"`
 	Title       string `json:"title"`
@@ -46,18 +46,13 @@ type Widget struct {
 	Filename    string `json:"filename"`
 }
 
-// ListWidgets lista os widgets do servidor via componente auxiliar
-// (fluigcliHelper, com fallback fluiggersWidget). Requer o helper instalado;
-// ausência → ErrHelperMissing (exit 7).
+// ListWidgets lista os widgets do servidor via fluigcliHelper. Requer o
+// helper instalado; ausência → ErrHelperMissing (exit 7).
 func (c *Client) ListWidgets(ctx context.Context) ([]Widget, error) {
-	root, err := c.ResolveHelper(ctx)
-	if err != nil {
+	if err := c.requireHelper(ctx); err != nil {
 		return nil, err
 	}
-	if root == "" {
-		return nil, ErrHelperMissing
-	}
-	body, status, err := c.doJSON(ctx, http.MethodGet, c.url("/"+root+"/api/widgets"), nil)
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(helperWidgetsPath), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -65,31 +60,24 @@ func (c *Client) ListWidgets(ctx context.Context) ([]Widget, error) {
 		return nil, ErrHelperMissing
 	}
 	if status != http.StatusOK {
-		return nil, &HTTPError{StatusCode: status, URL: root + "/widgets", Body: truncate(string(body), 512)}
+		return nil, &HTTPError{StatusCode: status, URL: HelperFluigcli + "/widgets", Body: truncate(string(body), 512)}
 	}
 	var widgets []Widget
 	if err := json.Unmarshal(body, &widgets); err != nil {
-		return nil, fmt.Errorf("resposta inesperada de %s/widgets: %w", root, err)
+		return nil, fmt.Errorf("resposta inesperada de %s/widgets: %w", HelperFluigcli, err)
 	}
 	return widgets, nil
 }
 
-// DownloadWidget baixa o .war/zip de um widget via componente auxiliar.
+// DownloadWidget baixa o .war/zip de um widget via fluigcliHelper.
 // ⚠️ A rota produz octet-stream e o RESTEasy exige Accept compatível —
-// Accept: application/json responde 406 (mesmo padrão do stream de documentos;
-// visto ao vivo na homolog em 2026-07-18, nos DOIS helpers).
+// Accept: application/json responde 406 (mesmo padrão do stream de
+// documentos; visto ao vivo na homolog em 2026-07-18).
 func (c *Client) DownloadWidget(ctx context.Context, filename string) ([]byte, error) {
-	root, err := c.ResolveHelper(ctx)
-	if err != nil {
+	if err := c.requireHelper(ctx); err != nil {
 		return nil, err
 	}
-	if root == "" {
-		return nil, ErrHelperMissing
-	}
-	if err := c.EnsureSession(ctx); err != nil {
-		return nil, err
-	}
-	endpoint := c.url("/"+root+"/api/widgets/") + url.PathEscape(filename)
+	endpoint := c.url(helperWidgetsPath+"/") + url.PathEscape(filename)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -107,14 +95,14 @@ func (c *Client) DownloadWidget(ctx context.Context, filename string) ([]byte, e
 		return nil, fmt.Errorf("%w: widget %q", ErrNotFound, filename)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: root + "/widgets/" + filename, Body: truncate(body, 256)}
+		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: HelperFluigcli + "/widgets/" + filename, Body: truncate(body, 256)}
 	}
 	return []byte(body), nil
 }
 
 // ListWidgetsNative lista os widgets customizados pela API nativa de
 // page-management (`GET /page-management/api/v2/applications?internal=false`),
-// sem depender da fluiggersWidget. ⚠️ Limitações validadas na homologação
+// sem depender do fluigcliHelper. ⚠️ Limitações validadas na homologação
 // (2026-07-09): a listagem nativa pode OMITIR widgets instaladas (3 de 28
 // ficaram de fora, embora o GET por código as encontre) e não informa o nome
 // do arquivo (.war), necessário ao download do import — por isso ela é o

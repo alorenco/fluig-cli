@@ -85,8 +85,8 @@ Atualiza os scripts de eventos de um processo **sem redeploy do processo todo**.
 
 > **Pré-requisito:** a atualização cirúrgica de scripts **não tem API nativa** no
 > Fluig — nem no SOAP nem na REST v2 (ambos só reimportam o processo inteiro).
-> Ela usa o **componente auxiliar** (fluigcliHelper, ou a fluiggersWidget da
-> comunidade). Se nenhum estiver instalado,
+> Ela usa o componente auxiliar **fluigcliHelper**. Se ele não estiver
+> instalado,
 > o comando falha com exit **7** orientando: `fluigcli server install-helper`.
 
 Alvos:
@@ -153,8 +153,7 @@ Regras e limitações:
 
 Instala o `fluigcliHelper` no servidor (o WAR vai **embutido no binário** da
 CLI e é publicado pelo upload nativo de widget). A instalação é **assíncrona**
-no servidor. A `fluiggersWidget` da comunidade, se já instalada, continua
-aceita como fallback.
+no servidor.
 
 ```sh
 fluigcli server install-helper homolog

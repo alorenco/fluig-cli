@@ -118,14 +118,12 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			root, _ := client.ResolveHelper(ctx)
-			if !force && root == fluig.HelperFluigcli {
-				p.Successf("fluigcliHelper já está instalado em %s.", server.Name)
-				p.Done(map[string]any{"installed": true, "action": "none", "helper": fluig.HelperFluigcli})
-				return nil
-			}
-			if root == fluig.HelperFluiggers {
-				p.Infof("fluiggersWidget detectada em %s — o fluigcliHelper será instalado e passa a ter preferência.", server.Name)
+			if !force {
+				if installed, _ := client.HelperInstalled(ctx); installed {
+					p.Successf("fluigcliHelper já está instalado em %s.", server.Name)
+					p.Done(map[string]any{"installed": true, "action": "none", "helper": fluig.HelperFluigcli})
+					return nil
+				}
 			}
 
 			war, origem, err := loadHelperWAR(warPath)
@@ -777,14 +775,11 @@ func newServerTestCmd(app *App) *cobra.Command {
 			}
 
 			// Status do componente auxiliar (widgets e scripts de processo).
-			helperRoot, _ := client.ResolveHelper(ctx)
-			switch helperRoot {
-			case fluig.HelperFluigcli:
-				p.Successf("Componente auxiliar: fluigcliHelper instalado")
-			case fluig.HelperFluiggers:
-				p.Successf("Componente auxiliar: fluiggersWidget instalada (compatível; o fluigcli também aceita o próprio helper: fluigcli server install-helper %s)", server.Name)
-			default:
-				p.Successf("Componente auxiliar: ausente (instale com: fluigcli server install-helper %s)", server.Name)
+			helperInstalled, _ := client.HelperInstalled(ctx)
+			if helperInstalled {
+				p.Successf("Componente auxiliar (fluigcliHelper): instalado")
+			} else {
+				p.Successf("Componente auxiliar (fluigcliHelper): ausente (instale com: fluigcli server install-helper %s)", server.Name)
 			}
 			hintFormLink(app, p, server)
 
@@ -792,8 +787,7 @@ func newServerTestCmd(app *App) *cobra.Command {
 				"server":          server.Name,
 				"url":             server.BaseURL(),
 				"user":            user.Raw,
-				"helperInstalled": helperRoot != "",
-				"helper":          helperRoot,
+				"helperInstalled": helperInstalled,
 			})
 			return nil
 		},

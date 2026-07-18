@@ -244,10 +244,9 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
 - **[fluig-vscode-extension](https://github.com/fluiggers/fluig-vscode-extension)** —
   extensão VS Code para desenvolvimento Fluig, a principal inspiração desta CLI.
 - **[fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)** —
-  a widget auxiliar da comunidade (MIT) em que o `fluigcliHelper` se baseia — o
-  componente que a CLI instala no servidor (`fluigcli server install-helper`,
-  fonte em [helper/](helper/)) para as operações sem API nativa no Fluig; a
-  fluiggersWidget já instalada continua aceita como fallback.
+  a widget auxiliar da comunidade (MIT) que serviu de base ao `fluigcliHelper`,
+  o componente que a CLI instala no servidor (`fluigcli server install-helper`,
+  fonte em [helper/](helper/)) para as operações sem API nativa no Fluig.
 
 ## Autor e licença
 

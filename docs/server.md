@@ -176,11 +176,9 @@ fluigcli server test homolog
 echo "$SENHA" | fluigcli server test homolog --password-stdin --json
 ```
 
-Também reporta qual **componente auxiliar** está instalado — `fluigcliHelper`
-(o próprio, preferido) ou `fluiggersWidget` (da comunidade, aceito como
-fallback); ele é necessário para o deploy de scripts de processo (ver
-[workflow](workflow.md)). No `--json` vêm os campos `helperInstalled` e
-`helper`.
+Também reporta se o componente auxiliar **fluigcliHelper** está instalado —
+necessário para o deploy de scripts de processo e o `widget import` (ver
+[workflow](workflow.md)). No `--json` vem o campo `helperInstalled`.
 
 Exit codes: `0` ok · `3` autenticação/sessão · `4` servidor não cadastrado ·
 `5` erro do servidor Fluig.

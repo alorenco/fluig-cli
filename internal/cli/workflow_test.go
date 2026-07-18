@@ -60,14 +60,14 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			http.Error(w, "op?", 500)
 		}
 	})
-	mux.HandleFunc("/fluiggersWidget/api/ping", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
 		if !s.helperInstalled {
 			http.NotFound(w, r)
 			return
 		}
 		io.WriteString(w, "pong")
 	})
-	mux.HandleFunc("/fluiggersWidget/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"processId":"Compras","version":5,"hasError":false,"totalProcessed":1,"errors":[],"successes":["beforeTaskSave"]}`)
 	})
 	// Listagem de processos (REST v2) — uma página com variedade real

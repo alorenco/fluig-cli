@@ -19,7 +19,7 @@ import (
 const soapWorkflowPath = "/webdesk/ECMWorkflowEngineService"
 
 // WorkflowVersion devolve a última versão de um processo (0 = inexistente).
-// Nativo do ECMWorkflowEngineService — não depende da fluiggersWidget.
+// Nativo do ECMWorkflowEngineService — não depende do fluigcliHelper.
 func (c *Client) WorkflowVersion(ctx context.Context, processID string) (int, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return 0, err
@@ -80,7 +80,7 @@ func (c *Client) ExportProcessZip(ctx context.Context, processID string) ([]byte
 // ProcessEventScripts devolve os scripts de eventos de um processo como mapa
 // evento → código, extraídos do export nativo (§5.7 da SPEC: o zip traz um
 // único XML <ProcessDefinition>, com os scripts em <WorkflowProcessEvent>).
-// Leitura pura — não requer a fluiggersWidget. Quando o XML traz eventos de
+// Leitura pura — não requer o fluigcliHelper. Quando o XML traz eventos de
 // mais de uma versão do processo, prevalece a versão mais alta.
 func (c *Client) ProcessEventScripts(ctx context.Context, processID string) (map[string]string, error) {
 	zipData, err := c.ExportProcessZip(ctx, processID)

@@ -25,8 +25,7 @@ type widgetStub struct {
 	mu            sync.Mutex
 	uploadedWAR   []byte
 	uploadedName  string
-	helperMissing bool // nenhum helper publicado → widget list cai no nativo
-	fluigcli      bool // o fluigcliHelper também responde (preferido na resolução)
+	helperMissing bool // fluigcliHelper ausente → widget list cai no nativo
 }
 
 func (s *widgetStub) widgetZip(t *testing.T) []byte {
@@ -56,50 +55,32 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
-	mux.HandleFunc("/fluiggersWidget/api/ping", func(w http.ResponseWriter, r *http.Request) {
-		if s.helperMissing {
-			http.NotFound(w, r)
-			return
-		}
-		io.WriteString(w, "pong")
-	})
-	mux.HandleFunc("/fluiggersWidget/api/widgets", func(w http.ResponseWriter, r *http.Request) {
-		if s.helperMissing {
-			http.NotFound(w, r)
-			return
-		}
-		io.WriteString(w, `[{"code":"meu_widget","title":"Meu Widget","description":"d","filename":"meu_widget.war"}]`)
-	})
-	// O helper próprio, quando presente, tem preferência sobre a fluiggersWidget.
 	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
-		if !s.fluigcli || s.helperMissing {
+		if s.helperMissing {
 			http.NotFound(w, r)
 			return
 		}
 		io.WriteString(w, "pong")
 	})
 	mux.HandleFunc("/fluigcliHelper/api/widgets", func(w http.ResponseWriter, r *http.Request) {
-		if !s.fluigcli || s.helperMissing {
+		if s.helperMissing {
 			http.NotFound(w, r)
 			return
 		}
 		io.WriteString(w, `[{"code":"meu_widget","title":"Meu Widget","description":"d","filename":"meu_widget.war"}]`)
 	})
-	mux.HandleFunc("/fluigcliHelper/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
-		if !s.fluigcli || s.helperMissing {
-			http.NotFound(w, r)
-			return
-		}
-		w.Write(s.widgetZip(t))
-	})
-	// Listagem nativa (fallback do widget list quando a fluiggersWidget falta).
+	// Listagem nativa (fallback do widget list quando o fluigcliHelper falta).
 	mux.HandleFunc("/page-management/api/v2/applications", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"items":[`+
 			`{"code":"meu_widget","title":"Meu Widget","description":"d","internal":false},`+
 			`{"code":"outro_widget","title":"Outro Widget","description":"d2","internal":false}`+
 			`],"hasNext":false}`)
 	})
-	mux.HandleFunc("/fluiggersWidget/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperMissing {
+			http.NotFound(w, r)
+			return
+		}
 		w.Write(s.widgetZip(t))
 	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/product/uploadfile", func(w http.ResponseWriter, r *http.Request) {
@@ -227,31 +208,12 @@ func TestWidgetListJSON(t *testing.T) {
 	if ws, _ := data["widgets"].([]any); len(ws) != 1 {
 		t.Errorf("esperava 1 widget, veio %d", len(ws))
 	}
-	if data["source"] != "fluiggersWidget" {
-		t.Errorf("source = %v, quer fluiggersWidget", data["source"])
-	}
-}
-
-// Com o fluigcliHelper publicado, ele tem preferência sobre a fluiggersWidget.
-func TestWidgetListPrefereFluigcliHelper(t *testing.T) {
-	stub := &widgetStub{fluigcli: true}
-	proj := widgetProject(t, stub.server(t).URL)
-	code, stdout := runMain(t, "widget", "list", "--json", "--project", proj, "--server", "homolog")
-	if code != output.ExitOK {
-		t.Fatalf("exit=%d", code)
-	}
-	var env output.Envelope
-	json.Unmarshal([]byte(stdout), &env)
-	data, _ := env.Data.(map[string]any)
-	if ws, _ := data["widgets"].([]any); len(ws) != 1 {
-		t.Errorf("esperava 1 widget, veio %d", len(ws))
-	}
 	if data["source"] != "fluigcliHelper" {
 		t.Errorf("source = %v, quer fluigcliHelper", data["source"])
 	}
 }
 
-// Sem a fluiggersWidget, o list cai para a API nativa (não dá exit 7).
+// Sem o fluigcliHelper, o list cai para a API nativa (não dá exit 7).
 func TestWidgetListFallbackNativo(t *testing.T) {
 	stub := &widgetStub{helperMissing: true}
 	proj := widgetProject(t, stub.server(t).URL)
@@ -275,7 +237,7 @@ func TestWidgetListFallbackNativo(t *testing.T) {
 	}
 }
 
-// O import continua exigindo a fluiggersWidget (exit 7 sem ela).
+// O import continua exigindo o fluigcliHelper (exit 7 sem ele).
 func TestWidgetImportSemHelper(t *testing.T) {
 	stub := &widgetStub{helperMissing: true}
 	proj := widgetProject(t, stub.server(t).URL)

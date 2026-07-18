@@ -16,7 +16,7 @@ const (
 	ExitNotFound      = 4 // recurso não encontrado (dataset, form, processo, servidor)
 	ExitServer        = 5 // erro retornado pelo servidor Fluig
 	ExitPartial       = 6 // sucesso parcial em operação em lote
-	ExitMissingHelper = 7 // dependência ausente no servidor (fluiggersWidget)
+	ExitMissingHelper = 7 // dependência ausente no servidor (fluigcliHelper)
 )
 
 // Códigos de erro estáveis, em inglês. Fazem parte do contrato

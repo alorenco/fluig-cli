@@ -11,7 +11,7 @@ import (
 )
 
 type helperStub struct {
-	roots        []string // context-roots que respondem (vazio = nenhum helper)
+	installed    bool // o fluigcliHelper responde ao ping
 	eventsBody   []WorkflowEvent
 	eventsPath   string
 	uploadedName string
@@ -26,17 +26,19 @@ func (s *helperStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
-	for _, root := range s.roots {
-		mux.HandleFunc("/"+root+"/api/ping", func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, "pong")
-		})
-		mux.HandleFunc("/"+root+"/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
-			s.eventsPath = r.URL.Path
-			body, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(body, &s.eventsBody)
-			io.WriteString(w, `{"processId":"Compras","version":5,"hasError":false,"totalProcessed":1,"errors":[],"successes":["beforeTaskSave"]}`)
-		})
-	}
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		if !s.installed {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
+		s.eventsPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &s.eventsBody)
+		io.WriteString(w, `{"processId":"Compras","version":5,"hasError":false,"totalProcessed":1,"errors":[],"successes":["beforeTaskSave"]}`)
+	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/product/uploadfile", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseMultipartForm(10 << 20)
 		s.uploadedName = r.FormValue("fileName")
@@ -61,61 +63,41 @@ func helperClient(t *testing.T, url string) *Client {
 }
 
 func TestHelperInstalled(t *testing.T) {
-	stub := &helperStub{}
+	stub := &helperStub{installed: false}
 	c := helperClient(t, stub.server(t).URL)
 	if ok, _ := c.HelperInstalled(context.Background()); ok {
-		t.Error("deveria reportar não instalado (ping 404 nos dois context-roots)")
+		t.Error("deveria reportar não instalado (ping 404)")
 	}
-	stub2 := &helperStub{roots: []string{HelperFluiggers}}
+	stub2 := &helperStub{installed: true}
 	c2 := helperClient(t, stub2.server(t).URL)
 	if ok, err := c2.HelperInstalled(context.Background()); err != nil || !ok {
 		t.Errorf("deveria reportar instalado; ok=%v err=%v", ok, err)
 	}
 }
 
-// O fluigcliHelper tem preferência quando os dois helpers respondem; sem ele,
-// a fluiggersWidget é o fallback — e o resultado fica cacheado no Client.
-func TestResolveHelperPreferencia(t *testing.T) {
-	ambos := &helperStub{roots: []string{HelperFluigcli, HelperFluiggers}}
-	c := helperClient(t, ambos.server(t).URL)
-	root, err := c.ResolveHelper(context.Background())
-	if err != nil || root != HelperFluigcli {
-		t.Errorf("com os dois instalados, quer fluigcliHelper; veio %q err=%v", root, err)
-	}
-
-	soFluiggers := &helperStub{roots: []string{HelperFluiggers}}
-	c2 := helperClient(t, soFluiggers.server(t).URL)
-	root2, err := c2.ResolveHelper(context.Background())
-	if err != nil || root2 != HelperFluiggers {
-		t.Errorf("fallback quer fluiggersWidget; veio %q err=%v", root2, err)
-	}
-}
-
 func TestUpdateWorkflowEvents(t *testing.T) {
-	for _, root := range []string{HelperFluigcli, HelperFluiggers} {
-		stub := &helperStub{roots: []string{root}}
-		c := helperClient(t, stub.server(t).URL)
-		res, err := c.UpdateWorkflowEvents(context.Background(), "Compras", 5, []WorkflowEvent{
-			{Name: "beforeTaskSave", Contents: "function beforeTaskSave(){}"},
-		})
-		if err != nil {
-			t.Fatalf("[%s] %v", root, err)
-		}
-		if res.HasError {
-			t.Errorf("[%s] resultado com erro: %+v", root, res)
-		}
-		if !strings.HasSuffix(stub.eventsPath, "/Compras/5/events") || !strings.HasPrefix(stub.eventsPath, "/"+root+"/") {
-			t.Errorf("[%s] path inesperado: %s", root, stub.eventsPath)
-		}
-		if len(stub.eventsBody) != 1 || stub.eventsBody[0].Name != "beforeTaskSave" || stub.eventsBody[0].Contents == "" {
-			t.Errorf("[%s] corpo inesperado: %+v", root, stub.eventsBody)
-		}
+	stub := &helperStub{installed: true}
+	c := helperClient(t, stub.server(t).URL)
+	res, err := c.UpdateWorkflowEvents(context.Background(), "Compras", 5, []WorkflowEvent{
+		{Name: "beforeTaskSave", Contents: "function beforeTaskSave(){}"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.HasError {
+		t.Errorf("resultado com erro: %+v", res)
+	}
+	if !strings.HasSuffix(stub.eventsPath, "/Compras/5/events") || !strings.HasPrefix(stub.eventsPath, "/fluigcliHelper/") {
+		t.Errorf("path inesperado: %s", stub.eventsPath)
+	}
+	if len(stub.eventsBody) != 1 || stub.eventsBody[0].Name != "beforeTaskSave" || stub.eventsBody[0].Contents == "" {
+		t.Errorf("corpo inesperado: %+v", stub.eventsBody)
 	}
 }
 
-// Sem nenhum helper publicado, o update falha com ErrHelperMissing (exit 7).
+// Sem o fluigcliHelper publicado, o update falha com ErrHelperMissing (exit 7).
 func TestUpdateWorkflowEventsSemHelper(t *testing.T) {
-	stub := &helperStub{}
+	stub := &helperStub{installed: false}
 	c := helperClient(t, stub.server(t).URL)
 	_, err := c.UpdateWorkflowEvents(context.Background(), "Compras", 5, []WorkflowEvent{{Name: "x", Contents: "y"}})
 	if err == nil || !strings.Contains(err.Error(), "componente auxiliar") {
@@ -142,10 +124,10 @@ func (s *errorEventsStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
-	mux.HandleFunc("/fluiggersWidget/api/ping", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "pong")
 	})
-	mux.HandleFunc("/fluiggersWidget/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"hasError":true,"errors":["sintaxe inválida no evento"],"successes":[]}`)
 	})
 	srv := httptest.NewServer(mux)
@@ -154,7 +136,7 @@ func (s *errorEventsStub) server(t *testing.T) *httptest.Server {
 }
 
 func TestUploadWidgetWAR(t *testing.T) {
-	stub := &helperStub{roots: []string{HelperFluigcli}}
+	stub := &helperStub{installed: true}
 	c := helperClient(t, stub.server(t).URL)
 	war := []byte("PK\x03\x04 fake war bytes")
 	if err := c.UploadWidgetWAR(context.Background(), "fluigcliHelper.war", war); err != nil {

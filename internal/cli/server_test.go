@@ -17,7 +17,7 @@ import (
 )
 
 // healthyServerStub simula um servidor saudável; helperInstalled controla o
-// ping da fluiggersWidget.
+// ping do fluigcliHelper.
 func healthyServerStub(t *testing.T, helperInstalled bool) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func healthyServerStub(t *testing.T, helperInstalled bool) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{"content":{"login":"u","fullName":"Fulano de Teste","email":"u@x","userCode":"uc"}}`)
 	})
-	mux.HandleFunc("/fluiggersWidget/api/ping", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
 		if !helperInstalled {
 			http.NotFound(w, r)
 			return
@@ -70,13 +70,6 @@ func TestServerTestReportsHelperStatus(t *testing.T) {
 		data, _ := env.Data.(map[string]any)
 		if got, _ := data["helperInstalled"].(bool); got != installed {
 			t.Errorf("helperInstalled=%v, quer %v", got, installed)
-		}
-		wantHelper := ""
-		if installed {
-			wantHelper = fluig.HelperFluiggers
-		}
-		if got, _ := data["helper"].(string); got != wantHelper {
-			t.Errorf("helper=%q, quer %q", got, wantHelper)
 		}
 	}
 }

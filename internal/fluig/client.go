@@ -44,8 +44,8 @@ type Client struct {
 	sessionKey string // host|usuário — chave do cache de sessão
 	cache      SessionCache
 
-	serverVersion *ServerVersion // cache da versão do produto (ServerVersion)
-	helperRoot    *string        // cache do context-root do helper resolvido ("" = nenhum)
+	serverVersion   *ServerVersion // cache da versão do produto (ServerVersion)
+	helperInstalled *bool          // cache do ping do fluigcliHelper
 }
 
 const defaultTimeout = 30 * time.Second
