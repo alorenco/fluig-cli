@@ -37,7 +37,7 @@ func newWatchCmd(app *App) *cobra.Command {
 			"salvamento — o ciclo editar→exportar→testar vira só editar→testar.\n\n" +
 			"Cobertura: datasets/, events/, mechanisms/, forms/ (a pasta inteira do\n" +
 			"formulário é a unidade — sempre com a versão mantida) e workflow/scripts/\n" +
-			"(atualização cirúrgica via fluiggersWidget, sem bump de versão).\n\n" +
+			"(atualização cirúrgica via componente auxiliar, sem bump de versão).\n\n" +
 			"Regras de segurança: só roda em servidor marcado como dev ou hml (produção\n" +
 			"é recusada, sem exceção); só ATUALIZA artefatos que já existem no servidor\n" +
 			"— arquivo novo gera um aviso com o comando de criação; salvamento sem\n" +
@@ -111,7 +111,7 @@ type watchSession struct {
 	// e scripts de processo, cujo conteúdo atual não pode ser lido barato do
 	// servidor.
 	published map[string]string
-	// helperOK cacheia o status da fluiggersWidget (checado no primeiro
+	// helperOK cacheia o status do componente auxiliar (checado no primeiro
 	// script de processo salvo).
 	helperOK *bool
 }
@@ -291,7 +291,7 @@ func (s *watchSession) publishOutcome(ctx context.Context, u watchUnit) (level, 
 	case action == "missing":
 		return "warn", fmt.Sprintf("%s  %s", ts, missingMessage(u, s.root))
 	case action == "no-helper":
-		return "warn", fmt.Sprintf("%s  script %q: a fluiggersWidget não está instalada — instale com: fluigcli server install-helper", ts, u.id)
+		return "warn", fmt.Sprintf("%s  script %q: o componente auxiliar não está instalado — instale com: fluigcli server install-helper", ts, u.id)
 	case action == "empty":
 		return "warn", fmt.Sprintf("%s  formulário %q: pasta sem arquivos para enviar", ts, u.id)
 	case action == "unchanged":
@@ -382,7 +382,7 @@ func (s *watchSession) updateForm(ctx context.Context, u watchUnit) (string, err
 	return "updated", nil
 }
 
-// updateWorkflow atualiza cirurgicamente o script salvo (fluiggersWidget) na
+// updateWorkflow atualiza cirurgicamente o script salvo (componente auxiliar) na
 // última versão do processo — a atualização não gera bump de versão.
 func (s *watchSession) updateWorkflow(ctx context.Context, u watchUnit) (string, error) {
 	if s.helperOK == nil {

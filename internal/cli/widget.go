@@ -104,16 +104,17 @@ func scaffoldDeveloperName() string {
 	return "fluigcli"
 }
 
-// --- widget list (fluiggersWidget; fallback nativo) ---
+// --- widget list (componente auxiliar; fallback nativo) ---
 
 func newWidgetListCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "Lista os widgets do servidor",
-		Long: "Lista os widgets customizados do servidor. Com a fluiggersWidget instalada\n" +
-			"usa a listagem dela (completa, com o arquivo .war de cada widget); sem ela,\n" +
-			"cai para a API nativa de page-management — que funciona, mas pode omitir\n" +
-			"widgets e não traz o arquivo exigido pelo widget import.",
+		Long: "Lista os widgets customizados do servidor. Com o componente auxiliar\n" +
+			"(fluigcliHelper ou fluiggersWidget) instalado usa a listagem dele (completa,\n" +
+			"com o arquivo .war de cada widget); sem ele, cai para a API nativa de\n" +
+			"page-management — que funciona, mas pode omitir widgets e não traz o\n" +
+			"arquivo exigido pelo widget import.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -122,13 +123,14 @@ func newWidgetListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			source := "fluiggersWidget"
 			widgets, err := client.ListWidgets(ctx)
+			// source = context-root do helper que respondeu (já cacheado).
+			source, _ := client.ResolveHelper(ctx)
 			if errors.Is(err, fluig.ErrHelperMissing) {
 				// Fallback nativo: melhor uma listagem possivelmente incompleta
 				// do que exit 7 num comando só de leitura.
 				source = "native"
-				p.Warnf("fluiggersWidget não instalada — usando a listagem nativa, que pode omitir widgets e não traz o arquivo do widget import; para a listagem completa: fluigcli server install-helper %s", p.Server)
+				p.Warnf("componente auxiliar não instalado — usando a listagem nativa, que pode omitir widgets e não traz o arquivo do widget import; para a listagem completa: fluigcli server install-helper %s", p.Server)
 				widgets, err = client.ListWidgetsNative(ctx)
 			}
 			if err != nil {
@@ -154,7 +156,7 @@ func newWidgetListCmd(app *App) *cobra.Command {
 	}
 }
 
-// --- widget import (servidor → local, via fluiggersWidget) ---
+// --- widget import (servidor → local, via componente auxiliar) ---
 
 func newWidgetImportCmd(app *App) *cobra.Command {
 	var (

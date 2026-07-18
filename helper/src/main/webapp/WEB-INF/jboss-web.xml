@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jboss-web>
+    <context-root>/fluigcliHelper</context-root>
+    <disable-cross-context>false</disable-cross-context>
+
+    <security-domain>TOTVSTech</security-domain>
+
+    <security-role>
+        <role-name>user</role-name>
+        <principal-name>totvstech</principal-name>
+    </security-role>
+
+    <security-role>
+        <role-name>totvstech</role-name>
+        <principal-name>totvstech</principal-name>
+    </security-role>
+
+    <security-role>
+        <role-name>sysadmin</role-name>
+        <principal-name>wcmadmin</principal-name>
+    </security-role>
+
+    <security-role>
+        <role-name>admin</role-name>
+        <principal-name>wcmadmin</principal-name>
+    </security-role>
+</jboss-web>

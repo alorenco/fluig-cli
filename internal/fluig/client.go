@@ -45,6 +45,7 @@ type Client struct {
 	cache      SessionCache
 
 	serverVersion *ServerVersion // cache da versão do produto (ServerVersion)
+	helperRoot    *string        // cache do context-root do helper resolvido ("" = nenhum)
 }
 
 const defaultTimeout = 30 * time.Second

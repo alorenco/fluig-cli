@@ -46,7 +46,7 @@ fluigcli diff --server producao              # contra um servidor específico
 ### Scripts de processo
 
 - A comparação usa o **export nativo** do processo (zip com o XML de
-  definição) — funciona sem a fluiggersWidget e considera a versão mais
+  definição) — funciona sem o componente auxiliar e considera a versão mais
   recente do processo.
 - Na varredura, processos do servidor **sem nenhum script local** aparecem como
   `only-server` (enumerados pela mesma API nativa do `workflow list`). O diff

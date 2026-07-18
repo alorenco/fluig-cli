@@ -12,8 +12,9 @@ var (
 	ErrAuthFailed = errors.New("autenticação no Fluig falhou")
 	// ErrNotFound indica recurso inexistente no servidor.
 	ErrNotFound = errors.New("recurso não encontrado no Fluig")
-	// ErrHelperMissing indica que a fluiggersWidget não está instalada (exit 7).
-	ErrHelperMissing = errors.New("widget auxiliar fluiggersWidget não instalada")
+	// ErrHelperMissing indica que nenhum componente auxiliar está instalado
+	// (nem fluigcliHelper nem fluiggersWidget) — exit 7.
+	ErrHelperMissing = errors.New("componente auxiliar não instalado (instale com: fluigcli server install-helper)")
 )
 
 // HTTPError representa uma resposta inesperada do servidor Fluig.

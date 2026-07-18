@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app
+    xmlns="http://java.sun.com/xml/ns/javaee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd"
+    version="3.0"
+>
+    <session-config>
+        <session-timeout>30</session-timeout>
+    </session-config>
+
+    <!-- /api/* exige usuário autenticado no portal (sessão do Fluig); a
+         restrição a administradores do tenant é feita no BaseController. -->
+    <security-constraint>
+        <display-name>fluigcliHelper API</display-name>
+        <web-resource-collection>
+            <web-resource-name>fluigcliHelper API</web-resource-name>
+            <description>fluigcliHelper API</description>
+            <url-pattern>/api/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <description>fluigcliHelper API</description>
+            <role-name>user</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <login-config>
+        <auth-method>FORM</auth-method>
+        <realm-name>TOTVSTech</realm-name>
+        <form-login-config>
+            <form-login-page>/unauthorized.jsp</form-login-page>
+            <form-error-page>/unauthorized.jsp</form-error-page>
+        </form-login-config>
+    </login-config>
+
+    <security-role>
+        <role-name>totvstech</role-name>
+    </security-role>
+
+    <security-role>
+        <role-name>user</role-name>
+    </security-role>
+
+    <security-role>
+        <role-name>sysadmin</role-name>
+    </security-role>
+</web-app>

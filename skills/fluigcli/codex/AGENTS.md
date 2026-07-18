@@ -13,7 +13,7 @@ Regras de ouro:
 - Consulte `fluigcli <cmd> --help` para as flags exatas.
 
 Exit codes: `0` ok · `2` uso · `3` auth · `4` não encontrado · `5` erro do
-servidor · `6` falha parcial (ver `data`) · `7` falta a widget fluiggersWidget
+servidor · `6` falha parcial (ver `data`) · `7` falta o componente auxiliar (fluigcliHelper)
 (rode `fluigcli server install-helper <name>`).
 
 Envelope (stdout recebe só isto; logs vão para stderr):

@@ -51,7 +51,8 @@ reduzidas — a estrutura e os tipos são os reais).
 | `ECMWorkflowEngineService.wsdl` | `GET /webdesk/ECMWorkflowEngineService?wsdl` | ✅ capturado; `workflow version` nativo validado (v57) |
 
 > Descoberta: nem SOAP nem a REST v2 (`/process-management`) têm endpoint de
-> script/evento — só processo inteiro. Update cirúrgico só via fluiggersWidget.
+> script/evento — só processo inteiro. Update cirúrgico só via componente
+> auxiliar (fluigcliHelper; a fluiggersWidget da comunidade também serve).
 > Ver a referência das APIs nativas no CLAUDE.md.
 
 ## workflow list (ROADMAP 2026-07-09)
@@ -86,7 +87,9 @@ reduzidas — a estrutura e os tipos são os reais).
 Sem fixtures novas (empacotamento/desempacotamento do WAR é testado com zips
 sintéticos in-memory). Investigação: APIs nativas de widget (`/wcm/api/v2/widgets`,
 `/api/public/wcm/widget`) respondem `NotFoundException`; listagem/download só via
-`GET /fluiggersWidget/api/widgets[/{filename}]`. Export/deploy é nativo (uploadfile).
+`GET /<helper>/api/widgets[/{filename}]` (fluigcliHelper ou fluiggersWidget).
+Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ application/json
+(406 do RESTEasy — visto ao vivo em 2026-07-18 nos dois helpers).
 
 ## dataset REST v2 (ROADMAP 2026-07-09)
 
@@ -110,7 +113,7 @@ sintéticos in-memory). Investigação: APIs nativas de widget (`/wcm/api/v2/wid
 |---|---|---|
 | `rest_applications_page1.json` / `page2.json` | `GET /page-management/api/v2/applications?internal=false` | ✅ gravadas da homologação em 2026-07-09, sanitizadas; envelope `{items, hasNext}` |
 
-> Descobertas: a rota funciona sem a fluiggersWidget, mas **omite widgets**
+> Descobertas: a rota funciona sem o componente auxiliar, mas **omite widgets**
 > (3 de 28 na homologação — fluiggersWidget, repositorio, sbi_global — mesmo
 > respondendo 200 no `GET applications/{code}`; critério do filtro não
 > identificado) e não traz o nome do `.war` (necessário ao `widget import`).

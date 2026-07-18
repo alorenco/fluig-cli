@@ -6,9 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	helperwar "github.com/alorenco/fluig-cli/helper"
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
@@ -87,9 +86,6 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-// helperWARURL é o WAR oficial da fluiggersWidget.
-const helperWARURL = "https://raw.githubusercontent.com/fluiggers/fluig-widget-helper/refs/heads/master/target/fluiggersWidget.war"
-
 func newServerInstallHelperCmd(app *App) *cobra.Command {
 	var (
 		warPath       string
@@ -99,7 +95,7 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "install-helper [<name>]",
-		Short: "Instala a widget auxiliar fluiggersWidget no servidor (necessária para scripts de processo)",
+		Short: "Instala o componente auxiliar fluigcliHelper no servidor (widgets e scripts de processo)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -112,7 +108,7 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return err
 			}
 			p.Server = server.Name
-			if err := app.guardProdWrite(server, "instalar a widget auxiliar"); err != nil {
+			if err := app.guardProdWrite(server, "instalar o componente auxiliar"); err != nil {
 				return err
 			}
 
@@ -122,15 +118,17 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			if !force {
-				if installed, _ := client.HelperInstalled(ctx); installed {
-					p.Successf("fluiggersWidget já está instalada em %s.", server.Name)
-					p.Done(map[string]any{"installed": true, "action": "none"})
-					return nil
-				}
+			root, _ := client.ResolveHelper(ctx)
+			if !force && root == fluig.HelperFluigcli {
+				p.Successf("fluigcliHelper já está instalado em %s.", server.Name)
+				p.Done(map[string]any{"installed": true, "action": "none", "helper": fluig.HelperFluigcli})
+				return nil
+			}
+			if root == fluig.HelperFluiggers {
+				p.Infof("fluiggersWidget detectada em %s — o fluigcliHelper será instalado e passa a ter preferência.", server.Name)
 			}
 
-			war, origem, err := loadHelperWAR(ctx, warPath)
+			war, origem, err := loadHelperWAR(warPath)
 			if err != nil {
 				return err
 			}
@@ -140,27 +138,25 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 			if warSHA256 != "" && !strings.EqualFold(warSHA256, gotSHA) {
 				return output.Genericf("SHA-256 do WAR não confere: esperado %s, obtido %s (abortado)", warSHA256, gotSHA)
 			}
-			p.Infof("Publicando fluiggersWidget (%d KB, de %s) — sha256=%s", len(war)/1024, origem, gotSHA)
-			if warSHA256 == "" {
-				p.Warnf("integridade do WAR não verificada; para fixar, use --war-sha256 <hash> (ou --war com artefato revisado)")
-			}
-			if err := client.UploadWidgetWAR(ctx, "fluiggersWidget.war", war); err != nil {
+			p.Infof("Publicando fluigcliHelper (%d KB, de %s) — sha256=%s", len(war)/1024, origem, gotSHA)
+			if err := client.UploadWidgetWAR(ctx, helperwar.Name, war); err != nil {
 				return mapFluigError(err)
 			}
-			p.Successf("WAR enviado. A instalação da widget é assíncrona no servidor — aguarde alguns instantes e valide com um comando de workflow.")
-			p.Done(map[string]any{"installed": true, "action": "uploaded"})
+			p.Successf("WAR enviado. A instalação é assíncrona no servidor — aguarde alguns instantes e valide com: fluigcli server test %s", server.Name)
+			p.Done(map[string]any{"installed": true, "action": "uploaded", "helper": fluig.HelperFluigcli})
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&warPath, "war", "", "usa um WAR local em vez de baixá-lo da internet")
+	cmd.Flags().StringVar(&warPath, "war", "", "usa um WAR local em vez do embutido no binário")
 	cmd.Flags().StringVar(&warSHA256, "war-sha256", "", "verifica o SHA-256 do WAR antes de publicar (integridade)")
-	cmd.Flags().BoolVar(&force, "force", false, "reenvia mesmo se a widget já estiver instalada")
+	cmd.Flags().BoolVar(&force, "force", false, "reenvia mesmo se o helper já estiver instalado")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 
-// loadHelperWAR devolve o WAR: de --war (local) ou baixado do repositório.
-func loadHelperWAR(ctx context.Context, warPath string) ([]byte, string, error) {
+// loadHelperWAR devolve o WAR do fluigcliHelper: de --war (local) ou o
+// embutido no binário (helper/fluigcliHelper.war, via go:embed).
+func loadHelperWAR(warPath string) ([]byte, string, error) {
 	if warPath != "" {
 		data, err := os.ReadFile(warPath)
 		if err != nil {
@@ -168,23 +164,7 @@ func loadHelperWAR(ctx context.Context, warPath string) ([]byte, string, error) 
 		}
 		return data, warPath, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, helperWARURL, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, "", output.Genericf("falha ao baixar o WAR da fluiggersWidget: %v (use --war <arquivo> para instalar offline)", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", output.Genericf("download do WAR retornou HTTP %d (use --war <arquivo>)", resp.StatusCode)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", err
-	}
-	return data, "repositório oficial da widget", nil
+	return helperwar.WAR, "embutido no binário", nil
 }
 
 // resolveServer determina o servidor alvo: argumento posicional > --server/env >
@@ -796,12 +776,15 @@ func newServerTestCmd(app *App) *cobra.Command {
 				p.Successf("Usuário %s autenticado.", server.Username)
 			}
 
-			// Status da widget auxiliar (necessária para scripts de processo).
-			helperInstalled, _ := client.HelperInstalled(ctx)
-			if helperInstalled {
-				p.Successf("Widget auxiliar (fluiggersWidget): instalada")
-			} else {
-				p.Successf("Widget auxiliar (fluiggersWidget): ausente (instale com: fluigcli server install-helper %s)", server.Name)
+			// Status do componente auxiliar (widgets e scripts de processo).
+			helperRoot, _ := client.ResolveHelper(ctx)
+			switch helperRoot {
+			case fluig.HelperFluigcli:
+				p.Successf("Componente auxiliar: fluigcliHelper instalado")
+			case fluig.HelperFluiggers:
+				p.Successf("Componente auxiliar: fluiggersWidget instalada (compatível; o fluigcli também aceita o próprio helper: fluigcli server install-helper %s)", server.Name)
+			default:
+				p.Successf("Componente auxiliar: ausente (instale com: fluigcli server install-helper %s)", server.Name)
 			}
 			hintFormLink(app, p, server)
 
@@ -809,7 +792,8 @@ func newServerTestCmd(app *App) *cobra.Command {
 				"server":          server.Name,
 				"url":             server.BaseURL(),
 				"user":            user.Raw,
-				"helperInstalled": helperInstalled,
+				"helperInstalled": helperRoot != "",
+				"helper":          helperRoot,
 			})
 			return nil
 		},

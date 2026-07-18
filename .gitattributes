@@ -4,6 +4,12 @@
 internal/scaffold/templates/** text eol=lf
 skills/** text eol=lf
 testdata/** text eol=lf
+# O hash de fontes do helper (TestHelperWARAtualizado) exige os mesmos bytes
+# que geraram o WAR versionado.
+helper/src/** text eol=lf
+helper/pom.xml text eol=lf
 
 # Binários nunca passam por conversão de EOL.
 *.png binary
+*.war binary
+*.jar binary

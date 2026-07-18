@@ -207,7 +207,7 @@ func newWorkflowNewScriptCmd(app *App) *cobra.Command {
 			}
 			rel := filepath.ToSlash(filepath.Join(project.WorkflowScriptsDir, scriptName+".js"))
 			p.Successf("script %q criado em %s", scriptName, rel)
-			p.Infof("Publique com `fluigcli workflow export %s` (cirúrgico, exige a fluiggersWidget) ou `fluigcli workflow publish %s` (nativo, cria nova versão).", processID, processID)
+			p.Infof("Publique com `fluigcli workflow export %s` (cirúrgico, exige o componente auxiliar) ou `fluigcli workflow publish %s` (nativo, cria nova versão).", processID, processID)
 			p.Done(map[string]any{"process": processID, "event": ev.Name, "file": rel})
 			return nil
 		},

@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	helperwar "github.com/alorenco/fluig-cli/helper"
 	"github.com/alorenco/fluig-cli/internal/config"
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
@@ -68,6 +70,73 @@ func TestServerTestReportsHelperStatus(t *testing.T) {
 		data, _ := env.Data.(map[string]any)
 		if got, _ := data["helperInstalled"].(bool); got != installed {
 			t.Errorf("helperInstalled=%v, quer %v", got, installed)
+		}
+		wantHelper := ""
+		if installed {
+			wantHelper = fluig.HelperFluiggers
+		}
+		if got, _ := data["helper"].(string); got != wantHelper {
+			t.Errorf("helper=%q, quer %q", got, wantHelper)
+		}
+	}
+}
+
+// install-helper publica o WAR embutido do fluigcliHelper; se ele já responde
+// ao ping, não reenvia (action=none).
+func TestServerInstallHelperEmbutido(t *testing.T) {
+	for _, jaInstalado := range []bool{false, true} {
+		var uploadedName string
+		var uploadedSize int
+		mux := http.NewServeMux()
+		mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+			http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+		})
+		mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, `{"message":"pong"}`)
+		})
+		mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+			if !jaInstalado {
+				http.NotFound(w, r)
+				return
+			}
+			io.WriteString(w, "pong")
+		})
+		mux.HandleFunc("/portal/api/rest/wcmservice/rest/product/uploadfile", func(w http.ResponseWriter, r *http.Request) {
+			_ = r.ParseMultipartForm(20 << 20)
+			uploadedName = r.FormValue("fileName")
+			if f, _, err := r.FormFile("attachment"); err == nil {
+				b, _ := io.ReadAll(f)
+				uploadedSize = len(b)
+			}
+			io.WriteString(w, `{}`)
+		})
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+
+		proj := serverTestProject(t, srv.URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("jaInstalado=%v exit=%d stdout=%s", jaInstalado, code, stdout)
+		}
+		var env output.Envelope
+		if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+			t.Fatalf("json inválido: %v", err)
+		}
+		data, _ := env.Data.(map[string]any)
+		if jaInstalado {
+			if data["action"] != "none" || uploadedName != "" {
+				t.Errorf("já instalado: action=%v upload=%q (quer none, sem upload)", data["action"], uploadedName)
+			}
+			continue
+		}
+		if data["action"] != "uploaded" || data["helper"] != fluig.HelperFluigcli {
+			t.Errorf("action=%v helper=%v, quer uploaded/fluigcliHelper", data["action"], data["helper"])
+		}
+		if uploadedName != helperwar.Name {
+			t.Errorf("nome do WAR enviado = %q, quer %q", uploadedName, helperwar.Name)
+		}
+		if uploadedSize != len(helperwar.WAR) || uploadedSize == 0 {
+			t.Errorf("tamanho enviado %d ≠ WAR embutido %d", uploadedSize, len(helperwar.WAR))
 		}
 	}
 }

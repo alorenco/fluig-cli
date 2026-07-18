@@ -96,6 +96,6 @@ fluigcli dataset export --help
 ## Limites
 
 - Scripts de evento de processo (`workflow export`) e `widget list|import`
-  exigem a widget auxiliar **fluiggersWidget** no servidor. Exit 7 → rode
+  exigem o **componente auxiliar** (fluigcliHelper) no servidor. Exit 7 → rode
   `fluigcli server install-helper <name>` (uma vez por servidor).
 - HTTP (`--ssl=false`) trafega senha e cookies em texto claro; prefira HTTPS.

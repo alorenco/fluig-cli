@@ -46,13 +46,18 @@ type Widget struct {
 	Filename    string `json:"filename"`
 }
 
-// ListWidgets lista os widgets do servidor via fluiggersWidget (import). Requer
-// a widget auxiliar instalada; ausência → ErrHelperMissing (exit 7).
+// ListWidgets lista os widgets do servidor via componente auxiliar
+// (fluigcliHelper, com fallback fluiggersWidget). Requer o helper instalado;
+// ausência → ErrHelperMissing (exit 7).
 func (c *Client) ListWidgets(ctx context.Context) ([]Widget, error) {
-	if err := c.EnsureSession(ctx); err != nil {
+	root, err := c.ResolveHelper(ctx)
+	if err != nil {
 		return nil, err
 	}
-	body, status, err := c.doJSON(ctx, http.MethodGet, c.url("/fluiggersWidget/api/widgets"), nil)
+	if root == "" {
+		return nil, ErrHelperMissing
+	}
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url("/"+root+"/api/widgets"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -60,32 +65,51 @@ func (c *Client) ListWidgets(ctx context.Context) ([]Widget, error) {
 		return nil, ErrHelperMissing
 	}
 	if status != http.StatusOK {
-		return nil, &HTTPError{StatusCode: status, URL: "fluiggersWidget/widgets", Body: truncate(string(body), 512)}
+		return nil, &HTTPError{StatusCode: status, URL: root + "/widgets", Body: truncate(string(body), 512)}
 	}
 	var widgets []Widget
 	if err := json.Unmarshal(body, &widgets); err != nil {
-		return nil, fmt.Errorf("resposta inesperada de fluiggersWidget/widgets: %w", err)
+		return nil, fmt.Errorf("resposta inesperada de %s/widgets: %w", root, err)
 	}
 	return widgets, nil
 }
 
-// DownloadWidget baixa o .war/zip de um widget via fluiggersWidget.
+// DownloadWidget baixa o .war/zip de um widget via componente auxiliar.
+// ⚠️ A rota produz octet-stream e o RESTEasy exige Accept compatível —
+// Accept: application/json responde 406 (mesmo padrão do stream de documentos;
+// visto ao vivo na homolog em 2026-07-18, nos DOIS helpers).
 func (c *Client) DownloadWidget(ctx context.Context, filename string) ([]byte, error) {
-	if err := c.EnsureSession(ctx); err != nil {
-		return nil, err
-	}
-	endpoint := c.url("/fluiggersWidget/api/widgets/") + url.PathEscape(filename)
-	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+	root, err := c.ResolveHelper(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if status == http.StatusNotFound {
+	if root == "" {
+		return nil, ErrHelperMissing
+	}
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url("/"+root+"/api/widgets/") + url.PathEscape(filename)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "*/*")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao baixar a widget de %s: %w", c.base.Host, err)
+	}
+	body, err := readBody(resp, 256<<20)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("%w: widget %q", ErrNotFound, filename)
 	}
-	if status != http.StatusOK {
-		return nil, &HTTPError{StatusCode: status, URL: "fluiggersWidget/widgets/" + filename, Body: truncate(string(body), 256)}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: root + "/widgets/" + filename, Body: truncate(body, 256)}
 	}
-	return body, nil
+	return []byte(body), nil
 }
 
 // ListWidgetsNative lista os widgets customizados pela API nativa de

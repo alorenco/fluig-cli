@@ -76,7 +76,7 @@ func newDiffCmd(app *App) *cobra.Command {
 			"formulário) informados. Diferenças só de quebra de linha (CRLF/LF) não\n" +
 			"contam. Em formulários, anexos binários são comparados byte a byte (sem\n" +
 			"diff textual); em scripts de processo, a comparação usa o export nativo\n" +
-			"do processo (não requer a fluiggersWidget).",
+			"do processo (não requer o componente auxiliar).",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			ctx := context.Background()

@@ -54,8 +54,8 @@ Processo inexistente → exit **4**.
 
 Baixa os scripts de eventos de processos do servidor para
 `workflow/scripts/<Processo>.<evento>.js` (**servidor → local** — o espelho do
-`export`). **Nativo** (export do processo via SOAP) — não depende da
-fluiggersWidget.
+`export`). **Nativo** (export do processo via SOAP) — não depende do
+componente auxiliar.
 
 ```sh
 fluigcli workflow import Compras --server homolog        # um processo
@@ -85,7 +85,8 @@ Atualiza os scripts de eventos de um processo **sem redeploy do processo todo**.
 
 > **Pré-requisito:** a atualização cirúrgica de scripts **não tem API nativa** no
 > Fluig — nem no SOAP nem na REST v2 (ambos só reimportam o processo inteiro).
-> Ela usa a widget auxiliar **fluiggersWidget**. Se ela não estiver instalada,
+> Ela usa o **componente auxiliar** (fluigcliHelper, ou a fluiggersWidget da
+> comunidade). Se nenhum estiver instalado,
 > o comando falha com exit **7** orientando: `fluigcli server install-helper`.
 
 Alvos:
@@ -116,7 +117,7 @@ versão nova e liberação, use `workflow publish` (nativo).
 Faz o **deploy** do processo: cria uma **versão nova** no servidor com os
 scripts locais (`workflow/scripts/<processId>.*.js`) aplicados e a **libera
 para uso** (a versão anterior é desativada). **Nativo** (REST v2
-`process-management`) — não depende da fluiggersWidget.
+`process-management`) — não depende do componente auxiliar.
 
 ```sh
 fluigcli workflow publish Compras --server homolog
@@ -133,7 +134,7 @@ Quando usar `publish` vs `export`:
 |---|---|---|
 | Versão do processo | mantém (cirúrgico) | **cria nova** (sempre) |
 | Liberação | não mexe | libera a nova (salvo `--no-release`) |
-| Dependência | fluiggersWidget | nenhuma (API nativa) |
+| Dependência | componente auxiliar | nenhuma (API nativa) |
 | Uso típico | iterar em desenvolvimento | deploy |
 
 Regras e limitações:
@@ -150,10 +151,12 @@ Regras e limitações:
 
 ## `fluigcli server install-helper [<name>]`
 
-Instala a `fluiggersWidget` no servidor (baixa o WAR do repositório oficial da
-widget e publica via upload nativo). A instalação é **assíncrona** no servidor.
+Instala o `fluigcliHelper` no servidor (o WAR vai **embutido no binário** da
+CLI e é publicado pelo upload nativo de widget). A instalação é **assíncrona**
+no servidor. A `fluiggersWidget` da comunidade, se já instalada, continua
+aceita como fallback.
 
 ```sh
 fluigcli server install-helper homolog
-fluigcli server install-helper homolog --war ./fluiggersWidget.war   # offline/custom
+fluigcli server install-helper homolog --war ./fluigcliHelper.war    # WAR custom
 ```

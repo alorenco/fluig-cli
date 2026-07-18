@@ -49,7 +49,7 @@ Regras para o agente:
 | 4 | `ExitNotFound` | `NOT_FOUND` | dataset/form/processo/servidor inexistente |
 | 5 | `ExitServer` | `SERVER_ERROR` | o servidor Fluig retornou erro |
 | 6 | `ExitPartial` | `PARTIAL_FAILURE` | operação em lote com alguns itens falhos |
-| 7 | `ExitMissingHelper` | `HELPER_NOT_INSTALLED` | falta a widget fluiggersWidget no servidor |
+| 7 | `ExitMissingHelper` | `HELPER_NOT_INSTALLED` | falta o componente auxiliar (fluigcliHelper) no servidor |
 
 ## Exemplo de consumo (bash)
 
@@ -84,7 +84,7 @@ esac
     # corrija esses e reenvie só eles
   fi
   ```
-- **exit 7 (dependência)**: falta a fluiggersWidget — rode
+- **exit 7 (dependência)**: falta o componente auxiliar — rode
   `fluigcli server install-helper <name>` uma vez e repita o comando.
 
 ## Flags globais

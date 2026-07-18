@@ -13,7 +13,7 @@ wcm/widget/<NomeWidget>/
 
 - **new** = scaffold local (cria o esqueleto; nada vai ao servidor).
 - **export** = projeto local → servidor (deploy). **Nativo** (`uploadfile`).
-- **import** = servidor → projeto local. Via **fluiggersWidget** (o Fluig não
+- **import** = servidor → projeto local. Via **componente auxiliar** (o Fluig não
   expõe o download do pacote da widget nativamente — confirmado na Voyager 2.0.0).
 
 ## `fluigcli widget new <code>`
@@ -101,13 +101,14 @@ fluigcli widget export meu_painel   # publica quando quiser
 
 Lista os widgets customizados do servidor.
 
-- Com a **fluiggersWidget** instalada, usa a listagem dela: completa e com o
+- Com o **componente auxiliar** instalado (fluigcliHelper, ou a fluiggersWidget
+  da comunidade), usa a listagem dele: completa e com o
   arquivo `.war` de cada widget (o que o `widget import` usa).
 - Sem ela, cai para a **API nativa** (`page-management/applications`) com um
   aviso: a listagem funciona, mas **pode omitir widgets** (validado na
   homologação: 3 de 28 não aparecem, embora instaladas) e não traz o arquivo
   do import. No `--json`, o campo `source` indica qual fonte respondeu
-  (`fluiggersWidget` ou `native`).
+  (`fluigcliHelper`, `fluiggersWidget` ou `native`).
 
 ## `fluigcli widget import <code>... | --all`
 

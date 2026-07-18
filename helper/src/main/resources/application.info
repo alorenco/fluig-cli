@@ -1,0 +1,15 @@
+application.type=widget
+application.code=fluigcliHelper
+application.title=fluigcli Helper
+application.description=Endpoints auxiliares do fluigcli (CLI n\u00E3o oficial para TOTVS Fluig)
+application.category=fluigcli
+application.renderer=freemarker
+developer.code=fluigcli
+developer.name=fluigcli
+developer.url=https://github.com/alorenco/fluig-cli
+application.uiwidget=false
+application.mobileapp=false
+application.version=0.1.0
+view.file=view.ftl
+edit.file=edit.ftl
+simple.deploy=false

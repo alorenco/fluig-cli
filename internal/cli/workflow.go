@@ -41,7 +41,7 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 		Long: "Baixa os scripts de eventos de processos do servidor para\n" +
 			"workflow/scripts/<Processo>.<evento>.js. Um script local existente do\n" +
 			"mesmo evento é sobrescrito no lugar, mesmo em subpasta.\n\n" +
-			"A leitura usa o export nativo do processo (não requer a fluiggersWidget)\n" +
+			"A leitura usa o export nativo do processo (não requer o helper)\n" +
 			"e traz os eventos da versão mais recente; eventos com script vazio são\n" +
 			"ignorados. Com --all, importa os scripts de todos os processos do\n" +
 			"servidor — é um export por processo, pode demorar.",
@@ -146,7 +146,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 		Short: "Publica uma nova versão do processo com os scripts locais (nativo)",
 		Long: "Cria uma NOVA versão do processo no servidor com os scripts de eventos\n" +
 			"locais (workflow/scripts/<processId>.*.js) aplicados, e a libera para uso\n" +
-			"— tudo pela API nativa, sem a fluiggersWidget.\n\n" +
+			"— tudo pela API nativa, sem o componente auxiliar.\n\n" +
 			"Diferença para o workflow export: o export atualiza os scripts na versão\n" +
 			"corrente, sem criar versão (bom para desenvolvimento); o publish é o\n" +
 			"deploy — sobe versão nova e libera (a versão anterior é desativada).\n\n" +
@@ -339,9 +339,9 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "export <arquivo|processId>",
-		Short: "Atualiza scripts de eventos de um processo (via fluiggersWidget)",
+		Short: "Atualiza scripts de eventos de um processo (via componente auxiliar)",
 		Long: "Atualiza cirurgicamente os scripts de eventos de um processo, sem\n" +
-			"reimportar o processo inteiro. Requer a fluiggersWidget instalada\n" +
+			"reimportar o processo inteiro. Requer o componente auxiliar instalado\n" +
 			"(server install-helper).\n\n" +
 			"Alvos:\n" +
 			"  workflow export workflow/scripts/Compras.beforeTaskSave.js   (um evento)\n" +
@@ -370,14 +370,14 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			// Pré-requisito: a widget precisa estar instalada (exit 7).
+			// Pré-requisito: o helper precisa estar instalado (exit 7).
 			installed, err := client.HelperInstalled(ctx)
 			if err != nil {
 				return mapFluigError(err)
 			}
 			if !installed {
 				return output.MissingHelperf(
-					"a fluiggersWidget não está instalada em %s; instale com: fluigcli server install-helper %s",
+					"o componente auxiliar não está instalado em %s; instale com: fluigcli server install-helper %s",
 					p.Server, p.Server)
 			}
 

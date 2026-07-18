@@ -39,10 +39,10 @@ Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
 | `server use [<name>]` | define o servidor padrão, usado quando `--server` não é informado |
 | `server update <name>` | altera o cadastro (ex.: `--env prod`) preservando a senha no keyring |
 | `server remove <name>` | remove o servidor (e a senha do keyring) |
-| `server test [<name>]` | login + ping + dados do usuário; reporta se a fluiggersWidget está instalada |
+| `server test [<name>]` | login + ping + dados do usuário; reporta qual componente auxiliar está instalado |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
 | `server status [<name>]` | saúde do servidor: uptime, memória, banco e monitores (requer admin) |
-| `server install-helper [<name>]` | instala a widget auxiliar fluiggersWidget (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo) |
+| `server install-helper [<name>]` | instala o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo; a fluiggersWidget da comunidade também é aceita) |
 
 Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
@@ -105,7 +105,7 @@ não-interativo (sem ele: exit 2).
 | `workflow list [--active-only]` | lista os processos do servidor (nativo) |
 | `workflow version <processId>` | mostra a última versão do processo (nativo) |
 | `workflow import <processId>... \| --all` | baixa os scripts de eventos para workflow/scripts/ (servidor → local; sobrescreve no lugar; nativo) |
-| `workflow export <arquivo\|processId>` | atualiza scripts na versão corrente, sem criar versão (via fluiggersWidget) |
+| `workflow export <arquivo\|processId>` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar) |
 | `workflow publish <processId> [--no-release]` | deploy nativo: cria versão nova com os scripts locais e a libera |
 
 ## request — solicitações de workflow (operação)
@@ -201,7 +201,7 @@ as flags, e inclui as vigências expiradas).
 | comando | direção | efeito |
 |---|---|---|
 | `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic\|vue\|react`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir; templates vue/react = SPA Vue 3/React 19 + Vite, build com `npm run build` antes do export; `--template vue --vuetify` = variante Vuetify 3 via npm, para converter widgets Vuetify antigas) |
-| `widget list` | — | lista os widgets do servidor (fluiggersWidget; sem ela usa a API nativa, que pode omitir itens) |
+| `widget list` | — | lista os widgets do servidor (componente auxiliar; sem ele usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar) |
 
@@ -217,7 +217,7 @@ Read-only (não dispara a trava de produção). No `--json`, cada artefato vem c
 Use antes de um `export` para saber o que mudaria. Em formulários, um arquivo
 `only-server` seria **removido** por um `form export` da pasta; anexos binários
 são comparados byte a byte (sem diff textual). Scripts de processo usam o
-export nativo do processo — não requerem a fluiggersWidget.
+export nativo do processo — não requerem o componente auxiliar.
 
 ## audit — conformidade com o Style Guide 2.0
 
@@ -339,7 +339,7 @@ echo '{"descricao":"Teclado novo","quantidade":"1"}' | \
 
 **Atualizar o script de um evento de processo**
 ```sh
-# requer a fluiggersWidget (exit 7 → server install-helper)
+# requer o componente auxiliar (exit 7 → server install-helper)
 fluigcli workflow export workflow/MeuProcesso.beforeTaskSave.js --json --server homolog
 ```
 

@@ -18,7 +18,7 @@ Observando datasets/, forms/, workflow/scripts/ em "homolog" — Ctrl+C para par
 |---|---|---|
 | `datasets/`, `events/`, `mechanisms/` | o arquivo `.js` salvo | atualização in-place, sem versão |
 | `forms/<pasta>/` | a **pasta inteira** do formulário (salvar vários arquivos em rajada = 1 publicação) | **sempre mantida** (`--version keep`; para versionar de propósito, use `form export --version new`) |
-| `workflow/scripts/` | o script `<Processo>.<evento>.js` salvo | atualização cirúrgica via fluiggersWidget, sem bump |
+| `workflow/scripts/` | o script `<Processo>.<evento>.js` salvo | atualização cirúrgica via componente auxiliar, sem bump |
 
 ## Regras de segurança (por design)
 
@@ -43,7 +43,7 @@ Observando datasets/, forms/, workflow/scripts/ em "homolog" — Ctrl+C para par
   inclusive vários arquivos da mesma pasta de formulário.
 - Salvar um evento de formulário (`forms/x/events/y.js`) republica o
   formulário inteiro — é como a API do Fluig funciona.
-- Scripts de processo exigem a fluiggersWidget instalada
+- Scripts de processo exigem o componente auxiliar instalado
   (`fluigcli server install-helper`) e o processo já criado no Fluig Studio.
 - `--json` não é suportado: watch é um modo interativo de longa duração; em
   automação/CI, use os comandos `export`.
