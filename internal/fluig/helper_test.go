@@ -11,7 +11,8 @@ import (
 )
 
 type helperStub struct {
-	installed    bool // o fluigcliHelper responde ao ping
+	installed    bool   // o fluigcliHelper responde ao ping
+	version      string // resposta do /api/version ("" = helper antigo, rota 404)
 	eventsBody   []WorkflowEvent
 	eventsPath   string
 	uploadedName string
@@ -32,6 +33,13 @@ func (s *helperStub) server(t *testing.T) *httptest.Server {
 			return
 		}
 		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		if !s.installed || s.version == "" {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"`+s.version+`"}`)
 	})
 	mux.HandleFunc("/fluigcliHelper/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
 		s.eventsPath = r.URL.Path
@@ -72,6 +80,28 @@ func TestHelperInstalled(t *testing.T) {
 	c2 := helperClient(t, stub2.server(t).URL)
 	if ok, err := c2.HelperInstalled(context.Background()); err != nil || !ok {
 		t.Errorf("deveria reportar instalado; ok=%v err=%v", ok, err)
+	}
+}
+
+// HelperStatus: instalado com versão; instalado antigo (sem /api/version) =
+// versão vazia; ausente.
+func TestHelperStatus(t *testing.T) {
+	com := &helperStub{installed: true, version: "0.2.0"}
+	c := helperClient(t, com.server(t).URL)
+	if info, err := c.HelperStatus(context.Background()); err != nil || !info.Installed || info.Version != "0.2.0" {
+		t.Errorf("com versão: %+v err=%v", info, err)
+	}
+
+	antigo := &helperStub{installed: true}
+	c2 := helperClient(t, antigo.server(t).URL)
+	if info, err := c2.HelperStatus(context.Background()); err != nil || !info.Installed || info.Version != "" {
+		t.Errorf("helper antigo: %+v err=%v (quer instalado sem versão)", info, err)
+	}
+
+	ausente := &helperStub{}
+	c3 := helperClient(t, ausente.server(t).URL)
+	if info, err := c3.HelperStatus(context.Background()); err != nil || info.Installed {
+		t.Errorf("ausente: %+v err=%v", info, err)
 	}
 }
 

@@ -28,7 +28,9 @@ De cima para baixo:
   duas linhas: **versão do Fluig**, uptime, usuários conectados, threads,
   memória JVM/SO e banco, com o detalhe de cada número no **hint** (passe o
   mouse). Os monitores de serviço viram pontos coloridos (hint = nome/status);
-  só os em **FAILURE** aparecem nomeados. A versão aparece sempre; as
+  só os em **FAILURE** aparecem nomeados. O card também mostra o estado do
+  **fluigcliHelper** (`helper vX.Y.Z`; ausente ou desatualizado sai em
+  destaque com a orientação no hint). A versão aparece sempre; as
   estatísticas e os monitores exigem usuário admin — sem o privilégio, o
   painel avisa e segue funcionando. Atualiza a cada 60 s.
 - **Acessos**: portal pelo proxy, preview de formulários e o

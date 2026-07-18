@@ -152,14 +152,16 @@ Remove o servidor e a senha correspondente do keyring. Pede confirmação
 
 ### `fluigcli server status [<name>]`
 
-Mostra a saúde do servidor: **versão do Fluig**, uptime, usuários conectados,
+Mostra a saúde do servidor: **versão do Fluig**, estado do **fluigcliHelper**
+(instalado + versão; helper antigo sem o endpoint de versão sai como
+"versão desconhecida", com a dica de reinstalar), uptime, usuários conectados,
 threads, memória da JVM e do SO, banco de dados (nome, versão, tamanho) e a
 tabela de **monitores** de serviços (OK em verde; NONE esmaecido = serviço não
 configurado). **Requer usuário com privilégio administrativo** — sem ele o
 módulo `/environment` responde 401 (exit 3). A versão do produto (ex.: `Voyager
 2.0.0` / `Crystal Mist 1.8.2`) vem do endpoint `/api/public/wcm/version`, que
 não exige admin: se as estatísticas falharem por privilégio, a versão ainda é
-identificada.
+identificada. No `--json`, o campo `helper` traz `{installed, version}`.
 
 ```sh
 fluigcli server status homolog

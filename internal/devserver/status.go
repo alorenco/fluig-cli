@@ -81,6 +81,11 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 	} else {
 		payload["version"] = ver.String()
 	}
+	// Estado do fluigcliHelper (instalado? qual versão?) — erro aqui não é
+	// crítico para o painel, só omite o item.
+	if helper, err := s.opts.Client.HelperStatus(ctx); err == nil {
+		payload["helper"] = helper
+	}
 	if stats, err := s.opts.Client.ServerStatistics(ctx); err != nil {
 		payload["statsError"] = statusErrText(err)
 	} else {

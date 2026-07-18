@@ -17,6 +17,7 @@ const HelperFluigcli = "fluigcliHelper"
 
 const (
 	helperPingPath      = "/" + HelperFluigcli + "/api/ping"
+	helperVersionPath   = "/" + HelperFluigcli + "/api/version"
 	helperWidgetsPath   = "/" + HelperFluigcli + "/api/widgets"
 	helperWorkflowsBase = "/" + HelperFluigcli + "/api/workflows/"
 )
@@ -50,6 +51,34 @@ func (c *Client) helperPong(ctx context.Context) bool {
 		return false
 	}
 	return resp.StatusCode == http.StatusOK && strings.Contains(strings.ToLower(body), "pong")
+}
+
+// HelperInfo é o estado do fluigcliHelper no servidor.
+type HelperInfo struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
+}
+
+// HelperStatus devolve instalação + versão do fluigcliHelper. A versão é
+// best-effort: helper antigo (0.1.0, sem o GET /api/version) fica com versão
+// vazia — instalado, mas desatualizado.
+func (c *Client) HelperStatus(ctx context.Context) (HelperInfo, error) {
+	installed, err := c.HelperInstalled(ctx)
+	if err != nil || !installed {
+		return HelperInfo{Installed: installed}, err
+	}
+	info := HelperInfo{Installed: true}
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(helperVersionPath), nil)
+	if err != nil || status != http.StatusOK {
+		return info, nil
+	}
+	var parsed struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(body, &parsed) == nil {
+		info.Version = parsed.Version
+	}
+	return info, nil
 }
 
 // requireHelper devolve ErrHelperMissing quando o fluigcliHelper não responde.

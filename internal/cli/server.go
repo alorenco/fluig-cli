@@ -849,6 +849,7 @@ func newServerStatusCmd(app *App) *cobra.Command {
 			if verr != nil {
 				p.Warnf("não foi possível identificar a versão do servidor: %v", verr)
 			}
+			helper, _ := client.HelperStatus(ctx)
 			stats, err := client.ServerStatistics(ctx)
 			if err != nil {
 				return mapFluigError(err)
@@ -860,6 +861,14 @@ func newServerStatusCmd(app *App) *cobra.Command {
 
 			p.Successf("Servidor %s (%s)", server.Name, server.BaseURL())
 			p.Successf("Versão do Fluig: %s", version.String())
+			switch {
+			case helper.Installed && helper.Version != "":
+				p.Successf("Helper (fluigcliHelper): instalado · v%s", helper.Version)
+			case helper.Installed:
+				p.Successf("Helper (fluigcliHelper): instalado · versão desconhecida (reinstale com: fluigcli server install-helper %s --force)", server.Name)
+			default:
+				p.Successf("Helper (fluigcliHelper): ausente (instale com: fluigcli server install-helper %s)", server.Name)
+			}
 			p.Successf("Uptime: %s · Usuários conectados: %d · Threads: %d (pico %d)",
 				fmtUptime(stats.UptimeMillis), stats.ConnectedUsers, stats.ThreadCount, stats.ThreadPeak)
 			p.Successf("Memória JVM: %s heap + %s non-heap · SO: %s livres de %s",
@@ -891,7 +900,7 @@ func newServerStatusCmd(app *App) *cobra.Command {
 					}),
 				})
 			}
-			p.Done(map[string]any{"version": version, "stats": stats, "monitors": monitors})
+			p.Done(map[string]any{"version": version, "helper": helper, "stats": stats, "monitors": monitors})
 			return nil
 		},
 	}

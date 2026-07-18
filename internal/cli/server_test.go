@@ -156,6 +156,12 @@ func TestServerStatus(t *testing.T) {
 	mux.HandleFunc("/environment/api/v2/statistics", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(readTD("rest_statistics.json"))
 	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.2.0"}`)
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -173,7 +179,8 @@ func TestServerStatus(t *testing.T) {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
 	}
 	for _, want := range []string{"Uptime:", "Usuários conectados: 35", "Threads: 385 (pico 454)",
-		"Microsoft SQL Server", "Monitor", "LICENSE_SERVER_AVAILABILITY", "OK", "FAILURE", "100%"} {
+		"Microsoft SQL Server", "Monitor", "LICENSE_SERVER_AVAILABILITY", "OK", "FAILURE", "100%",
+		"Helper (fluigcliHelper): instalado · v0.2.0"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("saída sem %q:\n%s", want, stdout)
 		}

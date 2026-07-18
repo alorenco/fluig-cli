@@ -321,6 +321,18 @@ a.tile:hover .go{color:var(--accent);transform:translateX(3px)}
       parts.push("<span class=\"it\" title=\"monitores de serviço do servidor — passe o mouse em cada ponto\">" + monHTML + "</span>");
       fails.forEach(function (n) { parts.push("<span class=\"monfail\" title=\"monitor em falha\">" + esc(n) + " ✗</span>"); });
     }
+    // Estado do fluigcliHelper (componente auxiliar): versão quando instalado;
+    // ausente/desatualizado vira destaque com a orientação no hint.
+    if (st.helper) {
+      if (st.helper.installed && st.helper.version) {
+        parts.push(it("helper <b>v" + esc(st.helper.version) + "</b>",
+          "componente auxiliar fluigcliHelper v" + st.helper.version + " instalado no servidor"));
+      } else if (st.helper.installed) {
+        parts.push("<span class=\"monfail\" title=\"fluigcliHelper instalado, mas sem versão conhecida — reinstale com: fluigcli server install-helper --force\">helper desatualizado ✗</span>");
+      } else {
+        parts.push("<span class=\"monfail\" title=\"componente auxiliar fluigcliHelper não instalado — widget import e workflow export dependem dele; rode: fluigcli server install-helper\">helper ausente ✗</span>");
+      }
+    }
     el("statLine").innerHTML = parts.join("");
 
     var problems = [];

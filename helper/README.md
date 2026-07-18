@@ -7,6 +7,7 @@ plataforma e que a CLI consome:
 | Rota | Uso na CLI |
 |---|---|
 | `GET /api/ping` | detecção (`server test`, resolução do helper) |
+| `GET /api/version` | versão do helper (`server status`, painel do dev) |
 | `GET /api/widgets` | `widget list` (fonte primária) |
 | `GET /api/widgets/{arquivo}.war` | `widget import` (download do pacote) |
 | `GET /api/workflows/{processId}/version` | reservado (a CLI usa o SOAP nativo) |

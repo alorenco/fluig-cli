@@ -28,6 +28,12 @@ func statusUpstream(t *testing.T, admin bool) *httptest.Server {
 	mux.HandleFunc("/api/public/wcm/version", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"value":"TOTVS Fluig Plataforma - Voyager 2.0.0-260707"}`)
 	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.2.0"}`)
+	})
 	unauthorized := func(w http.ResponseWriter) {
 		w.WriteHeader(http.StatusUnauthorized)
 		io.WriteString(w, `<html><head><title>Error</title></head><body>Unauthorized</body></html>`)
@@ -102,6 +108,10 @@ type statusPayload struct {
 		Name   string `json:"name"`
 		Status string `json:"status"`
 	} `json:"monitors"`
+	Helper *struct {
+		Installed bool   `json:"installed"`
+		Version   string `json:"version"`
+	} `json:"helper"`
 }
 
 func getStatus(t *testing.T, ts *httptest.Server) statusPayload {
@@ -134,6 +144,9 @@ func TestStatusAPICompleto(t *testing.T) {
 	}
 	if len(st.Monitors) != 3 || st.Monitors[1].Status != "FAILURE" {
 		t.Errorf("monitores: %+v (err=%q)", st.Monitors, st.MonitorsError)
+	}
+	if st.Helper == nil || !st.Helper.Installed || st.Helper.Version != "0.2.0" {
+		t.Errorf("helper: %+v (quer instalado v0.2.0)", st.Helper)
 	}
 }
 
