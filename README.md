@@ -248,6 +248,11 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
   a widget auxiliar da comunidade (MIT) que serviu de base ao `fluigcliHelper`,
   o componente que a CLI instala no servidor (`fluigcli server install-helper`,
   fonte em [helper/](helper/)) para as operações sem API nativa no Fluig.
+- **[logfluig2.0](https://github.com/matheusnevoa/logfluig2.0)** — o WAR da
+  comunidade para ver o server.log pelo navegador, que validou o caminho dos
+  endpoints de log do `fluigcliHelper` (resolução do diretório pelo
+  `jboss.server.log.dir` e leitura segura dos arquivos) usados pelo grupo
+  `fluigcli log` e pelo painel de logs do `fluigcli dev`.
 
 ## Autor e licença
 
