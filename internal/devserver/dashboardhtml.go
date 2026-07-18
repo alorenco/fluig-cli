@@ -50,11 +50,13 @@ section>h2{font-size:12.5px;font-weight:650;letter-spacing:.06em;text-transform:
 /* status do servidor: uma linha de identificação + uma de números com hints
    no hover — compacto de propósito (pedido do mantenedor, 2026-07-17) */
 .status{border-left:5px solid var(--accent);padding:14px 20px}
-.status.prod{border-left-color:var(--warn)}
+/* produção em âmbar: chama atenção sem gritar erro (pedido do mantenedor,
+   2026-07-18 — vermelho fica para falha de verdade) */
+.status.prod{border-left-color:var(--amber)}
 .envtag{display:inline-block;border-radius:7px;padding:2px 10px;font-size:12px;
   font-weight:750;letter-spacing:.05em;text-transform:uppercase;
   background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
-.status.prod .envtag{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.status.prod .envtag{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
 .srvhead{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .srvhead .name{font-weight:700;font-size:16px}
 .srvhead .meta{color:var(--sub);font-size:12.5px}
@@ -71,8 +73,10 @@ section>h2{font-size:12.5px;font-weight:650;letter-spacing:.06em;text-transform:
 .dot.fail{background:var(--warn)}
 .monfail{color:var(--warn);font-weight:650;cursor:default}
 
-/* ações principais: tiles horizontais compactos */
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+/* ações principais: tiles horizontais compactos, sempre 2 por linha
+   (4 acessos = 2:2; empilha só em tela estreita) */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media(max-width:720px){.tiles{grid-template-columns:1fr}}
 a.tile{display:flex;gap:16px;align-items:center;background:var(--card);
   border:1px solid var(--line);border-radius:12px;padding:18px 20px;
   text-decoration:none;color:var(--txt);box-shadow:var(--shadow);
@@ -132,6 +136,7 @@ a.tile:hover .go{color:var(--accent);transform:translateX(3px)}
   background:#fff;top:3px;left:3px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
 .switch input:checked+span{background:var(--ok)}
 .switch input:checked+span:before{left:19px}
+.switch input:disabled+span{opacity:.45;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -423,9 +428,24 @@ a.tile:hover .go{color:var(--accent);transform:translateX(3px)}
 
   function renderWatch() {
     var wsec = el("watchSection");
-    if (!state.watch) { wsec.style.display = "none"; return; }
+    if (!state.watch) {
+      // Em produção o watch não existe (a trava proíbe auto-publicar ao
+      // salvar) — a seção fica visível, desligada, explicando o porquê.
+      if (state.server && state.server.env === "prod") {
+        wsec.style.display = "";
+        el("watchOn").checked = false;
+        el("watchOn").disabled = true;
+        el("watchTypes").innerHTML = "";
+        el("watchRecent").innerHTML = "";
+        note("watchNote", "🔒 Indisponível em produção: publicar automaticamente ao salvar é bloqueado pela trava de produção. Publique conscientemente com fluigcli <tipo> export (ou pelo painel 🚀 do preview, que pede confirmação).");
+      } else {
+        wsec.style.display = "none";
+      }
+      return;
+    }
     wsec.style.display = "";
     var w = state.watch;
+    el("watchOn").disabled = false;
     el("watchOn").checked = !!w.enabled;
     var box = el("watchTypes");
     box.innerHTML = "";
