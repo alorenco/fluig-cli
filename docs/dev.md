@@ -22,9 +22,9 @@ A raiz do dev server (`http://127.0.0.1:8787/`) é o **dashboard**. Só a raiz
 exata — o portal e todos os demais caminhos seguem pelo proxy normalmente.
 De cima para baixo:
 
-- **Servidor conectado**: o ambiente em destaque (homologação/desenvolvimento
-  — produção sairia em cor de alerta, mas o `dev` nem inicia apontando para
-  produção) e a mesma saúde do `fluigcli server status`, num card compacto de
+- **Servidor conectado**: o ambiente em destaque (homologação/desenvolvimento;
+  **produção sai em cor de alerta** — o `dev` em prod exige a confirmação da
+  trava) e a mesma saúde do `fluigcli server status`, num card compacto de
   duas linhas: **versão do Fluig**, uptime, usuários conectados, threads,
   memória JVM/SO e banco, com o detalhe de cada número no **hint** (passe o
   mouse). Os monitores de serviço viram pontos coloridos (hint = nome/status);
@@ -46,8 +46,9 @@ De cima para baixo:
   cada regra explica o que ela aponta). Recalcula ao salvar qualquer arquivo
   de `forms/` ou `wcm/widget/`; detalhes por arquivo ficam no comando
   `fluigcli audit` ou no botão 🎨 do preview de cada formulário.
-- **Watch integrado (publicar ao salvar)**: liga o comportamento do
-  `fluigcli watch` dentro do `dev`, com **escolha por tipo de artefato**
+- **Watch integrado (publicar ao salvar)** *(indisponível em produção)*: liga
+  o comportamento do `fluigcli watch` dentro do `dev`, com **escolha por tipo
+  de artefato**
   (datasets, eventos globais, mecanismos, formulários, scripts de processo).
   Mesmas garantias do watch: publica só no **servidor conectado**, nunca
   cria artefato, formulários com a versão mantida e scripts de processo
@@ -305,8 +306,13 @@ servidor é detectada e o acompanhamento recomeça sozinho.
   a CLI avisa sempre que o bind sai do loopback.
 - O navegador **nunca vê os cookies do Fluig**: a sessão mora no proxy; os
   `Set-Cookie` do servidor são absorvidos pelo jar da CLI.
-- **Só roda em servidor `dev` ou `hml`**, como o watch — produção é recusada
-  sem exceção; servidor sem ambiente marcado idem
+- **Produção exige escolha consciente**: em servidor `prod`, o `dev` só sobe
+  após a confirmação da trava de produção (`s/N`; `--yes` em script) — útil
+  para **inspecionar** logs, datasets, status e o portal pelo proxy. O card
+  do servidor sai em **cor de alerta** e o **watch integrado fica
+  indisponível** (auto-publicar ao salvar continua proibido em prod, como no
+  `watch` standalone); a publicação pelo painel 🚀 segue exigindo o nome do
+  servidor digitado. Servidor **sem ambiente marcado** é recusado
   (`fluigcli server update <name> --env hml`).
 
 ## Detalhes

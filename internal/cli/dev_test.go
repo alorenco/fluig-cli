@@ -17,13 +17,22 @@ func TestDevGuards(t *testing.T) {
 		t.Errorf("--json: exit = %d, quer %d", code, output.ExitUsage)
 	}
 
-	// Produção é recusada sem exceção.
+	// Produção exige a trava: sem --yes (e sem TTY) é bloqueada orientando o
+	// --yes; com --yes passa da trava (e falha adiante, na autenticação
+	// contra o host fake — o que prova que a guarda liberou).
 	app := &App{}
 	root := newRootCmd(app)
-	root.SetArgs([]string{"dev", "--project", proj, "--server", "producao", "--yes"})
+	root.SetArgs([]string{"dev", "--project", proj, "--server", "producao"})
 	err := root.Execute()
-	if err == nil || !strings.Contains(err.Error(), "PRODUÇÃO") {
-		t.Errorf("produção deveria ser recusada mesmo com --yes: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "--yes") || !strings.Contains(err.Error(), "PRODUÇÃO") {
+		t.Errorf("produção sem --yes deveria pedir a confirmação: %v", err)
+	}
+	app = &App{}
+	root = newRootCmd(app)
+	root.SetArgs([]string{"dev", "--project", proj, "--server", "producao", "--yes"})
+	err = root.Execute()
+	if err == nil || strings.Contains(err.Error(), "PRODUÇÃO") {
+		t.Errorf("com --yes a trava deveria liberar (falhando só na conexão): %v", err)
 	}
 
 	// Servidor sem env marcado também é recusado, com dica do server update.

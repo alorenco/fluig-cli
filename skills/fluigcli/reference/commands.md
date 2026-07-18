@@ -270,8 +270,10 @@ prefira `diff` + `export`.
 |---|---|
 | `dev` | proxy local autenticado do portal: serve JS/CSS **e o markup do view.ftl** das widgets do disco (sem deploy), preview de formulários em `/_dev/forms/` — com painel de simulação de processo (executa o `events/displayFields.js` local com WKNumState/WKUser/formMode escolhidos; form vinculado por `form link` ganha as etapas reais pelo nome) — e recarrega o navegador ao salvar; `--npm-watch` roda o `npm run watch` das widgets SPA (vue/react) junto |
 
-Só roda em servidor `dev`/`hml`; escuta em `127.0.0.1` por padrão (`--listen`
-muda, com aviso — ex.: IP de tailnet em servidor remoto); sem `--json`.
+Roda em `dev`/`hml` direto; em `prod` exige a trava de produção (confirmação
+ou `--yes`) e o watch integrado fica indisponível. Escuta em `127.0.0.1` por
+padrão (`--listen` muda, com aviso — ex.: IP de tailnet em servidor remoto);
+sem `--json`.
 Não publica nada no servidor. Não é indicado para agentes — é para o humano
 ver o resultado no navegador; agentes usam `diff` + `export`. O dashboard tem
 ainda o Dataset Lab (`/_dev/datasets/`) e o painel de logs ao vivo

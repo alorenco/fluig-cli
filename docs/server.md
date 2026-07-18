@@ -31,6 +31,11 @@ Em modo não-interativo (CI, agentes, `--json`), a operação é bloqueada com e
 `2` a menos que venha `--yes` — o deploy consciente em produção continua a um
 flag de distância, mas o acidental morre na praia.
 
+O [`fluigcli dev`](dev.md) passa pela mesma trava para **subir** apontando
+para produção (ele carrega sua sessão num proxy local); lá dentro, o watch
+integrado fica indisponível e publicar pelo painel exige confirmação própria.
+O `watch` standalone continua recusando produção sem exceção.
+
 ## Onde a configuração fica
 
 A configuração do **projeto** separa o que é do time do que é seu: o

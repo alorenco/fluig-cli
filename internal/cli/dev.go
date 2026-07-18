@@ -59,7 +59,9 @@ func newDevCmd(app *App) *cobra.Command {
 			"sessão autenticada; quem acessa a porta age no Fluig como você. Em\n" +
 			"servidor de desenvolvimento remoto, use --listen com um endereço de\n" +
 			"rede privada sua (ex.: o IP da máquina na tailnet) — nunca um IP\n" +
-			"público. Só roda em servidor dev ou hml.",
+			"público. Em servidor de PRODUÇÃO roda só com confirmação explícita\n" +
+			"(ou --yes) e sem o watch integrado — bom para inspecionar logs,\n" +
+			"datasets e status; publicar pelo painel segue com confirmação própria.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -79,9 +81,15 @@ func newDevCmd(app *App) *cobra.Command {
 			switch server.Env {
 			case config.EnvDev, config.EnvHml:
 			case config.EnvProd:
-				return output.Usagef("o dev não roda apontando para PRODUÇÃO (%q)", server.Name)
+				// Trava de produção (mesma dos comandos de escrita): rodar o
+				// dev em prod é escolha consciente — o proxy age com a SUA
+				// sessão e o painel 🚀 pode publicar (com confirmação própria).
+				if err := app.guardProdWrite(server, "rodar o dev apontando para ele"); err != nil {
+					return err
+				}
+				p.Warnf("dev em PRODUÇÃO: o watch integrado (publicar ao salvar) fica indisponível; a publicação pelo painel 🚀 segue exigindo o nome do servidor digitado")
 			default:
-				return output.Usagef("o dev exige servidor marcado como dev ou hml; marque com: fluigcli server update %s --env hml", server.Name)
+				return output.Usagef("o dev exige servidor marcado como dev, hml ou prod; marque com: fluigcli server update %s --env hml", server.Name)
 			}
 
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -96,7 +104,15 @@ func newDevCmd(app *App) *cobra.Command {
 			defer client.SaveSession()
 
 			deployServers, deployConnect := app.deployBridge(server)
-			watch := newDevWatch(app, client, server, root, debounce)
+			// Em produção o watch integrado não existe (auto-publicar ao
+			// salvar contraria a trava — o watch standalone também recusa
+			// prod); Watch nil oculta a seção no dashboard.
+			var watch *devWatch
+			var watchBridge devserver.WatchBridge
+			if server.Env != config.EnvProd {
+				watch = newDevWatch(app, client, server, root, debounce)
+				watchBridge = watch
+			}
 			srv, err := devserver.New(devserver.Options{
 				Root:          root,
 				Upstream:      client.BaseURL(),
@@ -115,13 +131,15 @@ func newDevCmd(app *App) *cobra.Command {
 				ServerName:    server.Name,
 				ServerEnv:     server.Env,
 				Username:      server.Username,
-				Watch:         watch,
+				Watch:         watchBridge,
 			})
 			if err != nil {
 				return output.Genericf("não consegui montar o dev server: %v", err)
 			}
 
-			watch.start(ctx)
+			if watch != nil {
+				watch.start(ctx)
+			}
 			// Saída enxuta (pedido do mantenedor, 2026-07-11): status, o link
 			// do dashboard e um resumo de uma linha — portal, preview,
 			// widgets e configurações vivem no dashboard.
@@ -131,7 +149,11 @@ func newDevCmd(app *App) *cobra.Command {
 			}
 			p.Successf("Dev server de %q%s no ar — Ctrl+C para parar.", server.Name, env)
 			p.Infof("Dashboard: %s/", srv.URL())
-			p.Infof("%s", devSummaryLine(root, srv.Mounts(), watch.Status()))
+			watchStatus := devserver.WatchStatus{}
+			if watch != nil {
+				watchStatus = watch.Status()
+			}
+			p.Infof("%s", devSummaryLine(root, srv.Mounts(), watchStatus, server.Env == config.EnvProd))
 			if err := srv.Run(ctx); err != nil {
 				return output.Genericf("dev server: %v", err)
 			}
@@ -149,8 +171,8 @@ func newDevCmd(app *App) *cobra.Command {
 
 // devSummaryLine resume o ambiente numa linha: widgets do disco, formulários
 // do projeto e o estado do watch integrado (que publica sozinho — merece
-// destaque quando ligado).
-func devSummaryLine(root string, mounts []string, watch devserver.WatchStatus) string {
+// destaque quando ligado; em produção não existe).
+func devSummaryLine(root string, mounts []string, watch devserver.WatchStatus, prod bool) string {
 	forms := 0
 	if entries, err := os.ReadDir(filepath.Join(root, project.FormsDirName)); err == nil {
 		for _, e := range entries {
@@ -163,9 +185,12 @@ func devSummaryLine(root string, mounts []string, watch devserver.WatchStatus) s
 		fmt.Sprintf("%d widget(s) do disco", len(mounts)),
 		fmt.Sprintf("%d formulário(s)", forms),
 	}
-	if watch.Enabled && len(watch.Types) > 0 {
+	switch {
+	case prod:
+		parts = append(parts, "watch indisponível (produção)")
+	case watch.Enabled && len(watch.Types) > 0:
 		parts = append(parts, "watch LIGADO ("+strings.Join(watch.Types, ", ")+")")
-	} else {
+	default:
 		parts = append(parts, "watch desligado")
 	}
 	return strings.Join(parts, " · ") + " — gerencie no dashboard"
