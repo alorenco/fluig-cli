@@ -25,6 +25,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | criar / editar registros de um formulário | `form records` |
 | administrar usuários / grupos / papéis | `user` · `group` · `role` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
+| ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
 
 Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
@@ -42,7 +43,7 @@ Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
 | `server test [<name>]` | login + ping + dados do usuário; reporta qual componente auxiliar está instalado |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
 | `server status [<name>]` | saúde do servidor: versão, helper (instalado/versão), uptime, memória, banco e monitores (requer admin) |
-| `server install-helper [<name>]` | instala o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export` e `widget import`; o `widget list` tem fallback nativo) |
+| `server install-helper [<name>]` | instala o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export`, `widget import` e do grupo `log`; o `widget list` tem fallback nativo); `--force` reenvia = atualiza o helper |
 
 Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
@@ -195,6 +196,20 @@ as flags, e inclui as vigências expiradas).
 | `document upload <file>... --folder <id>` | publica na pasta (upload + publish em uma etapa) |
 | `document mkdir <parentId> <nome>` | cria pasta |
 | `document delete <id>...` | envia para a lixeira (exige `--yes` em modo não-interativo) |
+
+## log — logs do servidor (operação; requer fluigcliHelper ≥ 0.3.0)
+
+| comando | efeito |
+|---|---|
+| `log files` | lista os arquivos do diretório de log do servidor (server.log + rotacionados) |
+| `log tail [-n N] [--file arq] [--level nível] [--grep texto] [--skip N]` | últimas N ENTRADAS (stack trace conta como uma e vem inteiro); `--level warn` = severidade mínima (warn+error+fatal); `--grep` = substring case-insensitive na entrada completa |
+| `log tail --follow` | acompanha o log ao vivo (como `tail -f`; interativo — recusa `--json`) |
+| `log download [--file arq] [-o caminho]` | baixa o arquivo inteiro (streaming) |
+
+Sem o helper → exit 7 (`server install-helper`); helper antigo sem as rotas de
+log → exit 7 orientando `server install-helper <name> --force`. Arquivo
+inexistente → exit 4. Com `--json`, o tail devolve
+`{file, size, entries[], truncated}`.
 
 ## widget
 

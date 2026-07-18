@@ -134,7 +134,7 @@ func mapFluigError(err error) error {
 	if errors.Is(err, fluig.ErrNotFound) {
 		return output.NotFoundf("%s", err.Error()).WithCause(err)
 	}
-	if errors.Is(err, fluig.ErrHelperMissing) {
+	if errors.Is(err, fluig.ErrHelperMissing) || errors.Is(err, fluig.ErrHelperOutdated) {
 		return output.MissingHelperf("%s", err.Error()).WithCause(err)
 	}
 	var httpErr *fluig.HTTPError
@@ -203,7 +203,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newWatchCmd(app),
 		newDevCmd(app),
 	)
-	addToGroup(groupOps, newRequestCmd(app), newTaskCmd(app), newDocumentCmd(app))
+	addToGroup(groupOps, newRequestCmd(app), newTaskCmd(app), newDocumentCmd(app), newLogCmd(app))
 	addToGroup(groupAdmin, newUserCmd(app), newGroupCmd(app), newRoleCmd(app), newReplacementCmd(app))
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").

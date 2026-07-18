@@ -13,6 +13,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 - [request](request.md) — solicitações de workflow (consultar, iniciar, movimentar, anexos)
 - [task](task.md) — tarefas de workflow (a sua fila e a dos outros)
 - [document](document.md) — GED: navegar, baixar e publicar documentos
+- [log](log.md) — logs do servidor: tail com filtros, follow e download (requer o fluigcliHelper)
 - [user](user.md) — usuários da plataforma (requer admin)
 - [group](group.md) — grupos da plataforma e membros (requer admin)
 - [role](role.md) — papéis da plataforma e usuários (requer admin)

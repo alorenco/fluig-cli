@@ -63,6 +63,7 @@ local → servidor. Comandos e flags em inglês; mensagens em pt-BR.
 | [request](./request) | solicitações: consultar, iniciar, movimentar, anexos |
 | [task](./task) | fila de tarefas (a sua e a dos outros) |
 | [document](./document) | GED: navegar, baixar e publicar documentos |
+| [log](./log) | logs do servidor: tail com filtros, follow e download |
 | [user](./user) | usuários da plataforma (requer admin) |
 | [group](./group) | grupos e membros (requer admin) |
 | [role](./role) | papéis e usuários (requer admin) |

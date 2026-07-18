@@ -49,6 +49,7 @@ export default defineConfig({
           { text: 'request — solicitações', link: '/request' },
           { text: 'task — fila de tarefas', link: '/task' },
           { text: 'document — GED', link: '/document' },
+          { text: 'log — logs do servidor', link: '/log' },
         ],
       },
       {

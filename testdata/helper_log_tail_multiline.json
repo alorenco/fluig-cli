@@ -1,0 +1,1 @@
+{"file":"server.log","size":2123021,"entries":["2026-07-18 14:59:51,709 INFO  [com.totvs.technology.foundation.dataset.DatasetQueryBuilder] (default task-16) Dataset query:\n((UT.USER_CODE = 'zz00codigo00sanitizado')) AND ((U.USER_TYPE <> '2'))"],"truncated":false}

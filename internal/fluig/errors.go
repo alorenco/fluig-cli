@@ -14,6 +14,9 @@ var (
 	ErrNotFound = errors.New("recurso não encontrado no Fluig")
 	// ErrHelperMissing indica que o fluigcliHelper não está instalado (exit 7).
 	ErrHelperMissing = errors.New("componente auxiliar não instalado (instale com: fluigcli server install-helper)")
+	// ErrHelperOutdated indica que o fluigcliHelper instalado é antigo demais
+	// para a operação pedida (exit 7, como a ausência).
+	ErrHelperOutdated = errors.New("o fluigcliHelper instalado está desatualizado (atualize com: fluigcli server install-helper --force)")
 )
 
 // HTTPError representa uma resposta inesperada do servidor Fluig.

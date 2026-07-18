@@ -120,6 +120,7 @@ fluigcli diff --json | jq '.data.counts'
 | `request` | `list` `show` `start` `move` `assignees` `attachments` — consultar, iniciar (com anexos) e movimentar solicitações | [docs/request.md](docs/request.md) |
 | `task` | `list` — a fila de tarefas: as suas, as de outro usuário ou as de todos | [docs/task.md](docs/task.md) |
 | `document` | `list` `download` `upload` `mkdir` `delete` — GED direto do terminal | [docs/document.md](docs/document.md) |
+| `log` | `files` `tail` (`--follow`, `--level`, `--grep`) `download` — o server.log sem SSH (requer o fluigcliHelper) | [docs/log.md](docs/log.md) |
 
 **Administração** — gestão da plataforma (requer usuário com privilégio administrativo):
 

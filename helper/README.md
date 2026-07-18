@@ -12,9 +12,16 @@ plataforma e que a CLI consome:
 | `GET /api/widgets/{arquivo}.war` | `widget import` (download do pacote) |
 | `GET /api/workflows/{processId}/version` | reservado (a CLI usa o SOAP nativo) |
 | `PUT /api/workflows/{processId}/{version}/events` | `workflow export` (update cirúrgico de eventos) |
+| `GET /api/logs` | `log files` (arquivos do `jboss.server.log.dir`) |
+| `GET /api/logs/{arquivo}/tail?lines&skip&level&grep` | `log tail` (entradas agrupadas, filtro server-side) |
+| `GET /api/logs/{arquivo}/read?from` | `log tail --follow` (polling por offset) |
+| `GET /api/logs/{arquivo}/download` | `log download` (streaming octet-stream) |
 
 Segurança: o container exige sessão do portal em `/api/*` (security-domain
-`TOTVSTech`) e o `BaseController` restringe a administradores do tenant.
+`TOTVSTech`) e o `BaseController` restringe a administradores do tenant. Nas
+rotas de log, o nome do arquivo passa por whitelist de caracteres + checagem
+de containment do caminho canônico (anti-traversal), e cada download é
+registrado no próprio log (auditoria).
 
 Baseado no [fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)
 da comunidade Fluiggers (MIT) — mesmos endpoints e semântica. Desde 2026-07-18
