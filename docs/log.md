@@ -16,6 +16,10 @@ diretório de log (anti-traversal).
 Como toda rota do helper, exige **usuário administrador do tenant** — e cada
 download fica registrado no próprio log do servidor (trilha de auditoria).
 
+No [`fluigcli dev`](dev.md#logs-do-servidor) há a versão **visual**: o painel
+`/_dev/logs/` acompanha o log ao vivo no navegador, com filtros, pausa e
+colorização.
+
 ## `fluigcli log files`
 
 Lista os arquivos do diretório de log, com tamanho e data de modificação.

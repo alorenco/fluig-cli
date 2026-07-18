@@ -69,8 +69,8 @@ type Server struct {
 	warnedMu sync.Mutex
 	warned   map[string]bool // avisos já emitidos (warnOnce)
 
-	theme formThemeProbe // detecção (única) do tema novo no servidor
-	wdk   formWdkProbe   // detecção (única) da máquina wdkdetail.js
+	theme  formThemeProbe    // detecção (única) do tema novo no servidor
+	wdk    formWdkProbe      // detecção (única) da máquina wdkdetail.js
 	sim    formSimCache      // cache da API de simulação de formulários
 	audit  auditState        // catálogo do linter de style guide (auditpanel.go)
 	status serverStatusCache // cache do status do servidor (status.go)
@@ -81,6 +81,9 @@ type Server struct {
 	dashMu      sync.Mutex    // controles dinâmicos do dashboard
 	reloadOff   bool          // live reload pausado
 	debounceNow time.Duration // debounce vigente (ajustável no dashboard)
+
+	logMu   sync.Mutex         // painel de logs (logpanel.go)
+	logHubs map[string]*logHub // hub SSE + poller por arquivo de log
 
 	npmMu     sync.Mutex         // estado do npm watch (npmwatch.go)
 	npmState  map[string]string  // widget → estado legível ("" = sem spawn)
@@ -128,6 +131,9 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
 	mux.HandleFunc(datasetLabPath, s.handleDatasetLab)
 	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
+	mux.HandleFunc(logPanelPath, s.handleLogPanel)
+	mux.HandleFunc(logFilesAPIPath, s.handleLogFilesAPI)
+	mux.HandleFunc(logStreamPath, s.handleLogStream)
 	mux.HandleFunc(auditAPIPath, s.handleAuditAPI)
 	mux.HandleFunc(auditProjectAPIPath, s.handleAuditProjectAPI)
 	mux.HandleFunc(statusAPIPath, s.handleStatusAPI)
@@ -222,6 +228,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		s.hub.closeAll() // derruba as conexões SSE para o Shutdown concluir
+		s.closeLogHubs() // idem para os streams do painel de logs
 		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)

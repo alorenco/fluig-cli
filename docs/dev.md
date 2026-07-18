@@ -33,8 +33,8 @@ De cima para baixo:
   destaque com a orientação no hint). A versão aparece sempre; as
   estatísticas e os monitores exigem usuário admin — sem o privilégio, o
   painel avisa e segue funcionando. Atualiza a cada 60 s.
-- **Acessos**: portal pelo proxy, preview de formulários e o
-  [Dataset Lab](#dataset-lab).
+- **Acessos**: portal pelo proxy, preview de formulários, o
+  [Dataset Lab](#datasets) e os [logs do servidor](#logs-do-servidor).
 - **Widgets SPA** (só aparece quando o projeto tem widget vue/react): estado
   do bundle por widget — **bundle desatualizado** quando a fonte é mais nova
   que o compilado (o portal serviria o js velho) — e do `npm run watch`. O
@@ -268,6 +268,32 @@ As colunas para os seletores vêm de uma consulta-sonda (uma linha). Datasets
 que exigem um filtro obrigatório (ex.: `sqlLimit`) podem não revelar as colunas
 na sonda — nesse caso o painel avisa e as colunas aparecem após a primeira
 consulta.
+
+## Logs do servidor
+
+`/_dev/logs/` (tile **Logs do servidor** no dashboard) acompanha o
+`server.log` **ao vivo** num console no navegador — a versão visual do
+[`fluigcli log tail --follow`](log.md). Requer o **fluigcliHelper ≥ 0.3.0**
+no servidor conectado (sem ele o painel orienta o
+`fluigcli server install-helper`).
+
+- **Arquivo**: seletor com todos os arquivos do diretório de log do servidor
+  (server.log, rotacionados, CSVs de telemetria), com o tamanho de cada um.
+- **Filtros locais**: severidade mínima (`DEBUG+` … `ERROR+`) e palavra-chave
+  — cada aba filtra por conta própria, sobre as linhas já recebidas e as
+  novas. A decisão é por entrada: o stack trace acompanha o ERROR que o
+  abriu.
+- **Colorização**: ERROR/FATAL em vermelho, WARN em amarelo, DEBUG esmaecido
+  — o console é escuro nos dois temas.
+- **Pausar/retomar**: congela a rolagem para ler com calma; as linhas
+  continuam chegando (o contador mostra quantas esperam) e aparecem ao
+  retomar. **Auto-rolagem** e **limpar** completam a barra.
+- **⬇ baixar** entrega o arquivo inteiro pelo próprio proxy autenticado.
+
+Por trás: um poller no dev server consulta o helper por offset (a cada 2 s)
+**apenas enquanto houver navegador conectado** e retransmite as linhas por
+SSE — várias abas compartilham a mesma consulta. Rotação do arquivo no
+servidor é detectada e o acompanhamento recomeça sozinho.
 
 ## Segurança (por design)
 

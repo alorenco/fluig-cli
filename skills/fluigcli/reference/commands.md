@@ -273,7 +273,10 @@ prefira `diff` + `export`.
 Só roda em servidor `dev`/`hml`; escuta em `127.0.0.1` por padrão (`--listen`
 muda, com aviso — ex.: IP de tailnet em servidor remoto); sem `--json`.
 Não publica nada no servidor. Não é indicado para agentes — é para o humano
-ver o resultado no navegador; agentes usam `diff` + `export`.
+ver o resultado no navegador; agentes usam `diff` + `export`. O dashboard tem
+ainda o Dataset Lab (`/_dev/datasets/`) e o painel de logs ao vivo
+(`/_dev/logs/`, requer o fluigcliHelper) — agentes preferem `dataset query` e
+`log tail`.
 
 ## Utilitários
 
