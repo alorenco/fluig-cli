@@ -4,6 +4,7 @@ Guia de cada grupo de comandos. Visão geral e uso por agentes de IA no
 [README](../README.md).
 
 - [server](server.md) — servidores, credenciais, `install-helper`
+- [clone](clone.md) — onboarding: clonar os artefatos de um servidor existente para o projeto
 - [dataset](dataset.md) — datasets (list/import/export/query + enable/disable/history/restore)
 - [event](event.md) — eventos globais
 - [mechanism](mechanism.md) — mecanismos de atribuição

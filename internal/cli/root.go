@@ -192,6 +192,7 @@ func newRootCmd(app *App) *cobra.Command {
 		}
 	}
 	addToGroup(groupDev,
+		newCloneCmd(app),
 		newDatasetCmd(app),
 		newEventCmd(app),
 		newMechanismCmd(app),

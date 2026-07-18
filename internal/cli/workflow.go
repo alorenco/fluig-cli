@@ -82,48 +82,11 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			var lastErr error
 			failures := 0
 			for _, pid := range pids {
-				events, perr := client.ProcessEventScripts(ctx, pid)
+				r, f, perr := app.importProcessScripts(ctx, client, root, pid)
+				results = append(results, r...)
+				failures += f
 				if perr != nil {
-					failures++
-					lastErr = mapFluigError(perr)
-					results = append(results, itemResult{ID: pid, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("processo %q: %s", pid, output.AsError(lastErr).Message)
-					continue
-				}
-				locals, lerr := project.FindProcessScripts(root, pid)
-				if lerr != nil {
-					return lerr
-				}
-				byEvent := make(map[string][]string, len(locals))
-				for _, s := range locals {
-					byEvent[s.Event] = append(byEvent[s.Event], s.Path)
-				}
-
-				names := make([]string, 0, len(events))
-				for ev := range events {
-					// O export traz o registro de todo evento do processo; sem
-					// script o código vem vazio — não vira arquivo (igual ao diff).
-					if strings.TrimSpace(events[ev]) != "" {
-						names = append(names, ev)
-					}
-				}
-				sort.Strings(names)
-				if len(names) == 0 {
-					p.Infof("processo %q não tem scripts de eventos no servidor.", pid)
-					continue
-				}
-				for _, ev := range names {
-					id := pid + "." + ev
-					action, werr := writeProcessScript(p, root, pid, ev, events[ev], byEvent[ev])
-					if werr != nil {
-						failures++
-						lastErr = werr
-						results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(werr).Message})
-						p.Warnf("script %q: %s", id, output.AsError(werr).Message)
-						continue
-					}
-					results = append(results, itemResult{ID: id, Action: action, Success: true})
-					p.Successf("script %q %s", id, action)
+					lastErr = perr
 				}
 			}
 			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(pids))
@@ -463,6 +426,59 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 // writeProcessScript grava o código de um evento de processo: sobrescreve o
 // script local existente (paths já encontrados sob workflow/scripts, recursivo)
 // ou cria em workflow/scripts/<processId>.<evento>.js.
+// importProcessScripts baixa os scripts de eventos de UM processo e grava nos
+// arquivos locais, devolvendo um resultado por script (compartilhado entre o
+// workflow import e o clone). Falha do processo inteiro (export indisponível)
+// vira um único resultado failed com o id do processo.
+func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, root, pid string) (results []itemResult, failures int, lastErr error) {
+	p := a.printer
+	failProcess := func(err error) ([]itemResult, int, error) {
+		mapped := mapFluigError(err)
+		p.Warnf("processo %q: %s", pid, output.AsError(mapped).Message)
+		return []itemResult{{ID: pid, Action: "failed", Success: false, Error: output.AsError(mapped).Message}}, 1, mapped
+	}
+	events, err := client.ProcessEventScripts(ctx, pid)
+	if err != nil {
+		return failProcess(err)
+	}
+	locals, err := project.FindProcessScripts(root, pid)
+	if err != nil {
+		return failProcess(err)
+	}
+	byEvent := make(map[string][]string, len(locals))
+	for _, s := range locals {
+		byEvent[s.Event] = append(byEvent[s.Event], s.Path)
+	}
+
+	names := make([]string, 0, len(events))
+	for ev := range events {
+		// O export traz o registro de todo evento do processo; sem
+		// script o código vem vazio — não vira arquivo (igual ao diff).
+		if strings.TrimSpace(events[ev]) != "" {
+			names = append(names, ev)
+		}
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		p.Infof("processo %q não tem scripts de eventos no servidor.", pid)
+		return nil, 0, nil
+	}
+	for _, ev := range names {
+		id := pid + "." + ev
+		action, werr := writeProcessScript(p, root, pid, ev, events[ev], byEvent[ev])
+		if werr != nil {
+			failures++
+			lastErr = werr
+			results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(werr).Message})
+			p.Warnf("script %q: %s", id, output.AsError(werr).Message)
+			continue
+		}
+		results = append(results, itemResult{ID: id, Action: action, Success: true})
+		p.Successf("script %q %s", id, action)
+	}
+	return results, failures, lastErr
+}
+
 func writeProcessScript(p *output.Printer, root, processID, event, code string, existing []string) (action string, err error) {
 	action = "updated"
 	path := ""

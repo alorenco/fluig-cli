@@ -31,6 +31,7 @@ export default defineConfig({
         text: 'Desenvolvimento',
         items: [
           { text: 'server — servidores e sessão', link: '/server' },
+          { text: 'clone — onboarding de instância existente', link: '/clone' },
           { text: 'dataset — datasets', link: '/dataset' },
           { text: 'event — eventos globais', link: '/event' },
           { text: 'mechanism — mecanismos', link: '/mechanism' },

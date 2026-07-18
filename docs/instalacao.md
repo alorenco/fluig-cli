@@ -38,7 +38,11 @@ fluigcli server add --name producao --host fluig.empresa.com.br --username admin
 # 2. Teste o acesso (login + ping + dados do usuário + status da widget auxiliar)
 fluigcli server test homolog
 
-# 3. Traga os artefatos do servidor para o projeto (import = servidor → local)
+# 3. Traga os artefatos do servidor para o projeto (import = servidor → local).
+#    Chegando num servidor já em uso com a pasta vazia? Clone tudo de uma vez:
+fluigcli clone                # mostra o inventário e pergunta o que clonar (--all pula a pergunta)
+
+#    ...ou pontualmente, por tipo:
 fluigcli dataset import --all
 fluigcli form import "Solicitação de Compras"
 fluigcli event import --all

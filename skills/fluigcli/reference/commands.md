@@ -12,6 +12,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 
 | quero… | comando |
 |---|---|
+| começar num servidor existente com uma pasta vazia (baixar tudo) | `clone` |
 | criar um widget novo do zero (esqueleto no padrão oficial) | `widget new <code>` |
 | criar um artefato novo do zero (esqueleto local) | `dataset new` · `form new` · `event new` · `mechanism new` · `workflow new-script` |
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
@@ -49,6 +50,29 @@ Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto 
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
 escrita (`export`, `delete`, `install-helper`) **exigem `--yes`** em modo
 não-interativo (sem ele: exit 2).
+
+## clone — onboarding de instância existente
+
+`clone` traz para o projeto local tudo o que a CLI gerencia em um servidor já
+em uso (o cenário: consultor chega no cliente com uma pasta vazia). Consulta o
+inventário do servidor e importa os tipos selecionados — mesma semântica do
+`import --all` de cada grupo.
+
+| comando | efeito |
+|---|---|
+| `clone --all` | clona todos os tipos disponíveis (sem perguntar) |
+| `clone --only forms,datasets` | clona só os tipos citados (`forms`, `datasets`, `workflows`, `events`, `mechanisms`, `widgets`) |
+| `clone` | interativo: mostra o inventário e pergunta o que clonar |
+
+- Em modo não-interativo (`--json`/CI) `--all` ou `--only` é obrigatório
+  (exit 2 sem eles).
+- **widgets exigem o fluigcliHelper**: com `--all` são pulados com aviso; com
+  `--only widgets` sem o helper = exit 7.
+- `workflows` = só os **scripts de eventos** (o diagrama fica no servidor);
+  widget SPA vem o bundle publicado (sem fonte TS/Vue); páginas, comunidades e
+  GED ficam fora do escopo.
+- Re-executar sobrescreve os arquivos locais (commite antes). Falha parcial =
+  exit 6 com `data.results` por tipo.
 
 ## dataset
 
