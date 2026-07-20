@@ -286,6 +286,10 @@ no servidor conectado (sem ele o painel orienta o
   abriu.
 - **Colorização**: ERROR/FATAL em vermelho, WARN em amarelo, DEBUG esmaecido
   — o console é escuro nos dois temas.
+- **Stack traces recolhidos**: entrada ERROR com várias linhas (o stack trace
+  Java) mostra só a mensagem principal, com um botão **▸ mostrar +N linhas**
+  que expande o restante (e recolhe de volta). Entradas dos demais níveis
+  continuam integrais.
 - **Pausar/retomar**: congela a rolagem para ler com calma; as linhas
   continuam chegando (o contador mostra quantas esperam) e aparecem ao
   retomar. **Auto-rolagem** e **limpar** completam a barra.

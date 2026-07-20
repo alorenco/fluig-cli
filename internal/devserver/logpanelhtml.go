@@ -75,6 +75,11 @@ button{font:inherit}
 #log .dbg{color:#7d8b99}
 #log .note{color:#79c0ff;font-style:italic;margin:4px 0}
 #log .empty{color:#7d8b99;font-style:italic}
+#log .fold{display:block;margin:2px 0 2px 14px;padding:1px 9px;border:1px solid #3a2a2b;
+  border-radius:6px;background:transparent;color:#8a97a3;cursor:pointer;
+  font:11px ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+#log .fold:hover{color:#ff7b72;border-color:#ff7b72}
+#log .cont{margin:2px 0 2px 14px;border-left:2px solid #3a2a2b;padding-left:10px}
 </style>
 </head>
 <body>
@@ -123,7 +128,8 @@ button{font:inherit}
   var es = null, file = "server.log";
   var paused = false, pending = 0, empty = true;
   // decisão corrente da entrada (herdada pelas continuações do stack trace)
-  var fs = {show:true, cls:""};
+  var fs = freshEntry();
+  function freshEntry(){ return {show:true, cls:"", head:null, fold:null, btn:null}; }
 
   function lineLevel(line){
     var toks = line.split(/\s+/, 5);
@@ -143,22 +149,61 @@ button{font:inherit}
     return {min: $("level").value === "" ? -1 : parseInt($("level").value, 10),
             q: $("grep").value.trim().toLowerCase()};
   }
-  // Decide e devolve o nó da linha (null = filtrada). A decisão é tomada na
-  // linha de cabeçalho e herdada pelas continuações — o stack trace acompanha
-  // o ERROR que o abriu (mesma semântica do fluigcli log tail --follow).
+  // Decide e devolve o nó da linha (null = filtrada ou anexada ao dobrável).
+  // A decisão é tomada na linha de cabeçalho e herdada pelas continuações — o
+  // stack trace acompanha o ERROR que o abriu (mesma semântica do fluigcli
+  // log tail --follow). Continuações de uma entrada ERROR não viram linhas
+  // soltas: ficam recolhidas num bloco expansível junto do cabeçalho (a
+  // mensagem principal fica visível; o stack trace abre sob demanda).
   function lineNode(line, f){
     if (HEAD.test(line)) {
       var rank = lineLevel(line);
       fs.cls = levelClass(rank);
+      fs.head = null; fs.fold = null; fs.btn = null;
       fs.show = true;
       if (f.min >= 0 && rank < f.min) fs.show = false;
       if (fs.show && f.q && line.toLowerCase().indexOf(f.q) < 0) fs.show = false;
+      if (!fs.show) return null;
+      var div = document.createElement("div");
+      if (fs.cls) div.className = fs.cls;
+      div.textContent = line;
+      if (fs.cls === "err") fs.head = div;
+      return div;
     }
     if (!fs.show) return null;
+    if (fs.head) { foldLine(line); return null; }
+    var cont = document.createElement("div");
+    if (fs.cls) cont.className = fs.cls;
+    cont.textContent = line;
+    return cont;
+  }
+  // Anexa a continuação ao bloco recolhido da entrada ERROR corrente,
+  // criando o botão de expandir na primeira continuação.
+  function foldLine(line){
+    if (!fs.fold) {
+      var fold = document.createElement("div");
+      fold.className = "cont";
+      fold.hidden = true;
+      var btn = document.createElement("button");
+      btn.className = "fold";
+      btn.title = "stack trace / detalhe da entrada";
+      btn.onclick = function(){
+        fold.hidden = !fold.hidden;
+        foldLabel(btn, fold);
+      };
+      fs.head.appendChild(btn);
+      fs.head.appendChild(fold);
+      fs.fold = fold; fs.btn = btn;
+    }
     var div = document.createElement("div");
-    if (fs.cls) div.className = fs.cls;
     div.textContent = line;
-    return div;
+    fs.fold.appendChild(div);
+    foldLabel(fs.btn, fs.fold);
+  }
+  function foldLabel(btn, fold){
+    var n = fold.childElementCount;
+    var s = n + (n === 1 ? " linha" : " linhas");
+    btn.textContent = fold.hidden ? "▸ mostrar +" + s : "▾ ocultar " + s;
   }
   function appendLines(lines){
     if (empty) { logEl.textContent = ""; empty = false; }
@@ -183,7 +228,7 @@ button{font:inherit}
   function rerender(){
     logEl.textContent = "";
     empty = false;
-    fs = {show:true, cls:""};
+    fs = freshEntry();
     var start = Math.max(0, buf.length - BUFCAP);
     appendLines(buf.slice(start));
   }
@@ -213,7 +258,7 @@ button{font:inherit}
     buf = []; pending = 0;
     logEl.innerHTML = "<div class=\"empty\">aguardando o log…</div>";
     empty = true;
-    fs = {show:true, cls:""};
+    fs = freshEntry();
     hideBanner();
     $("download").href = "/fluigcliHelper/api/logs/" + encodeURIComponent(name) + "/download";
     setDot("", "conectando…");
