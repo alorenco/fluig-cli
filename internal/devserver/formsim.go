@@ -198,6 +198,14 @@ type formSimCache struct {
 	datasets    []fluig.DatasetSummary     // lista do dataset lab (datasetlab.go)
 	formsList   []fluig.Form               // lista de formulários (explorador de processos)
 	procDetails map[string]*procDetailResp // detalhe por id|version (explorador de processos)
+
+	// Subtela Pessoas (peoplepanel.go): listas completas + membros/uso por
+	// grupo|papel. peopleMembers é invalidado ao incluir/remover membro.
+	peopleUsers   []fluig.AdminUser
+	peopleGroups  []fluig.Group
+	peopleRoles   []fluig.Role
+	peopleMembers map[string][]fluig.AdminUser // "group|code" | "role|code" → membros
+	peopleUsage   map[string]*peopleUsageResp  // "group|code" | "role|code" → onde é usado
 }
 
 func (s *Server) handleFormSimJS(w http.ResponseWriter, r *http.Request) {

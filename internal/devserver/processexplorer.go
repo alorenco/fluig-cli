@@ -137,7 +137,7 @@ func (s *Server) serveProcessDetail(w http.ResponseWriter, r *http.Request, forc
 	s.sim.mu.Unlock()
 
 	if cached == nil || force {
-		resp, err := s.buildProcessDetail(r, id, version)
+		resp, err := s.buildProcessDetail(r.Context(), id, version)
 		if err != nil {
 			if errors.Is(err, fluig.ErrNotFound) {
 				simError(w, http.StatusNotFound, "processo não encontrado: "+id)
@@ -159,8 +159,7 @@ func (s *Server) serveProcessDetail(w http.ResponseWriter, r *http.Request, forc
 }
 
 // buildProcessDetail busca e monta o detalhamento (parte cara, cacheável).
-func (s *Server) buildProcessDetail(r *http.Request, id string, version int) (*procDetailResp, error) {
-	ctx := r.Context()
+func (s *Server) buildProcessDetail(ctx context.Context, id string, version int) (*procDetailResp, error) {
 	client := s.opts.Client
 	d, err := client.ProcessDetail(ctx, id, version)
 	if err != nil {

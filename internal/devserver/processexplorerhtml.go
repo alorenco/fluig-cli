@@ -116,6 +116,8 @@ td.seq small{display:block;color:var(--sub);font-weight:400;font-size:10px;margi
   background:var(--chipbg);white-space:nowrap}
 .chip b{font-family:ui-monospace,Consolas,monospace;font-weight:700}
 .chip b.hl{color:var(--accent)}
+.chip a{color:var(--accent);text-decoration:none}
+.chip a:hover{text-decoration:underline}
 .chip.mech{color:var(--sub)}
 .arrows{color:var(--sub);font-size:12px;font-family:ui-monospace,Consolas,monospace}
 .subrow td{background:var(--chipbg);font-size:12.5px;color:var(--sub);padding:6px 12px 12px}
@@ -341,7 +343,13 @@ td.seq small{display:block;color:var(--sub);font-weight:400;font-size:10px;margi
       var label = a.kind === "user" ? "usuário" : "colaborador";
       out += '<span class="chip" title="' + esc(a.value) + '">' + label + ' <b class="hl">' + esc(a.name || a.value) + "</b></span>";
     } else if (a.value) {
-      out += '<span class="chip">' + esc(kindLabel[a.kind] || a.kind || "") + ' <b>' + esc(a.value) + "</b></span>";
+      // papel/grupo → link para a subtela Pessoas (membros + onde é usado).
+      var inner = "<b>" + esc(a.value) + "</b>";
+      if (a.kind === "role" || a.kind === "group") {
+        inner = '<a href="/_dev/people/?' + a.kind + "=" + encodeURIComponent(a.value) +
+          '" target="_blank" rel="noopener" title="Ver participantes na subtela Pessoas">' + inner + " ↗</a>";
+      }
+      out += '<span class="chip">' + esc(kindLabel[a.kind] || a.kind || "") + " " + inner + "</span>";
       if (a.extra) out += '<span class="chip mech">' + esc(a.extra) + "</span>";
     }
     return '<div class="who">' + out + "</div>";

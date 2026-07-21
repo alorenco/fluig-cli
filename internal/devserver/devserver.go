@@ -133,6 +133,8 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
 	mux.HandleFunc(processExplorerPath, s.handleProcessExplorer)
 	mux.HandleFunc(processAPIPath, s.handleProcessAPI)
+	mux.HandleFunc(peoplePanelPath, s.handlePeoplePanel)
+	mux.HandleFunc(peopleAPIPath, s.handlePeopleAPI)
 	mux.HandleFunc(logPanelPath, s.handleLogPanel)
 	mux.HandleFunc(logFilesAPIPath, s.handleLogFilesAPI)
 	mux.HandleFunc(logStreamPath, s.handleLogStream)

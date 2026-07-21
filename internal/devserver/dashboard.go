@@ -211,6 +211,11 @@ func (s *Server) handleDashClearCaches(w http.ResponseWriter, r *http.Request) {
 	s.sim.datasets = nil
 	s.sim.formsList = nil
 	s.sim.procDetails = nil
+	s.sim.peopleUsers = nil
+	s.sim.peopleGroups = nil
+	s.sim.peopleRoles = nil
+	s.sim.peopleMembers = nil
+	s.sim.peopleUsage = nil
 	s.deploys = nil
 	s.sim.mu.Unlock()
 	s.invalidateProjectAudit()

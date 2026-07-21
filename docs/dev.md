@@ -34,7 +34,8 @@ De cima para baixo:
   estatísticas e os monitores exigem usuário admin — sem o privilégio, o
   painel avisa e segue funcionando. Atualiza a cada 60 s.
 - **Acessos**: portal pelo proxy, preview de formulários, o
-  [Dataset Lab](#datasets) e os [logs do servidor](#logs-do-servidor).
+  [Dataset Lab](#datasets), os [logs do servidor](#logs-do-servidor), o
+  [Explorador de Processos](#processos) e a subtela [Pessoas](#pessoas).
 - **Widgets SPA** (só aparece quando o projeto tem widget vue/react): estado
   do bundle por widget — **bundle desatualizado** quando a fonte é mais nova
   que o compilado (o portal serviria o js velho) — e do `npm run watch`. O
@@ -362,6 +363,48 @@ configuração nova no servidor, e funciona apontando para produção:
 O detalhe é cacheado por processo/versão (o ↻ recarrega ignorando o cache); a
 presença local dos scripts é reconferida a cada abertura, refletindo o que
 você acabou de salvar.
+
+## Pessoas
+
+`/_dev/people/` (tile **Pessoas** no dashboard) mostra os **usuários, grupos e
+papéis** da plataforma — e, principalmente, **quem participa** de cada grupo e
+papel. É o complemento do [Explorador de Processos](#processos): ao ver que uma
+etapa é atribuída ao papel `faturista` ou ao grupo `Compras`, um clique no chip
+de atribuição abre esta tela já no participante certo (e o chip de papel/grupo
+lá vira link para cá).
+
+Três abas com busca instantânea (a busca é **no cliente**, sobre a lista já
+carregada):
+
+- **Usuários** — nome, login, e-mail e estado (ativo/bloqueado). Clique num
+  usuário para ver a **visão reversa**: de quais grupos e papéis ele participa
+  (cada um clicável, levando ao detalhe correspondente).
+- **Grupos** — código, descrição e tipo. Os grupos de **comunidade**
+  (`MODERATOR_*`/`MEMBER_*`, criados automaticamente) ficam ocultos por padrão;
+  um checkbox os exibe.
+- **Papéis** — código e descrição.
+
+No detalhe de um grupo ou papel você vê a **lista de membros** (membros
+**bloqueados** aparecem em destaque — um aprovador inativo num grupo de
+atribuição costuma ser um bug), com atalhos para:
+
+- **Incluir-me / Remover-me** — inclui ou remove **o seu próprio usuário** (o
+  que está logado no `dev`) do grupo/papel, com uma confirmação. É o caso de
+  uso central: testar rapidamente uma atribuição de processo entrando e saindo
+  do papel. Só o seu usuário é escrito — para administrar outros usuários, use
+  os comandos [`group`](group.md)/[`role`](role.md)/[`user`](user.md).
+- **Onde é usado?** — varre os processos do servidor e lista as **etapas** em
+  que aquele grupo/papel atua (processo, etapa, `WKNumState` e mecanismo), com
+  link para o Explorador. A primeira varredura lê o export de cada processo (a
+  mesma fonte, cacheada e compartilhada com o Explorador), então demora alguns
+  segundos; depois fica em cache.
+- **Copiar código** e **Copiar membros (TSV)**.
+
+A URL aceita `?user=<login>`, `?group=<código>` e `?role=<código>`
+(compartilhável). A tela usa as APIs administrativas do Fluig
+(`/admin/api/v1/...`), que **exigem um usuário com o papel admin** no servidor —
+sem esse privilégio, um aviso explica o que falta. O ↻ recarrega as listas
+ignorando o cache.
 
 ## Segurança (por design)
 
