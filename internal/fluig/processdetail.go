@@ -30,6 +30,7 @@ type ProcessDetail struct {
 	Author      string               `json:"author,omitempty"`
 	Active      bool                 `json:"active"`
 	FormID      int                  `json:"formId"`
+	Manager     *StateAssignment     `json:"manager,omitempty"` // gestor do processo (papel/grupo/usuário)
 	States      []ProcessStateDetail `json:"states"`
 	Events      []ProcessEventInfo   `json:"events"`
 	DiagramSVG  string               `json:"diagramSvg,omitempty"`
@@ -144,6 +145,10 @@ type xmlProcessExport struct {
 		ID          string `xml:"processDefinitionPK>processId"`
 		Description string `xml:"processDescription"`
 		Active      bool   `xml:"active"`
+		// Gestor do processo: mesma estrutura de atribuição das etapas
+		// (engineAllocationId + AssignmentController com Role/Group/User).
+		ManagerAllocID     string `xml:"managerEngineAllocationId"`
+		ManagerAllocConfig string `xml:"managerEngineAllocationConfiguration"`
 	} `xml:"ProcessDefinition"`
 	Version struct {
 		Version int    `xml:"processDefinitionVersionPK>version"`
@@ -258,6 +263,7 @@ func ParseProcessDetail(data []byte) (*ProcessDetail, error) {
 		Author:      strings.TrimSpace(ex.Version.Author),
 		Active:      ex.Definition.Active,
 		FormID:      ex.Version.FormID,
+		Manager:     parseAssignment(ex.Definition.ManagerAllocID, ex.Definition.ManagerAllocConfig),
 		DiagramSVG:  strings.TrimSpace(ex.Version.Diagram),
 	}
 

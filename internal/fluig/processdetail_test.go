@@ -47,6 +47,14 @@ func TestParseProcessDetail(t *testing.T) {
 		t.Errorf("DiagramSVG não parece um SVG (len=%d)", len(d.DiagramSVG))
 	}
 
+	// Gestor do processo: papel gestor_entrada_documento (mecanismo "Papel").
+	if d.Manager == nil {
+		t.Fatalf("Manager nil (esperava o gestor do processo)")
+	}
+	if d.Manager.Mechanism != "Papel" || d.Manager.Kind != "role" || d.Manager.Value != "gestor_entrada_documento" {
+		t.Errorf("Manager = %+v", d.Manager)
+	}
+
 	byName := map[string]ProcessStateDetail{}
 	bySeq := map[int]ProcessStateDetail{}
 	for _, s := range d.States {

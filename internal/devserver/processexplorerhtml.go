@@ -380,6 +380,8 @@ td.seq small{display:block;color:var(--sub);font-weight:400;font-size:10px;margi
     h += '<div class="kv"><span class="k">Versão</span><span class="v">v' + d.version +
       (d.versions && d.versions.length ? ' <span style="color:var(--sub);font-weight:400">de ' + d.versions.length + "</span>" : "") + "</span></div>";
     if (d.author) h += '<div class="kv"><span class="k">Autor</span><span class="v">' + esc(d.author) + "</span></div>";
+    // gestor do processo (papel/grupo/usuário) — mesma estrutura das etapas
+    if (d.manager) h += '<div class="kv"><span class="k">Gestor do processo</span><span class="v">' + whoChips(d.manager) + "</span></div>";
     // formulário
     if (d.formId) {
       var fv = "";

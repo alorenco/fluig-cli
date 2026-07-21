@@ -133,12 +133,14 @@ func TestProcessExplorerDetail(t *testing.T) {
 	for _, want := range []string{
 		`"version":25`,
 		`"formId":263801`,
-		`"folder":"frm_entrada"`, // vínculo local do forms.json
-		`"sequence":17`,          // Faturar Documento
-		`"faturista"`,            // atribuição parseada (Pool Papel)
-		`"diretorAprovador"`,     // Campo Formulário
-		`"aprNivel1"`,            // regra de gateway
-		`"versions"`,             // seletor de versão
+		`"folder":"frm_entrada"`,     // vínculo local do forms.json
+		`"sequence":17`,              // Faturar Documento
+		`"faturista"`,                // atribuição parseada (Pool Papel)
+		`"diretorAprovador"`,         // Campo Formulário
+		`"aprNivel1"`,                // regra de gateway
+		`"versions"`,                 // seletor de versão
+		`"manager"`,                  // gestor do processo
+		`"gestor_entrada_documento"`, // papel do gestor
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("detail sem %q", want)

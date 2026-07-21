@@ -54,6 +54,7 @@ type procDetailResp struct {
 	Active      bool                       `json:"active"`
 	FormID      int                        `json:"formId"`
 	Form        *procFormInfo              `json:"form,omitempty"`
+	Manager     *fluig.StateAssignment     `json:"manager,omitempty"`
 	States      []fluig.ProcessStateDetail `json:"states"`
 	Events      []procEventInfo            `json:"events"`
 	Versions    []procVersionInfo          `json:"versions,omitempty"`
@@ -178,6 +179,7 @@ func (s *Server) buildProcessDetail(ctx context.Context, id string, version int)
 		Author:      d.Author,
 		Active:      d.Active,
 		FormID:      d.FormID,
+		Manager:     d.Manager,
 		States:      d.States,
 		DiagramSvg:  d.DiagramSVG,
 	}
@@ -201,17 +203,30 @@ func (s *Server) buildProcessDetail(ctx context.Context, id string, version int)
 	}
 
 	// Atribuição por usuário: resolve o userCode → nome (dataset colleague).
-	s.enrichUserAssignments(ctx, resp.States)
+	// Vale para as etapas E para o gestor do processo.
+	s.enrichUserAssignments(ctx, resp.States, resp.Manager)
 	return resp, nil
 }
 
-// enrichUserAssignments preenche Assignment.Name das etapas atribuídas a um
-// usuário/colaborador específico, resolvendo o userCode pelo dataset
-// colleague. Best-effort: sem a lista, os chips caem no código (com aviso).
-func (s *Server) enrichUserAssignments(ctx context.Context, states []fluig.ProcessStateDetail) {
-	need := false
+// enrichUserAssignments preenche Assignment.Name das atribuições (etapas +
+// gestor) feitas a um usuário/colaborador específico, resolvendo o userCode
+// pelo dataset colleague. Best-effort: sem a lista, os chips caem no código
+// (com aviso).
+func (s *Server) enrichUserAssignments(ctx context.Context, states []fluig.ProcessStateDetail, manager *fluig.StateAssignment) {
+	// Reúne todas as atribuições candidatas (ponteiros — resolvidas in-place).
+	var cands []*fluig.StateAssignment
 	for i := range states {
-		if a := states[i].Assignment; a != nil && (a.Kind == "user" || a.Kind == "colleague") && a.Value != "" {
+		if a := states[i].Assignment; a != nil {
+			cands = append(cands, a)
+		}
+	}
+	if manager != nil {
+		cands = append(cands, manager)
+	}
+
+	need := false
+	for _, a := range cands {
+		if (a.Kind == "user" || a.Kind == "colleague") && a.Value != "" {
 			need = true
 			break
 		}
@@ -228,9 +243,8 @@ func (s *Server) enrichUserAssignments(ctx context.Context, states []fluig.Proce
 	for _, u := range users {
 		byCode[u.Code] = u.Name
 	}
-	for i := range states {
-		a := states[i].Assignment
-		if a != nil && (a.Kind == "user" || a.Kind == "colleague") {
+	for _, a := range cands {
+		if a.Kind == "user" || a.Kind == "colleague" {
 			if name := byCode[a.Value]; name != "" {
 				a.Name = name
 			}
