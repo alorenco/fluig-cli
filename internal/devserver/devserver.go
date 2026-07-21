@@ -131,6 +131,8 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(formSimAPIPath, s.handleFormSimAPI)
 	mux.HandleFunc(datasetLabPath, s.handleDatasetLab)
 	mux.HandleFunc(datasetAPIPath, s.handleDatasetAPI)
+	mux.HandleFunc(processExplorerPath, s.handleProcessExplorer)
+	mux.HandleFunc(processAPIPath, s.handleProcessAPI)
 	mux.HandleFunc(logPanelPath, s.handleLogPanel)
 	mux.HandleFunc(logFilesAPIPath, s.handleLogFilesAPI)
 	mux.HandleFunc(logStreamPath, s.handleLogStream)

@@ -1,6 +1,7 @@
 package devserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -189,12 +190,14 @@ type formSimUser struct {
 // (expand=versions, states e a lista de usuários mudam raramente); force=1
 // no painel renova.
 type formSimCache struct {
-	mu        sync.Mutex
-	contexts  map[string]*formSimContext
-	states    map[string]*formSimStates
-	processes []fluig.ProcessSummary
-	users     []formSimUser
-	datasets  []fluig.DatasetSummary // lista do dataset lab (datasetlab.go)
+	mu          sync.Mutex
+	contexts    map[string]*formSimContext
+	states      map[string]*formSimStates
+	processes   []fluig.ProcessSummary
+	users       []formSimUser
+	datasets    []fluig.DatasetSummary     // lista do dataset lab (datasetlab.go)
+	formsList   []fluig.Form               // lista de formulários (explorador de processos)
+	procDetails map[string]*procDetailResp // detalhe por id|version (explorador de processos)
 }
 
 func (s *Server) handleFormSimJS(w http.ResponseWriter, r *http.Request) {
@@ -240,31 +243,10 @@ func (s *Server) serveFormSimUsers(w http.ResponseWriter, r *http.Request, force
 	cached := s.sim.users
 	s.sim.mu.Unlock()
 	if cached == nil || force {
-		res, err := s.opts.Client.QueryDataset(r.Context(), "colleague", fluig.DatasetQuery{
-			Fields:  []string{"colleagueId", "colleagueName", "active"},
-			OrderBy: "colleagueName",
-		})
+		users, err := s.loadColleagueUsers(r.Context())
 		if err != nil {
 			simError(w, http.StatusBadGateway, "falha ao listar usuários (dataset colleague): "+err.Error())
 			return
-		}
-		str := func(p *string) string {
-			if p == nil {
-				return ""
-			}
-			return *p
-		}
-		users := make([]formSimUser, 0, len(res.Rows))
-		for _, row := range res.Rows {
-			code := str(row["colleagueId"])
-			if code == "" {
-				continue
-			}
-			users = append(users, formSimUser{
-				Code:   code,
-				Name:   str(row["colleagueName"]),
-				Active: strings.EqualFold(str(row["active"]), "true"),
-			})
 		}
 		s.sim.mu.Lock()
 		s.sim.users = users
@@ -272,6 +254,56 @@ func (s *Server) serveFormSimUsers(w http.ResponseWriter, r *http.Request, force
 		cached = users
 	}
 	simJSON(w, cached)
+}
+
+// loadColleagueUsers consulta o dataset colleague (uma vez) e devolve os
+// usuários (código/nome/ativo), ordenados por nome no servidor.
+func (s *Server) loadColleagueUsers(ctx context.Context) ([]formSimUser, error) {
+	res, err := s.opts.Client.QueryDataset(ctx, "colleague", fluig.DatasetQuery{
+		Fields:  []string{"colleagueId", "colleagueName", "active"},
+		OrderBy: "colleagueName",
+	})
+	if err != nil {
+		return nil, err
+	}
+	str := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	users := make([]formSimUser, 0, len(res.Rows))
+	for _, row := range res.Rows {
+		code := str(row["colleagueId"])
+		if code == "" {
+			continue
+		}
+		users = append(users, formSimUser{
+			Code:   code,
+			Name:   str(row["colleagueName"]),
+			Active: strings.EqualFold(str(row["active"]), "true"),
+		})
+	}
+	return users, nil
+}
+
+// ensureUsers devolve a lista de usuários com cache de execução (reusa o
+// mesmo s.sim.users do painel de simulação). Não força renovação.
+func (s *Server) ensureUsers(ctx context.Context) ([]formSimUser, error) {
+	s.sim.mu.Lock()
+	cached := s.sim.users
+	s.sim.mu.Unlock()
+	if cached != nil {
+		return cached, nil
+	}
+	users, err := s.loadColleagueUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.sim.mu.Lock()
+	s.sim.users = users
+	s.sim.mu.Unlock()
+	return users, nil
 }
 
 func (s *Server) serveFormSimContext(w http.ResponseWriter, r *http.Request, force bool) {

@@ -186,6 +186,12 @@ a.tile:hover .go{color:var(--accent);transform:translateX(3px)}
           <div class="meta">server.log ao vivo, com filtros</div></div>
         <div class="go">→</div>
       </a>
+      <a class="tile" href="/_dev/processes/">
+        <div class="icon">🧭</div>
+        <div><div class="name">Processos</div>
+          <div class="meta">etapas, atribuição, scripts e diagrama</div></div>
+        <div class="go">→</div>
+      </a>
     </div>
   </section>
 

@@ -1,0 +1,833 @@
+{
+ "items": [
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 4,
+   "stateName": "Início",
+   "stateDescription": "Início",
+   "stateType": "SIMPLE",
+   "bpmnType": "START_EVENT_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 5,
+   "stateName": "Aprovação Diretoria",
+   "stateDescription": "Aprovação Diretoria",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Campo Formulário",
+      "description": "",
+      "name": "Atribuição por Campo de Formulário"
+     },
+     "configuration": "<AssignmentController><FormField>diretorAprovador</FormField></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 15,
+   "stateName": "Fim",
+   "stateDescription": "Fim",
+   "stateType": "END",
+   "bpmnType": "END_EVENT_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 17,
+   "stateName": "Faturar Documento",
+   "stateDescription": "Faturar Documento",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Papel",
+      "description": "",
+      "name": "Atribuição para um Papel"
+     },
+     "configuration": "<AssignmentController><Role>faturista</Role></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 19,
+   "stateName": "Integrar Totvs RM",
+   "stateDescription": "Integrar Totvs RM",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_SERVICE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {
+     "attempts": 2,
+     "successMessage": "Integração executada com sucesso",
+     "frequency": 5,
+     "frequencyType": "minutes"
+    },
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 20,
+   "stateName": "Corrigir Integração",
+   "stateDescription": "Corrigir Integração",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Grupo",
+      "description": "",
+      "name": "Atribuição para um Grupo"
+     },
+     "configuration": "<AssignmentController><Group>TI</Group></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 21,
+   "stateName": "Intermediário",
+   "stateDescription": "Intermediário",
+   "stateType": "SIMPLE",
+   "bpmnType": "INTERMEDIATE_EVENT_ERROR",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "parentSequence": 19,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 26,
+   "stateName": "Revisar Processo",
+   "stateDescription": "Revisar Processo",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Executor Atividade",
+      "description": "Permitir selecionar os usuários que executaram uma atividade anterior.",
+      "name": "Atribuição por Executor de Atividade"
+     },
+     "configuration": "<AssignmentController><BaseActivity>4</BaseActivity><Returns>Last</Returns></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 30,
+   "stateName": "Mover Documentos",
+   "stateDescription": "Mover Documentos",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_SERVICE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {
+     "attempts": 2,
+     "successMessage": "Integração executada com sucesso",
+     "frequency": 5,
+     "frequencyType": "minutes"
+    },
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 31,
+   "stateName": "Corrigir Integração",
+   "stateDescription": "Corrigir Integração",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Grupo",
+      "description": "",
+      "name": "Atribuição para um Grupo"
+     },
+     "configuration": "<AssignmentController><Group>TI</Group></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 32,
+   "stateName": "Intermediário",
+   "stateDescription": "Intermediário",
+   "stateType": "SIMPLE",
+   "bpmnType": "INTERMEDIATE_EVENT_ERROR",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "parentSequence": 30,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 37,
+   "stateName": "Atualizar Parcelas",
+   "stateDescription": "Atualizar Parcelas",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_SERVICE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {
+     "attempts": 2,
+     "successMessage": "Integração executada com sucesso",
+     "frequency": 5,
+     "frequencyType": "minutes"
+    },
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 38,
+   "stateName": "Corrigir Integração",
+   "stateDescription": "Corrigir Integração",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Grupo",
+      "description": "",
+      "name": "Atribuição para um Grupo"
+     },
+     "configuration": "<AssignmentController><Group>TI</Group></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 40,
+   "stateName": "Intermediário",
+   "stateDescription": "Intermediário",
+   "stateType": "SIMPLE",
+   "bpmnType": "INTERMEDIATE_EVENT_ERROR",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "parentSequence": 37,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 45,
+   "stateName": "Revisar Despesa",
+   "stateDescription": "Revisar Despesa",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Papel",
+      "description": "",
+      "name": "Atribuição para um Papel"
+     },
+     "configuration": "<AssignmentController><Role>revisor_despesas</Role></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 50,
+   "stateName": "Aprovar Documento",
+   "stateDescription": "Aprovar Documento",
+   "stateType": "AUTOMATIC",
+   "bpmnType": "GATEWAY_EXCLUSIVE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [
+     {
+      "expressionOrder": 1,
+      "assignmentConfiguration": null,
+      "targetState": 64,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 2,
+      "assignmentConfiguration": null,
+      "targetState": 5,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 3,
+      "assignmentConfiguration": null,
+      "targetState": 26,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 4,
+      "assignmentConfiguration": null,
+      "targetState": 5,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 5,
+      "assignmentConfiguration": null,
+      "targetState": 64,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     }
+    ],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 64,
+   "stateName": "Aprovação Gerência",
+   "stateDescription": "Aprovação Gerência",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Campo Formulário",
+      "description": "",
+      "name": "Atribuição por Campo de Formulário"
+     },
+     "configuration": "<AssignmentController><FormField>gerenteAprovador</FormField></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 69,
+   "stateName": "Cancelar Programações",
+   "stateDescription": "Cancelar Programações",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_SERVICE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {
+     "attempts": 3,
+     "successMessage": "Integração executada com sucesso",
+     "frequency": 3,
+     "frequencyType": "minutes"
+    },
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 72,
+   "stateName": "Corrigir Integração",
+   "stateDescription": "Corrigir Integração",
+   "stateType": "SIMPLE",
+   "bpmnType": "TASK_NORMAL",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {
+      "id": "Pool Grupo",
+      "description": "",
+      "name": "Atribuição para um Grupo"
+     },
+     "configuration": "<AssignmentController><Group>TI</Group></AssignmentController>"
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 73,
+   "stateName": "Intermediário",
+   "stateDescription": "Intermediário",
+   "stateType": "SIMPLE",
+   "bpmnType": "INTERMEDIATE_EVENT_ERROR",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "parentSequence": 69,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  },
+  {
+   "processId": "compras_entrada_documento",
+   "processVersion": 25,
+   "sequence": 76,
+   "stateName": "Passar por Revisão",
+   "stateDescription": "Passar por Revisão",
+   "stateType": "AUTOMATIC",
+   "bpmnType": "GATEWAY_EXCLUSIVE",
+   "configuration": {
+    "jointState": false,
+    "jointConfiguration": null,
+    "disableTaskTransference": false,
+    "requiresPassword": false,
+    "requiresDigitalSignature": false,
+    "deadline": 0,
+    "subProcess": false,
+    "subProcessConfiguration": null,
+    "serviceConfiguration": {},
+    "notificationConfiguration": null,
+    "conditions": [
+     {
+      "expressionOrder": 1,
+      "assignmentConfiguration": null,
+      "targetState": 5,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 2,
+      "assignmentConfiguration": null,
+      "targetState": 5,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     },
+     {
+      "expressionOrder": 3,
+      "assignmentConfiguration": null,
+      "targetState": 45,
+      "_expandables": [
+       "assignmentConfiguration"
+      ]
+     }
+    ],
+    "assignmentConfiguration": {
+     "assignment": {}
+    },
+    "_expandables": [
+     "notificationConfiguration",
+     "jointConfiguration",
+     "subProcessConfiguration"
+    ]
+   },
+   "_expandables": [
+    "instructions"
+   ]
+  }
+ ],
+ "hasNext": false
+}

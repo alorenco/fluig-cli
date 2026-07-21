@@ -300,6 +300,52 @@ Por trás: um poller no dev server consulta o helper por offset (a cada 2 s)
 SSE — várias abas compartilham a mesma consulta. Rotação do arquivo no
 servidor é detectada e o acompanhamento recomeça sozinho.
 
+## Processos
+
+`/_dev/processes/` (tile **Processos** no dashboard) reúne, **só para
+leitura**, tudo que você precisa saber de um processo enquanto escreve o
+formulário ou os scripts — em vez de abrir o Fluig Studio ou o portal. Um
+combobox buscável escolhe o processo (por id ou nome); um seletor ao lado
+troca a versão. A URL aceita `?process=<id>` (compartilhável) e o último
+processo visto fica salvo no navegador.
+
+Ao selecionar, a tela monta quatro blocos a partir do **export XML nativo**
+do processo (a mesma fonte do `workflow publish`/`diff`) — nenhuma
+configuração nova no servidor, e funciona apontando para produção:
+
+- **Cabeçalho** — descrição, `processId` (clique para copiar), versão atual
+  (de N), autor e o **formulário vinculado**: id + nome no servidor; quando
+  há vínculo local (`.fluigcli/forms.json`), o nome vira um **link que abre o
+  [preview](#formularios) em nova aba** (não perde a tela do processo).
+- **Etapas** — a tabela central: **Nº** (o `sequence`, que é o `WKNumState`
+  que os eventos leem), nome, tipo (Início/Atividade/Automação/Gateway/Fim),
+  **quem atua** (mecanismo + o alvo real: papel, grupo, campo do formulário,
+  usuário — pelo **nome**, com o código no tooltip — ou o **executor de uma
+  atividade anterior**, mostrada pelo nome da etapa), prazo e o fluxo (`→`
+  etapas de destino). Eventos intermediários (boundary de erro etc.) não
+  entram na lista — não são etapas em que o formulário roda.
+  As etapas vêm na **ordem aproximada do fluxo** (a partir do início,
+  seguindo as transições); o botão **Fluxo / Nº** alterna para a ordem por
+  número. **Clique numa linha para copiar** um snippet pronto, ex.:
+  `getValue("WKNumState") == 17 // Faturar Documento`. Gateways mostram as
+  condições (campo/operador/valor → etapa de destino). Há filtro por nome.
+  **Copiar constantes** copia de uma vez o bloco de `const` de todas as
+  etapas (nomes derivados do rótulo, `ETAPA_NOVO = 0` incluído, sufixo de
+  número quando o nome repete) — pronto para colar no topo de um
+  `validateForm.js`/`displayFields.js`.
+- **Diagrama** — o desenho oficial do processo, exatamente como no Studio
+  (o SVG vem pronto do servidor). Abre **ajustado à largura** (o processo
+  inteiro cabe na tela); os botões **− / + / ajustar** dão zoom e, com zoom,
+  dá para **arrastar** para navegar.
+- **Scripts** — os eventos do processo em duas listas (globais e service
+  tasks), cada um com o tamanho do código no servidor e um selo **local ✓**
+  (com o caminho) quando o arquivo existe em `workflow/scripts/`, ou **só no
+  servidor** com a dica do [`fluigcli workflow import`](workflow.md).
+
+O detalhe é cacheado por processo/versão (o ↻ recarrega ignorando o cache); a
+presença local dos scripts é reconferida a cada abertura, refletindo o que
+você acabou de salvar.
+
 ## Segurança (por design)
 
 - **Por padrão escuta só em `127.0.0.1`** — o proxy carrega a SUA sessão

@@ -209,6 +209,8 @@ func (s *Server) handleDashClearCaches(w http.ResponseWriter, r *http.Request) {
 	s.sim.processes = nil
 	s.sim.users = nil
 	s.sim.datasets = nil
+	s.sim.formsList = nil
+	s.sim.procDetails = nil
 	s.deploys = nil
 	s.sim.mu.Unlock()
 	s.invalidateProjectAudit()
