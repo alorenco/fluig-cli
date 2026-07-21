@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,8 @@ import (
 type helperStub struct {
 	installed    bool   // o fluigcliHelper responde ao ping
 	version      string // resposta do /api/version ("" = helper antigo, rota 404)
+	zoneID       string // fuso reportado (helper >= 0.4.0); "" = não reporta
+	zoneOffset   *int   // offset em minutos (nil = não reporta)
 	eventsBody   []WorkflowEvent
 	eventsPath   string
 	uploadedName string
@@ -39,7 +42,11 @@ func (s *helperStub) server(t *testing.T) *httptest.Server {
 			http.NotFound(w, r)
 			return
 		}
-		io.WriteString(w, `{"name":"fluigcliHelper","version":"`+s.version+`"}`)
+		body := `{"name":"fluigcliHelper","version":"` + s.version + `"`
+		if s.zoneOffset != nil {
+			body += `,"zoneId":"` + s.zoneID + `","offsetMinutes":` + strconv.Itoa(*s.zoneOffset)
+		}
+		io.WriteString(w, body+`}`)
 	})
 	mux.HandleFunc("/fluigcliHelper/api/workflows/", func(w http.ResponseWriter, r *http.Request) {
 		s.eventsPath = r.URL.Path
@@ -90,6 +97,20 @@ func TestHelperStatus(t *testing.T) {
 	c := helperClient(t, com.server(t).URL)
 	if info, err := c.HelperStatus(context.Background()); err != nil || !info.Installed || info.Version != "0.2.0" {
 		t.Errorf("com versão: %+v err=%v", info, err)
+	}
+
+	// helper 0.4.0: reporta o fuso da JVM (zoneId + offsetMinutes).
+	off := -180
+	comTZ := &helperStub{installed: true, version: "0.4.0", zoneID: "America/Sao_Paulo", zoneOffset: &off}
+	cTZ := helperClient(t, comTZ.server(t).URL)
+	if info, err := cTZ.HelperStatus(context.Background()); err != nil ||
+		info.ZoneID != "America/Sao_Paulo" || info.ZoneOffsetMinutes == nil || *info.ZoneOffsetMinutes != -180 {
+		t.Errorf("com fuso: %+v err=%v", info, err)
+	}
+
+	// versão sem fuso (0.2.0 acima) não preenche o fuso.
+	if info, _ := c.HelperStatus(context.Background()); info.ZoneOffsetMinutes != nil {
+		t.Errorf("sem fuso deveria ficar nil: %+v", info)
 	}
 
 	antigo := &helperStub{installed: true}

@@ -211,4 +211,60 @@ public class LogServiceTest {
             LogService.entryLevel("2026-07-18 09:00:02,000 ERROR [c] (t) quebrou\ndetalhe"));
         assertEquals(null, LogService.entryLevel("linha sem nivel nenhum aqui"));
     }
+
+    @Test
+    public void rangeSoAsEntradasDoIntervalo() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int h = 8; h <= 12; h++) {
+            sb.append("2026-07-18 ").append(String.format("%02d", h))
+              .append(":00:00,000 INFO  [c] (t) hora ").append(h).append('\n');
+        }
+        write("server.log", sb.toString());
+        // [09:00, 11:00] inclusivo => horas 9, 10, 11
+        List<String> e = service.range("server.log",
+            "2026-07-18T09:00:00", "2026-07-18T11:00:00", null, null).getEntries();
+        assertEquals(3, e.size());
+        assertTrue(e.get(0).contains("hora 9"));
+        assertTrue(e.get(2).contains("hora 11"));
+    }
+
+    @Test
+    public void rangeAgrupaContinuacoesEParaNoFim() throws Exception {
+        String content =
+            "2026-07-18 09:00:00,000 ERROR [c] (t) falhou\n" +
+            "\tat com.exemplo.Foo.bar(Foo.java:1)\n" +
+            "\tat com.exemplo.Baz.qux(Baz.java:2)\n" +
+            "2026-07-18 10:00:00,000 INFO  [c] (t) depois do intervalo\n";
+        write("server.log", content);
+        List<String> e = service.range("server.log",
+            "2026-07-18T08:00:00", "2026-07-18T09:30:00", null, null).getEntries();
+        assertEquals(1, e.size());
+        // stack trace inteiro numa entrada só
+        assertTrue(e.get(0).contains("falhou"));
+        assertTrue(e.get(0).contains("Foo.java:1"));
+        assertTrue(e.get(0).contains("Baz.java:2"));
+    }
+
+    @Test
+    public void rangeFiltraNivelELimitesVazios() throws Exception {
+        String content =
+            "2026-07-18 09:00:00,000 INFO  [c] (t) um\n" +
+            "2026-07-18 09:00:01,000 ERROR [c] (t) dois\n" +
+            "2026-07-18 09:00:02,000 WARN  [c] (t) tres\n";
+        write("server.log", content);
+        // sem limites (from/to vazios) + nível mínimo WARN => ERROR e WARN
+        List<String> e = service.range("server.log", "", "", "warn", null).getEntries();
+        assertEquals(2, e.size());
+        assertTrue(e.get(0).contains("dois"));
+        assertTrue(e.get(1).contains("tres"));
+    }
+
+    @Test
+    public void parseBoundPreencheSegundos() {
+        // toString() omite os segundos quando são :00
+        assertEquals("2026-07-18T09:30", LogService.parseBound("2026-07-18T09:30", false).toString());
+        assertEquals("2026-07-18T09:30:59", LogService.parseBound("2026-07-18 09:30", true).toString());
+        assertEquals(null, LogService.parseBound("", false));
+        assertEquals(null, LogService.parseBound(null, true));
+    }
 }

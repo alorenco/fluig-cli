@@ -57,11 +57,16 @@ func (c *Client) helperPong(ctx context.Context) bool {
 type HelperInfo struct {
 	Installed bool   `json:"installed"`
 	Version   string `json:"version,omitempty"`
+	// Fuso da JVM do servidor (helper >= 0.4.0). ZoneOffsetMinutes é nil quando
+	// o helper não reporta — offset 0 é UTC válido, por isso ponteiro.
+	ZoneID            string `json:"zoneId,omitempty"`
+	ZoneOffsetMinutes *int   `json:"zoneOffsetMinutes,omitempty"`
 }
 
-// HelperStatus devolve instalação + versão do fluigcliHelper. A versão é
-// best-effort: helper antigo (0.1.0, sem o GET /api/version) fica com versão
-// vazia — instalado, mas desatualizado.
+// HelperStatus devolve instalação + versão do fluigcliHelper (e, a partir do
+// 0.4.0, o fuso da JVM do servidor). A versão é best-effort: helper antigo
+// (0.1.0, sem o GET /api/version) fica com versão vazia — instalado, mas
+// desatualizado.
 func (c *Client) HelperStatus(ctx context.Context) (HelperInfo, error) {
 	installed, err := c.HelperInstalled(ctx)
 	if err != nil || !installed {
@@ -73,10 +78,14 @@ func (c *Client) HelperStatus(ctx context.Context) (HelperInfo, error) {
 		return info, nil
 	}
 	var parsed struct {
-		Version string `json:"version"`
+		Version       string `json:"version"`
+		ZoneID        string `json:"zoneId"`
+		OffsetMinutes *int   `json:"offsetMinutes"`
 	}
 	if json.Unmarshal(body, &parsed) == nil {
 		info.Version = parsed.Version
+		info.ZoneID = parsed.ZoneID
+		info.ZoneOffsetMinutes = parsed.OffsetMinutes
 	}
 	return info, nil
 }

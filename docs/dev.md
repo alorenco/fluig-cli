@@ -286,13 +286,30 @@ no servidor conectado (sem ele o painel orienta o
   abriu.
 - **Colorização**: ERROR/FATAL em vermelho, WARN em amarelo, DEBUG esmaecido
   — o console é escuro nos dois temas.
-- **Stack traces recolhidos**: entrada ERROR com várias linhas (o stack trace
-  Java) mostra só a mensagem principal, com um botão **▸ mostrar +N linhas**
-  que expande o restante (e recolhe de volta). Entradas dos demais níveis
-  continuam integrais.
+- **Entradas grandes recolhidas**: uma entrada extensa mostra só a mensagem
+  principal, com um botão **▸ mostrar +N linhas** que expande o restante (e
+  recolhe de volta). Recolhem o **ERROR/FATAL** (o stack trace Java, sempre) e
+  o **WARN/INFO** quando passam de algumas linhas de continuação; **DEBUG/TRACE**
+  ficam sempre integrais.
+- **Fuso dos horários** (🕓): o timestamp do log é a hora de parede do
+  servidor, **sem offset**. Com o `fluigcliHelper` 0.4.0+ (que reporta o fuso
+  da JVM) o botão **🕓 servidor ⇄ 🕓 navegador** converte os horários para o
+  fuso do navegador (a preferência fica salva). Se o servidor estiver no mesmo
+  fuso do navegador — ou com helper antigo, que não reporta o fuso — o botão
+  não aparece (não há o que converter).
+- **Buscar intervalo** (📅): abre uma janela flutuante com "início" e "fim"
+  (data/hora) para resgatar o log de um momento específico do arquivo
+  selecionado. Ao aplicar, o painel troca do ao vivo para um **snapshot** do
+  intervalo (banner "Intervalo · N entradas · voltar ao vivo"); os filtros de
+  nível/palavra e o 🕓 continuam valendo. As datas são interpretadas no fuso
+  que está na tela (o mesmo do 🕓). Requer o `fluigcliHelper` 0.5.0+ (o botão
+  some com helper mais antigo). A busca é só no arquivo do seletor — para um
+  log de dias atrás, escolha o arquivo rotacionado na lista.
 - **Pausar/retomar**: congela a rolagem para ler com calma; as linhas
   continuam chegando (o contador mostra quantas esperam) e aparecem ao
-  retomar. **Auto-rolagem** e **limpar** completam a barra.
+  retomar. **Auto-rolagem** e **limpar** completam a barra. Os botões de
+  pausa (⏸), limpar (🧹) e baixar (⬇) são só-ícone (a descrição fica no
+  tooltip) para a barra caber numa linha.
 - **⬇ baixar** entrega o arquivo inteiro pelo próprio proxy autenticado.
 
 Por trás: um poller no dev server consulta o helper por offset (a cada 2 s)

@@ -1,11 +1,15 @@
 package com.fluigcli.helper.service;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,6 +21,7 @@ import java.util.regex.Pattern;
 
 import com.fluigcli.helper.dto.LogChunkDto;
 import com.fluigcli.helper.dto.LogFileDto;
+import com.fluigcli.helper.dto.LogRangeDto;
 import com.fluigcli.helper.dto.LogTailDto;
 
 /**
@@ -183,6 +188,70 @@ public class LogService {
         }
     }
 
+    // Formato do timestamp do WildFly, até os segundos: "yyyy-MM-dd HH:mm:ss".
+    // O log não carrega fuso — a comparação é toda em hora local do servidor,
+    // e o cliente já converte os limites [from,to] para essa hora.
+    private static final DateTimeFormatter TS_FMT =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * Entradas cujo timestamp cai em [from, to], varrendo o arquivo para frente.
+     * O log é (aproximadamente) ordenado no tempo, então a varredura PARA ao
+     * passar de `to` — sem ler o arquivo inteiro à toa. from/to no formato
+     * "yyyy-MM-dd HH:mm:ss" (ou com 'T'; segundos opcionais); vazios = sem
+     * limite naquele lado. Mesmos filtros e tetos do tail (nível/substring,
+     * MAX_ENTRIES/2 MB → truncated). Entradas sem timestamp reconhecível não
+     * podem ser situadas no tempo e são ignoradas.
+     */
+    public LogRangeDto range(String name, String from, String to, String level, String grep) throws IOException {
+        File f = resolve(name);
+        LocalDateTime lo = parseBound(from, false);
+        LocalDateTime hi = parseBound(to, true);
+        RangeCollector c = new RangeCollector(lo, hi, levelRank(level),
+            grep == null || grep.isEmpty() ? null : grep.toLowerCase(Locale.ROOT));
+
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
+            String line;
+            while (!c.done() && (line = br.readLine()) != null) {
+                c.line(line);
+            }
+            c.finish();
+        }
+        return new LogRangeDto(name, from, to, c.entries, c.truncated);
+    }
+
+    // Limite [from|to]: aceita "yyyy-MM-dd['T'| ]HH:mm[:ss]"; sem segundos, o
+    // início vira :00 e o fim :59 (intervalo do minuto inclusivo). null = vazio.
+    static LocalDateTime parseBound(String s, boolean end) {
+        if (s == null || s.trim().isEmpty()) {
+            return null;
+        }
+        String v = s.trim().replace('T', ' ');
+        if (v.length() == 16) { // "yyyy-MM-dd HH:mm" sem segundos
+            v += end ? ":59" : ":00";
+        }
+        try {
+            return LocalDateTime.parse(v.substring(0, Math.min(19, v.length())), TS_FMT);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // Timestamp da primeira linha da entrada (os 19 primeiros caracteres), ou
+    // null se a linha não começa com um timestamp reconhecível.
+    static LocalDateTime parseEntryTime(String head) {
+        if (head == null || head.length() < 19) {
+            return null;
+        }
+        String s = head.substring(0, 19).replace('T', ' ');
+        try {
+            return LocalDateTime.parse(s, TS_FMT);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static String decodeLine(byte[] buf, int start, int end) {
         if (end > start && buf[end - 1] == '\r') {
             end--;
@@ -284,6 +353,105 @@ public class LogService {
                     sb.append('\n');
                 }
                 sb.append(pending.get(i));
+            }
+            return sb.toString();
+        }
+    }
+
+    // Varre para FRENTE: agrupa cada entrada (cabeçalho + continuações na
+    // ordem) e coleta as que caem no intervalo. Para ao passar do fim.
+    static final class RangeCollector {
+        final List<String> entries = new ArrayList<>();
+        boolean truncated;
+
+        private final LocalDateTime lo;
+        private final LocalDateTime hi;
+        private final Integer minLevel;
+        private final String needle;
+        private long bytes;
+        private boolean stopped;
+        private String head;
+        private final List<String> cont = new ArrayList<>();
+
+        RangeCollector(LocalDateTime lo, LocalDateTime hi, Integer minLevel, String needle) {
+            this.lo = lo;
+            this.hi = hi;
+            this.minLevel = minLevel;
+            this.needle = needle;
+        }
+
+        boolean done() {
+            return stopped;
+        }
+
+        void line(String line) {
+            if (stopped) {
+                return;
+            }
+            if (ENTRY_START.matcher(line).find()) {
+                flush();
+                head = line;
+                cont.clear();
+            } else if (head != null && cont.size() < MAX_ENTRY_LINES) {
+                cont.add(line);
+            }
+            // Continuação antes de qualquer cabeçalho: sem timestamp, ignorada.
+        }
+
+        void finish() {
+            flush();
+        }
+
+        private void flush() {
+            if (head == null) {
+                return;
+            }
+            LocalDateTime ts = parseEntryTime(head);
+            String h = head;
+            head = null;
+            if (ts == null) {
+                return; // sem timestamp: não dá para situar no tempo
+            }
+            if (lo != null && ts.isBefore(lo)) {
+                return; // antes do intervalo: segue varrendo
+            }
+            if (hi != null && ts.isAfter(hi)) {
+                stopped = true; // passou do fim: o log é ordenado, encerra
+                return;
+            }
+            String entry = join(h, cont);
+            if (!matches(entry)) {
+                return;
+            }
+            if (bytes + entry.length() > MAX_TAIL_BYTES && !entries.isEmpty()) {
+                truncated = true;
+                stopped = true;
+                return;
+            }
+            entries.add(entry);
+            bytes += entry.length();
+            if (entries.size() >= MAX_ENTRIES) {
+                truncated = true;
+                stopped = true;
+            }
+        }
+
+        private boolean matches(String entry) {
+            if (needle != null && !entry.toLowerCase(Locale.ROOT).contains(needle)) {
+                return false;
+            }
+            if (minLevel != null) {
+                Integer rank = entryLevel(entry);
+                return rank != null && rank >= minLevel;
+            }
+            return true;
+        }
+
+        // Continuações na ordem natural (varredura para frente).
+        private static String join(String head, List<String> cont) {
+            StringBuilder sb = new StringBuilder(head);
+            for (String line : cont) {
+                sb.append('\n').append(line);
             }
             return sb.toString();
         }

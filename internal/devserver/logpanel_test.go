@@ -37,7 +37,11 @@ func logUpstream(t *testing.T, helper bool) *httptest.Server {
 		io.WriteString(w, "pong")
 	})
 	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.3.0"}`)
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.5.0","zoneId":"America/Sao_Paulo","offsetMinutes":-180}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/range", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"file":"server.log","from":"2026-07-18T09:00:00","to":"2026-07-18T09:10:00",`+
+			`"entries":["2026-07-18 09:00:01,000 INFO  [c] (t) dentro do intervalo"],"truncated":false}`)
 	})
 	mux.HandleFunc("/fluigcliHelper/api/logs", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `[{"name":"console.log","size":10,"lastModified":1784500000000},`+
@@ -95,13 +99,48 @@ func TestLogFilesAPI(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	var payload struct {
-		Files []fluig.ServerLogFile `json:"files"`
+		Files    []fluig.ServerLogFile `json:"files"`
+		ServerTZ *struct {
+			ZoneID        string `json:"zoneId"`
+			OffsetMinutes int    `json:"offsetMinutes"`
+		} `json:"serverTZ"`
+		LogRange bool `json:"logRange"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
 	}
 	if len(payload.Files) != 2 || payload.Files[1].Name != "server.log" {
 		t.Errorf("files: %+v", payload.Files)
+	}
+	if payload.ServerTZ == nil || payload.ServerTZ.ZoneID != "America/Sao_Paulo" || payload.ServerTZ.OffsetMinutes != -180 {
+		t.Errorf("serverTZ inesperado: %+v", payload.ServerTZ)
+	}
+	if !payload.LogRange {
+		t.Errorf("logRange deveria ser true (helper 0.5.0)")
+	}
+}
+
+func TestLogRangeAPI(t *testing.T) {
+	_, ts := newLogTestServer(t, logUpstream(t, true), true)
+	resp, err := http.Get(ts.URL + "/_dev/api/log/range?file=server.log&from=2026-07-18T09:00:00&to=2026-07-18T09:10:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var payload struct {
+		File      string   `json:"file"`
+		Entries   []string `json:"entries"`
+		Truncated bool     `json:"truncated"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.File != "server.log" || len(payload.Entries) != 1 ||
+		!strings.Contains(payload.Entries[0], "dentro do intervalo") {
+		t.Errorf("range inesperado: %+v", payload)
 	}
 }
 

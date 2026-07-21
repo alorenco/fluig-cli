@@ -16,6 +16,7 @@ import javax.ws.rs.core.MediaType;
 
 import com.fluigcli.helper.dto.LogChunkDto;
 import com.fluigcli.helper.dto.LogFileDto;
+import com.fluigcli.helper.dto.LogRangeDto;
 import com.fluigcli.helper.dto.LogTailDto;
 import com.fluigcli.helper.service.LogService;
 
@@ -45,6 +46,26 @@ public class LogController extends BaseController {
     ) {
         try {
             return new LogService().tail(file, lines, skip, level, grep);
+        } catch (FileNotFoundException e) {
+            throw new NotFoundException();
+        } catch (Exception e) {
+            log.error("Erro ao ler o log \"" + file + "\"", e);
+            throw new InternalServerErrorException("Consulte o log do Fluig para mais informações.");
+        }
+    }
+
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/{file: [a-zA-Z0-9_.\\-]+}/range")
+    public LogRangeDto range(
+        @PathParam("file") String file,
+        @QueryParam("from") String from,
+        @QueryParam("to") String to,
+        @QueryParam("level") String level,
+        @QueryParam("grep") String grep
+    ) {
+        try {
+            return new LogService().range(file, from, to, level, grep);
         } catch (FileNotFoundException e) {
             throw new NotFoundException();
         } catch (Exception e) {

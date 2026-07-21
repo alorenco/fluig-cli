@@ -22,6 +22,7 @@ const (
 	logPanelPath    = "/_dev/logs/"
 	logFilesAPIPath = "/_dev/api/log/files"
 	logStreamPath   = "/_dev/api/log/stream"
+	logRangeAPIPath = "/_dev/api/log/range"
 )
 
 // logPollInterval é variável para os testes encurtarem a espera.
@@ -240,7 +241,50 @@ func (s *Server) handleLogFilesAPI(w http.ResponseWriter, r *http.Request) {
 	if files == nil {
 		files = []fluig.ServerLogFile{}
 	}
-	simJSON(w, map[string]any{"files": files})
+	payload := map[string]any{"files": files}
+	// Fuso do servidor (helper >= 0.4.0), para o painel converter os horários
+	// do log — o timestamp do server.log não carrega offset. Best-effort: sem
+	// helper novo, o painel só mostra o horário do servidor.
+	if info, err := s.opts.Client.HelperStatus(r.Context()); err == nil {
+		if info.ZoneOffsetMinutes != nil {
+			payload["serverTZ"] = map[string]any{"zoneId": info.ZoneID, "offsetMinutes": *info.ZoneOffsetMinutes}
+		}
+		payload["logRange"] = info.Installed && fluig.HelperSupportsLogRange(info.Version)
+	}
+	simJSON(w, payload)
+}
+
+// handleLogRangeAPI busca (one-shot) as entradas de um arquivo num intervalo
+// de tempo — o "resgatar um log num momento específico" do painel. From/To já
+// chegam em hora local do servidor (o painel converte conforme o 🕓).
+func (s *Server) handleLogRangeAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if s.opts.Client == nil {
+		simError(w, http.StatusServiceUnavailable, "dev server sem cliente autenticado — o painel de logs fica indisponível")
+		return
+	}
+	q := r.URL.Query()
+	file := strings.TrimSpace(q.Get("file"))
+	if file == "" {
+		file = fluig.DefaultServerLog
+	}
+	res, err := s.opts.Client.RangeServerLog(r.Context(), fluig.ServerLogRangeOptions{
+		File:  file,
+		From:  strings.TrimSpace(q.Get("from")),
+		To:    strings.TrimSpace(q.Get("to")),
+		Level: strings.TrimSpace(q.Get("level")),
+		Grep:  strings.TrimSpace(q.Get("grep")),
+	})
+	if err != nil {
+		simError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	simJSON(w, map[string]any{
+		"file":      res.File,
+		"entries":   res.Entries,
+		"truncated": res.Truncated,
+	})
 }
 
 // handleLogStream é o endpoint SSE do painel: backlog + linhas novas.

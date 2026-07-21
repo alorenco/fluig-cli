@@ -136,6 +136,7 @@ func New(opts Options) (*Server, error) {
 	mux.HandleFunc(logPanelPath, s.handleLogPanel)
 	mux.HandleFunc(logFilesAPIPath, s.handleLogFilesAPI)
 	mux.HandleFunc(logStreamPath, s.handleLogStream)
+	mux.HandleFunc(logRangeAPIPath, s.handleLogRangeAPI)
 	mux.HandleFunc(auditAPIPath, s.handleAuditAPI)
 	mux.HandleFunc(auditProjectAPIPath, s.handleAuditProjectAPI)
 	mux.HandleFunc(statusAPIPath, s.handleStatusAPI)

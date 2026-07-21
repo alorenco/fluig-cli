@@ -1,6 +1,8 @@
 package com.fluigcli.helper.controller;
 
 import java.io.InputStream;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Properties;
 
 import javax.ws.rs.GET;
@@ -29,6 +31,18 @@ public class VersionController extends BaseController {
             log.error("Erro ao ler a versão do application.info", e);
         }
 
-        return new HelperInfoDto("fluigcliHelper", version);
+        // Fuso da JVM: é a mesma zona em que o server.log é escrito (o timestamp
+        // do log não traz offset), então o painel converte para o navegador.
+        String zoneId = "";
+        Integer offsetMinutes = null;
+        try {
+            ZoneId zone = ZoneId.systemDefault();
+            zoneId = zone.getId();
+            offsetMinutes = zone.getRules().getOffset(Instant.now()).getTotalSeconds() / 60;
+        } catch (Exception e) {
+            log.error("Erro ao resolver o fuso da JVM", e);
+        }
+
+        return new HelperInfoDto("fluigcliHelper", version, zoneId, offsetMinutes);
     }
 }

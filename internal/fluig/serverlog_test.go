@@ -16,9 +16,11 @@ import (
 type logStub struct {
 	version        string // "" = helper antigo, sem GET /api/version
 	hasLogAPI      bool
+	hasRangeAPI    bool // rota /range (helper >= 0.5.0)
 	tailFixture    string // resposta do tail ("" = helper_log_tail.json)
 	tailQuery      url.Values
 	readQuery      url.Values
+	rangeQuery     url.Values
 	acceptDownload string
 }
 
@@ -60,6 +62,15 @@ func (s *logStub) server(t *testing.T) *httptest.Server {
 				fixture = "helper_log_tail.json"
 			}
 			w.Write(testdata(t, fixture))
+		case "/fluigcliHelper/api/logs/server.log/range":
+			if !s.hasRangeAPI {
+				http.NotFound(w, r)
+				return
+			}
+			s.rangeQuery = r.URL.Query()
+			io.WriteString(w, `{"file":"server.log","from":"2026-07-18T09:00:00","to":"2026-07-18T09:30:00",`+
+				`"entries":["2026-07-18 09:00:01,000 INFO  [c] (t) a",`+
+				`"2026-07-18 09:00:02,000 ERROR [c] (t) b\n\tat com.exemplo.Foo.bar(Foo.java:1)"],"truncated":false}`)
 		case "/fluigcliHelper/api/logs/server.log/read":
 			s.readQuery = r.URL.Query()
 			io.WriteString(w, `{"file":"server.log","from":100,"to":142,"size":142,"content":"2026-07-18 09:00:04,000 INFO  [c] (t) x\n"}`)
@@ -154,6 +165,49 @@ func TestTailServerLog404(t *testing.T) {
 	_, err = c2.TailServerLog(context.Background(), ServerLogTailOptions{})
 	if !errors.Is(err, ErrHelperOutdated) {
 		t.Errorf("quer ErrHelperOutdated, veio %v", err)
+	}
+}
+
+func TestRangeServerLog(t *testing.T) {
+	stub := &logStub{version: "0.5.0", hasLogAPI: true, hasRangeAPI: true}
+	c := helperClient(t, stub.server(t).URL)
+	res, err := c.RangeServerLog(context.Background(), ServerLogRangeOptions{
+		From: "2026-07-18T09:00:00", To: "2026-07-18T09:30:00", Level: "info", Grep: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q := stub.rangeQuery; q.Get("from") != "2026-07-18T09:00:00" || q.Get("to") != "2026-07-18T09:30:00" ||
+		q.Get("level") != "info" || q.Get("grep") != "x" {
+		t.Errorf("query enviada: %v", q)
+	}
+	if len(res.Entries) != 2 || res.Truncated {
+		t.Errorf("range inesperado: %+v", res)
+	}
+	if !strings.Contains(res.Entries[1], "\n\tat com.exemplo.Foo.bar") {
+		t.Errorf("entrada multi-linha não preservada: %q", res.Entries[1])
+	}
+}
+
+// Helper < 0.5.0 (sem a rota /range): a busca por intervalo orienta a atualizar.
+func TestRangeServerLogHelperAntigo(t *testing.T) {
+	stub := &logStub{version: "0.4.0", hasLogAPI: true, hasRangeAPI: false}
+	c := helperClient(t, stub.server(t).URL)
+	_, err := c.RangeServerLog(context.Background(), ServerLogRangeOptions{From: "2026-07-18T09:00:00"})
+	if !errors.Is(err, ErrHelperOutdated) {
+		t.Errorf("quer ErrHelperOutdated, veio %v", err)
+	}
+}
+
+func TestHelperVersionCompare(t *testing.T) {
+	if !helperHasRangeAPI("0.5.0") || !HelperSupportsLogRange("1.0.0") {
+		t.Error("0.5.0/1.0.0 deveriam suportar range")
+	}
+	if helperHasRangeAPI("0.4.0") || helperHasRangeAPI("0.3.0") || HelperSupportsLogRange("") {
+		t.Error("< 0.5.0 (e versão vazia) não suportam range")
+	}
+	if !helperHasLogAPI("0.3.0") || helperHasLogAPI("0.2.0") {
+		t.Error("log API a partir do 0.3.0")
 	}
 }
 
