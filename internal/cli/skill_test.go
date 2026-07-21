@@ -20,7 +20,7 @@ func TestSkillInstallClaude(t *testing.T) {
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
 	}
-	for _, rel := range []string{"SKILL.md", "reference/contract.md", "reference/commands.md"} {
+	for _, rel := range []string{"SKILL.md", "reference/contract.md", "reference/commands.md", "reference/fluig.d.ts"} {
 		got, err := os.ReadFile(filepath.Join(proj, ".claude", "skills", "fluigcli", filepath.FromSlash(rel)))
 		if err != nil {
 			t.Fatalf("arquivo %s não instalado: %v", rel, err)
@@ -232,5 +232,36 @@ func TestSkillCommandsDocCoversEveryGroup(t *testing.T) {
 		if !strings.Contains(doc, "## "+name) && !strings.Contains(doc, "`"+name+" ") && !strings.Contains(doc, "`"+name+"`") {
 			t.Errorf("grupo de comando %q não é citado em reference/commands.md — atualize a skill", name)
 		}
+	}
+}
+
+// A referência de tipos do Fluig (fork do fluig-declaration-type da
+// Fluiggers) precisa continuar embutida e íntegra: cabeçalho de atribuição
+// (MIT) + as declarações das APIs que a skill manda consultar. Um re-sync
+// mal feito com o upstream falharia aqui.
+func TestSkillFluigTypesReferencia(t *testing.T) {
+	data, err := skillassets.FS.ReadFile("fluigcli/reference/fluig.d.ts")
+	if err != nil {
+		t.Fatalf("reference/fluig.d.ts não está embutido: %v", err)
+	}
+	doc := string(data)
+	for _, marker := range []string{
+		"fluig-declaration-type", "Bruno Gasparetto", // atribuição MIT do fork
+		"declare class FormController", "declare namespace FLUIGC",
+		"declare namespace DatasetFactory", "declare namespace DatasetBuilder",
+		"hAPI", "\"WKUser\"", "declare namespace WCMAPI",
+		"declare function wdkAddChild", "declare namespace docAPI",
+	} {
+		if !strings.Contains(doc, marker) {
+			t.Errorf("fluig.d.ts sem %q — o fork foi corrompido ou re-sincronizado sem o cabeçalho", marker)
+		}
+	}
+	// A skill precisa apontar para a referência.
+	skill, err := skillassets.FS.ReadFile("fluigcli/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(skill), "reference/fluig.d.ts") {
+		t.Error("SKILL.md não cita reference/fluig.d.ts")
 	}
 }

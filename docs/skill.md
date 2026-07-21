@@ -13,7 +13,9 @@ skills/fluigcli/
 ├── SKILL.md              # Skill do Claude Code (frontmatter + guia)
 ├── reference/
 │   ├── contract.md       # envelope --json + tabela de exit codes
-│   └── commands.md       # mapa de comandos e receitas
+│   ├── commands.md       # mapa de comandos e receitas
+│   ├── styleguide.md     # Style Guide 2.0: variáveis do tema e substituições
+│   └── fluig.d.ts        # assinaturas das APIs de script (hAPI, form, FLUIGC…)
 └── codex/AGENTS.md       # mesmo guia, condensado, para o AGENTS.md do Codex
 ```
 

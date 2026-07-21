@@ -253,6 +253,11 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
   a widget auxiliar da comunidade (MIT) que serviu de base ao `fluigcliHelper`,
   o componente que a CLI instala no servidor (`fluigcli server install-helper`,
   fonte em [helper/](helper/)) para as operações sem API nativa no Fluig.
+- **[fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)** —
+  a declaração de tipos da comunidade (MIT) com as assinaturas das APIs de
+  script do Fluig (`hAPI`, `form`, `FLUIGC`, datasets…), cujo fork é a
+  referência de API da skill de agentes
+  ([skills/fluigcli/reference/fluig.d.ts](skills/fluigcli/reference/fluig.d.ts)).
 - **[logfluig2.0](https://github.com/matheusnevoa/logfluig2.0)** — o WAR da
   comunidade para ver o server.log pelo navegador, que validou o caminho dos
   endpoints de log do `fluigcliHelper` (resolução do diretório pelo

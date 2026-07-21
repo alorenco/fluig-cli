@@ -83,7 +83,12 @@ fluigcli dataset export --help
    `forms/`…). Para criar um artefato **do zero**, use o scaffold do grupo
    (`dataset new`, `form new`, `event new`, `mechanism new`, `widget new`,
    `workflow new-script <pid> <evento>`) — gera o esqueleto local correto,
-   sem tocar o servidor.
+   sem tocar o servidor. Ao escrever o código JS, as **assinaturas exatas**
+   das APIs do Fluig (server-side: `hAPI`, `getValue`/variáveis `WK*`,
+   `DatasetBuilder`/`DatasetFactory`, `docAPI`, SDK `com.fluig.sdk.*`;
+   client-side: `form.*`, `FLUIGC`, `WCMAPI`, `wdkAddChild`) estão em
+   [`reference/fluig.d.ts`](reference/fluig.d.ts) — **consulte-o via grep**
+   (é grande) em vez de adivinhar método ou variável.
 3. Em formulário ou widget: **escreva já conforme o Style Guide 2.0**
    ([`reference/styleguide.md`](reference/styleguide.md): variáveis do tema,
    substituições comuns, FLUIGC) e confira com `fluigcli audit <path> --json`
