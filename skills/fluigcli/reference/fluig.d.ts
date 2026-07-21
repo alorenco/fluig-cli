@@ -374,6 +374,36 @@ declare namespace docAPI {
      * @returns Nomes dos arquivos que foram disponibilizados na área de upload
      */
     declare function copyDocumentToUploadArea(documentId: number, version: number): string[];
+
+    // [fork fluigcli] Métodos documentados na TDN (docAPI) e em uso em
+    // datasets/eventos em produção; faltavam no upstream.
+
+    /**
+     * Cria um DocumentDto vazio para usar com createFolder/createDocument
+     */
+    declare function newDocumentDto(): DocumentDto;
+
+    /**
+     * Cria uma pasta no GED a partir de um DocumentDto (documentType "1")
+     */
+    declare function createFolder(documentDto: DocumentDto, approvers: object, securityConfigs: object): DocumentDto;
+
+    /**
+     * Exclui (envia para a lixeira) um documento ou pasta pelo ID
+     */
+    declare function deleteDocument(documentId: number): void;
+
+    /**
+     * Cria um AttachmentDto vazio (setFileName/setPrincipal/setAttach) para
+     * compor a lista de anexos do createDocument
+     */
+    declare function newAttachment(): object;
+
+    /**
+     * Cria um documento no GED a partir de um DocumentDto + anexos
+     * (java.util.ArrayList de AttachmentDto)
+     */
+    declare function createDocument(documentDto: DocumentDto, attachments: object, relations: object, approvers: object, securityConfigs: object): DocumentDto;
 }
 
 /**
@@ -1834,6 +1864,55 @@ declare namespace FLUIGC {
      * @param callback Função para executar após a criação da modal
      */
     declare function modal(settings: ModalSettings, callback: ModalCallback): FluigcModal;
+
+    /**
+     * Cria uma tabela com paginação e busca (Datatable do Style Guide)
+     *
+     * [fork fluigcli] Presente em https://style.fluig.com/javascript.html#datatable
+     * e no bundle real do 2.0; faltava no upstream.
+     *
+     * @param target Seletor JQuery do container
+     * @param settings Configurações do datatable (dataRequest, renderContent, header...)
+     * @param callback Função executada após a montagem
+     */
+    declare function datatable(target: string, settings: object, callback?: ErrorCallback): object;
+
+    /**
+     * Copia conteúdo para a área de transferência
+     *
+     * [fork fluigcli] Presente em https://style.fluig.com/javascript.html#copy-to-clipboard
+     * e no bundle real do 2.0; faltava no upstream.
+     *
+     * @param target Seletor JQuery do gatilho (ex.: um botão)
+     * @param settings Configurações (ex.: de onde copiar)
+     */
+    declare function copy(target: string, settings: object): void;
+}
+
+/**
+ * Slider (range) do Style Guide
+ *
+ * [fork fluigcli] Existe no bundle real do 2.0 (fluig-style-guide.min.js) com
+ * estes membros, embora não esteja na página de documentação; faltava no
+ * upstream. Uso típico: FLUIGC.slider.init('#campo', {...}) e
+ * FLUIGC.slider.onSlide('#campo', function (ev) {...}).
+ */
+declare namespace FLUIGC.slider {
+    declare function init(target: string, settings: object): void;
+    declare function getValue(target: string): number;
+    declare function setValue(target: string, value: number): void;
+    declare function destroy(target: string): void;
+    declare function disable(target: string): void;
+    declare function enable(target: string): void;
+    declare function isEnabled(target: string): boolean;
+    declare function toggle(target: string): void;
+    declare function refresh(target: string): void;
+    declare function onSlide(target: string, callback: (event: object) => void): void;
+    declare function onSlideSendScope(target: string, callback: (event: object) => void, scope: object): void;
+    declare function onSlideStart(target: string, callback: (event: object) => void): void;
+    declare function onSlideStartSendScope(target: string, callback: (event: object) => void, scope: object): void;
+    declare function onSlideStop(target: string, callback: (event: object) => void): void;
+    declare function onSlideStopSendScope(target: string, callback: (event: object) => void, scope: object): void;
 }
 
 /**
@@ -2037,6 +2116,14 @@ declare function wdkAddChild(tableName: string): number;
 declare class FormController {
 
     /**
+     * Retorna um mapa com todos os campos e valores do formulário
+     *
+     * [fork fluigcli] API real (validada em servidor Voyager 2.0.0 em eventos
+     * displayFields de formulários em produção); faltava no upstream.
+     */
+    getCardData(): java.util.Map<java.lang.String, java.lang.String>;
+
+    /**
      * Retorna o ID da empresa
      */
     getCompanyId(): number;
@@ -2234,6 +2321,10 @@ type getValuePropertiesInteger =
     "WKNumState"
     | "WKNextState"
     | "WKNumProces"
+    // [fork fluigcli] sequence da atividade corrente (útil no afterTaskCreate,
+    // onde WKNumState ainda aponta a atividade anterior); documentada na TDN
+    // (Eventos de Processos), faltava no upstream.
+    | "WKCurrentState"
     | "WKVersDef"
     | "WKCardId"
     | "WKActualThread"
@@ -2982,6 +3073,37 @@ declare namespace WCMAPI {
      * Encerra a sessão do usuário
      */
     declare function logoff(): void;
+
+    // [fork fluigcli] Funções presentes no wcmapi.js real do portal (Voyager
+    // 2.0.0); faltavam no upstream. A família getUser* devolve os dados do
+    // usuário logado (getUserCode = matrícula/código, getUserLogin = login).
+
+    declare function getUser(): object;
+    declare function getUserCode(): string;
+    declare function getUserLogin(): string;
+    declare function getUserEmail(): string;
+    declare function getUserFirstName(): string;
+    declare function getUserLastName(): string;
+    declare function getUserId(): string;
+    declare function getUserIsLogged(): boolean;
+    declare function getUserType(): string;
+    declare function getLocale(): string;
+    declare function getTimezone(): string;
+    declare function getTenantId(): number;
+    declare function getFluigVersion(): string;
+    declare function isAdmin(): boolean;
+    declare function isIe(): boolean;
+    declare function isIe9(): boolean;
+
+    /**
+     * Converte um template FreeMarker em HTML (síncrono)
+     */
+    declare function convertFtl(template: string, data: object): string;
+
+    /**
+     * Converte um template FreeMarker em HTML (assíncrono)
+     */
+    declare function convertFtlAsync(template: string, data: object, callback: DataCallback): void;
 }
 
 interface WidgetUpdatePreferences {

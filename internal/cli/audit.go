@@ -18,10 +18,12 @@ func newAuditCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "audit [<path>...]",
-		Short: "Audita formulários e widgets contra o Fluig Style Guide 2.0 (read-only)",
-		Long: "Linter estático de conformidade com o Fluig Style Guide 2.0: varre forms/ e\n" +
-			"wcm/widget/ (ou os caminhos informados) e aponta o que briga com o tema fixo\n" +
-			"da plataforma. Nada é alterado nem enviado ao servidor.\n\n" +
+		Short: "Audita o projeto: Style Guide 2.0 e APIs de script do Fluig (read-only)",
+		Long: "Linter estático do projeto Fluig: varre forms/, wcm/widget/, datasets/,\n" +
+			"events/, mechanisms/ e workflow/scripts/ (ou os caminhos informados) e\n" +
+			"aponta o que briga com o tema fixo da plataforma (regras SG*) e as chamadas\n" +
+			"de API que não existem (regras FL*, sobre a referência fluig.d.ts embutida).\n" +
+			"Nada é alterado nem enviado ao servidor.\n\n" +
 			"Regras:\n" +
 			"  SG001 (aviso)  referência ao CSS legado do style guide (404 no 2.0)\n" +
 			"  SG002 (erro)   recurso externo — CDN, Google Fonts etc.\n" +
@@ -29,7 +31,11 @@ func newAuditCmd(app *App) *cobra.Command {
 			"  SG004 (aviso)  !important sobre classe do style guide\n" +
 			"  SG005 (aviso)  estilo inline (style=)\n" +
 			"  SG006 (aviso)  classe fs-* que não existe no catálogo do servidor\n" +
-			"  SG007 (aviso)  alert/confirm/prompt nativos em vez do FLUIGC\n\n" +
+			"  SG007 (aviso)  alert/confirm/prompt nativos em vez do FLUIGC\n" +
+			"  FL001 (aviso)  método hAPI.* que não existe (provável typo)\n" +
+			"  FL002 (aviso)  variável WK* desconhecida em getValue() — devolve null em silêncio\n" +
+			"  FL003 (aviso)  método form.* que não existe no FormController (eventos de form)\n" +
+			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n\n" +
 			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
 			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
 			"relatório para correção manual.\n\n" +

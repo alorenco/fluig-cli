@@ -114,7 +114,7 @@ fluigcli diff --json | jq '.data.counts'
 | `workflow` | `new-script` `list` `version` `import` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
-| `audit` | audita forms/widgets contra o Style Guide 2.0 (cores fixas, CDNs, CSS legado) | [docs/audit.md](docs/audit.md) |
+| `audit` | linter do projeto: Style Guide 2.0 (cores fixas, CDNs, CSS legado) + typos de API (hAPI, getValue, FLUIGC…) | [docs/audit.md](docs/audit.md) |
 | `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
 | `dev` | dev server com live reload: widgets sem deploy + preview de formulários com simulação de processo (WKNumState/etapas reais) | [docs/dev.md](docs/dev.md) |
 
@@ -248,21 +248,14 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
 ## Inspirações e agradecimentos
 
 - **[fluig-vscode-extension](https://github.com/fluiggers/fluig-vscode-extension)** —
-  extensão VS Code para desenvolvimento Fluig, a principal inspiração desta CLI.
+  extensão VS Code para desenvolvimento Fluig.
 - **[fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)** —
-  a widget auxiliar da comunidade (MIT) que serviu de base ao `fluigcliHelper`,
-  o componente que a CLI instala no servidor (`fluigcli server install-helper`,
-  fonte em [helper/](helper/)) para as operações sem API nativa no Fluig.
+  widget auxiliar da comunidade (MIT).
 - **[fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)** —
-  a declaração de tipos da comunidade (MIT) com as assinaturas das APIs de
-  script do Fluig (`hAPI`, `form`, `FLUIGC`, datasets…), cujo fork é a
-  referência de API da skill de agentes
-  ([skills/fluigcli/reference/fluig.d.ts](skills/fluigcli/reference/fluig.d.ts)).
-- **[logfluig2.0](https://github.com/matheusnevoa/logfluig2.0)** — o WAR da
-  comunidade para ver o server.log pelo navegador, que validou o caminho dos
-  endpoints de log do `fluigcliHelper` (resolução do diretório pelo
-  `jboss.server.log.dir` e leitura segura dos arquivos) usados pelo grupo
-  `fluigcli log` e pelo painel de logs do `fluigcli dev`.
+  declaração de tipos da comunidade (MIT) com as assinaturas das APIs de
+  script do Fluig.
+- **[logfluig2.0](https://github.com/matheusnevoa/logfluig2.0)** — 
+  visualizador de logs do servidor TOTVS Fluig.
 
 ## Autor e licença
 

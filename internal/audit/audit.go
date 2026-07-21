@@ -30,6 +30,11 @@ const (
 	RuleInlineStyle  = "SG005" // style= inline (escapa do tema e do CSS do projeto)
 	RuleUnknownClass = "SG006" // classe fs-* inexistente no catálogo
 	RuleNativeDialog = "SG007" // alert/confirm/prompt nativos em vez de FLUIGC
+
+	RuleUnknownHAPI    = "FL001" // método inexistente em hAPI.*
+	RuleUnknownWKVar   = "FL002" // variável desconhecida em getValue("WK...")
+	RuleUnknownFormAPI = "FL003" // método inexistente no FormController (form.*)
+	RuleUnknownAPI     = "FL004" // membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI/...
 )
 
 // RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
@@ -43,6 +48,11 @@ var RuleTitles = map[string]string{
 	RuleInlineStyle:  "Estilo inline (style=) — escapa do tema e do CSS do projeto",
 	RuleUnknownClass: "Classe fs-* que não existe no catálogo do style guide (provável typo)",
 	RuleNativeDialog: "alert/confirm/prompt nativos — use FLUIGC.message/toast",
+
+	RuleUnknownHAPI:    "Método hAPI.* que não existe na referência de APIs (fluig.d.ts) — provável typo",
+	RuleUnknownWKVar:   "Variável WK* desconhecida em getValue() — o Fluig devolve null em silêncio",
+	RuleUnknownFormAPI: "Método form.* que não existe no FormController (fluig.d.ts) — provável typo",
+	RuleUnknownAPI:     "Membro inexistente em API do Fluig (FLUIGC, DatasetFactory, docAPI, WCMAPI…) — provável typo",
 }
 
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o
@@ -106,10 +116,15 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// defaultTargets são as pastas cobertas pelo style guide.
-var defaultTargets = []string{"forms", filepath.Join("wcm", "widget")}
+// defaultTargets são as pastas auditadas: as cobertas pelo style guide
+// (forms, widgets) e as de JS server-side, cobertas pelas regras FL* de API.
+var defaultTargets = []string{
+	"forms", filepath.Join("wcm", "widget"),
+	"datasets", "events", "mechanisms", filepath.Join("workflow", "scripts"),
+}
 
-// Run audita os alvos (default: forms/ e wcm/widget/) sob a raiz do projeto.
+// Run audita os alvos (default: forms/, wcm/widget/, datasets/, events/,
+// mechanisms/ e workflow/scripts/) sob a raiz do projeto.
 // Alvos explícitos podem ser arquivos ou pastas, relativos à raiz ou ao cwd.
 func Run(root string, targets []string, cat *Catalog, cfg Config) (*Result, error) {
 	roots := targets
@@ -235,11 +250,6 @@ func auditFile(root, p string, cat *Catalog, cfg Config, spaCache map[string]boo
 	isMarkup := ext == ".html" || ext == ".htm" || ext == ".ftl"
 	isJS := ext == ".js"
 	if !isCSS && !isMarkup && !isJS {
-		return
-	}
-	// Eventos de formulário rodam NO SERVIDOR (Rhino) — as regras de browser
-	// (diálogo nativo etc.) não se aplicam lá.
-	if isJS && strings.HasPrefix(rel, "forms/") && strings.Contains(rel, "/events/") {
 		return
 	}
 	if ignored(cfg, rel) {

@@ -88,7 +88,9 @@ fluigcli dataset export --help
    `DatasetBuilder`/`DatasetFactory`, `docAPI`, SDK `com.fluig.sdk.*`;
    client-side: `form.*`, `FLUIGC`, `WCMAPI`, `wdkAddChild`) estão em
    [`reference/fluig.d.ts`](reference/fluig.d.ts) — **consulte-o via grep**
-   (é grande) em vez de adivinhar método ou variável.
+   (é grande) em vez de adivinhar método ou variável. O `fluigcli audit`
+   valida as chamadas contra essa mesma referência (regras FL*, typos com
+   sugestão do nome certo).
 3. Em formulário ou widget: **escreva já conforme o Style Guide 2.0**
    ([`reference/styleguide.md`](reference/styleguide.md): variáveis do tema,
    substituições comuns, FLUIGC) e confira com `fluigcli audit <path> --json`

@@ -98,11 +98,23 @@ func importantFindings(rel, css string, cat *Catalog) []Finding {
 	return out
 }
 
-// scanJS roda as regras sobre JS de widget/anexo (client-side).
+// scanJS roda as regras sobre um arquivo .js. As regras de navegador (SG007)
+// só valem no client-side; as FL* de API valem nos dois lados (a chamada se
+// auto-escopa pelo objeto usado) e form.* só nos eventos de formulário, onde
+// `form` é garantidamente o FormController (Rhino).
 func scanJS(rel string, content []byte) []Finding {
+	serverSide := isServerSideJS(rel)
+	formEvent := isFormEventJS(rel)
 	var out []Finding
 	for i, line := range strings.Split(string(content), "\n") {
-		out = append(out, nativeDialogFindings(rel, i+1, line)...)
+		n := i + 1
+		if !serverSide {
+			out = append(out, nativeDialogFindings(rel, n, line)...)
+		}
+		out = append(out, apiFindings(rel, n, line)...)
+		if formEvent {
+			out = append(out, formEventFindings(rel, n, line)...)
+		}
 	}
 	return out
 }
@@ -165,6 +177,7 @@ func scanMarkup(rel string, content []byte, cat *Catalog) []Finding {
 		}
 		if wasInScript {
 			out = append(out, nativeDialogFindings(rel, n, line)...)
+			out = append(out, apiFindings(rel, n, line)...)
 		}
 
 		// Classes fs-* inexistentes (typos) — ignora interpolações.
