@@ -33,18 +33,18 @@ type RequestStep struct {
 
 // Request é uma solicitação de workflow (REST v2 process-management).
 type Request struct {
-	ID                 int            `json:"id"` // processInstanceId
-	ProcessID          string         `json:"processId"`
-	ProcessVersion     int            `json:"processVersion"`
-	ProcessDescription string         `json:"processDescription"`
-	Status             string         `json:"status"`    // OPEN | CANCELED | FINALIZED
-	SLAStatus          string         `json:"slaStatus"` // ON_TIME | WARNING | EXPIRED
-	Requester          *RequestUser   `json:"requester,omitempty"`
-	StartDate          *time.Time     `json:"startDate,omitempty"`
-	EndDate            *time.Time     `json:"endDate,omitempty"`
-	FormRecordID       int64          `json:"formRecordId,omitempty"`
-	FormID             int64          `json:"formId,omitempty"`
-	CurrentSteps       []RequestStep  `json:"currentSteps,omitempty"`
+	ID                 int           `json:"id"` // processInstanceId
+	ProcessID          string        `json:"processId"`
+	ProcessVersion     int           `json:"processVersion"`
+	ProcessDescription string        `json:"processDescription"`
+	Status             string        `json:"status"`    // OPEN | CANCELED | FINALIZED
+	SLAStatus          string        `json:"slaStatus"` // ON_TIME | WARNING | EXPIRED
+	Requester          *RequestUser  `json:"requester,omitempty"`
+	StartDate          *time.Time    `json:"startDate,omitempty"`
+	EndDate            *time.Time    `json:"endDate,omitempty"`
+	FormRecordID       int64         `json:"formRecordId,omitempty"`
+	FormID             int64         `json:"formId,omitempty"`
+	CurrentSteps       []RequestStep `json:"currentSteps,omitempty"`
 }
 
 // RequestTask é uma tarefa (movimentação) de uma solicitação.
@@ -67,6 +67,11 @@ type RequestFilter struct {
 	Assignee  string // login do responsável atual
 	Requester string // login do solicitante
 	Limit     int    // 0 = todas as páginas
+
+	// Filtro de data de abertura server-side (usado por `user audit`).
+	// Formato date-time do Fluig ("2006-01-02T15:04:05", sem offset).
+	StartFrom string // initialStartDate
+	StartTo   string // finalStartDate
 }
 
 // requestTime interpreta o formato de data do process-management, que vem com
@@ -243,6 +248,12 @@ func (c *Client) ListRequests(ctx context.Context, f RequestFilter) ([]Request, 
 		}
 		if requesterCode != "" {
 			params.Set("requester", requesterCode)
+		}
+		if f.StartFrom != "" {
+			params.Set("initialStartDate", f.StartFrom)
+		}
+		if f.StartTo != "" {
+			params.Set("finalStartDate", f.StartTo)
 		}
 		body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restRequestsPath)+"?"+params.Encode(), nil)
 		if err != nil {

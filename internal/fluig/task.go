@@ -38,6 +38,12 @@ type TaskFilter struct {
 	Status    string
 	SLAStatus string
 	Limit     int // 0 = todas as páginas
+
+	// Filtros de data server-side (usados por `user audit`): quando o
+	// responsável ENCERROU a tarefa. Strings no formato date-time do Fluig
+	// ("2006-01-02T15:04:05", sem offset — o servidor aplica o próprio fuso).
+	AssignEndFrom string // initialAssignEndDate — concluída a partir de
+	AssignEndTo   string // finalAssignEndDate — concluída até
 }
 
 // ListTasks busca tarefas com os filtros dados (paginado).
@@ -78,6 +84,12 @@ func (c *Client) ListTasks(ctx context.Context, f TaskFilter) ([]TaskSummary, er
 		}
 		if f.SLAStatus != "" {
 			params.Add("slaStatus", f.SLAStatus)
+		}
+		if f.AssignEndFrom != "" {
+			params.Set("initialAssignEndDate", f.AssignEndFrom)
+		}
+		if f.AssignEndTo != "" {
+			params.Set("finalAssignEndDate", f.AssignEndTo)
 		}
 		body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restTasksPath)+"?"+params.Encode(), nil)
 		if err != nil {

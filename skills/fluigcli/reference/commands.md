@@ -24,6 +24,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
+| ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
 | administrar usuários / grupos / papéis | `user` · `group` · `role` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
@@ -159,6 +160,16 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `user create <login> --email --first-name --last-name [--code] [--full-name]` | cria usuário; senha via FLUIGCLI_NEW_USER_PASSWORD ou prompt (NUNCA por flag) |
 | `user update <login> [--email] [--first-name] [--last-name] [--full-name] [--set-password]` | mescla os campos informados |
 | `user activate\|deactivate <login>` | ativa/desativa (desativado = state BLOCKED; não há exclusão na API) |
+| `user audit <login> [--day dd/mm/aaaa \| --from … --to …] [--only tasks,requests,documents] [-o arq.txt\|arq.xlsx]` | atuação do usuário no período: tarefas que concluiu (com horário), solicitações que abriu e documentos que criou. Sem data = HOJE |
+
+`user audit` é uma CONSULTA operacional (não exige admin como o resto do grupo):
+resolve login→userCode e cruza `task list` (ordenado por conclusão), `request
+list` (por abertura) e o dataset `document` (autor + createDate, por criação). A
+coluna Processo usa a DESCRIÇÃO; documentos mostram o tipo legível. `-o`/`--output`
+salva em `.txt` (texto puro) ou `.xlsx` (abas Resumo + Tarefas/Solicitações/
+Documentos). Login inexistente = exit 4. ⚠️ Documentos têm só a DATA de criação
+(sem hora — o Fluig não expõe). ⚠️ Login/logout e rastreamento por log NÃO entram
+(o log do servidor só retém ~4 dias e não há dado estruturado de sessão).
 
 ## group — grupos da plataforma (administração; requer admin)
 

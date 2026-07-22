@@ -80,3 +80,62 @@ fluigcli user activate jsilva
 
 Login inexistente → exit **4**. Em servidor `prod`, as operações de escrita
 respeitam a trava de confirmação.
+
+## `fluigcli user audit <login> [flags]`
+
+Reúne a **atuação de um usuário num período** — útil para acompanhamento e
+auditoria (ex.: "o que o Marlon fez em produção no dia 03/07/2026"). Reúne três
+dimensões, todas com **data e horário**:
+
+- **Tarefas atuadas** — tarefas de workflow que ele **concluiu** no período
+  (data de conclusão + quando a tarefa chegou até ele).
+- **Solicitações abertas** — solicitações que ele **iniciou** no período.
+- **Documentos criados** — documentos que ele **criou no GED** no período.
+
+Diferente do resto do grupo `user`, é uma **consulta** e não exige privilégio de
+administrador. Resolve o login para o `userCode` internamente; login inexistente
+→ exit **4**.
+
+| Flag | Uso |
+|---|---|
+| `--day <dd/mm/aaaa \| aaaa-mm-dd>` | audita um único dia |
+| `--from <data>` / `--to <data>` | intervalo (só `--from` ou só `--to` = um dia) |
+| `--only tasks,requests,documents` | restringe as dimensões (default: todas) |
+| `-o, --output <arquivo>` | salva a auditoria em arquivo `.txt` (texto puro) ou `.xlsx` (Excel) |
+
+Sem `--day`/`--from`/`--to`, audita **hoje**.
+
+As tarefas saem **em ordem de conclusão**, as solicitações **em ordem de
+abertura** e os documentos **em ordem de criação** (todos cronológicos). A
+coluna "Processo" mostra a **descrição** (não o nome técnico). Nos documentos, a
+coluna "Tipo" traz o rótulo legível (ex.: *Anexo de processo*, *Registro de
+formulário*, *Arquivo*, *Pasta*).
+
+```sh
+fluigcli user audit mjara --day 03/07/2026 --server producao
+fluigcli user audit mjara --from 01/07/2026 --to 07/07/2026 --only tasks,documents
+fluigcli user audit mjara --day 2026-07-03 --json
+
+# salvar em arquivo (formato pela extensão)
+fluigcli user audit mjara --day 03/07/2026 -o marlon_03-07.xlsx --server producao
+fluigcli user audit mjara --day 03/07/2026 -o marlon_03-07.txt  --server producao
+```
+
+O `.xlsx` sai com uma aba **Resumo** + uma aba por dimensão (Tarefas,
+Solicitações, Documentos). Nenhuma dependência externa — o arquivo é gerado com
+a biblioteca padrão.
+
+Notas:
+
+- A dimensão **documentos** consulta o dataset builtin `document` filtrando pelo
+  autor (`colleagueId`) e ordenando por data de criação, com **parada
+  antecipada** ao cruzar o início do período — puxar todo o histórico de um autor
+  de alto volume seria inviável. O `createDate` é filtrado no cliente (não é
+  campo pesquisável no dataset). Documentos com várias versões contam **uma vez**.
+- **Documentos têm só a DATA de criação, sem horário** — o Fluig não expõe a
+  hora de criação de documento (o `createDate` é armazenado só como data, e o
+  `GET /v2/documents/{id}` não devolve timestamp). Tarefas e solicitações têm
+  data + hora normalmente.
+- **Não** inclui login/logout nem rastreamento pelo log do servidor: não há dado
+  estruturado de sessão no Fluig e o `server.log` só retém poucos dias — inviável
+  para datas antigas.

@@ -27,6 +27,7 @@ func newUserCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newUserUpdateCmd(app))
 	cmd.AddCommand(newUserActivateCmd(app, true))
 	cmd.AddCommand(newUserActivateCmd(app, false))
+	cmd.AddCommand(newUserAuditCmd(app))
 	return cmd
 }
 
