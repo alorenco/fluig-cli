@@ -1,16 +1,17 @@
 # fluigcli request — solicitações de workflow
 
-Consulta, inicia e movimenta solicitações (instâncias de processo) direto do
-terminal. Primeiro grupo de **Operação** da CLI — uso da plataforma no dia a
-dia, não deploy de artefatos. Nativo: REST v2 `process-management` (o start
-com anexo usa o SOAP `startProcess`, pois a REST não tem upload de anexo).
+O grupo `request` consulta, inicia e movimenta solicitações direto do terminal.
+Uma solicitação é uma instância de processo. Este é o primeiro grupo de
+**Operação** da CLI. Você usa a plataforma no dia a dia. Você não faz deploy de
+artefatos aqui. Os comandos usam a REST v2 `process-management`. O start com
+anexo usa o SOAP `startProcess`, pois a REST não tem upload de anexo.
 
 ## `fluigcli request list [flags]`
 
-Busca solicitações do servidor, das mais recentes para as mais antigas. A
-tabela mostra número, processo, etapa atual (expandida da movimentação
-corrente), status, SLA, solicitante e início; solicitações OPEN aparecem em
-verde.
+Este comando busca solicitações do servidor. Ele lista das mais recentes para
+as mais antigas. A tabela mostra número, processo, etapa atual, status, SLA,
+solicitante e início. O comando obtém a etapa atual da movimentação corrente.
+As solicitações OPEN aparecem em verde.
 
 | Flag | Uso |
 |---|---|
@@ -28,19 +29,20 @@ fluigcli request list --limit 0 --json          # todas, para agentes/CI
 ```
 
 ::: tip Compatibilidade Fluig 1.8 × 2.0
-A "etapa atual" é obtida de formas diferentes conforme a versão do servidor
-(detectada por `/api/public/wcm/version`): no **Fluig 2.0+** vem do expand
-`currentMovements`; no **Fluig 1.8** esse campo não existe na API, então a CLI
-usa o expand `activities` e considera a atividade ativa (`active=true`). O
-resultado (`currentSteps` no `--json`) é idêntico nas duas versões — nada muda
-para quem consome o comando.
+A CLI obtém a "etapa atual" de formas diferentes conforme a versão do servidor.
+Ela detecta a versão por `/api/public/wcm/version`. No **Fluig 2.0+**, a etapa
+vem do expand `currentMovements`. No **Fluig 1.8**, esse campo não existe na
+API. Neste caso, a CLI usa o expand `activities` e considera a atividade ativa
+(`active=true`). O resultado (`currentSteps` no `--json`) é idêntico nas duas
+versões. Nada muda para quem consome o comando.
 :::
 
 ## `fluigcli request show <número>`
 
-Mostra uma solicitação: processo/versão, status, solicitante, período, etapa
-atual e a **tabela de movimentação** (histórico completo de tarefas, com
-responsável, status e datas; a tarefa em aberto aparece em verde).
+Este comando mostra uma solicitação. Ele mostra processo/versão, status,
+solicitante, período e etapa atual. Ele também mostra a **tabela de
+movimentação**. Esta tabela é o histórico completo de tarefas. Ela traz
+responsável, status e datas. A tarefa em aberto aparece em verde.
 
 ```sh
 fluigcli request show 196522
@@ -51,9 +53,10 @@ Solicitação inexistente → exit **4**.
 
 ## `fluigcli request start <processId> [flags]`
 
-Inicia (abre e envia) uma solicitação, preenchendo o formulário com os
-`--field`. Os eventos do processo e do formulário rodam no servidor
-normalmente — um `throw` de validação volta como mensagem de erro (exit 5).
+Este comando inicia uma solicitação. Ele abre e envia a solicitação. Ele
+preenche o formulário com os `--field`. Os eventos do processo e do formulário
+rodam no servidor normalmente. Um `throw` de validação volta como mensagem de
+erro (exit 5).
 
 | Flag | Uso |
 |---|---|
@@ -74,10 +77,10 @@ fluigcli request start compras_requisicao_abastecimento \
 
 ### Campos por JSON (`--fields-file`)
 
-Para formulários com muitos campos (ou para agentes de IA e CI), passe os
-campos como um **objeto JSON plano** em vez de repetir `--field`. Valores
-numéricos/booleanos são convertidos para a string que a API espera; objetos e
-arrays aninhados são rejeitados com erro claro.
+Alguns formulários têm muitos campos. Nestes casos, passe os campos como um
+**objeto JSON plano** em vez de repetir `--field`. Este formato também ajuda
+agentes de IA e CI. A CLI converte valores numéricos e booleanos para a string
+que a API espera. A CLI rejeita objetos e arrays aninhados com erro claro.
 
 ```sh
 # 1. arquivo — bom para versionar a solicitação de teste no Git do projeto
@@ -106,46 +109,50 @@ fluigcli request start compras_requisicao_abastecimento \
   --fields-file requisicao.json --field quantidade=20 --attach h.png --target-state 5
 ```
 
-O `request move` aceita as mesmas flags (`--fields-file`/`--field`) para
-atualizar campos do formulário no movimento:
+O `request move` aceita as mesmas flags (`--fields-file`/`--field`). Use-as
+para atualizar campos do formulário no movimento.
 
 ```sh
 echo '{"aprNivel1":"aprovado","comentarioNivel1":"ok"}' | \
   fluigcli request move 196542 --target-state 13 --fields-file -
 ```
 
-⚠️ **Anexos**: a REST v2 não tem upload de anexo de solicitação (só download)
-— processos que exigem anexo no início (ex.: `hAPI.listAttachments()` no
-`beforeTaskSave`) **só** iniciam com `--attach` (a CLI troca para o SOAP
-`startProcess` automaticamente). Se a atividade seguinte exigir escolha de
-responsável (HTTP 412), a CLI lista as opções e pede `--assignee`.
+⚠️ **Anexos**: a REST v2 não tem upload de anexo de solicitação. Ela só faz
+download. Alguns processos exigem anexo no início. Um exemplo é o
+`hAPI.listAttachments()` no `beforeTaskSave`. Estes processos **só** iniciam
+com `--attach`. Neste caso, a CLI troca para o SOAP `startProcess`
+automaticamente. A atividade seguinte pode exigir a escolha de responsável
+(HTTP 412). Neste caso, a CLI lista as opções e pede `--assignee`.
 
 ## `fluigcli request move <número> [flags]`
 
-Conclui a tarefa corrente e envia a solicitação adiante. Sem `--movement`, a
-CLI descobre a tarefa em aberto sozinha (obrigatório quando houver mais de
-uma). Flags: `--target-state`, `--assignee`, `--comment`, `--field` (atualiza
-campos do formulário no movimento), `--movement`.
+Este comando conclui a tarefa corrente e envia a solicitação adiante. Sem
+`--movement`, a CLI descobre a tarefa em aberto sozinha. Informe `--movement`
+quando houver mais de uma tarefa. Flags: `--target-state`, `--assignee`,
+`--comment`, `--field` (atualiza campos do formulário no movimento) e
+`--movement`.
 
 ```sh
 fluigcli request move 196542 --target-state 5 --comment "enviado via CLI"
 fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
 ```
 
-⚠️ Você só movimenta **a sua** tarefa: solicitação cuja tarefa aberta é de
-outro usuário responde **404** (o servidor a esconde — comportamento real).
+⚠️ Você só movimenta **a sua** tarefa. A solicitação cuja tarefa aberta é de
+outro usuário responde **404**. Neste caso, o servidor a esconde. Este é o
+comportamento real.
 
 ## `fluigcli request assignees <número> [--target-state N]`
 
-Lista quem pode assumir a próxima atividade. Quando o diagrama tem mais de um
-destino, o servidor exige a etapa — informe `--target-state`.
+Este comando lista quem pode assumir a próxima atividade. O diagrama pode ter
+mais de um destino. Neste caso, o servidor exige a etapa. Informe
+`--target-state`.
 
 ## `fluigcli request attachments <número> [flags]`
 
-Lista os anexos de uma solicitação e baixa os arquivos. O próprio
-**formulário** aparece na lista como `(formulário)` — o `--download` baixa
-apenas os arquivos anexados (round-trip byte a byte com o que subiu via
-`request start --attach`).
+Este comando lista os anexos de uma solicitação e baixa os arquivos. O próprio
+**formulário** aparece na lista como `(formulário)`. O `--download` baixa
+apenas os arquivos anexados. O download é byte a byte fiel ao que subiu via
+`request start --attach`.
 
 | Flag | Uso |
 |---|---|
@@ -159,7 +166,8 @@ fluigcli request attachments 196540 --download --dir ./anexos
 fluigcli request attachments 196540 --seq 2               # um específico
 ```
 
-Sequence inexistente → exit **4** (validado contra a lista antes de baixar).
+Sequence inexistente → exit **4**. A CLI valida o sequence contra a lista antes
+de baixar.
 
 ## Status e SLA (valores da API)
 
@@ -168,4 +176,5 @@ Sequence inexistente → exit **4** (validado contra a lista antes de baixar).
 - Status de tarefa (no `show`): `NOT_COMPLETED` (em aberto),
   `PENDING_CONSENSUS`, `COMPLETED`, `TRANSFERRED`, `CANCELED`.
 
-As flags aceitam os valores em minúsculas; a CLI valida antes de consultar.
+As flags aceitam os valores em minúsculas. A CLI valida os valores antes de
+consultar.

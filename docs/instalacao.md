@@ -16,16 +16,17 @@ curl -fsSL https://raw.githubusercontent.com/alorenco/fluig-cli/main/install.sh 
 irm https://raw.githubusercontent.com/alorenco/fluig-cli/main/install.ps1 | iex
 ```
 
-O script detecta o sistema, baixa a última versão de
-[Releases](https://github.com/alorenco/fluig-cli/releases), confere o checksum
-e instala. Prefere fazer manualmente? Baixe o binário da sua plataforma direto
-de Releases e coloque no `PATH` — ou compile do código-fonte (Go ≥ 1.26):
+O script detecta o sistema. Ele baixa a última versão de
+[Releases](https://github.com/alorenco/fluig-cli/releases). Ele confere o
+checksum. Depois ele instala. Você também instala de forma manual. Baixe o
+binário da sua plataforma em Releases. Coloque o binário no `PATH`. Ou compile
+do código-fonte. Você precisa do Go 1.26 ou superior.
 
 ```sh
 go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest
 ```
 
-Para atualizar depois, a própria CLI se encarrega — veja [upgrade](./upgrade).
+A própria CLI faz a atualização depois. Veja [upgrade](./upgrade).
 
 ## Quickstart
 
@@ -70,8 +71,8 @@ fluigcli diff --json | jq '.data.counts'
 
 ## Estrutura de projeto Fluig
 
-Os comandos trabalham sobre pastas convencionais na raiz do projeto (criadas
-pelos scaffolds `new` e pelos `import`):
+Os comandos trabalham sobre pastas convencionais na raiz do projeto. Os
+scaffolds `new` e os comandos `import` criam essas pastas.
 
 ```
 seu-projeto/
@@ -86,7 +87,8 @@ seu-projeto/
 
 ## Uso por agentes de IA e CI/CD
 
-A CLI é agent-first: sempre `--json` e `--non-interactive`, decida pelo exit
-code (0–7, estáveis), senha por `FLUIGCLI_PASSWORD` ou `--password-stdin` —
-nunca em argumento. Instale a [Skill](./skill) no projeto para o Claude
-Code/Codex descobrirem os comandos sozinhos.
+A CLI é feita para agentes. Use sempre `--json` e `--non-interactive`. Decida
+pelo exit code. Os exit codes vão de 0 a 7 e são estáveis. Passe a senha por
+`FLUIGCLI_PASSWORD` ou `--password-stdin`. Nunca passe a senha em argumento.
+Instale a [Skill](./skill) no projeto. Assim o Claude Code e o Codex descobrem
+os comandos sozinhos.

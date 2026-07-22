@@ -1,7 +1,8 @@
 # fluigcli watch — publicar ao salvar
 
-Observa as pastas do projeto e publica o artefato no servidor a cada
-salvamento. O ciclo *editar → exportar → testar* vira só *editar → testar*:
+Este comando observa as pastas do projeto. Ele publica o artefato no servidor a
+cada salvamento. O ciclo *editar → exportar → testar* vira só
+*editar → testar*.
 
 ```
 $ fluigcli watch
@@ -22,28 +23,31 @@ Observando datasets/, forms/, workflow/scripts/ em "homolog" — Ctrl+C para par
 
 ## Regras de segurança (por design)
 
-- **Só roda em servidor `dev` ou `hml`.** Produção é recusada sem exceção (nem
-  `--yes`); servidor sem ambiente marcado também — marque com
-  `fluigcli server update <name> --env hml`. Deploy contínuo é ferramenta de
-  desenvolvimento, não de produção.
-- **Nunca cria artefato nem versão**: só atualiza o que já existe no servidor
-  (arquivo/pasta novos geram um aviso com o comando de criação), e nenhuma
-  atualização gera versão nova — validado na homologação para datasets e
-  formulários (versão idêntica antes e depois).
-- **Salvamento sem mudança não publica nada** — para datasets/eventos/
-  mecanismos, o conteúdo é comparado com o do servidor (ignorando CRLF/LF);
-  para formulários e scripts de processo, um hash local do último publish
-  evita repetições.
-- Erro de publicação vira aviso e o watch continua vivo; encerre com Ctrl+C.
+- **O comando só roda em servidor `dev` ou `hml`.** O comando recusa produção
+  sem exceção. Nem `--yes` libera. O comando também recusa servidor sem
+  ambiente marcado. Marque o ambiente com
+  `fluigcli server update <name> --env hml`. O deploy contínuo é ferramenta de
+  desenvolvimento. Ele não é ferramenta de produção.
+- **O comando nunca cria artefato nem versão.** O comando só atualiza o que já
+  existe no servidor. Arquivo ou pasta novos geram um aviso com o comando de
+  criação. Nenhuma atualização gera versão nova. A homologação validou esta
+  regra para datasets e formulários. A versão fica idêntica antes e depois.
+- **O salvamento sem mudança não publica nada.** Para datasets, eventos e
+  mecanismos, o comando compara o conteúdo com o do servidor. A comparação
+  ignora CRLF e LF. Para formulários e scripts de processo, um hash local do
+  último publish evita repetições.
+- O erro de publicação vira aviso. O watch continua vivo. Encerre com Ctrl+C.
 
 ## Detalhes
 
-- `--debounce <dur>` (padrão `500ms`): espera após o salvamento antes de
-  publicar, agrupando as rajadas de eventos que editores geram ao salvar —
-  inclusive vários arquivos da mesma pasta de formulário.
+- `--debounce <dur>` (padrão `500ms`): o comando espera este tempo após o
+  salvamento antes de publicar. Assim, o comando agrupa as rajadas de eventos
+  que editores geram ao salvar. Isso inclui vários arquivos da mesma pasta de
+  formulário.
 - Salvar um evento de formulário (`forms/x/events/y.js`) republica o
-  formulário inteiro — é como a API do Fluig funciona.
-- Scripts de processo exigem o componente auxiliar instalado
-  (`fluigcli server install-helper`) e o processo já criado no Fluig Studio.
-- `--json` não é suportado: watch é um modo interativo de longa duração; em
-  automação/CI, use os comandos `export`.
+  formulário inteiro. A API do Fluig funciona assim.
+- Os scripts de processo exigem o componente auxiliar instalado
+  (`fluigcli server install-helper`). Eles também exigem o processo já criado
+  no Fluig Studio.
+- O comando não aceita `--json`. O watch é um modo interativo de longa
+  duração. Em automação ou CI, use os comandos `export`.

@@ -1,8 +1,8 @@
 # fluigcli upgrade — atualização da própria CLI
 
-Baixa a release do GitHub, confere o `sha256` contra o `checksums.txt`
-publicado e substitui o próprio binário no lugar. Nenhuma configuração ou
-sessão é tocada.
+O comando `upgrade` atualiza o próprio binário. Ele baixa a release do GitHub.
+Ele confere o `sha256` contra o `checksums.txt` publicado. Ele substitui o
+binário no lugar. O comando não toca em nenhuma configuração nem sessão.
 
 ```sh
 fluigcli upgrade                    # instala a última versão publicada
@@ -10,22 +10,23 @@ fluigcli upgrade --check            # só consulta, sem instalar
 fluigcli upgrade --version 0.1.0    # instala uma versão específica (inclusive mais antiga)
 ```
 
-- Se o binário estiver em um diretório protegido (ex.: `/usr/local/bin`),
-  repita com `sudo`.
-- No Windows, o binário em execução não pode ser sobrescrito: o antigo fica ao
-  lado como `fluigcli.exe.old` (pode apagar depois).
-- Builds de desenvolvimento (`fluigcli version` mostrando `dev`) não têm
-  release correspondente — atualize pelo mesmo meio da instalação
-  (ex.: `go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest`).
+- O binário pode ficar em um diretório protegido. Um exemplo é `/usr/local/bin`.
+  Neste caso, repita o comando com `sudo`.
+- No Windows, o comando não sobrescreve o binário em execução. O antigo fica ao
+  lado como `fluigcli.exe.old`. Você apaga este arquivo depois.
+- Um build de desenvolvimento não tem release correspondente. O comando
+  `fluigcli version` mostra `dev` neste caso. Atualize pelo mesmo meio da
+  instalação. Por exemplo: `go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest`.
 
 ## Aviso automático de versão nova
 
-Ao fim de um comando, a CLI avisa **no stderr** quando existe versão mais nova
-— no máximo **uma consulta por dia** (resultado em cache em
-`<cache>/fluigcli/update-check.json`), somente em terminal interativo e nunca
-misturado à saída de `--json` (que continua recebendo só o envelope no stdout).
+A CLI avisa quando existe uma versão mais nova. Ela mostra o aviso **no stderr**
+ao fim de um comando. Ela faz **uma consulta por dia** no máximo. Ela guarda o
+resultado em cache em `<cache>/fluigcli/update-check.json`. Ela mostra o aviso
+somente em terminal interativo. Ela nunca mistura o aviso à saída de `--json`.
+O `--json` continua a receber só o envelope no stdout.
 
-Para desativar (ex.: em CI ou por preferência):
+Você desativa o aviso em CI ou por preferência. Defina a variável:
 
 ```sh
 export FLUIGCLI_NO_UPDATE_CHECK=1
@@ -33,17 +34,19 @@ export FLUIGCLI_NO_UPDATE_CHECK=1
 
 ## Aviso de skill desatualizada
 
-A skill de agente (`fluigcli skill install`) evolui junto com a CLI. Ao instalar,
-a CLI **carimba a versão** que gerou a skill (`.claude/skills/fluigcli/.fluigcli-version`).
+A skill de agente evolui junto com a CLI. Você a instala com o comando
+`fluigcli skill install`. Na instalação, a CLI **carimba a versão** que gerou a
+skill. Ela grava a versão em `.claude/skills/fluigcli/.fluigcli-version`.
 
-- Logo após um `upgrade` bem-sucedido, se a skill estiver instalada no projeto
-  atual, a CLI **sugere** atualizá-la: `fluigcli skill install --force`.
-- Em qualquer comando, se a skill instalada no projeto for de uma versão
-  anterior à do binário, a CLI avisa **no stderr** (no máximo **1×/dia por
-  versão**, só em terminal interativo, nunca no `--json`). É só uma sugestão —
-  nada é reescrito sem você rodar o `skill install`.
+- A CLI **sugere** atualizar a skill logo após um `upgrade` bem-sucedido. Ela
+  faz isso quando a skill está instalada no projeto atual. A sugestão é
+  `fluigcli skill install --force`.
+- A CLI avisa **no stderr** quando a skill do projeto é de uma versão anterior à
+  do binário. Ela mostra o aviso em qualquer comando. Ela faz isso **1×/dia por
+  versão** no máximo, só em terminal interativo, nunca no `--json`. O aviso é só
+  uma sugestão. A CLI não reescreve nada. Você precisa rodar o `skill install`.
 
-Para desativar esse aviso:
+Você desativa esse aviso. Defina a variável:
 
 ```sh
 export FLUIGCLI_NO_SKILL_CHECK=1

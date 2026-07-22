@@ -4,7 +4,7 @@ layout: home
 hero:
   name: fluigcli
   text: TOTVS Fluig direto do terminal
-  tagline: CLI não oficial para importar, implantar e automatizar os artefatos da plataforma — feita para desenvolvedores, agentes de IA e CI/CD.
+  tagline: CLI não oficial para importar, implantar e automatizar os artefatos da plataforma. Feita para desenvolvedores, agentes de IA e CI/CD.
   actions:
     - theme: brand
       text: Começar
@@ -19,22 +19,22 @@ hero:
 features:
   - icon: 🧩
     title: Artefatos da plataforma
-    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo e widgets — import (servidor → local) e export (local → servidor), com diff antes de publicar.
+    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo e widgets. Use import para trazer do servidor para o local. Use export para enviar do local para o servidor. Confira o diff antes de publicar.
     link: /dataset
     linkText: dataset · form · workflow · widget
   - icon: ⚡
     title: Dev loop de verdade
-    details: fluigcli dev é um proxy local autenticado do portal — o JS/CSS das widgets sai do disco, formulários têm preview com simulação de processo, e o navegador recarrega ao salvar. Scaffolds prontos com widget new (classic, Vue 3, React 19, Vuetify 3).
+    details: O fluigcli dev é um proxy local autenticado do portal. O JS e o CSS das widgets saem do disco. Os formulários têm preview com simulação de processo. O navegador recarrega ao salvar. O widget new gera scaffolds prontos em classic, Vue 3, React 19 e Vuetify 3.
     link: /dev
     linkText: dev · watch · widget new
   - icon: 🗂️
     title: Operação no dia a dia
-    details: Inicie e movimente solicitações, consulte a fila de tarefas, navegue no GED e administre usuários, grupos, papéis e substitutos — sem abrir o portal.
+    details: Inicie e movimente solicitações. Consulte a fila de tarefas. Navegue no GED. Administre usuários, grupos, papéis e substitutos. Faça tudo sem abrir o portal.
     link: /request
     linkText: request · task · document · user
   - icon: 🤖
     title: Feita para agentes e CI
-    details: Modo não-interativo, envelope --json estável, exit codes 0–7 documentados e uma Skill embutida para Claude Code e Codex. Senha nunca em argumento — keyring, env var ou stdin.
+    details: Modo não-interativo, envelope --json estável e exit codes de 0 a 7 documentados. Uma Skill embutida para o Claude Code e o Codex. Nunca passe a senha em argumento. Use o keyring, uma env var ou o stdin.
     link: /skill
     linkText: skill · contrato de saída
 ---
@@ -44,8 +44,9 @@ features:
 
 ## Todos os grupos de comandos
 
-Convenção que vale para tudo: **import** = servidor → local · **export** =
-local → servidor. Comandos e flags em inglês; mensagens em pt-BR.
+Uma convenção vale para tudo. **import** = servidor → local. **export** =
+local → servidor. Os comandos e as flags estão em inglês. As mensagens estão
+em pt-BR.
 
 | Grupo | O que faz |
 |---|---|

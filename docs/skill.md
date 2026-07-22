@@ -1,12 +1,13 @@
 # fluigcli skill — Skill para agentes de IA
 
-Instala e exibe a Skill que ensina agentes de IA (Claude Code, Codex e afins) a
-usar o fluigcli corretamente: o contrato de saída `--json`, os exit codes e o
-mapa de comandos.
+O grupo `skill` instala e exibe a Skill. A Skill ensina agentes de IA (Claude
+Code, Codex e afins) a usar o fluigcli corretamente. Ela cobre o contrato de
+saída `--json`, os exit codes e o mapa de comandos.
 
-O conteúdo canônico fica versionado em [`skills/fluigcli/`](https://github.com/alorenco/fluig-cli/tree/main/skills/fluigcli)
-e é **embutido no binário** — a instalação não acessa a rede. Assim há uma única
-fonte da verdade: o mesmo material que você lê no repositório é o que é instalado.
+O conteúdo canônico fica versionado em [`skills/fluigcli/`](https://github.com/alorenco/fluig-cli/tree/main/skills/fluigcli).
+A CLI **embute esse conteúdo no binário**. Por isso, a instalação não acessa a
+rede. Assim há uma única fonte da verdade. O material que você lê no repositório
+é o mesmo que a CLI instala.
 
 ```
 skills/fluigcli/
@@ -21,7 +22,7 @@ skills/fluigcli/
 
 ## `fluigcli skill install`
 
-Escreve os arquivos no lugar esperado por cada ferramenta.
+Este comando escreve os arquivos no lugar que cada ferramenta espera.
 
 ```sh
 fluigcli skill install                      # padrão: --target claude, no projeto
@@ -45,35 +46,38 @@ Destinos:
 
 Comportamento:
 
-- **Claude Code**: copia `SKILL.md` e `reference/`. Se um arquivo já existir e
-  diferir do gerado, ele é **preservado** (status `skipped`) — use `--force`
-  para sobrescrever. Idênticos viram `unchanged`.
-- **Codex**: injeta um **bloco gerenciado** delimitado por marcadores
-  (`<!-- fluigcli:start … -->` / `<!-- fluigcli:end -->`) no `AGENTS.md`.
-  Reinstalar atualiza só esse bloco, sem tocar no resto do arquivo e sem
-  duplicá-lo — é seguro rodar quantas vezes quiser.
+- **Claude Code**: o comando copia `SKILL.md` e `reference/`. Quando um arquivo
+  já existe e difere do gerado, o comando **preserva** esse arquivo (status
+  `skipped`). Use `--force` para sobrescrever. Arquivos idênticos viram
+  `unchanged`.
+- **Codex**: o comando injeta um **bloco gerenciado** no `AGENTS.md`. Os
+  marcadores `<!-- fluigcli:start … -->` e `<!-- fluigcli:end -->` delimitam o
+  bloco. Reinstalar atualiza só esse bloco. O comando não toca no resto do
+  arquivo e não duplica o bloco. Por isso, você pode rodar o comando quantas
+  vezes quiser.
 
-Com `--json`, `data` traz `{target, files:[{path, status}]}`, com `status` em
-`written` · `updated` · `unchanged` · `skipped`.
+Com `--json`, o campo `data` traz `{target, files:[{path, status}]}`. O `status`
+é `written`, `updated`, `unchanged` ou `skipped`.
 
 ### Aviso de versão desatualizada
 
 Ao instalar o alvo `claude`, a CLI grava a versão que gerou a skill em
-`.claude/skills/fluigcli/.fluigcli-version`. Depois de um `fluigcli upgrade`, ou
-em qualquer comando rodado num projeto cuja skill seja de uma versão anterior, a
-CLI **sugere no stderr** rodar `fluigcli skill install --force` (no máximo
-1×/dia por versão, só em terminal interativo, nunca no `--json`). É só uma
-sugestão. Desative com `FLUIGCLI_NO_SKILL_CHECK=1`. Ver também
-[upgrade](upgrade.md).
+`.claude/skills/fluigcli/.fluigcli-version`. A CLI compara essa versão com a
+versão do binário. Quando a skill do projeto é de uma versão anterior, a CLI
+**sugere no stderr** rodar `fluigcli skill install --force`. Isso acontece depois
+de um `fluigcli upgrade` ou em qualquer comando rodado nesse projeto. A CLI
+limita a sugestão a uma vez por dia por versão. A sugestão sai só em terminal
+interativo. A sugestão nunca sai no `--json`. É só uma sugestão. Desative a
+sugestão com `FLUIGCLI_NO_SKILL_CHECK=1`. Ver também [upgrade](upgrade.md).
 
 ## `fluigcli skill show`
 
-Imprime o guia no stdout — útil para inspecionar ou canalizar para outra
-ferramenta.
+Este comando imprime o guia no stdout. Use este comando para inspecionar o guia
+ou para canalizar o guia para outra ferramenta.
 
 ```sh
 fluigcli skill show --target claude   # SKILL.md + reference/ concatenados
 fluigcli skill show --target codex    # o guia do Codex
 ```
 
-Com `--json`, o conteúdo vem em `data.content`.
+Com `--json`, o conteúdo vem no campo `data.content`.

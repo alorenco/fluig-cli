@@ -1,8 +1,9 @@
 # fluigcli workflow — scripts de processo
 
-Lista os processos do servidor, consulta a versão de um processo, baixa os
-scripts de eventos para o projeto (`import`) e faz o deploy **cirúrgico** dos
-scripts (sem reimportar o processo inteiro). Arquivos locais em:
+O grupo `workflow` gerencia os scripts de processo. Ele lista os processos do
+servidor. Ele consulta a versão de um processo. Ele baixa os scripts de eventos
+para o projeto com o comando `import`. Ele faz o deploy cirúrgico dos scripts.
+Este deploy não reimporta o processo inteiro. Os arquivos locais ficam em:
 
 ```
 workflow/scripts/<Processo>.<evento>.js
@@ -11,12 +12,13 @@ workflow/scripts/<Processo>.<evento>.js
 
 ## `fluigcli workflow new-script <processId> <evento>`
 
-Cria `workflow/scripts/<processId>.<evento>.js` com a **assinatura correta do
-evento** (parâmetros e um lembrete das APIs `hAPI`/`getValue` disponíveis) —
-sem copiar de outro processo. O evento é validado contra o catálogo (aceita
-qualquer caixa e grava a forma canônica); o `--help` lista todos os eventos com
-assinatura e quando rodam. **Só local** — publique depois com `workflow export`
-(cirúrgico) ou `workflow publish` (nativo).
+Este comando cria `workflow/scripts/<processId>.<evento>.js` com a assinatura
+correta do evento. O arquivo traz os parâmetros e um lembrete das APIs `hAPI` e
+`getValue` disponíveis. Assim, você não copia de outro processo. O comando
+valida o evento contra o catálogo. Ele aceita qualquer caixa e grava a forma
+canônica. A opção `--help` lista todos os eventos com a assinatura e o momento
+em que rodam. O comando trabalha só no projeto local. Publique depois com
+`workflow export` (cirúrgico) ou `workflow publish` (nativo).
 
 ```sh
 fluigcli workflow new-script Compras beforeTaskSave
@@ -26,8 +28,9 @@ fluigcli workflow new-script --help    # catálogo completo de eventos
 
 ## `fluigcli workflow list [--active-only]`
 
-Lista os processos do servidor em tabela (ID, descrição, categoria, ativo).
-**Nativo** (REST v2 `process-management`) — não depende de nada instalado.
+Este comando lista os processos do servidor em tabela (ID, descrição,
+categoria, ativo). O comando é nativo (REST v2 `process-management`). Ele não
+depende de nada instalado.
 
 ```sh
 fluigcli workflow list --server homolog
@@ -35,14 +38,15 @@ fluigcli workflow list --active-only          # só os processos ativos
 fluigcli workflow list --json                 # para agentes/CI
 ```
 
-O `processId` da primeira coluna é o que os demais comandos (`workflow
-version`, `workflow import`, `workflow export`) e a convenção de arquivos
-(`workflow/scripts/<processId>.<evento>.js`) usam.
+A primeira coluna traz o `processId`. Os demais comandos usam esse valor. São
+eles `workflow version`, `workflow import` e `workflow export`. A convenção de
+arquivos também usa esse valor
+(`workflow/scripts/<processId>.<evento>.js`).
 
 ## `fluigcli workflow version <processId>`
 
-Mostra a última versão do processo no servidor. **Nativo** (SOAP
-`ECMWorkflowEngineService`) — não depende de nada instalado.
+Este comando mostra a última versão do processo no servidor. O comando é nativo
+(SOAP `ECMWorkflowEngineService`). Ele não depende de nada instalado.
 
 ```sh
 fluigcli workflow version Compras --server homolog
@@ -52,10 +56,10 @@ Processo inexistente → exit **4**.
 
 ## `fluigcli workflow import <processId>... | --all`
 
-Baixa os scripts de eventos de processos do servidor para
-`workflow/scripts/<Processo>.<evento>.js` (**servidor → local** — o espelho do
-`export`). **Nativo** (export do processo via SOAP) — não depende do
-componente auxiliar.
+Este comando baixa os scripts de eventos dos processos do servidor para
+`workflow/scripts/<Processo>.<evento>.js` (servidor → local). Ele é o espelho
+do `export`. O comando é nativo (export do processo via SOAP). Ele não depende
+do componente auxiliar.
 
 ```sh
 fluigcli workflow import Compras --server homolog        # um processo
@@ -69,25 +73,27 @@ fluigcli workflow import --all                           # todos os processos do
 
 Comportamento:
 
-- Um script local existente do mesmo evento é **sobrescrito no lugar**, mesmo
-  que esteja em subpasta de `workflow/scripts/`; sem arquivo local, o script é
-  criado em `workflow/scripts/<processId>.<evento>.js`.
-- Vêm os eventos da **versão mais recente** do processo; eventos sem código
-  (registro vazio no export) não viram arquivo.
-- Processo inexistente → exit **4**; em lote, falhas parciais → exit **6** (os
-  demais processos são importados normalmente).
-- `--all` faz um export por processo — pode demorar em servidores com muitos
-  processos.
+- O comando sobrescreve no lugar um script local existente do mesmo evento. Ele
+  faz isso mesmo que o script esteja em subpasta de `workflow/scripts/`. Sem
+  arquivo local, o comando cria o script em
+  `workflow/scripts/<processId>.<evento>.js`.
+- O comando traz os eventos da versão mais recente do processo. Eventos sem
+  código (registro vazio no export) não viram arquivo.
+- Processo inexistente → exit **4**. Em lote, falhas parciais → exit **6**. Nesse
+  caso, o comando importa os demais processos normalmente.
+- A opção `--all` faz um export por processo. Por isso, ela pode demorar em
+  servidores com muitos processos.
 
 ## `fluigcli workflow export <arquivo|processId> [flags]`
 
-Atualiza os scripts de eventos de um processo **sem redeploy do processo todo**.
+Este comando atualiza os scripts de eventos de um processo. Ele não faz o
+redeploy do processo todo.
 
-> **Pré-requisito:** a atualização cirúrgica de scripts **não tem API nativa** no
-> Fluig — nem no SOAP nem na REST v2 (ambos só reimportam o processo inteiro).
-> Ela usa o componente auxiliar **fluigcliHelper**. Se ele não estiver
-> instalado,
-> o comando falha com exit **7** orientando: `fluigcli server install-helper`.
+> **Pré-requisito:** a atualização cirúrgica de scripts não tem API nativa no
+> Fluig. Nem o SOAP nem a REST v2 oferecem essa operação. Ambos só reimportam o
+> processo inteiro. Por isso, o comando usa o componente auxiliar
+> **fluigcliHelper**. Sem o helper instalado, o comando falha com exit **7** e
+> orienta: `fluigcli server install-helper`.
 
 Alvos:
 
@@ -108,16 +114,16 @@ fluigcli workflow export Compras --events beforeTaskSave,afterTaskComplete --ser
 | `--events a,b` | envia só os eventos indicados |
 | `--process-version N` | versão do processo (default: a última do servidor) |
 
-**Limitação:** só atualiza eventos de um processo **existente** (criado no Fluig
-Studio). Não cria processos nem sobe diagramas `.process`. Para o deploy com
-versão nova e liberação, use `workflow publish` (nativo).
+**Limitação:** o comando só atualiza eventos de um processo existente (criado no
+Fluig Studio). Ele não cria processos. Ele não sobe diagramas `.process`. Para o
+deploy com versão nova e liberação, use `workflow publish` (nativo).
 
 ## `fluigcli workflow publish <processId> [--no-release]`
 
-Faz o **deploy** do processo: cria uma **versão nova** no servidor com os
-scripts locais (`workflow/scripts/<processId>.*.js`) aplicados e a **libera
-para uso** (a versão anterior é desativada). **Nativo** (REST v2
-`process-management`) — não depende do componente auxiliar.
+Este comando faz o deploy do processo. Ele cria uma versão nova no servidor com
+os scripts locais (`workflow/scripts/<processId>.*.js`) aplicados. Ele libera
+essa versão para uso. O servidor desativa a versão anterior. O comando é nativo
+(REST v2 `process-management`). Ele não depende do componente auxiliar.
 
 ```sh
 fluigcli workflow publish Compras --server homolog
@@ -139,21 +145,21 @@ Quando usar `publish` vs `export`:
 
 Regras e limitações:
 
-- O publish **não cria eventos nem processos**: script local de um evento que
-  não existe no processo interrompe o comando **antes** de qualquer mudança no
-  servidor (crie o evento no Fluig Studio). Eventos do servidor sem script
-  local ficam como estão.
-- Se a liberação falhar (ex.: diagrama sem início/fim), **a versão nova fica
-  criada em edição** — a mensagem de erro avisa; corrija no Fluig Studio ou
-  repita com `--no-release`.
+- O publish não cria eventos nem processos. Um script local de um evento que não
+  existe no processo interrompe o comando antes de qualquer mudança no servidor.
+  Crie o evento no Fluig Studio. Eventos do servidor sem script local ficam como
+  estão.
+- A liberação pode falhar (por exemplo, um diagrama sem início ou fim). Neste
+  caso, a versão nova fica criada em edição. A mensagem de erro avisa. Corrija no
+  Fluig Studio ou repita com `--no-release`.
 - O diagrama e as demais configurações da versão nova vêm do estado atual do
-  servidor (o publish exporta a última versão, troca só os scripts e reimporta).
+  servidor. O publish exporta a última versão, troca só os scripts e reimporta.
 
 ## `fluigcli server install-helper [<name>]`
 
-Instala o `fluigcliHelper` no servidor (o WAR vai **embutido no binário** da
-CLI e é publicado pelo upload nativo de widget). A instalação é **assíncrona**
-no servidor.
+Este comando instala o `fluigcliHelper` no servidor. O WAR vai embutido no
+binário da CLI. O comando publica o WAR pelo upload nativo de widget. A
+instalação é assíncrona no servidor.
 
 ```sh
 fluigcli server install-helper homolog

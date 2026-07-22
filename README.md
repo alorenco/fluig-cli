@@ -16,10 +16,23 @@ os artefatos da plataforma.**
 > ⚠️ **Projeto não oficial, sem qualquer vínculo com a TOTVS.**
 > "Fluig" e "TOTVS" são marcas de seus respectivos donos.
 
-Feita para desenvolvedores, **agentes de IA** e pipelines de CI/CD, modo
-não-interativo, saída JSON e exit codes estáveis. Hoje cobre datasets,
-formulários, eventos globais, mecanismos de atribuição, scripts de processo e
-widgets — e a lista de recursos continua crescendo.
+A CLI serve desenvolvedores, **agentes de IA** e pipelines de CI/CD. Ela tem
+modo não-interativo, saída JSON e exit codes estáveis. A CLI cobre três
+frentes:
+
+- **Desenvolvimento.** Importe e publique datasets, formulários, eventos
+  globais, mecanismos de atribuição, scripts de processo e widgets. Gere
+  scaffolds com `new`. Clone um servidor existente para uma pasta vazia.
+  Compare o local com o servidor com `diff`. Audite o projeto contra o Style
+  Guide 2.0 e as APIs de script. Suba um dev server com live reload, preview de
+  formulários com simulação de processo, explorador de processos e painel de
+  logs.
+- **Operação.** Consulte, inicie e movimente solicitações. Veja a fila de
+  tarefas. Navegue no GED. Leia os logs do servidor sem SSH.
+- **Administração.** Gerencie usuários, grupos, papéis e substitutos. Audite a
+  atuação de um usuário por período. Consulte a saúde do servidor.
+
+A lista de recursos continua a crescer.
 
 📖 **Documentação completa:** <https://alorenco.github.io/fluig-cli/>
 
@@ -37,10 +50,11 @@ curl -fsSL https://raw.githubusercontent.com/alorenco/fluig-cli/main/install.sh 
 irm https://raw.githubusercontent.com/alorenco/fluig-cli/main/install.ps1 | iex
 ```
 
-O script detecta o sistema, baixa a última versão de
-[Releases](https://github.com/alorenco/fluig-cli/releases), confere o checksum
-e instala. Prefere fazer manualmente? Baixe o binário da sua plataforma direto
-de Releases e coloque no `PATH` — ou compile do código-fonte (Go ≥ 1.26):
+O script detecta o sistema. Ele baixa a última versão de
+[Releases](https://github.com/alorenco/fluig-cli/releases). Ele confere o
+checksum e instala. Você também instala de forma manual. Baixe o binário da sua
+plataforma direto de Releases e coloque no `PATH`. Ou compile do código-fonte
+(Go ≥ 1.26):
 
 ```sh
 go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest
@@ -48,16 +62,17 @@ go install github.com/alorenco/fluig-cli/cmd/fluigcli@latest
 
 ## Atualização
 
-A própria CLI se atualiza — baixa a última release, confere o checksum e
+A CLI se atualiza sozinha. Ela baixa a última release, confere o checksum e
 substitui o binário no lugar:
 
 ```sh
 fluigcli upgrade
 ```
 
-Quando sai versão nova, a CLI avisa sozinha ao fim de um comando (no máximo uma
-vez por dia, só em terminal interativo; desative com
-`FLUIGCLI_NO_UPDATE_CHECK=1`). Detalhes em [docs/upgrade.md](docs/upgrade.md).
+A CLI avisa ao fim de um comando quando sai uma versão nova. Ela faz isso uma
+vez por dia no máximo, só em terminal interativo. Você desativa o aviso com
+`FLUIGCLI_NO_UPDATE_CHECK=1`. Veja mais detalhes em
+[docs/upgrade.md](docs/upgrade.md).
 
 ## Quickstart
 
@@ -102,39 +117,39 @@ fluigcli diff --json | jq '.data.counts'
 
 ## Comandos
 
-**Desenvolvimento** — importar, publicar e acompanhar os artefatos da plataforma:
+**Desenvolvimento**. Importe, publique e acompanhe os artefatos da plataforma:
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `clone` | clona os artefatos de um servidor existente para o projeto local (onboarding) | [docs/clone.md](docs/clone.md) |
+| `clone` | clona os artefatos de um servidor para o projeto local | [docs/clone.md](docs/clone.md) |
 | `dataset` | `new` `list` `import` `export` `query` `enable` `disable` `history` `restore` | [docs/dataset.md](docs/dataset.md) |
 | `event` | `new` `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `new` `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
-| `form` | `new` `list` `import` `export` `link` `records` (CRUD de registros) | [docs/form.md](docs/form.md) |
+| `form` | `new` `list` `import` `export` `link` `records` | [docs/form.md](docs/form.md) |
 | `workflow` | `new-script` `list` `version` `import` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
-| `diff` | `diff [<path>...]` — local vs. servidor, sem alterar nada | [docs/diff.md](docs/diff.md) |
-| `audit` | linter do projeto: Style Guide 2.0 (cores fixas, CDNs, CSS legado) + typos de API (hAPI, getValue, FLUIGC…) | [docs/audit.md](docs/audit.md) |
-| `watch` | publica ao salvar (só dev/hml; nunca cria artefato nem versão) | [docs/watch.md](docs/watch.md) |
-| `dev` | dev server com live reload: widgets sem deploy + preview de formulários com simulação de processo (WKNumState/etapas reais) | [docs/dev.md](docs/dev.md) |
+| `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
+| `audit` | linter do projeto Style Guide 2.0 e typos de API | [docs/audit.md](docs/audit.md) |
+| `watch` | publica ao salvar. | [docs/watch.md](docs/watch.md) |
+| `dev` | dev server com live reload. | [docs/dev.md](docs/dev.md) |
 
-**Operação** — usar a plataforma no dia a dia (consultas, automação, integrações):
-
-| Grupo | Comandos | Doc |
-|---|---|---|
-| `request` | `list` `show` `start` `move` `assignees` `attachments` — consultar, iniciar (com anexos) e movimentar solicitações | [docs/request.md](docs/request.md) |
-| `task` | `list` — a fila de tarefas: as suas, as de outro usuário ou as de todos | [docs/task.md](docs/task.md) |
-| `document` | `list` `download` `upload` `mkdir` `delete` — GED direto do terminal | [docs/document.md](docs/document.md) |
-| `log` | `files` `tail` (`--follow`, `--level`, `--grep`) `download` — o server.log sem SSH (requer o fluigcliHelper) | [docs/log.md](docs/log.md) |
-
-**Administração** — gestão da plataforma (requer usuário com privilégio administrativo):
+**Operação**. Use a plataforma no dia a dia. Faça consultas, automação e integrações:
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `user` | `list` `show` `create` `update` `activate` `deactivate` — usuários, papéis e grupos | [docs/user.md](docs/user.md) |
-| `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` — grupos e membros | [docs/group.md](docs/group.md) |
-| `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` — papéis e vínculos | [docs/role.md](docs/role.md) |
-| `replacement` | `list` `show` `create` `update` `delete` — substitutos de usuário / delegação de tarefas | [docs/replacement.md](docs/replacement.md) |
+| `request` | `list` `show` `start` `move` `assignees` `attachments` | [docs/request.md](docs/request.md) |
+| `task` | `list` | [docs/task.md](docs/task.md) |
+| `document` | `list` `download` `upload` `mkdir` `delete` | [docs/document.md](docs/document.md) |
+| `log` | `files` `tail` (`--follow`, `--level`, `--grep`) `download` | [docs/log.md](docs/log.md) |
+
+**Administração**. Gerencie a plataforma. Requer usuário com privilégio administrativo:
+
+| Grupo | Comandos | Doc |
+|---|---|---|
+| `user` | `list` `show` `create` `update` `activate` `deactivate` `audit` | [docs/user.md](docs/user.md) |
+| `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/group.md](docs/group.md) |
+| `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/role.md](docs/role.md) |
+| `replacement` | `list` `show` `create` `update` `delete` | [docs/replacement.md](docs/replacement.md) |
 
 **Configuração**:
 
@@ -149,37 +164,19 @@ fluigcli diff --json | jq '.data.counts'
 | `skill` | `install` `show` | [docs/skill.md](docs/skill.md) |
 | — | `version` `upgrade` `completion` | [docs/upgrade.md](docs/upgrade.md) |
 
-Comandos e flags em **inglês**; mensagens, ajuda e logs em **pt-BR** (`fluigcli <cmd> --help`).
-
-## Estrutura de projeto Fluig
-
-A CLI opera sobre um diretório com a convenção de projetos Fluig:
-
-```
-projeto/
-├── .fluigcli/servers.json         # conexão dos servidores (sem senha; versionável)
-├── .fluigcli/servers.local.json   # sua identidade + padrão (git-ignorado)
-├── datasets/<nome>.js
-├── events/<nome>.js
-├── forms/<NomeForm>/{<html>, *.js, events/<evento>.js}
-├── mechanisms/<nome>.js
-├── reports/
-├── wcm/widget/<NomeWidget>/src/main/...
-└── workflow/scripts/<Processo>.<evento>.js
-
-```
 
 ## Uso por agentes de IA e CI/CD
 
-- `--json`: stdout recebe **exatamente um** documento JSON com envelope fixo
-  (`{ok, command, server, data, error}`); todo log vai para o stderr.
-- `--json` implica modo não-interativo; fora de um TTY, o modo não-interativo é
+- `--json`: o stdout recebe **exatamente um** documento JSON com envelope fixo
+  (`{ok, command, server, data, error}`). Todo log vai para o stderr.
+- `--json` implica modo não-interativo. Fora de um TTY, o modo não-interativo é
   automático.
-- Senha sem prompt: variável `FLUIGCLI_PASSWORD` ou `--password-stdin`.
-- A sessão é reaproveitada entre execuções (cache em disco), então rodar vários
-  comandos em sequência não faz login a cada vez. Desative com `--no-session-cache`.
+- Senha sem prompt: use a variável `FLUIGCLI_PASSWORD` ou a opção `--password-stdin`.
+- A CLI reaproveita a sessão entre execuções (cache em disco). Por isso, rodar
+  vários comandos em sequência não faz login a cada vez. Você desativa o cache
+  com `--no-session-cache`.
 
-Exit codes estáveis (documentados e cobertos por teste):
+Exit codes estáveis. A CLI os documenta e os cobre por teste:
 
 | Código | Significado |
 |---|---|
@@ -192,7 +189,7 @@ Exit codes estáveis (documentados e cobertos por teste):
 | 6 | Sucesso parcial em lote (detalhes em `data.results[]`) |
 | 7 | Dependência ausente no servidor (widget auxiliar) |
 
-Exemplo (fluxo dirigido por agente):
+Veja um exemplo de fluxo dirigido por agente:
 
 ```sh
 echo "$SENHA" | fluigcli dataset export datasets/ds_x.js --server homolog \
@@ -202,37 +199,39 @@ echo "$SENHA" | fluigcli dataset export datasets/ds_x.js --server homolog \
 echo $?   # 0
 ```
 
-Flags globais: `--server` (`FLUIGCLI_SERVER`), `--project` (`FLUIGCLI_PROJECT`),
+A CLI tem estas flags globais: `--server` (`FLUIGCLI_SERVER`), `--project` (`FLUIGCLI_PROJECT`),
 `--json`, `--yes`/`-y`, `--non-interactive` (`FLUIGCLI_NON_INTERACTIVE=1`),
 `--verbose`/`-v`, `--timeout` (`FLUIGCLI_TIMEOUT`), `--no-session-cache`
 (`FLUIGCLI_NO_SESSION_CACHE=1`).
 
 ### Skill para agentes (Claude Code / Codex)
 
-O repositório traz uma Skill pronta que ensina o agente a dirigir o fluigcli
-(contrato `--json`, exit codes, mapa de comandos). O conteúdo canônico está em
-[`skills/fluigcli/`](skills/fluigcli/) e é embutido no binário — instale-o no
-seu projeto com:
+O repositório traz uma Skill pronta. Ela ensina o agente a dirigir o fluigcli.
+Ela cobre o contrato `--json`, os exit codes e o mapa de comandos. O conteúdo
+canônico está em [`skills/fluigcli/`](skills/fluigcli/). A CLI embute esse
+conteúdo no binário. Instale a Skill no seu projeto com:
 
 ```sh
 fluigcli skill install --target all   # Claude Code (.claude/skills/) + Codex (AGENTS.md)
 fluigcli skill install --target claude --global   # no diretório do usuário
 ```
 
-Reinstalar é idempotente (atualiza no lugar; não duplica o bloco do `AGENTS.md`
-nem sobrescreve arquivos que você editou, salvo com `--force`). Ver
-[docs/skill.md](docs/skill.md).
+A reinstalação é idempotente. Ela atualiza no lugar. Ela não duplica o bloco do
+`AGENTS.md`. Ela não sobrescreve arquivos que você editou, salvo com `--force`.
+Veja [docs/skill.md](docs/skill.md).
 
 ## Credenciais
 
-A senha **nunca** é gravada em arquivo nem aceita como argumento de linha de
-comando. Ordem de resolução: `--password-stdin` → `FLUIGCLI_PASSWORD` → keyring
-do SO → prompt interativo (com oferta de salvar no keyring).
+A CLI **nunca** grava a senha em arquivo. A CLI **nunca** aceita a senha como
+argumento de linha de comando. A ordem de resolução é: `--password-stdin` →
+`FLUIGCLI_PASSWORD` → keyring do SO → prompt interativo (com oferta de salvar no
+keyring).
 
-No projeto, a **conexão** dos servidores é versionável (`.fluigcli/servers.json`)
-mas sua **identidade** (usuário) e seu **padrão** ficam num arquivo pessoal
-git-ignorado (`.fluigcli/servers.local.json`) — assim commitar a config não impõe
-seu login ao time. Detalhes em [docs/server.md](docs/server.md).
+No projeto, a **conexão** dos servidores é versionável
+(`.fluigcli/servers.json`). Já a sua **identidade** (usuário) e o seu **padrão**
+ficam num arquivo pessoal git-ignorado (`.fluigcli/servers.local.json`). Assim,
+commitar a config não impõe o seu login ao time. Veja mais detalhes em
+[docs/server.md](docs/server.md).
 
 ## Desenvolvimento
 
@@ -242,7 +241,7 @@ go test ./...
 go test -tags=integration ./internal/fluig/   # integração (requer FLUIGCLI_TEST_*)
 ```
 
-Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
+Veja o [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
 [docs/](docs/).
 
 ## Inspirações e agradecimentos
@@ -252,8 +251,7 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md) e a documentação de cada comando em
 - **[fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)** —
   widget auxiliar da comunidade (MIT).
 - **[fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)** —
-  declaração de tipos da comunidade (MIT) com as assinaturas das APIs de
-  script do Fluig.
+  declaração de tipos da comunidade (MIT).
 - **[logfluig2.0](https://github.com/matheusnevoa/logfluig2.0)** — 
   visualizador de logs do servidor TOTVS Fluig.
 

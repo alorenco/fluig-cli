@@ -1,10 +1,9 @@
 # fluigcli clone — onboarding de instância existente
 
-Clona os artefatos de um servidor Fluig **já em uso** para o projeto local — o
-cenário clássico do consultor que chega num cliente com a instância rodando e
-uma pasta vazia na máquina. O `clone` consulta o servidor, mostra o inventário
-de cada tipo e importa os selecionados, com a mesma semântica do
-`<grupo> import --all` de cada comando.
+O comando `clone` copia os artefatos de um servidor Fluig **já em uso** para o
+projeto local. O `clone` consulta o servidor. O comando mostra o inventário de 
+cada tipo. Em seguida, o comando importa os tipos que você seleciona. 
+A semântica é a mesma do `<grupo> import --all` de cada comando.
 
 ```sh
 mkdir cliente && cd cliente
@@ -20,45 +19,45 @@ git init && git add -A && git commit -m "estado inicial do servidor"
 
 | tipo | vai para | observação |
 |---|---|---|
-| `forms` | `forms/<Nome>/` | anexos + `events/*.js`; o vínculo pasta↔servidor fica em `.fluigcli/forms.json` |
-| `datasets` | `datasets/<id>.js` | **só os customizados** (os nativos não têm código a versionar) |
-| `workflows` | `workflow/scripts/<Processo>.<evento>.js` | **só os scripts de eventos** — o diagrama do processo fica no servidor |
+| `forms` | `forms/<Nome>/` | anexos e `events/*.js`. O vínculo pasta↔servidor fica em `.fluigcli/forms.json` |
+| `datasets` | `datasets/<id>.js` | **só os customizados**. Os nativos não têm código a versionar |
+| `workflows` | `workflow/scripts/<Processo>.<evento>.js` | **só os scripts de eventos**. O diagrama do processo fica no servidor |
 | `events` | `events/<id>.js` | eventos globais |
 | `mechanisms` | `mechanisms/<id>.js` | mecanismos de atribuição customizados |
-| `widgets` | `wcm/widget/<code>/` | requer o [fluigcliHelper](./server#fluigcli-server-install-helper-name); widget SPA vem como o **bundle publicado** (sem o fonte TS/Vue) |
+| `widgets` | `wcm/widget/<code>/` | requer o [fluigcliHelper](./server#fluigcli-server-install-helper-name). O widget SPA vem como o **bundle publicado**, sem o fonte TS/Vue |
 
-Fora do escopo (a CLI não gerencia): páginas e layouts, comunidades,
-parâmetros da plataforma e documentos do GED (para documentos avulsos, use
-[`document`](./document)).
+A CLI não gerencia estes itens: páginas e layouts, comunidades, parâmetros da
+plataforma e documentos do GED. Para documentos avulsos, use
+[`document`](./document).
 
 ## Seleção
 
 - **Interativo** (terminal, sem flags): a tabela de inventário mostra cada
-  tipo com a contagem; responda com números ou nomes (`1,3` ou
-  `forms,widgets`) — Enter clona todos os disponíveis.
-- **Não-interativo / CI / `--json`**: `--all` ou `--only <tipos>` é
-  obrigatório (sem eles: exit 2). `--only` aceita os nomes no plural ou
-  singular.
+  tipo com a contagem. Responda com números ou nomes (`1,3` ou
+  `forms,widgets`). Pressione Enter para clonar todos os tipos disponíveis.
+- **Não-interativo / CI / `--json`**: informe `--all` ou `--only <tipos>`. Sem
+  uma destas flags, o comando termina com exit 2. O `--only` aceita os nomes no
+  plural ou no singular.
 
 ## Widgets e o fluigcliHelper
 
-O download de widgets depende do componente auxiliar
+O download de widgets precisa do componente auxiliar
 [fluigcliHelper](./server#fluigcli-server-install-helper-name) instalado no servidor:
 
-- Com `--all` e o helper ausente, as widgets são **puladas com aviso** e o
-  resto segue normalmente.
-- Com `--only widgets` e o helper ausente, o comando falha com exit 7 e a
-  orientação do `server install-helper`.
+- Com `--all` e sem o helper, o comando **pula as widgets com aviso**. Os demais
+  tipos seguem normalmente.
+- Com `--only widgets` e sem o helper, o comando termina com exit 7. O comando
+  mostra a orientação do `server install-helper`.
 
 ## Re-execução e segurança
 
-- Rodar de novo **sobrescreve os arquivos locais** com o estado do servidor
-  (a mesma regra dos `import`) — commite antes de re-executar; o
+- Rodar de novo **sobrescreve os arquivos locais** com o estado do servidor.
+  Esta é a mesma regra dos `import`. Faça o commit antes de re-executar. O
   [`diff`](./diff) mostra o que difere sem tocar em nada.
-- O clone **só lê** o servidor; nada é publicado (por isso funciona sem a
-  trava de produção).
-- Falha em itens individuais não interrompe o restante: o comando termina com
-  exit 6 (sucesso parcial) e cada falha aparece em `data.results`.
+- O clone **só lê** o servidor. O comando não publica nada. Por isso, ele
+  funciona sem a trava de produção.
+- A falha em itens individuais não interrompe o restante. O comando termina com
+  exit 6 (sucesso parcial). Cada falha aparece em `data.results`.
 
 ## Saída `--json`
 
@@ -80,5 +79,5 @@ O download de widgets depende do componente auxiliar
 }
 ```
 
-Sem o fluigcliHelper, `data.unavailable.widgets` explica a ausência e
-`available` não conta widgets.
+Sem o fluigcliHelper, o campo `data.unavailable.widgets` explica a ausência. O
+campo `available` não conta widgets.
