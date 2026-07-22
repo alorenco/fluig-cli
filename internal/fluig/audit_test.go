@@ -74,7 +74,7 @@ func TestDocumentsCreatedBy(t *testing.T) {
 	c := datasetClient(t, stub.server(t).URL)
 
 	day := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
-	docs, err := c.DocumentsCreatedBy(context.Background(), "codigo-do-marlon", day, day)
+	docs, err := c.DocumentsCreatedBy(context.Background(), "codigo-do-usuario", day, day)
 	if err != nil {
 		t.Fatal(err)
 	}

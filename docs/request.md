@@ -24,7 +24,7 @@ As solicitações OPEN aparecem em verde.
 
 ```sh
 fluigcli request list --process compras_solicitacao --status open
-fluigcli request list --assignee mjara --sla expired
+fluigcli request list --assignee jsilva --sla expired
 fluigcli request list --limit 0 --json          # todas, para agentes/CI
 ```
 

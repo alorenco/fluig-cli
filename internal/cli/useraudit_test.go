@@ -86,15 +86,15 @@ func (s *auditStub) server(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
 		login := r.URL.Query().Get("login")
-		io.WriteString(w, `{"content":{"login":"`+login+`","fullName":"Marlon Jara","userCode":"uc-`+login+`"}}`)
+		io.WriteString(w, `{"content":{"login":"`+login+`","fullName":"João Silva","userCode":"uc-`+login+`"}}`)
 	})
 	mux.HandleFunc("/process-management/api/v2/tasks", func(w http.ResponseWriter, r *http.Request) {
 		s.taskQuery = r.URL.Query()
-		io.WriteString(w, `{"items":[{"processInstanceId":228655,"processId":"compras_entrada_documento","movementSequence":1,"assignee":{"name":"Marlon Jara","login":"mjara","code":"uc-mjara"},"status":"COMPLETED","slaStatus":"ON_TIME","startDate":"2026-07-03T09:54:03.000-04:00","endDate":"2026-07-03T09:54:05.000-04:00","state":{"sequence":76,"stateName":"Passar por Revisão"}}],"hasNext":false}`)
+		io.WriteString(w, `{"items":[{"processInstanceId":228655,"processId":"compras_entrada_documento","movementSequence":1,"assignee":{"name":"João Silva","login":"jsilva","code":"uc-jsilva"},"status":"COMPLETED","slaStatus":"ON_TIME","startDate":"2026-07-03T09:54:03.000-04:00","endDate":"2026-07-03T09:54:05.000-04:00","state":{"sequence":76,"stateName":"Passar por Revisão"}}],"hasNext":false}`)
 	})
 	mux.HandleFunc("/process-management/api/v2/requests", func(w http.ResponseWriter, r *http.Request) {
 		s.reqQuery = r.URL.Query()
-		io.WriteString(w, `{"items":[{"processInstanceId":228655,"processId":"compras_entrada_documento","status":"FINALIZED","slaStatus":"ON_TIME","requester":{"name":"Marlon Jara","login":"mjara","code":"uc-mjara"},"startDate":"2026-07-03T09:54:03.000-04:00"}],"hasNext":false}`)
+		io.WriteString(w, `{"items":[{"processInstanceId":228655,"processId":"compras_entrada_documento","status":"FINALIZED","slaStatus":"ON_TIME","requester":{"name":"João Silva","login":"jsilva","code":"uc-jsilva"},"startDate":"2026-07-03T09:54:03.000-04:00"}],"hasNext":false}`)
 	})
 	mux.HandleFunc("/dataset/api/v2/dataset-handle/search", func(w http.ResponseWriter, r *http.Request) {
 		s.dsHits++
@@ -124,7 +124,7 @@ func userAuditProject(t *testing.T, stubURL string) string {
 func TestUserAuditTabela(t *testing.T) {
 	stub := &auditStub{}
 	proj := userAuditProject(t, stub.server(t).URL)
-	code, stdout := runMain(t, "user", "audit", "mjara", "--day", "03/07/2026", "--project", proj, "--server", "producao")
+	code, stdout := runMain(t, "user", "audit", "jsilva", "--day", "03/07/2026", "--project", proj, "--server", "producao")
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
 	}
@@ -138,11 +138,11 @@ func TestUserAuditTabela(t *testing.T) {
 	if got := stub.reqQuery.Get("initialStartDate"); got != "2026-07-03T00:00:00" {
 		t.Errorf("request initialStartDate=%q", got)
 	}
-	if stub.reqQuery.Get("requester") != "uc-mjara" {
+	if stub.reqQuery.Get("requester") != "uc-jsilva" {
 		t.Errorf("request requester deveria ser o userCode: %q", stub.reqQuery.Get("requester"))
 	}
 	for _, want := range []string{
-		"Auditoria de Marlon Jara (mjara)", "producao", "03/07/2026",
+		"Auditoria de João Silva (jsilva)", "producao", "03/07/2026",
 		"Tarefas atuadas (1)", "Solicitações abertas (1)", "Documentos criados (1)",
 		"2026-07-03 09:54:05", "228655", "APC - NF - N° 918",
 		"Resumo: 1 tarefa(s) · 1 solicitação(ões) · 1 documento(s)",
@@ -157,7 +157,7 @@ func TestUserAuditJSONeOnly(t *testing.T) {
 	stub := &auditStub{}
 	proj := userAuditProject(t, stub.server(t).URL)
 	// --only tasks: não deve consultar documentos (dataset) nem solicitações.
-	code, stdout := runMain(t, "user", "audit", "mjara", "--day", "2026-07-03",
+	code, stdout := runMain(t, "user", "audit", "jsilva", "--day", "2026-07-03",
 		"--only", "tasks", "--json", "--project", proj, "--server", "producao")
 	if code != output.ExitOK {
 		t.Fatalf("exit=%d stdout=%s", code, stdout)
@@ -201,7 +201,7 @@ func TestUserAuditArquivo(t *testing.T) {
 	dir := t.TempDir()
 
 	txt := filepath.Join(dir, "aud.txt")
-	code, _ := runMain(t, "user", "audit", "mjara", "--day", "03/07/2026", "-o", txt, "--project", proj, "--server", "producao")
+	code, _ := runMain(t, "user", "audit", "jsilva", "--day", "03/07/2026", "-o", txt, "--project", proj, "--server", "producao")
 	if code != output.ExitOK {
 		t.Fatalf("txt exit=%d", code)
 	}
@@ -209,14 +209,14 @@ func TestUserAuditArquivo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Auditoria de Marlon Jara (mjara)", "Tarefas atuadas (1)", "APC - NF - N° 918", "Resumo:"} {
+	for _, want := range []string{"Auditoria de João Silva (jsilva)", "Tarefas atuadas (1)", "APC - NF - N° 918", "Resumo:"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("txt sem %q:\n%s", want, body)
 		}
 	}
 
 	xlsx := filepath.Join(dir, "aud.xlsx")
-	code, _ = runMain(t, "user", "audit", "mjara", "--day", "03/07/2026", "-o", xlsx, "--project", proj, "--server", "producao")
+	code, _ = runMain(t, "user", "audit", "jsilva", "--day", "03/07/2026", "-o", xlsx, "--project", proj, "--server", "producao")
 	if code != output.ExitOK {
 		t.Fatalf("xlsx exit=%d", code)
 	}
@@ -243,7 +243,7 @@ func TestUserAuditArquivo(t *testing.T) {
 	}
 
 	// extensão inválida
-	code, _ = runMain(t, "user", "audit", "mjara", "--day", "03/07/2026", "-o", filepath.Join(dir, "x.pdf"), "--project", proj, "--server", "producao")
+	code, _ = runMain(t, "user", "audit", "jsilva", "--day", "03/07/2026", "-o", filepath.Join(dir, "x.pdf"), "--project", proj, "--server", "producao")
 	if code != output.ExitUsage {
 		t.Errorf("extensão inválida: exit=%d, quer %d", code, output.ExitUsage)
 	}

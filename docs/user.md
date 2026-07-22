@@ -117,13 +117,13 @@ Nos documentos, a coluna "Tipo" traz o rótulo legível. Por exemplo, *Anexo de
 processo*, *Registro de formulário*, *Arquivo* ou *Pasta*.
 
 ```sh
-fluigcli user audit mjara --day 03/07/2026 --server producao
-fluigcli user audit mjara --from 01/07/2026 --to 07/07/2026 --only tasks,documents
-fluigcli user audit mjara --day 2026-07-03 --json
+fluigcli user audit jsilva --day 03/07/2026 --server producao
+fluigcli user audit jsilva --from 01/07/2026 --to 07/07/2026 --only tasks,documents
+fluigcli user audit jsilva --day 2026-07-03 --json
 
 # salvar em arquivo (formato pela extensão)
-fluigcli user audit mjara --day 03/07/2026 -o marlon_03-07.xlsx --server producao
-fluigcli user audit mjara --day 03/07/2026 -o marlon_03-07.txt  --server producao
+fluigcli user audit jsilva --day 03/07/2026 -o jsilva_03-07.xlsx --server producao
+fluigcli user audit jsilva --day 03/07/2026 -o jsilva_03-07.txt  --server producao
 ```
 
 O `.xlsx` sai com uma aba **Resumo** e uma aba por dimensão (Tarefas,
