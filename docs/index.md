@@ -52,6 +52,7 @@ em pt-BR.
 |---|---|
 | [server](./server) | servidores, credenciais, sessão, saúde e `install-helper` |
 | [dataset](./dataset) | datasets: consulta, CRUD, ativação, histórico e restauração |
+| [db](./db) | SQL de leitura de diagnóstico via datasource JNDI |
 | [event](./event) | eventos globais |
 | [mechanism](./mechanism) | mecanismos de atribuição |
 | [form](./form) | formulários e registros (CRUD de cards) |

@@ -20,6 +20,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver o que **mudaria** antes de publicar | `diff` |
 | conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
 | consultar os dados de um dataset | `dataset query` |
+| rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
 | navegar / baixar / subir documentos (GED) | `document` |
@@ -88,6 +89,21 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `dataset history <id> [--version N]` | — | histórico de versões; `--version N` imprime o código JS daquela versão |
 | `dataset restore <id> <version>` | — | restaura o código de uma versão do histórico (cria versão nova; exige `--yes` em modo não-interativo) |
 
+## db — SQL de diagnóstico (requer fluigcliHelper ≥ 0.6.0)
+
+SQL de **leitura** contra um datasource JNDI do servidor. É SQL cru de
+diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). Só
+`SELECT`/`WITH`; escrita e múltiplas instruções são recusadas no servidor.
+
+| comando | efeito |
+|---|---|
+| `db datasources` | lista os datasources JNDI disponíveis (padrão `/jdbc/AppDS`) |
+| `db query "<sql>" [--jndi X] [--param v]... [--max-rows N]` | executa o SELECT e mostra colunas+linhas; `?` recebe os `--param` na ordem |
+
+- Use para conferir permissão (`select has_perms_by_name('dbo.T','OBJECT','INSERT')`), login do datasource (`select suser_sname()`), ou testar um SQL antes do dataset.
+- `--json`: `{columns[],rows[],rowCount,truncated}`; `rows` posicional; null do banco = `null`.
+- Erro de SQL ou consulta que não é de leitura = exit 5 com a mensagem do banco.
+
 ## event — eventos globais
 
 | comando | direção | efeito |
@@ -130,9 +146,15 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `workflow new-script <processId> <evento>` | cria `workflow/scripts/<processId>.<evento>.js` com a assinatura correta do evento (catálogo no `--help`; local) |
 | `workflow list [--active-only]` | lista os processos do servidor (nativo) |
 | `workflow version <processId>` | mostra a última versão do processo (nativo) |
+| `workflow versions <processId>` | lista TODAS as versões (número, ativa, em edição) em tabela |
 | `workflow import <processId>... \| --all` | baixa os scripts de eventos para workflow/scripts/ (servidor → local; sobrescreve no lugar; nativo) |
-| `workflow export <arquivo\|processId>` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar) |
-| `workflow publish <processId> [--no-release]` | deploy nativo: cria versão nova com os scripts locais e a libera |
+| `workflow import <processId> --stdout [--events X]` | imprime os scripts publicados SEM gravar no repo (read-only) |
+| `workflow import <processId> --version <n>` | baixa os scripts de uma versão específica (não só a corrente) |
+| `workflow export <arquivo\|processId> [--process-id <id>]` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar) |
+| `workflow diff <arquivo\|processId> [--process-id <id>]` | compara o script local com o publicado (read-only; aceita `--events`/`--all-events`) |
+| `workflow publish <processId> [--no-release] [--process-id <id>]` | deploy nativo: cria versão nova com os scripts locais e a libera |
+
+`--process-id` desacopla o arquivo local (que dá o evento/script) do processId no servidor — use quando o processId publicado difere do prefixo do arquivo (ex.: arquivo `SolicitacaoAdiantamento.*.js`, processId `"Adiantamento ao Fornecedor"`). Um `NOT_FOUND` de processo sugere ids próximos e lembra da flag.
 
 ## request — solicitações de workflow (operação)
 

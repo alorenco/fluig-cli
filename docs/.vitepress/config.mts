@@ -33,6 +33,7 @@ export default defineConfig({
           { text: 'server — servidores e sessão', link: '/server' },
           { text: 'clone — onboarding de instância existente', link: '/clone' },
           { text: 'dataset — datasets', link: '/dataset' },
+          { text: 'db — SQL de diagnóstico', link: '/db' },
           { text: 'event — eventos globais', link: '/event' },
           { text: 'mechanism — mecanismos', link: '/mechanism' },
           { text: 'form — formulários', link: '/form' },

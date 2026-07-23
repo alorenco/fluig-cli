@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/alorenco/fluig-cli/internal/output"
 	skillassets "github.com/alorenco/fluig-cli/skills"
 )
@@ -233,6 +235,67 @@ func TestSkillCommandsDocCoversEveryGroup(t *testing.T) {
 			t.Errorf("grupo de comando %q não é citado em reference/commands.md — atualize a skill", name)
 		}
 	}
+}
+
+// Guarda anti-drift em nível de SUBCOMANDO: todo subcomando da árvore da CLI
+// (profundidade ≥ 2, ex.: `workflow versions`, `form records list`) precisa ser
+// citado em reference/commands.md pelo caminho completo. Complementa o
+// TestSkillCommandsDocCoversEveryGroup (que cobre só os grupos de topo) e pega o
+// caso que escapou em 2026-07-23: `workflow versions`/`diff` entraram na CLI sem
+// entrar no mapa da skill, e nenhum teste falhou.
+//
+// Só o commands.md é verificado, de propósito: é o mapa canônico e completo. O
+// codex/AGENTS.md abrevia (ex.: "CRUD" no lugar de list/show/create/update/
+// delete) e omite grupos utilitários (clone/log/skill/upgrade), então cobrança
+// automática lá geraria falso-positivo — ele e o README ficam sob a regra 9 do
+// CLAUDE.md (manual).
+func TestSkillCommandsDocCoversEverySubcommand(t *testing.T) {
+	root := newRootCmd(&App{})
+	data, err := skillassets.FS.ReadFile("fluigcli/reference/commands.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(data)
+
+	// sep casa o pipe de alternância do markdown: `\|` (escapado na tabela) ou
+	// `|`, com espaços opcionais dos dois lados.
+	sepRE := regexp.MustCompile(` *\\?\| *`)
+	// cited aceita "grupo sub" direto OU a forma combinada por pipe
+	// "grupo a|b|c" (ex.: `dataset enable\|disable`, `skill install \| show`).
+	cited := func(path []string) bool {
+		full := strings.Join(path, " ")
+		if strings.Contains(doc, full) {
+			return true
+		}
+		prefix := strings.Join(path[:len(path)-1], " ")
+		leaf := path[len(path)-1]
+		altRE := regexp.MustCompile(regexp.QuoteMeta(prefix) + `\s+([a-z][\w-]*(?: *\\?\| *[a-z][\w-]*)+)`)
+		for _, m := range altRE.FindAllStringSubmatch(doc, -1) {
+			for _, alt := range sepRE.Split(m[1], -1) {
+				if alt == leaf {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	var walk func(cmd *cobra.Command, path []string)
+	walk = func(cmd *cobra.Command, path []string) {
+		for _, sub := range cmd.Commands() {
+			name := sub.Name()
+			if sub.Hidden || sub.IsAdditionalHelpTopicCommand() || name == "help" || name == "completion" {
+				continue
+			}
+			childPath := append(append([]string{}, path...), name)
+			if len(childPath) >= 2 && !cited(childPath) {
+				t.Errorf("subcomando %q não é citado em reference/commands.md — atualize a skill (regra 9 do CLAUDE.md)",
+					strings.Join(childPath, " "))
+			}
+			walk(sub, childPath)
+		}
+	}
+	walk(root, nil)
 }
 
 // A referência de tipos do Fluig (fork do fluig-declaration-type da

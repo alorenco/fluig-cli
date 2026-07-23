@@ -6,6 +6,7 @@ uso por agentes de IA.
 - [server](server.md) — servidores, credenciais e `install-helper`
 - [clone](clone.md) — onboarding. Clona os artefatos de um servidor existente para o projeto
 - [dataset](dataset.md) — datasets (list/import/export/query e enable/disable/history/restore)
+- [db](db.md) — SQL de leitura de diagnóstico via datasource JNDI (requer o fluigcliHelper)
 - [event](event.md) — eventos globais
 - [mechanism](mechanism.md) — mecanismos de atribuição
 - [form](form.md) — formulários

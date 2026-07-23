@@ -123,10 +123,11 @@ fluigcli diff --json | jq '.data.counts'
 |---|---|---|
 | `clone` | clona os artefatos de um servidor para o projeto local | [docs/clone.md](docs/clone.md) |
 | `dataset` | `new` `list` `import` `export` `query` `enable` `disable` `history` `restore` | [docs/dataset.md](docs/dataset.md) |
+| `db` | `query` `datasources`. SQL de leitura de diagnóstico (via fluigcliHelper) | [docs/db.md](docs/db.md) |
 | `event` | `new` `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `new` `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
 | `form` | `new` `list` `import` `export` `link` `records` | [docs/form.md](docs/form.md) |
-| `workflow` | `new-script` `list` `version` `import` `export` `publish` | [docs/workflow.md](docs/workflow.md) |
+| `workflow` | `new-script` `list` `version` `versions` `import` `export` `publish` `diff` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `audit` | linter do projeto Style Guide 2.0 e typos de API | [docs/audit.md](docs/audit.md) |

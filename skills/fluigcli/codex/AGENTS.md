@@ -31,9 +31,12 @@ fluigcli dataset export datasets/ds_x.js --json     # publica (local → servido
 ```
 
 Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
-`dataset` (new|list|import|export|query|enable|disable|history|restore), `event` (new|list|import|export|delete),
+`dataset` (new|list|import|export|query|enable|disable|history|restore),
+`db` (query|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper),
+`event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros),
-`workflow` (new-script|list|version|import|export|publish), `widget` (new|list|import|export),
+`workflow` (new-script|list|version|versions|import|export|publish|diff — `--process-id` desacopla arquivo do processId do servidor),
+`widget` (new|list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
 `document` (list|download|upload|mkdir|delete — GED),
