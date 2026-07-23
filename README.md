@@ -123,7 +123,7 @@ fluigcli diff --json | jq '.data.counts'
 |---|---|---|
 | `clone` | clona os artefatos de um servidor para o projeto local | [docs/clone.md](docs/clone.md) |
 | `dataset` | `new` `list` `import` `export` `query` `enable` `disable` `history` `restore` `delete` | [docs/dataset.md](docs/dataset.md) |
-| `db` | `query` `datasources`. SQL de leitura de diagnóstico (via fluigcliHelper) | [docs/db.md](docs/db.md) |
+| `db` | `query` `grants` `datasources`. SQL de leitura de diagnóstico (via fluigcliHelper) | [docs/db.md](docs/db.md) |
 | `event` | `new` `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `new` `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
 | `form` | `new` `list` `import` `export` `link` `records` | [docs/form.md](docs/form.md) |

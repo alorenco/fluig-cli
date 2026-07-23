@@ -22,6 +22,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | consultar os dados de um dataset | `dataset query` |
 | desligar (reversível) ou remover de vez (permanente) um dataset | `dataset disable` · `dataset delete` |
 | rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
+| checar (preflight) se o login do banco pode escrever nas tabelas | `db grants` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
 | navegar / baixar / subir documentos (GED) | `document` |
@@ -101,9 +102,11 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 |---|---|
 | `db datasources` | lista os datasources JNDI disponíveis (padrão `/jdbc/AppDS`) |
 | `db query "<sql>" [--jndi X] [--param v]... [--max-rows N]` | executa o SELECT e mostra colunas+linhas; `?` recebe os `--param` na ordem |
+| `db grants <table>... [--perm SELECT,INSERT,UPDATE,DELETE] [--jndi X]` | preflight: checa se o login do datasource tem as permissões nas tabelas (SQL Server, via `HAS_PERMS_BY_NAME`) |
 
 - Use para conferir permissão (`select has_perms_by_name('dbo.T','OBJECT','INSERT')`), login do datasource (`select suser_sname()`), ou testar um SQL antes do dataset.
-- `--json`: `{columns[],rows[],rowCount,truncated}`; `rows` posicional; null do banco = `null`.
+- `db grants` é o atalho do preflight de permissão: `✓` concedida, `✗` negada, `?` objeto inexistente. Falta algo = **exit 6** (`ok:false`, itere `tables[].missing`). Tudo concedido = exit 0.
+- `--json` do `query`: `{columns[],rows[],rowCount,truncated}`; `rows` posicional; null do banco = `null`.
 - Erro de SQL ou consulta que não é de leitura = exit 5 com a mensagem do banco.
 
 ## event — eventos globais

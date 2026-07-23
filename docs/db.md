@@ -66,12 +66,60 @@ Quando a consulta tem um erro de SQL, o servidor devolve a mensagem do banco. A
 CLI mostra esta mensagem e termina com o código 5. Quando a consulta não é de
 leitura, o servidor recusa com a mesma via.
 
+## `fluigcli db grants`
+
+Este comando confere as permissões do login do datasource nas tabelas que você
+informa. Use o comando como **preflight** antes de rodar um dataset de escrita.
+Sem ele, um grant faltante (por exemplo, `INSERT` para o login `fluig`) só
+aparece como erro de SQL quando o dataset roda. O comando mostra o problema
+antes, com o login e o banco em destaque.
+
+```sh
+fluigcli db grants dbo.ZMDFLANFLUIG
+fluigcli db grants dbo.ZMDFLANFLUIG dbo.WCM_APPLICATION --perm INSERT,UPDATE
+fluigcli db grants dbo.MINHA_TABELA --jndi /jdbc/TotvsRM
+fluigcli db grants dbo.ZMDFLANFLUIG --json
+```
+
+O comando é para **SQL Server**. Para cada tabela, ele checa as permissões com
+a função `HAS_PERMS_BY_NAME`. Ele monta um único `SELECT` de leitura e o executa
+pela mesma via do `db query`.
+
+- `--perm` — as permissões a checar. O valor padrão é `SELECT,INSERT,UPDATE,DELETE`.
+  Separe os valores por vírgula. Os valores aceitos são `SELECT`, `INSERT`,
+  `UPDATE` e `DELETE`.
+- `--jndi` — o datasource JNDI. O valor padrão é `/jdbc/AppDS`. Use
+  `db datasources` para ver os nomes disponíveis.
+
+No terminal, o comando mostra uma linha com o login e o banco do datasource.
+Depois, ele mostra uma tabela com uma linha por objeto. Cada célula de
+permissão tem um marcador. O `✓` (verde) indica permissão concedida. O `✗`
+(vermelho) indica permissão negada. O `?` (amarelo) indica objeto inexistente
+no banco daquele datasource.
+
+O `?` costuma ser datasource errado, não permissão faltando. Cada datasource
+aponta para um banco. O default `/jdbc/AppDS` é o banco `FLUIG`. As tabelas do
+RM ficam no banco `TOTVSRM`. Por exemplo, a tabela `dbo.ZMDFLANFLUIG` é do RM.
+Neste caso, use `--jndi /jdbc/TotvsRM`. O comando confere a existência do objeto
+com `OBJECT_ID`, não com o retorno do `HAS_PERMS_BY_NAME`.
+
+Com `--json`, o envelope traz `{login, database, perms[], tables[], ok}`. Cada
+item de `tables` tem `table`, `exists`, `grants` e `missing`. O campo `grants`
+mapeia cada permissão para o veredicto (`true` concedida, `false` negada, `null`
+indeterminada). O campo `missing` lista as permissões não confirmadas, na ordem
+pedida. Itere `missing` para saber o que falta. O campo `ok` é `true` só quando
+todo objeto existe e toda permissão está concedida.
+
+Quando falta qualquer permissão, ou quando um objeto não existe, o comando
+termina com o código 6. Neste caso, o envelope sai com `ok: false`.
+
 ## Exit codes
 
 | código | quando |
 |---|---|
 | `0` | sucesso |
-| `2` | uso incorreto (falta o SQL, flag inválida) |
+| `2` | uso incorreto (falta o SQL/tabela, flag ou `--perm` inválido) |
 | `4` | o datasource não existe |
 | `5` | o servidor recusou a consulta (erro de SQL ou consulta que não é de leitura) |
+| `6` | `db grants` — falta uma permissão ou um objeto não existe |
 | `7` | fluigcliHelper ausente ou **desatualizado** (< 0.6.0, sem as rotas de db). Atualize com `server install-helper <name> --force`. |
