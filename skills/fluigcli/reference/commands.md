@@ -20,6 +20,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver o que **mudaria** antes de publicar | `diff` |
 | conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
 | consultar os dados de um dataset | `dataset query` |
+| desligar (reversível) ou remover de vez (permanente) um dataset | `dataset disable` · `dataset delete` |
 | rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
@@ -85,9 +86,10 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `dataset import <id>... \| --all` | servidor → local | baixa datasets para arquivos locais |
 | `dataset export <file>...` | local → servidor | envia datasets locais |
 | `dataset query <id>` | — | consulta os dados de um dataset (`--order` aceita um único campo; sufixo `_DESC`) |
-| `dataset enable\|disable <id>...` | — | reativa/desativa datasets no servidor (não há API de exclusão; disable é o caminho) |
+| `dataset enable\|disable <id>...` | — | reativa/desativa datasets no servidor (sem apagar; disable é reversível) |
 | `dataset history <id> [--version N]` | — | histórico de versões; `--version N` imprime o código JS daquela versão |
 | `dataset restore <id> <version>` | — | restaura o código de uma versão do histórico (cria versão nova; exige `--yes` em modo não-interativo) |
+| `dataset delete <id>` | — | remove um dataset de vez (físico, permanente; alvo único; `--yes` em não-interativo). **Requer o fluigcliHelper ≥ 0.7.0** (sem ele: exit 7). Para só desligar de forma reversível, use `disable` |
 
 ## db — SQL de diagnóstico (requer fluigcliHelper ≥ 0.6.0)
 

@@ -209,6 +209,43 @@ func (c *Client) UpdateDataset(ctx context.Context, loaded *Dataset, impl string
 	return c.postDatasetWrite(ctx, "editDataset?confirmnewstructure=false", raw)
 }
 
+// helperDatasetsPath é a rota de administração de dataset do fluigcliHelper
+// (existe a partir do helper 0.7.0).
+const helperDatasetsPath = "/" + HelperFluigcli + "/api/datasets"
+
+// helperHasDatasetAdminAPI: a rota /datasets existe a partir do helper 0.7.0.
+func helperHasDatasetAdminAPI(version string) bool { return helperAtLeast(version, 0, 7) }
+
+// DeleteDatasetPermanently remove um dataset FISICAMENTE do servidor, via
+// fluigcliHelper (DELETE /fluigcliHelper/api/datasets/{id} → EJB
+// DatasetService.deletePermanently). Diferente do disable (reversível) e da REST
+// legada deleteDataset (que só desativa), esta remoção é definitiva. Requer o
+// helper >= 0.7.0. O tenant é o da sessão (resolvido no helper).
+func (c *Client) DeleteDatasetPermanently(ctx context.Context, id string) error {
+	if err := c.requireHelper(ctx); err != nil {
+		return err
+	}
+	endpoint := c.url(helperDatasetsPath + "/" + url.PathEscape(id))
+	body, status, err := c.doJSON(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	switch status {
+	case http.StatusOK:
+		return nil
+	case http.StatusNotFound:
+		// O controller nunca usa 404 para erro de negócio (usa 400). Então 404
+		// aqui significa "rota ausente" — helper antigo, sem esta rota.
+		if info, e := c.HelperStatus(ctx); e == nil && info.Installed && !helperHasDatasetAdminAPI(info.Version) {
+			return ErrHelperOutdated
+		}
+		return &HTTPError{StatusCode: status, URL: HelperFluigcli + "/datasets", Body: truncate(string(body), 512)}
+	default:
+		// 400 e afins: erro de negócio do servidor com a mensagem do helper.
+		return fmt.Errorf("%w: %s", errServerRejected, strings.TrimSpace(string(body)))
+	}
+}
+
 // DatasetConstraint é um filtro do dataset-handle/search (equivalente ao
 // constraint do getDataset SOAP).
 type DatasetConstraint struct {

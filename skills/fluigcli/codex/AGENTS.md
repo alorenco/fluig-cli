@@ -31,7 +31,7 @@ fluigcli dataset export datasets/ds_x.js --json     # publica (local → servido
 ```
 
 Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
-`dataset` (new|list|import|export|query|enable|disable|history|restore),
+`dataset` (new|list|import|export|query|enable|disable|history|restore|delete — `delete` = hard-delete via helper),
 `db` (query|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper),
 `event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros),

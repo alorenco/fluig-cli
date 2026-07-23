@@ -97,10 +97,11 @@ exit **4**.
 
 ## `fluigcli dataset disable <id>...` / `enable <id>...`
 
-O `disable` desativa um dataset **sem apagá-lo**, porque o Fluig não tem API de
-exclusão de dataset. O `enable` reativa datasets desativados. Os dois comandos
-são nativos (REST v2). Um dataset inativo some das consultas. Mas ele continua
-listado (coluna Ativo = "não") e mantém o histórico.
+O `disable` desativa um dataset **sem apagá-lo**. O `enable` reativa datasets
+desativados. Os dois comandos são nativos (REST v2). Um dataset inativo some das
+consultas. Mas ele continua listado (coluna Ativo = "não") e mantém o histórico.
+Prefira `disable` quando quiser um passo **reversível**. Para remover de vez, use
+`dataset delete`.
 
 ```sh
 fluigcli dataset disable ds_legado
@@ -108,6 +109,28 @@ fluigcli dataset enable ds_legado ds_outro
 ```
 
 Dataset inexistente → exit **4**. Em produção, vale a trava de confirmação.
+
+## `fluigcli dataset delete <id>`
+
+Este comando **remove um dataset de vez** do servidor. A remoção é física e
+**permanente**. Não há undo. Por isso o comando aceita **um id por vez**. Em modo
+não-interativo, informe `--yes`. Em produção, vale a trava de confirmação do
+servidor.
+
+O comando usa o **fluigcliHelper** (≥ 0.7.0). O helper chama o serviço interno
+do Fluig que apaga o dataset de fato. A API REST pública não expõe esta remoção.
+Ela só desativa. Por isso `delete` precisa do helper. Sem o helper: exit **7**.
+
+Use `delete` só quando quiser eliminar o dataset. Para apenas desligá-lo de
+forma reversível, use `dataset disable`.
+
+```sh
+fluigcli dataset delete zz_ds_teste --yes
+```
+
+A remoção é **idempotente**. Apagar um dataset que não existe retorna sucesso.
+Uma recusa do servidor (por exemplo, um dataset interno ou com dependência) →
+exit **5**. A remoção exige privilégio de administrador no tenant.
 
 ## `fluigcli dataset history <id> [--version N]`
 

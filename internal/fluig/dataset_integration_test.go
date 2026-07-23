@@ -180,3 +180,43 @@ func TestIntegrationDatasetQuery(t *testing.T) {
 		t.Error("dataset inexistente deveria dar erro")
 	}
 }
+
+// Hard-delete via helper (ROADMAP §1.2, 2026-07-23): cria um dataset descartável
+// e o remove FISICAMENTE com DeleteDatasetPermanently (EJB deletePermanently via
+// fluigcliHelper >= 0.7.0). Confirma que some da listagem — diferente do
+// enable/disable (reversível) e da REST legada deleteDataset (que só desativa).
+// Requer o helper 0.7.0 instalado na homologação.
+func TestIntegrationDatasetHardDelete(t *testing.T) {
+	c, err := NewClient(integrationOptions(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := c.requireHelper(ctx); err != nil {
+		t.Skipf("fluigcliHelper ausente: %v", err)
+	}
+	const id = "zz_fluigcli_test_hdel"
+
+	impl := "function createDataset(fields, constraints, sortFields) {\n  var d = DatasetBuilder.newDataset();\n  d.addColumn('id');\n  d.addRow(['1']);\n  return d;\n}\n"
+	if err := c.CreateDataset(ctx, id, "fluigcli test hard-delete", impl); err != nil {
+		t.Logf("CreateDataset (pode já existir): %v", err)
+	}
+	if _, err := c.LoadDataset(ctx, id); err != nil {
+		t.Fatalf("dataset de teste não existe após create: %v", err)
+	}
+
+	// hard-delete → o dataset some da listagem por completo.
+	if err := c.DeleteDatasetPermanently(ctx, id); err != nil {
+		t.Fatalf("DeleteDatasetPermanently: %v", err)
+	}
+	datasets, err := c.ListDatasets(ctx)
+	if err != nil {
+		t.Fatalf("ListDatasets: %v", err)
+	}
+	for _, d := range datasets {
+		if d.ID == id {
+			t.Errorf("dataset %q ainda aparece na listagem após o hard-delete", id)
+		}
+	}
+	t.Logf("hard-delete ok: %q removido de vez do servidor", id)
+}

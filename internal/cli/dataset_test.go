@@ -39,6 +39,10 @@ type fluigDatasetStub struct {
 	toggled      []string // POSTs em enable/disable: "enable/<id>"...
 	restoreQuery url.Values
 	hasDraft     bool
+
+	helperAbsent  bool     // quando true, o ping do fluigcliHelper responde 404
+	helperVersion string   // versão reportada pelo helper (default "0.7.0")
+	deletedHard   []string // DELETEs em /fluigcliHelper/api/datasets/{id}
 }
 
 func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
@@ -149,6 +153,39 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		_ = json.Unmarshal(b, &p)
 		s.editedImpl = p.DatasetImpl
 		io.WriteString(w, `{"content":"OK"}`)
+	})
+	// fluigcliHelper (>= 0.7.0): ping/version + DELETE de dataset (hard-delete).
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperAbsent {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		v := s.helperVersion
+		if v == "" {
+			v = "0.7.0"
+		}
+		io.WriteString(w, `{"version":"`+v+`"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/datasets/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/fluigcliHelper/api/datasets/")
+		// Recusa de negócio do helper (ex.: dataset interno, dependência). Note
+		// que deletar um dataset INEXISTENTE é idempotente no servidor real
+		// (sucesso), então o gatilho de recusa aqui é um id dedicado.
+		if id == "zz_recusado" {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, "Erro ao excluir dataset: não é possível remover um dataset interno")
+			return
+		}
+		s.deletedHard = append(s.deletedHard, id)
+		io.WriteString(w, `{"id":"`+id+`","deleted":true}`)
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -542,5 +579,61 @@ func TestDatasetRestoreVersaoInexistente(t *testing.T) {
 	code, _ = runMain(t, "dataset", "restore", "sem_historico", "1", "--yes", "--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitNotFound {
 		t.Errorf("dataset sem histórico: exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// delete (hard-delete via helper): sucesso — envelope ok e o DELETE chega no helper.
+func TestDatasetDeleteJSON(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "delete", "zz_fluigcli_test_del", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout)
+	}
+	if !env.OK {
+		t.Errorf("envelope não ok: %+v", env)
+	}
+	if len(stub.deletedHard) != 1 || stub.deletedHard[0] != "zz_fluigcli_test_del" {
+		t.Errorf("DELETE não chegou ao helper como esperado: %v", stub.deletedHard)
+	}
+}
+
+// delete: recusa de negócio do helper (ex.: dataset interno) → exit 5.
+func TestDatasetDeleteRejeitado(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "delete", "zz_recusado", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Errorf("exit=%d, quer %d", code, output.ExitServer)
+	}
+	if len(stub.deletedHard) != 0 {
+		t.Errorf("um delete recusado não deveria ser registrado: %v", stub.deletedHard)
+	}
+}
+
+// delete sem o fluigcliHelper instalado → exit 7.
+func TestDatasetDeleteSemHelper(t *testing.T) {
+	stub := &fluigDatasetStub{helperAbsent: true}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "dataset", "delete", "zz_fluigcli_test_del", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitMissingHelper {
+		t.Errorf("exit=%d, quer %d", code, output.ExitMissingHelper)
+	}
+}
+
+// delete em modo humano: mensagem de sucesso.
+func TestDatasetDeleteHumano(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "delete", "zz_fluigcli_test_del", "--yes", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "excluído") {
+		t.Errorf("esperava confirmação de exclusão; stdout=%s", stdout)
 	}
 }

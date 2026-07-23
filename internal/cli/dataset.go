@@ -30,6 +30,37 @@ func newDatasetCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newDatasetToggleCmd(app, false))
 	cmd.AddCommand(newDatasetHistoryCmd(app))
 	cmd.AddCommand(newDatasetRestoreCmd(app))
+	cmd.AddCommand(newDatasetDeleteCmd(app))
+	return cmd
+}
+
+// newDatasetDeleteCmd cria o comando delete — remoção FÍSICA de um dataset
+// customizado via fluigcliHelper (EJB DatasetService.deletePermanently). É
+// permanente e alvo único, para reduzir o raio de um erro. Para desligar de
+// forma reversível, use `dataset disable`. Sem o helper: exit 7.
+func newDatasetDeleteCmd(app *App) *cobra.Command {
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Remove um dataset customizado do servidor (permanente; requer o fluigcliHelper)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			id := args[0]
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "excluir dataset")
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteDatasetPermanently(ctx, id); err != nil {
+				return mapFluigError(err)
+			}
+			p.Successf("dataset %q excluído", id)
+			p.Done(map[string]any{"id": id, "deleted": true})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
 }
 
