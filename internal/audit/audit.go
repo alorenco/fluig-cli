@@ -37,6 +37,8 @@ const (
 	RuleUnknownAPI     = "FL004" // membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI/...
 
 	RuleJavaStrictEq = "RHINO001" // === / !== entre retorno java.lang.String e literal de texto
+	RuleRhinoES6     = "RHINO002" // sintaxe ES6+ não suportada pelo Rhino do Fluig (SyntaxError no deploy)
+	RuleConstInLoop  = "RHINO003" // const declarado no corpo de laço — o Rhino congela o valor da 1ª iteração
 )
 
 // RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
@@ -57,6 +59,8 @@ var RuleTitles = map[string]string{
 	RuleUnknownAPI:     "Membro inexistente em API do Fluig (FLUIGC, DatasetFactory, docAPI, WCMAPI…) — provável typo",
 
 	RuleJavaStrictEq: "=== / !== entre retorno java.lang.String (getFieldName, getString…) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
+	RuleRhinoES6:     "Sintaxe ES6+ (class, import/export, async/await, parâmetro default, spread, propriedade computada) — o Rhino do Fluig não aceita; dá SyntaxError no deploy",
+	RuleConstInLoop:  "const declarado no corpo de um laço (for/while/do) — o Rhino do Fluig congela o valor da 1ª iteração, sem erro; use let",
 }
 
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o

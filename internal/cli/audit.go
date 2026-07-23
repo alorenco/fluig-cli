@@ -37,7 +37,12 @@ func newAuditCmd(app *App) *cobra.Command {
 			"  FL003 (aviso)  método form.* que não existe no FormController (eventos de form)\n" +
 			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n" +
 			"  RHINO001 (aviso) === / !== entre retorno java.lang.String (getFieldName…) e\n" +
-			"                   literal — no Rhino do Fluig é sempre false; use == ou String(...)\n\n" +
+			"                   literal — no Rhino do Fluig é sempre false; use == ou String(...)\n" +
+			"  RHINO002 (erro)  sintaxe ES6+ (class, import/export, async/await, parâmetro\n" +
+			"                   default, spread, propriedade computada) — o Rhino do Fluig\n" +
+			"                   (Voyager 2) não aceita; dá SyntaxError no deploy\n" +
+			"  RHINO003 (erro)  const declarado no corpo de um laço (for/while/do) — o Rhino\n" +
+			"                   congela o valor da 1ª iteração, sem erro; use let\n\n" +
 			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
 			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
 			"relatório para correção manual.\n\n" +

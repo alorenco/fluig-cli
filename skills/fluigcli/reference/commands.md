@@ -292,7 +292,18 @@ typo se corrige no código; API real que falte na referência
 inclusive via variável — `var campo = c.getFieldName()...; campo === 'x'`) e um
 literal de texto — no Rhino do Fluig é SEMPRE `false` (o `!==` sempre `true`),
 sem erro; corrija com `String(x.getFieldName()) === 'y'` ou `==` (`String(...)`
-e concatenação com `+` já são reconhecidos como seguros). No `--json`
+e concatenação com `+` já são reconhecidos como seguros). RHINO002 (**erro**, só
+JS server-side): sintaxe ES6+ que o Rhino do Fluig (Voyager 2) não aceita e dá
+`SyntaxError` no deploy — `class`, `import`/`export`, `async`/`await`, parâmetro
+com valor default (`function f(x = 1)`), spread em array/chamada (`[...a, 3]`) e
+propriedade computada (`{ [k]: v }`); corrija com o equivalente ES5 (default →
+`if (y == null) y = 10;`; computada → `obj[k] = v;`). Suportado (não apontado):
+template literal, `let`/`const`, arrow, `for...of`, destructuring, rest param,
+`Map`/`Set`, `Array.includes/find`, `String.padStart`. RHINO003 (**erro**, só JS
+server-side): `const` declarado no corpo de um laço (`for`/`while`/`do`) — o Rhino
+não reinicializa a cada iteração, **congela o valor da 1ª volta** em silêncio
+(bug de dados invisível); troque por `let`. Não aponta `const` em função aninhada
+no laço nem no cabeçalho de `for (const x of …)`. No `--json`
 reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **rode
 `audit --fix`, corrija o restante pelas sugestões e repita até exit 0**.
 Config em `.fluigcli/audit.json`: `{"ignore":[globs],

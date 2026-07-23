@@ -44,6 +44,8 @@ fluigcli audit --fail-on none --json # só relatório (CI/agentes leem o data)
 | `FL003` | aviso | método `form.*` que não existe no FormController (só nos eventos de formulário, onde `form` é garantido) | o método mais parecido |
 | `FL004` | aviso | membro inexistente em `FLUIGC`, `DatasetFactory`, `DatasetBuilder`, `docAPI`, `WCMAPI`, `fluigAPI`, `customHTML` (inclui os aninhados, ex.: `FLUIGC.message.*`) | o membro mais parecido |
 | `RHINO001` | aviso | `===`/`!==` entre um `java.lang.String` (retorno de `getFieldName`, `getInitialValue`, `getString`, `getColleagueName`…) e um literal de texto — no Rhino do Fluig isso é **sempre `false`** (`!==` sempre `true`), sem erro. Rastreia também a variável que recebe esse retorno (`var campo = c.getFieldName()...; if (campo === 'x')`). `String(...)` e concatenação com `+` coagem para string JS e não são apontados. Só no JS server-side. | converter com `String(x.getFieldName()) === 'y'` ou usar igualdade solta (`==`) |
+| `RHINO002` | erro | sintaxe **ES6+** que o Rhino do Fluig (Voyager 2) **não aceita** e dá **`SyntaxError` no deploy**: `class`, `import`/`export`, `async`/`await`, parâmetro com valor default (`function f(x = 1)`), spread em array/chamada (`[...a, 3]`) e propriedade computada (`{ [k]: v }`). Recursos suportados **não** são apontados: template literal, `let`/`const`, arrow, `for...of`, destructuring, rest param (`function f(...args)`), `Map`/`Set`, `Array.includes/find`, `String.padStart`. Só no JS server-side. | usar o equivalente ES5 (ex.: default → `if (y == null) y = 10;`; computada → `obj[k] = v;`; spread → `.concat`/`.apply`) |
+| `RHINO003` | erro | `const` declarado **no corpo de um laço** (`for`/`while`/`do`). No Rhino do Fluig o `const` **não reinicializa** a cada iteração — ele **congela o valor da 1ª volta**, em silêncio (bug de dados invisível). Um `const` numa **função aninhada** no laço não é apontado (a função cria escopo novo por chamada). O `const` no cabeçalho de `for (const x of …)` também não é apontado. Só no JS server-side. | trocar por `let` (ou mover para fora do laço se o valor não muda) |
 
 As regras FL* usam a referência `fluig.d.ts` embutida. Esta referência é um fork
 do [fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)
@@ -51,6 +53,13 @@ da comunidade. O fluigcli completou o fork com APIs validadas no produto. Nenhum
 referência é exaustiva. Por isso os achados FL* são **avisos**. Corrija no código
 o typo de verdade. Uma API real que falte na referência é caso de silenciar via
 `severity`/`ignore`. Neste caso, abra uma issue para a API entrar no arquivo.
+
+As regras RHINO* tratam todo JS server-side como o **Rhino do Fluig Voyager 2**.
+A detecção do `RHINO002` é conservadora. Ela aponta só o inequívoco. Dois casos
+ficam de fora de propósito para não gerar falso-positivo. O primeiro é a
+propriedade shorthand `{ valor }` (parece bloco ou destructuring). O segundo é o
+spread solitário `[...a]` (igual ao rest de destructuring `[...a] = x`). Nestes
+dois casos a análise textual não separa o padrão que quebra do que é suportado.
 
 ## `--fix` (correções determinísticas)
 

@@ -355,7 +355,7 @@ func TestRuleTitlesCompletas(t *testing.T) {
 	for _, rule := range []string{RuleLegacyCSS, RuleExternalRes, RuleHardcodedHex,
 		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog,
 		RuleUnknownHAPI, RuleUnknownWKVar, RuleUnknownFormAPI, RuleUnknownAPI,
-		RuleJavaStrictEq} {
+		RuleJavaStrictEq, RuleRhinoES6, RuleConstInLoop} {
 		if RuleTitles[rule] == "" {
 			t.Errorf("regra %s sem título em RuleTitles", rule)
 		}
