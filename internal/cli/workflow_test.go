@@ -477,6 +477,107 @@ func TestWorkflowImportSemArgs(t *testing.T) {
 	}
 }
 
+// resolveWorkflowTargets: --process-id (override) desacopla a identidade local
+// da do servidor. A busca dos arquivos continua pelo prefixo do argumento; só
+// o processId devolvido ao servidor muda (ROADMAP 1.7-A).
+func TestResolveWorkflowTargetsProcessIDOverride(t *testing.T) {
+	const serverPID = "Adiantamento ao Fornecedor"
+	root := t.TempDir()
+	dir := filepath.Join(root, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "SolicitacaoAdiantamento.servicetask88.js")
+	os.WriteFile(file, []byte("function servicetask88(){}"), 0o644)
+
+	// Caso arquivo: o alvo é o .js local; a flag troca só o pid do servidor.
+	pid, scripts, err := resolveWorkflowTargets(root, file, nil, false, serverPID)
+	if err != nil {
+		t.Fatalf("caso arquivo: %v", err)
+	}
+	if pid != serverPID {
+		t.Errorf("caso arquivo: pid do servidor = %q, quer %q", pid, serverPID)
+	}
+	if len(scripts) != 1 || scripts[0].Event != "servicetask88" || scripts[0].Path != file {
+		t.Errorf("caso arquivo: script inesperado: %+v", scripts)
+	}
+
+	// Caso prefixo + --events: FindProcessScripts usa o prefixo local, não o pid.
+	pid, scripts, err = resolveWorkflowTargets(root, "SolicitacaoAdiantamento", []string{"servicetask88"}, false, serverPID)
+	if err != nil {
+		t.Fatalf("caso prefixo: %v", err)
+	}
+	if pid != serverPID {
+		t.Errorf("caso prefixo: pid do servidor = %q, quer %q", pid, serverPID)
+	}
+	if len(scripts) != 1 || scripts[0].Path != file {
+		t.Errorf("caso prefixo: script inesperado: %+v", scripts)
+	}
+
+	// Sem override, o pid do servidor volta a ser o prefixo local.
+	pid, _, err = resolveWorkflowTargets(root, file, nil, false, "")
+	if err != nil {
+		t.Fatalf("sem override: %v", err)
+	}
+	if pid != "SolicitacaoAdiantamento" {
+		t.Errorf("sem override: pid = %q, quer o prefixo local", pid)
+	}
+}
+
+// export --process-id: o arquivo local tem prefixo X, mas o processo publicado
+// no servidor é Y. O envelope reporta o pid do servidor (Y).
+func TestWorkflowExportProcessIDOverride(t *testing.T) {
+	stub := &workflowStub{version: 5, helperInstalled: true}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "SolicitacaoAdiantamento.beforeTaskSave.js")
+	os.WriteFile(file, []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "export", file,
+		"--process-id", "Adiantamento ao Fornecedor",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["processId"] != "Adiantamento ao Fornecedor" {
+		t.Errorf("processId do servidor inesperado: %+v", data["processId"])
+	}
+	if data["updated"].(float64) != 1 {
+		t.Errorf("updated = %v, quer 1", data["updated"])
+	}
+}
+
+// publish --process-id: scripts locais com prefixo X publicam no processo Y.
+func TestWorkflowPublishProcessIDOverride(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "SolicitacaoAdiantamento.beforeTaskSave.js"),
+		[]byte("function beforeTaskSave(){ /* override */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "publish", "SolicitacaoAdiantamento",
+		"--process-id", "Compras",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["processId"] != "Compras" {
+		t.Errorf("processId do servidor inesperado: %+v", data["processId"])
+	}
+	if data["version"].(float64) != 4 || data["released"] != true {
+		t.Errorf("resultado inesperado: %+v", data)
+	}
+	if !strings.Contains(string(stub.importedXML), "/* override */") {
+		t.Error("XML importado não contém o script local")
+	}
+}
+
 // Com a widget instalada, o export cirúrgico de um arquivo específico funciona.
 func TestWorkflowExportSingleFile(t *testing.T) {
 	stub := &workflowStub{version: 5, helperInstalled: true}

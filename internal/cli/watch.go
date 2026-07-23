@@ -395,7 +395,7 @@ func (s *watchSession) updateWorkflow(ctx context.Context, u watchUnit) (string,
 	if !*s.helperOK {
 		return "no-helper", nil
 	}
-	processID, scripts, err := resolveWorkflowTargets(s.root, u.path, nil, false)
+	processID, scripts, err := resolveWorkflowTargets(s.root, u.path, nil, false, "")
 	if err != nil {
 		return "", err
 	}

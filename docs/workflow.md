@@ -113,6 +113,19 @@ fluigcli workflow export Compras --events beforeTaskSave,afterTaskComplete --ser
 | `--all-events` | envia todos os `workflow/scripts/<processId>.*.js` |
 | `--events a,b` | envia só os eventos indicados |
 | `--process-version N` | versão do processo (default: a última do servidor) |
+| `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
+
+Por convenção, o prefixo do arquivo é o `processId` no servidor. Alguns
+processos quebram essa convenção. Por exemplo, o arquivo é
+`SolicitacaoAdiantamento.servicetask88.js`, mas o `processId` publicado é
+`Adiantamento ao Fornecedor`. Use `--process-id` nesse caso. O alvo (arquivo ou
+prefixo) continua a identificar os scripts locais. A flag troca apenas o
+processo de destino no servidor.
+
+```sh
+fluigcli workflow export workflow/scripts/SolicitacaoAdiantamento.servicetask88.js \
+    --process-id "Adiantamento ao Fornecedor" --server homolog
+```
 
 **Limitação:** o comando só atualiza eventos de um processo existente (criado no
 Fluig Studio). Ele não cria processos. Ele não sobe diagramas `.process`. Para o
@@ -128,11 +141,20 @@ essa versão para uso. O servidor desativa a versão anterior. O comando é nati
 ```sh
 fluigcli workflow publish Compras --server homolog
 fluigcli workflow publish Compras --no-release    # só cria a versão, sem liberar
+
+# processId no servidor diferente do prefixo do arquivo local
+fluigcli workflow publish SolicitacaoAdiantamento \
+    --process-id "Adiantamento ao Fornecedor" --server homolog
 ```
 
 | Flag | Uso |
 |---|---|
 | `--no-release` | cria a versão nova em modo de edição, sem liberá-la |
+| `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
+
+O argumento continua a identificar os scripts locais
+(`workflow/scripts/<argumento>.*.js`). A flag `--process-id` troca apenas o
+processo de destino no servidor.
 
 Quando usar `publish` vs `export`:
 

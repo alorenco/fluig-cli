@@ -102,6 +102,7 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 func newWorkflowPublishCmd(app *App) *cobra.Command {
 	var (
 		noRelease     bool
+		processIDFlag string
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
@@ -114,22 +115,29 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			"corrente, sem criar versão (bom para desenvolvimento); o publish é o\n" +
 			"deploy — sobe versão nova e libera (a versão anterior é desativada).\n\n" +
 			"O publish NÃO cria eventos nem processos: scripts locais de eventos que\n" +
-			"não existem no processo interrompem o comando antes de qualquer mudança.",
+			"não existem no processo interrompem o comando antes de qualquer mudança.\n\n" +
+			"Use --process-id quando o processId no servidor for diferente do prefixo\n" +
+			"do arquivo local. O argumento continua a identificar os scripts locais. A\n" +
+			"flag troca apenas o processo de destino no servidor.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			pid := args[0]
+			localPrefix := args[0]
+			pid := localPrefix
+			if processIDFlag != "" {
+				pid = processIDFlag
+			}
 			root, err := app.projectRootForFiles()
 			if err != nil {
 				return err
 			}
-			scripts, err := project.FindProcessScripts(root, pid)
+			scripts, err := project.FindProcessScripts(root, localPrefix)
 			if err != nil {
 				return err
 			}
 			if len(scripts) == 0 {
 				return output.Usagef("nenhum script local do processo %q (esperado %s/%s.<evento>.js)",
-					pid, project.WorkflowScriptsDir, pid)
+					localPrefix, project.WorkflowScriptsDir, localPrefix)
 			}
 			events, err := readWorkflowEvents(scripts)
 			if err != nil {
@@ -199,6 +207,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noRelease, "no-release", false, "cria a versão nova em edição, sem liberá-la")
+	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
@@ -298,6 +307,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 		processVersion int
 		eventsFlag     []string
 		allEvents      bool
+		processIDFlag  string
 		passwordStdin  bool
 	)
 	cmd := &cobra.Command{
@@ -309,7 +319,12 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 			"Alvos:\n" +
 			"  workflow export workflow/scripts/Compras.beforeTaskSave.js   (um evento)\n" +
 			"  workflow export Compras --all-events                          (todos os Compras.*.js)\n" +
-			"  workflow export Compras --events beforeTaskSave,afterTaskComplete",
+			"  workflow export Compras --events beforeTaskSave,afterTaskComplete\n\n" +
+			"Use --process-id quando o processId no servidor for diferente do prefixo\n" +
+			"do arquivo local. O alvo (arquivo ou prefixo) continua a identificar os\n" +
+			"scripts locais. A flag troca apenas o processo de destino no servidor.\n" +
+			"  workflow export workflow/scripts/SolicitacaoAdiantamento.servicetask88.js \\\n" +
+			"      --process-id \"Adiantamento ao Fornecedor\"",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -318,7 +333,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			processID, scripts, err := resolveWorkflowTargets(root, args[0], eventsFlag, allEvents)
+			processID, scripts, err := resolveWorkflowTargets(root, args[0], eventsFlag, allEvents, processIDFlag)
 			if err != nil {
 				return err
 			}
@@ -374,13 +389,27 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&processVersion, "process-version", 0, "versão do processo (default: a última do servidor)")
 	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "eventos a atualizar (separados por vírgula), quando o alvo é um processId")
 	cmd.Flags().BoolVar(&allEvents, "all-events", false, "atualiza todos os scripts do processo (workflow/scripts/<processId>.*.js)")
+	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 
-// resolveWorkflowTargets decide o processId e os scripts a enviar a partir do
-// argumento (um arquivo .js específico, ou um processId + --events/--all-events).
-func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents bool) (string, []project.ProcessScript, error) {
+// resolveWorkflowTargets decide o processId de destino no servidor e os scripts
+// a enviar a partir do argumento (um arquivo .js específico, ou um processId +
+// --events/--all-events).
+//
+// O argumento identifica SEMPRE os arquivos locais. processIDOverride, quando
+// não vazio, troca APENAS o processId devolvido para o servidor — a busca local
+// continua pelo prefixo do argumento. Isso permite parear um arquivo
+// X.<evento>.js com um processId Y ≠ X publicado no servidor (ver ROADMAP 1.7-A).
+func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents bool, processIDOverride string) (string, []project.ProcessScript, error) {
+	serverPID := func(local string) string {
+		if processIDOverride != "" {
+			return processIDOverride
+		}
+		return local
+	}
+
 	// Caso 1: o argumento é um arquivo .js existente.
 	if strings.HasSuffix(arg, ".js") {
 		if _, err := os.Stat(arg); err == nil {
@@ -388,22 +417,22 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 			if !ok {
 				return "", nil, output.Usagef("nome de script inválido %q (esperado <Processo>.<evento>.js)", filepath.Base(arg))
 			}
-			return pid, []project.ProcessScript{{ProcessID: pid, Event: ev, Path: arg}}, nil
+			return serverPID(pid), []project.ProcessScript{{ProcessID: pid, Event: ev, Path: arg}}, nil
 		}
 		return "", nil, output.NotFoundf("arquivo %q não encontrado", arg)
 	}
 
-	// Caso 2: o argumento é um processId; precisa de --all-events ou --events.
-	processID := arg
-	all, err := project.FindProcessScripts(root, processID)
+	// Caso 2: o argumento é um prefixo local; precisa de --all-events ou --events.
+	localPrefix := arg
+	all, err := project.FindProcessScripts(root, localPrefix)
 	if err != nil {
 		return "", nil, err
 	}
 	if allEvents {
 		if len(all) == 0 {
-			return "", nil, output.NotFoundf("nenhum script encontrado em %s/%s.*.js", project.WorkflowScriptsDir, processID)
+			return "", nil, output.NotFoundf("nenhum script encontrado em %s/%s.*.js", project.WorkflowScriptsDir, localPrefix)
 		}
-		return processID, all, nil
+		return serverPID(localPrefix), all, nil
 	}
 	if len(eventsFlag) > 0 {
 		byEvent := make(map[string]project.ProcessScript, len(all))
@@ -414,11 +443,11 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 		for _, ev := range eventsFlag {
 			s, ok := byEvent[ev]
 			if !ok {
-				return "", nil, output.NotFoundf("script do evento %q não encontrado (%s/%s.%s.js)", ev, project.WorkflowScriptsDir, processID, ev)
+				return "", nil, output.NotFoundf("script do evento %q não encontrado (%s/%s.%s.js)", ev, project.WorkflowScriptsDir, localPrefix, ev)
 			}
 			selected = append(selected, s)
 		}
-		return processID, selected, nil
+		return serverPID(localPrefix), selected, nil
 	}
 	return "", nil, output.Usagef("informe um arquivo .js, ou um processId com --all-events ou --events a,b")
 }
