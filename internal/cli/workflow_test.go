@@ -578,6 +578,174 @@ func TestWorkflowPublishProcessIDOverride(t *testing.T) {
 	}
 }
 
+// import --stdout: imprime os scripts publicados sem gravar nada no repo.
+func TestWorkflowImportStdout(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--stdout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	scripts, _ := data["scripts"].([]any)
+	if len(scripts) != 3 {
+		t.Fatalf("esperava 3 scripts, veio %d\n%s", len(scripts), stdout)
+	}
+	first, _ := scripts[0].(map[string]any) // ordenado por evento
+	if first["processId"] != "Compras" || first["event"] != "afterProcessFinish" ||
+		first["contents"] != "function afterProcessFinish(){ /* codigo B */ }" {
+		t.Errorf("scripts[0] inesperado: %+v", first)
+	}
+	// --stdout não pode gravar nada no repositório.
+	if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts")); err == nil {
+		t.Error("import --stdout não deveria criar arquivos")
+	}
+}
+
+// import --stdout no modo humano: o código sai no stdout, com cabeçalho por evento.
+func TestWorkflowImportStdoutHumano(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--stdout", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{
+		"// ==> Compras.beforeTaskSave.js",
+		"function beforeTaskSave(){ /* codigo A */ }",
+		"// ==> Compras.validateForm.js",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout sem %q:\n%s", want, stdout)
+		}
+	}
+}
+
+// import --stdout --events: filtra os eventos impressos.
+func TestWorkflowImportStdoutEventsFilter(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--stdout", "--events", "beforeTaskSave",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	scripts, _ := data["scripts"].([]any)
+	if len(scripts) != 1 {
+		t.Fatalf("--events esperava 1 script, veio %d\n%s", len(scripts), stdout)
+	}
+	only, _ := scripts[0].(map[string]any)
+	if only["event"] != "beforeTaskSave" {
+		t.Errorf("evento filtrado inesperado: %+v", only)
+	}
+}
+
+// import --events (modo arquivo): grava só o evento pedido.
+func TestWorkflowImportEventsFilterArquivos(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--events", "beforeTaskSave",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", "Compras.beforeTaskSave.js")); err != nil {
+		t.Error("Compras.beforeTaskSave.js deveria ter sido criado")
+	}
+	for _, name := range []string{"Compras.afterProcessFinish.js", "Compras.validateForm.js"} {
+		if _, err := os.Stat(filepath.Join(proj, "workflow", "scripts", name)); err == nil {
+			t.Errorf("%s não deveria ter sido criado (filtrado por --events)", name)
+		}
+	}
+}
+
+// diff: script local igual ao publicado → equal.
+func TestWorkflowDiffEqual(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "Compras.beforeTaskSave.js")
+	os.WriteFile(file, []byte("function beforeTaskSave(){ /* codigo A */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "diff", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	counts, _ := data["counts"].(map[string]any)
+	if counts["equal"].(float64) != 1 {
+		t.Errorf("esperava 1 equal, veio %+v", counts)
+	}
+}
+
+// diff: script local diferente → modified com diff unificado.
+func TestWorkflowDiffModified(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "Compras.beforeTaskSave.js")
+	os.WriteFile(file, []byte("function beforeTaskSave(){ /* codigo NOVO */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "diff", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	arts, _ := data["artifacts"].([]any)
+	if len(arts) != 1 {
+		t.Fatalf("esperava 1 artefato, veio %d", len(arts))
+	}
+	a, _ := arts[0].(map[string]any)
+	if a["status"] != "modified" {
+		t.Errorf("status = %v, quer modified", a["status"])
+	}
+	d, _ := a["diff"].(string)
+	if !strings.Contains(d, "-function beforeTaskSave(){ /* codigo A */ }") ||
+		!strings.Contains(d, "+function beforeTaskSave(){ /* codigo NOVO */ }") {
+		t.Errorf("diff inesperado:\n%s", d)
+	}
+}
+
+// diff --process-id: arquivo com prefixo X compara contra o processo Y no servidor.
+func TestWorkflowDiffProcessIDOverride(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "SolicitacaoAdiantamento.beforeTaskSave.js")
+	os.WriteFile(file, []byte("function beforeTaskSave(){ /* codigo A */ }"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "diff", file, "--process-id", "Compras",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	arts, _ := data["artifacts"].([]any)
+	a, _ := arts[0].(map[string]any)
+	// A identidade no servidor é Compras (não o prefixo do arquivo).
+	if a["id"] != "Compras.beforeTaskSave" || a["status"] != "equal" {
+		t.Errorf("artefato inesperado: %+v", a)
+	}
+}
+
 // Com a widget instalada, o export cirúrgico de um arquivo específico funciona.
 func TestWorkflowExportSingleFile(t *testing.T) {
 	stub := &workflowStub{version: 5, helperInstalled: true}

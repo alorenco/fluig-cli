@@ -24,6 +24,7 @@ func newWorkflowCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newWorkflowVersionCmd(app))
 	cmd.AddCommand(newWorkflowImportCmd(app))
 	cmd.AddCommand(newWorkflowExportCmd(app))
+	cmd.AddCommand(newWorkflowDiffCmd(app))
 	cmd.AddCommand(newWorkflowPublishCmd(app))
 	return cmd
 }
@@ -33,6 +34,8 @@ func newWorkflowCmd(app *App) *cobra.Command {
 func newWorkflowImportCmd(app *App) *cobra.Command {
 	var (
 		all           bool
+		eventsFlag    []string
+		toStdout      bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
@@ -44,7 +47,10 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			"A leitura usa o export nativo do processo (não requer o helper)\n" +
 			"e traz os eventos da versão mais recente; eventos com script vazio são\n" +
 			"ignorados. Com --all, importa os scripts de todos os processos do\n" +
-			"servidor — é um export por processo, pode demorar.",
+			"servidor — é um export por processo, pode demorar.\n\n" +
+			"Use --events para trazer só alguns eventos. Use --stdout para imprimir\n" +
+			"os scripts no terminal sem gravar nada — bom para conferir o que está\n" +
+			"publicado sem sobrescrever o repositório.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if !all && len(args) == 0 {
@@ -55,10 +61,6 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			}
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
-			if err != nil {
-				return err
-			}
-			root, err := app.projectRootForFiles()
 			if err != nil {
 				return err
 			}
@@ -78,11 +80,20 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 				}
 			}
 
+			// --stdout: leitura pura, não toca no repositório.
+			if toStdout {
+				return app.dumpProcessScripts(ctx, client, p, pids, eventsFlag)
+			}
+
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
 			var results []itemResult
 			var lastErr error
 			failures := 0
 			for _, pid := range pids {
-				r, f, perr := app.importProcessScripts(ctx, client, root, pid)
+				r, f, perr := app.importProcessScripts(ctx, client, root, pid, eventsFlag)
 				results = append(results, r...)
 				failures += f
 				if perr != nil {
@@ -93,8 +104,83 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "importa os scripts de todos os processos do servidor")
+	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "importa só os eventos indicados (separados por vírgula)")
+	cmd.Flags().BoolVar(&toStdout, "stdout", false, "imprime os scripts no stdout em vez de gravar arquivos (não altera o repositório)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// scriptDump é um script publicado devolvido pelo import --stdout (contrato
+// --json: data.scripts[]).
+type scriptDump struct {
+	ProcessID string `json:"processId"`
+	Event     string `json:"event"`
+	Contents  string `json:"contents"`
+}
+
+// dumpProcessScripts imprime no stdout os scripts de eventos dos processos, sem
+// gravar arquivo (workflow import --stdout). No modo humano separa os eventos
+// por um cabeçalho quando há mais de um; no modo --json devolve data.scripts[].
+func (a *App) dumpProcessScripts(ctx context.Context, client *fluig.Client, p *output.Printer, pids, filter []string) error {
+	want := eventFilterSet(filter)
+	var dumps []scriptDump
+	var lastErr error
+	failures := 0
+	for _, pid := range pids {
+		events, err := client.ProcessEventScripts(ctx, pid)
+		if err != nil {
+			failures++
+			lastErr = mapFluigError(err)
+			p.Warnf("processo %q: %s", pid, output.AsError(lastErr).Message)
+			continue
+		}
+		for _, ev := range selectedEventNames(events, want) {
+			dumps = append(dumps, scriptDump{ProcessID: pid, Event: ev, Contents: events[ev]})
+		}
+	}
+
+	// Modo humano: despeja o código no stdout (sem status), com cabeçalho por
+	// evento só quando há mais de um — assim um único evento sai pipeável.
+	if !p.JSON {
+		multi := len(dumps) > 1
+		for _, d := range dumps {
+			if multi {
+				p.Successf("// ==> %s.%s.js", d.ProcessID, d.Event)
+			}
+			p.Successf("%s", strings.TrimRight(d.Contents, "\n"))
+		}
+	}
+	return finishBatch(p, lastErr, map[string]any{"scripts": dumps}, failures, len(pids))
+}
+
+// eventFilterSet transforma a lista de --events num conjunto (nil = todos).
+func eventFilterSet(filter []string) map[string]bool {
+	if len(filter) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(filter))
+	for _, ev := range filter {
+		set[ev] = true
+	}
+	return set
+}
+
+// selectedEventNames devolve os eventos com script (ordenados), filtrados por
+// want quando não é nil. Eventos com código vazio são ignorados (igual ao
+// import para arquivo).
+func selectedEventNames(events map[string]string, want map[string]bool) []string {
+	names := make([]string, 0, len(events))
+	for ev, code := range events {
+		if strings.TrimSpace(code) == "" {
+			continue
+		}
+		if want != nil && !want[ev] {
+			continue
+		}
+		names = append(names, ev)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // --- workflow publish ---
@@ -394,6 +480,64 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// --- workflow diff ---
+
+func newWorkflowDiffCmd(app *App) *cobra.Command {
+	var (
+		eventsFlag    []string
+		allEvents     bool
+		processIDFlag string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "diff <arquivo|processId>",
+		Short: "Compara scripts de eventos locais com os publicados no servidor (nada é alterado)",
+		Long: "Mostra o diff entre os scripts de eventos locais e o que está publicado\n" +
+			"no servidor, sem gravar nada. Companheiro do export/publish: confirma se\n" +
+			"o que está no ar é igual ao local.\n\n" +
+			"A leitura usa o export nativo do processo (não requer o componente\n" +
+			"auxiliar) e traz a versão mais recente. Diferenças só de quebra de linha\n" +
+			"(CRLF/LF) não contam.\n\n" +
+			"Alvos (iguais aos do export):\n" +
+			"  workflow diff workflow/scripts/Compras.beforeTaskSave.js   (um evento)\n" +
+			"  workflow diff Compras --all-events                          (todos os Compras.*.js)\n" +
+			"  workflow diff Compras --events beforeTaskSave,afterTaskComplete\n\n" +
+			"Use --process-id quando o processId no servidor for diferente do prefixo\n" +
+			"do arquivo local.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
+			processID, scripts, err := resolveWorkflowTargets(root, args[0], eventsFlag, allEvents, processIDFlag)
+			if err != nil {
+				return err
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			entries, err := diffProcessScripts(ctx, client, p, root, processID, scripts, false)
+			if err != nil {
+				return err
+			}
+			counts := renderDiffEntries(p, entries)
+			p.Infof("%d igual(is), %d diferente(s), %d só local(is)",
+				counts[diffEqual], counts[diffModified], counts[diffOnlyLocal])
+			p.Done(map[string]any{"artifacts": entries, "counts": counts})
+			return nil
+		},
+	}
+	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "eventos a comparar (separados por vírgula), quando o alvo é um processId")
+	cmd.Flags().BoolVar(&allEvents, "all-events", false, "compara todos os scripts do processo (workflow/scripts/<processId>.*.js)")
+	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
 // resolveWorkflowTargets decide o processId de destino no servidor e os scripts
 // a enviar a partir do argumento (um arquivo .js específico, ou um processId +
 // --events/--all-events).
@@ -459,7 +603,7 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 // arquivos locais, devolvendo um resultado por script (compartilhado entre o
 // workflow import e o clone). Falha do processo inteiro (export indisponível)
 // vira um único resultado failed com o id do processo.
-func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, root, pid string) (results []itemResult, failures int, lastErr error) {
+func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, root, pid string, filter []string) (results []itemResult, failures int, lastErr error) {
 	p := a.printer
 	failProcess := func(err error) ([]itemResult, int, error) {
 		mapped := mapFluigError(err)
@@ -479,15 +623,9 @@ func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, ro
 		byEvent[s.Event] = append(byEvent[s.Event], s.Path)
 	}
 
-	names := make([]string, 0, len(events))
-	for ev := range events {
-		// O export traz o registro de todo evento do processo; sem
-		// script o código vem vazio — não vira arquivo (igual ao diff).
-		if strings.TrimSpace(events[ev]) != "" {
-			names = append(names, ev)
-		}
-	}
-	sort.Strings(names)
+	// O export traz o registro de todo evento do processo; eventos sem script
+	// (código vazio) não viram arquivo. --events restringe o conjunto.
+	names := selectedEventNames(events, eventFilterSet(filter))
 	if len(names) == 0 {
 		p.Infof("processo %q não tem scripts de eventos no servidor.", pid)
 		return nil, 0, nil

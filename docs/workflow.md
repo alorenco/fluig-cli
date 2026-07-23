@@ -65,11 +65,15 @@ do componente auxiliar.
 fluigcli workflow import Compras --server homolog        # um processo
 fluigcli workflow import Compras Financeiro              # vários
 fluigcli workflow import --all                           # todos os processos do servidor
+fluigcli workflow import Compras --events beforeTaskSave # só um evento
+fluigcli workflow import Compras --stdout                # imprime, não grava
 ```
 
 | Flag | Uso |
 |---|---|
 | `--all` | importa os scripts de todos os processos do servidor |
+| `--events a,b` | importa só os eventos indicados |
+| `--stdout` | imprime os scripts no terminal, sem gravar arquivo |
 
 Comportamento:
 
@@ -83,6 +87,17 @@ Comportamento:
   caso, o comando importa os demais processos normalmente.
 - A opção `--all` faz um export por processo. Por isso, ela pode demorar em
   servidores com muitos processos.
+
+A opção `--stdout` imprime os scripts no terminal e não toca no repositório. Use
+essa opção para conferir o que está publicado sem sobrescrever os arquivos
+locais. Com mais de um evento, o comando separa cada script com um cabeçalho
+`// ==> <processId>.<evento>.js`. Com `--json`, os scripts vão no envelope
+(`data.scripts[]`). Para comparar local e servidor, prefira o `workflow diff`.
+
+```sh
+# só o script publicado de um evento, para um arquivo separado
+fluigcli workflow import "Adiantamento ao Fornecedor" --events servicetask88 --stdout > /tmp/publicado.js
+```
 
 ## `fluigcli workflow export <arquivo|processId> [flags]`
 
@@ -130,6 +145,36 @@ fluigcli workflow export workflow/scripts/SolicitacaoAdiantamento.servicetask88.
 **Limitação:** o comando só atualiza eventos de um processo existente (criado no
 Fluig Studio). Ele não cria processos. Ele não sobe diagramas `.process`. Para o
 deploy com versão nova e liberação, use `workflow publish` (nativo).
+
+## `fluigcli workflow diff <arquivo|processId> [flags]`
+
+Este comando compara os scripts de eventos locais com o que está publicado no
+servidor. Ele não altera nada. Ele é o companheiro do `export`/`publish`: confirma
+se o que está no ar é igual ao local. A leitura usa o export nativo do processo.
+Ele não depende do componente auxiliar.
+
+```sh
+# um evento (pelo arquivo)
+fluigcli workflow diff workflow/scripts/Compras.beforeTaskSave.js --server homolog
+
+# todos os eventos do processo
+fluigcli workflow diff Compras --all-events --server homolog
+
+# eventos selecionados
+fluigcli workflow diff Compras --events beforeTaskSave,afterTaskComplete --server homolog
+```
+
+| Flag | Uso |
+|---|---|
+| `--all-events` | compara todos os `workflow/scripts/<processId>.*.js` |
+| `--events a,b` | compara só os eventos indicados |
+| `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
+
+Os alvos são os mesmos do `export`. A flag `--process-id` tem o mesmo sentido:
+o argumento identifica os scripts locais e a flag troca só o processo consultado
+no servidor. Diferenças só de quebra de linha (CRLF/LF) não contam. Com `--json`,
+o resultado sai no envelope (`data.artifacts[]` com `status` e `diff`, mais
+`data.counts`).
 
 ## `fluigcli workflow publish <processId> [--no-release]`
 

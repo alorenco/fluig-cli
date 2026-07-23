@@ -246,23 +246,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				return entries[i].ID < entries[j].ID
 			})
 
-			counts := map[string]int{}
-			for _, e := range entries {
-				counts[e.Status]++
-				switch e.Status {
-				case diffModified:
-					if e.Diff == "" {
-						p.Successf("── %s %s difere do servidor (conteúdo binário)", e.Type, e.ID)
-						continue
-					}
-					p.Successf("── %s %s difere do servidor:", e.Type, e.ID)
-					p.Successf("%s", strings.TrimRight(e.Diff, "\n"))
-				case diffOnlyLocal:
-					p.Successf("── %s %s só existe localmente (%s) — o export criaria no servidor", e.Type, e.ID, e.Path)
-				case diffOnlyServer:
-					p.Successf("%s", onlyServerMessage(e))
-				}
-			}
+			counts := renderDiffEntries(p, entries)
 			p.Infof("%d igual(is), %d diferente(s), %d só local(is), %d só no servidor",
 				counts[diffEqual], counts[diffModified], counts[diffOnlyLocal], counts[diffOnlyServer])
 			p.Done(map[string]any{"artifacts": entries, "counts": counts})
@@ -271,6 +255,29 @@ func newDiffCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// renderDiffEntries imprime as entradas de diff no modo humano e devolve as
+// contagens por status. Compartilhado pelo diff genérico e pelo workflow diff.
+func renderDiffEntries(p *output.Printer, entries []diffEntry) map[string]int {
+	counts := map[string]int{}
+	for _, e := range entries {
+		counts[e.Status]++
+		switch e.Status {
+		case diffModified:
+			if e.Diff == "" {
+				p.Successf("── %s %s difere do servidor (conteúdo binário)", e.Type, e.ID)
+				continue
+			}
+			p.Successf("── %s %s difere do servidor:", e.Type, e.ID)
+			p.Successf("%s", strings.TrimRight(e.Diff, "\n"))
+		case diffOnlyLocal:
+			p.Successf("── %s %s só existe localmente (%s) — o export criaria no servidor", e.Type, e.ID, e.Path)
+		case diffOnlyServer:
+			p.Successf("%s", onlyServerMessage(e))
+		}
+	}
+	return counts
 }
 
 // onlyServerMessage monta a orientação humana de um artefato only-server — o
