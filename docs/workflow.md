@@ -52,7 +52,9 @@ Este comando mostra a última versão do processo no servidor. O comando é nati
 fluigcli workflow version Compras --server homolog
 ```
 
-Processo inexistente → exit **4**.
+Processo inexistente → exit **4**. Quando existe um processId parecido, a
+mensagem de erro o sugere. Por exemplo, um erro de digitação em "Compras"
+recebe `talvez: "Compras"`.
 
 ## `fluigcli workflow import <processId>... | --all`
 
@@ -141,6 +143,10 @@ processo de destino no servidor.
 fluigcli workflow export workflow/scripts/SolicitacaoAdiantamento.servicetask88.js \
     --process-id "Adiantamento ao Fornecedor" --server homolog
 ```
+
+Quando o processo não é encontrado, a mensagem sugere os processIds mais
+próximos e lembra da flag `--process-id`. Assim, o caso comum de o nome do
+arquivo diferir do processId no servidor vira um conserto direto.
 
 **Limitação:** o comando só atualiza eventos de um processo existente (criado no
 Fluig Studio). Ele não cria processos. Ele não sobe diagramas `.process`. Para o

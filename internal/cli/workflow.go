@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,7 +14,38 @@ import (
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
+	"github.com/alorenco/fluig-cli/internal/strsim"
 )
+
+// processNotFound monta o erro NOT_FOUND de um processo, enriquecido com
+// sugestões de processIds próximos e, quando a identidade veio do arquivo/
+// argumento local (derived), a dica do --process-id. A lista de processos é
+// buscada só aqui (no caminho de erro) e a falha da busca é tolerada — o erro
+// básico continua útil.
+func processNotFound(ctx context.Context, client *fluig.Client, processID string, derived bool) error {
+	msg := fmt.Sprintf("processo %q não encontrado no servidor", processID)
+	var extra []string
+	if procs, err := client.ListProcesses(ctx); err == nil {
+		names := make([]string, 0, len(procs))
+		for _, pr := range procs {
+			names = append(names, pr.ID)
+		}
+		if sug := strsim.Suggest(processID, names, 3); len(sug) > 0 {
+			quoted := make([]string, len(sug))
+			for i, s := range sug {
+				quoted[i] = fmt.Sprintf("%q", s)
+			}
+			extra = append(extra, "talvez: "+strings.Join(quoted, ", "))
+		}
+	}
+	if derived {
+		extra = append(extra, "use --process-id se o processId do servidor difere do arquivo/argumento local")
+	}
+	if len(extra) > 0 {
+		msg += " (" + strings.Join(extra, "; ") + ")"
+	}
+	return output.NotFoundf("%s", msg)
+}
 
 func newWorkflowCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
@@ -242,6 +275,9 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 
 			xmlData, err := client.ExportProcessXML(ctx, pid)
 			if err != nil {
+				if errors.Is(err, fluig.ErrNotFound) {
+					return processNotFound(ctx, client, pid, processIDFlag == "")
+				}
 				return mapFluigError(err)
 			}
 			newXML, updated, missing := fluig.ApplyProcessEventScripts(xmlData, byEvent)
@@ -375,7 +411,7 @@ func newWorkflowVersionCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			if v == 0 {
-				return output.NotFoundf("processo %q não encontrado no servidor", processID)
+				return processNotFound(ctx, client, processID, false)
 			}
 			p.Successf("%d", v)
 			p.Done(map[string]any{"processId": processID, "version": v})
@@ -452,7 +488,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 					return mapFluigError(err)
 				}
 				if version == 0 {
-					return output.NotFoundf("processo %q não encontrado no servidor", processID)
+					return processNotFound(ctx, client, processID, processIDFlag == "")
 				}
 			}
 

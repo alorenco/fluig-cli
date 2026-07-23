@@ -206,6 +206,73 @@ func TestWorkflowVersionNotFound(t *testing.T) {
 	}
 }
 
+// version NOT_FOUND: a mensagem sugere o processId mais próximo (fuzzy).
+func TestWorkflowVersionNotFoundSuggestion(t *testing.T) {
+	stub := &workflowStub{version: 0} // qualquer pid volta 0 → NOT_FOUND
+	proj := workflowProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "workflow", "version", "Compra", // erro de digitação de "Compras"
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, `talvez: "Compras"`) {
+		t.Errorf("mensagem deveria sugerir Compras: %+v", env.Error)
+	}
+	// version não deriva de arquivo — sem dica de --process-id.
+	if env.Error != nil && strings.Contains(env.Error.Message, "--process-id") {
+		t.Errorf("version não deveria citar --process-id: %s", env.Error.Message)
+	}
+}
+
+// export NOT_FOUND (pid derivado do arquivo): sugere o processId e cita --process-id.
+func TestWorkflowExportNotFoundSuggestion(t *testing.T) {
+	stub := &workflowStub{version: 0, helperInstalled: true}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "Compra.beforeTaskSave.js") // prefixo "Compra" ~ "Compras"
+	os.WriteFile(file, []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil {
+		t.Fatal("esperava erro")
+	}
+	if !strings.Contains(env.Error.Message, `talvez: "Compras"`) {
+		t.Errorf("mensagem deveria sugerir Compras: %s", env.Error.Message)
+	}
+	if !strings.Contains(env.Error.Message, "--process-id") {
+		t.Errorf("mensagem deveria citar --process-id: %s", env.Error.Message)
+	}
+}
+
+// export NOT_FOUND com --process-id já usado: não cita a dica de novo.
+func TestWorkflowExportNotFoundNoHintWithFlag(t *testing.T) {
+	stub := &workflowStub{version: 0, helperInstalled: true}
+	proj := workflowProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "workflow", "scripts")
+	os.MkdirAll(dir, 0o755)
+	file := filepath.Join(dir, "Compra.beforeTaskSave.js")
+	os.WriteFile(file, []byte("function beforeTaskSave(){}"), 0o644)
+
+	code, stdout := runMain(t, "workflow", "export", file, "--process-id", "Inexistente",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error != nil && strings.Contains(env.Error.Message, "--process-id") {
+		t.Errorf("com --process-id já usado, não repetir a dica: %s", env.Error.Message)
+	}
+}
+
 // publish: aplica o script local, importa (nova versão) e libera.
 func TestWorkflowPublish(t *testing.T) {
 	stub := &workflowStub{}
