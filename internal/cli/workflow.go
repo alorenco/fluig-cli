@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -55,6 +56,7 @@ func newWorkflowCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newWorkflowNewScriptCmd(app))
 	cmd.AddCommand(newWorkflowListCmd(app))
 	cmd.AddCommand(newWorkflowVersionCmd(app))
+	cmd.AddCommand(newWorkflowVersionsCmd(app))
 	cmd.AddCommand(newWorkflowImportCmd(app))
 	cmd.AddCommand(newWorkflowExportCmd(app))
 	cmd.AddCommand(newWorkflowDiffCmd(app))
@@ -69,6 +71,7 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 		all           bool
 		eventsFlag    []string
 		toStdout      bool
+		version       int
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
@@ -83,7 +86,9 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			"servidor — é um export por processo, pode demorar.\n\n" +
 			"Use --events para trazer só alguns eventos. Use --stdout para imprimir\n" +
 			"os scripts no terminal sem gravar nada — bom para conferir o que está\n" +
-			"publicado sem sobrescrever o repositório.",
+			"publicado sem sobrescrever o repositório. Use --version para ler uma\n" +
+			"versão específica (default: a mais recente); veja as versões com\n" +
+			"workflow versions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if !all && len(args) == 0 {
@@ -91,6 +96,9 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			}
 			if all && len(args) > 0 {
 				return output.Usagef("use processIds ou --all, não os dois")
+			}
+			if all && version > 0 {
+				return output.Usagef("--version não combina com --all (o número de versão é por processo)")
 			}
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
@@ -115,7 +123,7 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 
 			// --stdout: leitura pura, não toca no repositório.
 			if toStdout {
-				return app.dumpProcessScripts(ctx, client, p, pids, eventsFlag)
+				return app.dumpProcessScripts(ctx, client, p, pids, eventsFlag, version)
 			}
 
 			root, err := app.projectRootForFiles()
@@ -126,7 +134,7 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 			var lastErr error
 			failures := 0
 			for _, pid := range pids {
-				r, f, perr := app.importProcessScripts(ctx, client, root, pid, eventsFlag)
+				r, f, perr := app.importProcessScripts(ctx, client, root, pid, eventsFlag, version)
 				results = append(results, r...)
 				failures += f
 				if perr != nil {
@@ -139,8 +147,19 @@ func newWorkflowImportCmd(app *App) *cobra.Command {
 	cmd.Flags().BoolVar(&all, "all", false, "importa os scripts de todos os processos do servidor")
 	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "importa só os eventos indicados (separados por vírgula)")
 	cmd.Flags().BoolVar(&toStdout, "stdout", false, "imprime os scripts no stdout em vez de gravar arquivos (não altera o repositório)")
+	cmd.Flags().IntVar(&version, "version", 0, "lê os scripts de uma versão específica (default: a mais recente)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// fetchProcessEvents lê os scripts de eventos de um processo: a versão corrente
+// (SOAP, sem helper) quando version == 0, ou uma versão específica via export
+// XML REST.
+func (a *App) fetchProcessEvents(ctx context.Context, client *fluig.Client, pid string, version int) (map[string]string, error) {
+	if version > 0 {
+		return client.ProcessVersionEventScripts(ctx, pid, version)
+	}
+	return client.ProcessEventScripts(ctx, pid)
 }
 
 // scriptDump é um script publicado devolvido pelo import --stdout (contrato
@@ -154,13 +173,13 @@ type scriptDump struct {
 // dumpProcessScripts imprime no stdout os scripts de eventos dos processos, sem
 // gravar arquivo (workflow import --stdout). No modo humano separa os eventos
 // por um cabeçalho quando há mais de um; no modo --json devolve data.scripts[].
-func (a *App) dumpProcessScripts(ctx context.Context, client *fluig.Client, p *output.Printer, pids, filter []string) error {
+func (a *App) dumpProcessScripts(ctx context.Context, client *fluig.Client, p *output.Printer, pids, filter []string, version int) error {
 	want := eventFilterSet(filter)
 	var dumps []scriptDump
 	var lastErr error
 	failures := 0
 	for _, pid := range pids {
-		events, err := client.ProcessEventScripts(ctx, pid)
+		events, err := a.fetchProcessEvents(ctx, client, pid, version)
 		if err != nil {
 			failures++
 			lastErr = mapFluigError(err)
@@ -422,6 +441,72 @@ func newWorkflowVersionCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// --- workflow versions (plural) ---
+
+func newWorkflowVersionsCmd(app *App) *cobra.Command {
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "versions <processId>",
+		Short: "Lista as versões de um processo (nativo, REST v2)",
+		Long: "Lista todas as versões do processo em tabela: número, ativa (publicada)\n" +
+			"e em edição. Mostra onde uma edição caiu e qual versão está no ar.\n\n" +
+			"Diferente do version (singular), que só imprime o número da última.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			processID := args[0]
+			versions, err := client.ProcessVersions(ctx, processID)
+			if err != nil {
+				if errors.Is(err, fluig.ErrNotFound) {
+					return processNotFound(ctx, client, processID, false)
+				}
+				return mapFluigError(err)
+			}
+			if len(versions) == 0 {
+				return processNotFound(ctx, client, processID, false)
+			}
+			// Mais recente primeiro.
+			sort.Slice(versions, func(i, j int) bool { return versions[i].Version > versions[j].Version })
+
+			rows := make([][]string, 0, len(versions))
+			for _, v := range versions {
+				rows = append(rows, []string{
+					strconv.Itoa(v.Version),
+					simNao(v.Active),
+					simNao(v.Editing),
+				})
+			}
+			p.Table(output.Table{
+				Headers: []string{"Versão", "Ativa", "Em edição"},
+				Rows:    rows,
+				// Verde no marcador da versão ativa (padrão de listagem, ver CLAUDE.md).
+				Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+					if col == 1 && versions[row].Active {
+						return output.Green(padded)
+					}
+					return padded
+				}),
+			})
+			p.Done(map[string]any{"processId": processID, "versions": versions})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+func simNao(b bool) string {
+	if b {
+		return "sim"
+	}
+	return "não"
+}
+
 // --- workflow export ---
 
 func newWorkflowExportCmd(app *App) *cobra.Command {
@@ -639,14 +724,14 @@ func resolveWorkflowTargets(root, arg string, eventsFlag []string, allEvents boo
 // arquivos locais, devolvendo um resultado por script (compartilhado entre o
 // workflow import e o clone). Falha do processo inteiro (export indisponível)
 // vira um único resultado failed com o id do processo.
-func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, root, pid string, filter []string) (results []itemResult, failures int, lastErr error) {
+func (a *App) importProcessScripts(ctx context.Context, client *fluig.Client, root, pid string, filter []string, version int) (results []itemResult, failures int, lastErr error) {
 	p := a.printer
 	failProcess := func(err error) ([]itemResult, int, error) {
 		mapped := mapFluigError(err)
 		p.Warnf("processo %q: %s", pid, output.AsError(mapped).Message)
 		return []itemResult{{ID: pid, Action: "failed", Success: false, Error: output.AsError(mapped).Message}}, 1, mapped
 	}
-	events, err := client.ProcessEventScripts(ctx, pid)
+	events, err := a.fetchProcessEvents(ctx, client, pid, version)
 	if err != nil {
 		return failProcess(err)
 	}

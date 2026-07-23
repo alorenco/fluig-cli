@@ -267,6 +267,30 @@ func (c *Client) ExportProcessXML(ctx context.Context, processID string) ([]byte
 	return body, nil
 }
 
+// ProcessVersionEventScripts devolve os scripts de eventos de UMA versão do
+// processo (evento → código), lidos do export XML REST daquela versão
+// (/process-versions/{v}/export/xml). Complementa o ProcessEventScripts, que via
+// SOAP traz só a versão corrente. O XML REST tem os mesmos <WorkflowProcessEvent>
+// que o publish reescreve, então o parser de definição é o mesmo.
+func (c *Client) ProcessVersionEventScripts(ctx context.Context, processID string, version int) (map[string]string, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	path := processPath(processID, "/process-versions/"+strconv.Itoa(version)+"/export/xml")
+	body, status, err := c.doRaw(ctx, http.MethodGet, c.url(path), nil, "", "application/xml")
+	if err != nil {
+		return nil, err
+	}
+	if status < 200 || status >= 300 {
+		return nil, processAPIError(status, body, processID, "process-versions/export/xml")
+	}
+	events, err := parseProcessDefinitionEvents(body)
+	if err != nil {
+		return nil, fmt.Errorf("processo %q v%d: %w", processID, version, err)
+	}
+	return events, nil
+}
+
 // ImportProcessXML importa o XML no processo, criando uma versão nova em edição.
 func (c *Client) ImportProcessXML(ctx context.Context, processID string, xmlData []byte) error {
 	return c.importProcessXML(ctx, processPath(processID, "/import/xml"), processID, xmlData)

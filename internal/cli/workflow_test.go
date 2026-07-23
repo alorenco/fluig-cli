@@ -86,6 +86,16 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
+		case strings.Contains(path, "/process-versions/") && strings.HasSuffix(path, "/export/xml"):
+			// Export XML de uma versão específica: embute o número da versão no
+			// código, para o teste distinguir versões.
+			seg := strings.TrimSuffix(path, "/export/xml")
+			n := seg[strings.LastIndex(seg, "/")+1:]
+			w.Header().Set("Content-Type", "application/xml;charset=UTF-8")
+			io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?><list><WorkflowProcessEvent>`+
+				`<eventId>beforeTaskSave</eventId>`+
+				`<eventDescription>function beforeTaskSave(){ /* v`+n+` */ }</eventDescription>`+
+				`<version>`+n+`</version></WorkflowProcessEvent></list>`)
 		case strings.HasSuffix(path, "/export/xml"):
 			if strings.Contains(path, "Fantasma") {
 				http.Error(w, `{"code":"NotFound","message":"processo inexistente"}`, http.StatusNotFound)
@@ -110,7 +120,9 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			s.releaseCalls++
 			w.WriteHeader(http.StatusNoContent)
 		case strings.HasSuffix(path, "/process-versions"):
-			fmt.Fprintf(w, `{"items":[{"version":%d,"active":true,"editing":true}],"hasNext":false}`, s.pubVersion)
+			// Duas versões: a corrente (ativa) e a anterior (inativa).
+			fmt.Fprintf(w, `{"items":[{"version":%d,"active":true,"editing":false},{"version":%d,"active":false,"editing":false}],"hasNext":false}`,
+				s.pubVersion, s.pubVersion-1)
 		default:
 			http.NotFound(w, r)
 		}
@@ -270,6 +282,75 @@ func TestWorkflowExportNotFoundNoHintWithFlag(t *testing.T) {
 	json.Unmarshal([]byte(stdout), &env)
 	if env.Error != nil && strings.Contains(env.Error.Message, "--process-id") {
 		t.Errorf("com --process-id já usado, não repetir a dica: %s", env.Error.Message)
+	}
+}
+
+// versions (plural): tabela com as versões, marcador de ativa; JSON com a lista.
+func TestWorkflowVersionsTabela(t *testing.T) {
+	stub := &workflowStub{pubVersion: 144}
+	proj := workflowProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "workflow", "versions", "Compras", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"│", "Versão", "Ativa", "Em edição", "144", "143", "sim", "não"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestWorkflowVersionsJSON(t *testing.T) {
+	stub := &workflowStub{pubVersion: 144}
+	proj := workflowProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "workflow", "versions", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	versions, _ := data["versions"].([]any)
+	if len(versions) != 2 {
+		t.Fatalf("esperava 2 versões, veio %d\n%s", len(versions), stdout)
+	}
+	first, _ := versions[0].(map[string]any) // ordenado desc: 144 primeiro
+	if first["version"].(float64) != 144 || first["active"] != true {
+		t.Errorf("versão[0] inesperada: %+v", first)
+	}
+}
+
+// import --version: lê os scripts de uma versão específica (export XML REST).
+func TestWorkflowImportVersion(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "workflow", "import", "Compras", "--version", "143", "--stdout",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	scripts, _ := data["scripts"].([]any)
+	if len(scripts) != 1 {
+		t.Fatalf("esperava 1 script, veio %d\n%s", len(scripts), stdout)
+	}
+	s, _ := scripts[0].(map[string]any)
+	// O stub embute o número da versão no código — confirma que veio da v143.
+	if s["contents"] != "function beforeTaskSave(){ /* v143 */ }" {
+		t.Errorf("conteúdo da versão inesperado: %+v", s["contents"])
+	}
+}
+
+// import --version com --all: erro de uso (o número de versão é por processo).
+func TestWorkflowImportVersionComAll(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "workflow", "import", "--all", "--version", "5", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
 

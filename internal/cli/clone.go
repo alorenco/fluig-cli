@@ -374,7 +374,7 @@ func (a *App) cloneRun(ctx context.Context, client *fluig.Client, server *config
 		}
 	case "workflows":
 		for _, pr := range inv.processes {
-			r, f, e := a.importProcessScripts(ctx, client, root, pr.ID, nil)
+			r, f, e := a.importProcessScripts(ctx, client, root, pr.ID, nil, 0)
 			results = append(results, r...)
 			failures += f
 			if e != nil {

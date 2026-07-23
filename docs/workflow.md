@@ -56,6 +56,22 @@ Processo inexistente → exit **4**. Quando existe um processId parecido, a
 mensagem de erro o sugere. Por exemplo, um erro de digitação em "Compras"
 recebe `talvez: "Compras"`.
 
+## `fluigcli workflow versions <processId>`
+
+Este comando lista todas as versões do processo em tabela: número, ativa
+(publicada) e em edição. Ele mostra onde uma edição caiu e qual versão está no
+ar. O comando é nativo (REST v2 `process-management`). Ele não depende de nada
+instalado.
+
+```sh
+fluigcli workflow versions Compras --server homolog
+fluigcli workflow versions Compras --json
+```
+
+Diferente do `version` (singular), que só imprime o número da última versão.
+Combine com o `workflow import --version <n>` para ler os scripts de uma versão
+específica.
+
 ## `fluigcli workflow import <processId>... | --all`
 
 Este comando baixa os scripts de eventos dos processos do servidor para
@@ -76,6 +92,7 @@ fluigcli workflow import Compras --stdout                # imprime, não grava
 | `--all` | importa os scripts de todos os processos do servidor |
 | `--events a,b` | importa só os eventos indicados |
 | `--stdout` | imprime os scripts no terminal, sem gravar arquivo |
+| `--version N` | lê os scripts de uma versão específica (default: a mais recente) |
 
 Comportamento:
 
@@ -99,6 +116,15 @@ locais. Com mais de um evento, o comando separa cada script com um cabeçalho
 ```sh
 # só o script publicado de um evento, para um arquivo separado
 fluigcli workflow import "Adiantamento ao Fornecedor" --events servicetask88 --stdout > /tmp/publicado.js
+```
+
+A opção `--version` lê uma versão anterior, e não só a mais recente. A leitura da
+versão usa o export XML daquela versão. Liste as versões com `workflow versions`.
+A opção `--version` não combina com `--all` (o número de versão é por processo).
+
+```sh
+# confere um evento como estava na versão 143, sem tocar no repositório
+fluigcli workflow import "Adiantamento ao Fornecedor" --version 143 --events servicetask88 --stdout
 ```
 
 ## `fluigcli workflow export <arquivo|processId> [flags]`
