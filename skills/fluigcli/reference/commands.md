@@ -273,7 +273,7 @@ export nativo do processo — não requerem o componente auxiliar.
 
 | comando | efeito |
 |---|---|
-| `audit [<path>...]` | linter das pastas convencionais (forms/, wcm/widget/, datasets/, events/, mechanisms/, workflow/scripts/): tema fixo do Fluig 2.0 (SG*) e chamadas de API inexistentes (FL*, sobre o fluig.d.ts); `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
+| `audit [<path>...]` | linter das pastas convencionais (forms/, wcm/widget/, datasets/, events/, mechanisms/, workflow/scripts/): tema fixo do Fluig 2.0 (SG*), chamadas de API inexistentes (FL*, sobre o fluig.d.ts) e footguns do Rhino (RHINO*, só JS server-side); `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
 
 Regras: SG001 CSS legado (aviso, `--fix` troca p/ flat) · SG002 recurso
 externo/CDN (erro) · SG003 cor fixa hex/rgb (erro; hex com valor idêntico a
@@ -286,7 +286,13 @@ SG007 alert/confirm/prompt nativos (aviso — use FLUIGC) · FL001 método
 formulário) · FL004 membro inexistente em FLUIGC/DatasetFactory/docAPI/
 WCMAPI/etc. As FL* são avisos com o nome mais próximo em `suggestion` —
 typo se corrige no código; API real que falte na referência
-([`fluig.d.ts`](fluig.d.ts)) é caso de completar o arquivo. No `--json`
+([`fluig.d.ts`](fluig.d.ts)) é caso de completar o arquivo. RHINO001
+(aviso, só JS server-side): `===`/`!==` entre um `java.lang.String`
+(retorno de `getFieldName`/`getInitialValue`/`getString`/`getColleagueName`…,
+inclusive via variável — `var campo = c.getFieldName()...; campo === 'x'`) e um
+literal de texto — no Rhino do Fluig é SEMPRE `false` (o `!==` sempre `true`),
+sem erro; corrija com `String(x.getFieldName()) === 'y'` ou `==` (`String(...)`
+e concatenação com `+` já são reconhecidos como seguros). No `--json`
 reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **rode
 `audit --fix`, corrija o restante pelas sugestões e repita até exit 0**.
 Config em `.fluigcli/audit.json`: `{"ignore":[globs],

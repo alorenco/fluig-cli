@@ -35,7 +35,9 @@ func newAuditCmd(app *App) *cobra.Command {
 			"  FL001 (aviso)  método hAPI.* que não existe (provável typo)\n" +
 			"  FL002 (aviso)  variável WK* desconhecida em getValue() — devolve null em silêncio\n" +
 			"  FL003 (aviso)  método form.* que não existe no FormController (eventos de form)\n" +
-			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n\n" +
+			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n" +
+			"  RHINO001 (aviso) === / !== entre retorno java.lang.String (getFieldName…) e\n" +
+			"                   literal — no Rhino do Fluig é sempre false; use == ou String(...)\n\n" +
 			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
 			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
 			"relatório para correção manual.\n\n" +

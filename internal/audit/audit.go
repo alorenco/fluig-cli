@@ -35,6 +35,8 @@ const (
 	RuleUnknownWKVar   = "FL002" // variável desconhecida em getValue("WK...")
 	RuleUnknownFormAPI = "FL003" // método inexistente no FormController (form.*)
 	RuleUnknownAPI     = "FL004" // membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI/...
+
+	RuleJavaStrictEq = "RHINO001" // === / !== entre retorno java.lang.String e literal de texto
 )
 
 // RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
@@ -53,6 +55,8 @@ var RuleTitles = map[string]string{
 	RuleUnknownWKVar:   "Variável WK* desconhecida em getValue() — o Fluig devolve null em silêncio",
 	RuleUnknownFormAPI: "Método form.* que não existe no FormController (fluig.d.ts) — provável typo",
 	RuleUnknownAPI:     "Membro inexistente em API do Fluig (FLUIGC, DatasetFactory, docAPI, WCMAPI…) — provável typo",
+
+	RuleJavaStrictEq: "=== / !== entre retorno java.lang.String (getFieldName, getString…) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
 }
 
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o

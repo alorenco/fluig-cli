@@ -116,6 +116,10 @@ func scanJS(rel string, content []byte) []Finding {
 			out = append(out, formEventFindings(rel, n, line)...)
 		}
 	}
+	if serverSide {
+		// Footguns do Rhino (RHINO*) — só no JS que roda no servidor.
+		out = append(out, rhinoFindings(rel, content)...)
+	}
 	return out
 }
 

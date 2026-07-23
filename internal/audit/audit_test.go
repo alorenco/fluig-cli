@@ -353,7 +353,9 @@ func TestRunAlvoExplicito(t *testing.T) {
 // Toda regra precisa de um título (o hint das UIs) — pega regra nova sem ele.
 func TestRuleTitlesCompletas(t *testing.T) {
 	for _, rule := range []string{RuleLegacyCSS, RuleExternalRes, RuleHardcodedHex,
-		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog} {
+		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog,
+		RuleUnknownHAPI, RuleUnknownWKVar, RuleUnknownFormAPI, RuleUnknownAPI,
+		RuleJavaStrictEq} {
 		if RuleTitles[rule] == "" {
 			t.Errorf("regra %s sem título em RuleTitles", rule)
 		}

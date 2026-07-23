@@ -1,6 +1,6 @@
 # fluigcli audit — Style Guide e APIs de script
 
-O comando `audit` é o linter estático do projeto Fluig. Ele tem duas famílias
+O comando `audit` é o linter estático do projeto Fluig. Ele tem três famílias
 de regras:
 
 - **SG*** — conformidade com o **Fluig Style Guide 2.0**. Estas regras varrem
@@ -13,6 +13,10 @@ de regras:
   typo de método vira aviso. O aviso traz a sugestão do nome mais próximo. Assim
   você corrige o typo antes de o servidor devolver um erro críptico ou um `null`
   em silêncio em produção.
+- **RHINO*** — footguns do **motor de script (Rhino) do Fluig**. Estas regras
+  rodam só no JS que executa no servidor (`datasets/`, `events/`, `mechanisms/`,
+  `workflow/scripts/` e os eventos de formulário). Elas pegam padrões que a
+  análise estática detecta bem e que quebram sem erro claro em produção.
 
 O comando não envia nada ao servidor. Os arquivos só mudam com `--fix`.
 
@@ -39,6 +43,7 @@ fluigcli audit --fail-on none --json # só relatório (CI/agentes leem o data)
 | `FL002` | aviso | variável `WK*` desconhecida em `getValue()` — o Fluig devolve `null` **em silêncio** | a variável mais parecida (`WKNumState`, `WKUser`…) |
 | `FL003` | aviso | método `form.*` que não existe no FormController (só nos eventos de formulário, onde `form` é garantido) | o método mais parecido |
 | `FL004` | aviso | membro inexistente em `FLUIGC`, `DatasetFactory`, `DatasetBuilder`, `docAPI`, `WCMAPI`, `fluigAPI`, `customHTML` (inclui os aninhados, ex.: `FLUIGC.message.*`) | o membro mais parecido |
+| `RHINO001` | aviso | `===`/`!==` entre um `java.lang.String` (retorno de `getFieldName`, `getInitialValue`, `getString`, `getColleagueName`…) e um literal de texto — no Rhino do Fluig isso é **sempre `false`** (`!==` sempre `true`), sem erro. Rastreia também a variável que recebe esse retorno (`var campo = c.getFieldName()...; if (campo === 'x')`). `String(...)` e concatenação com `+` coagem para string JS e não são apontados. Só no JS server-side. | converter com `String(x.getFieldName()) === 'y'` ou usar igualdade solta (`==`) |
 
 As regras FL* usam a referência `fluig.d.ts` embutida. Esta referência é um fork
 do [fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)
