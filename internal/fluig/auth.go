@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -99,30 +100,59 @@ func (c *Client) Ping(ctx context.Context) error {
 // RestoreSession tenta obter uma sessão válida SEM fazer login — cookies já
 // ativos no processo ou persistidos no cache, validados por ping. Como a
 // sessão é a credencial universal (REST + SOAP), quem tem uma válida nem
-// precisa de senha. Retorna false quando não há sessão aproveitável.
-func (c *Client) RestoreSession(ctx context.Context) bool {
+// precisa de senha.
+//
+// O primeiro retorno diz se há sessão aproveitável. O segundo separa os dois
+// motivos de não haver:
+//
+//   - nil → o servidor respondeu e RECUSOU a sessão (ou não havia sessão). O
+//     caminho normal segue para o login com senha.
+//   - erro → falha de TRANSPORTE (rede, timeout, servidor fora). Aqui não se
+//     sabe se a sessão vale, e insistir no login só trocaria a causa por uma
+//     mensagem pior — quem chama deve abortar com este erro.
+//
+// A distinção existe porque antes as duas viravam `false`: com o servidor
+// lento, a CLI caía na resolução de senha e morria dizendo "nenhuma senha
+// disponível", mandando o usuário atrás do problema errado (ROADMAP §2.10-H).
+func (c *Client) RestoreSession(ctx context.Context) (bool, error) {
 	// 1. Sessão já ativa neste processo (cache em memória).
-	if c.hasSessionCookies() && c.Ping(ctx) == nil {
-		return true
+	if c.hasSessionCookies() {
+		switch err := c.Ping(ctx); {
+		case err == nil:
+			return true, nil
+		case !errors.Is(err, ErrAuthFailed):
+			return false, err // transporte: não é "sessão inválida"
+		}
 	}
 	// 2. Sessão persistida em disco (reaproveitada entre execuções).
 	if c.cache != nil && !c.hasSessionCookies() {
 		if cookies := c.cache.Load(c.sessionKey); len(cookies) > 0 {
 			c.http.Jar.SetCookies(c.base, cookies)
-			if c.hasSessionCookies() && c.Ping(ctx) == nil {
-				return true
+			if c.hasSessionCookies() {
+				switch err := c.Ping(ctx); {
+				case err == nil:
+					return true, nil
+				case !errors.Is(err, ErrAuthFailed):
+					return false, err
+				}
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 // EnsureSession garante uma sessão válida: reutiliza a sessão em cache quando o
 // ping confirma; caso contrário refaz o login, aplicando o quirk de servidores
 // demo (license.do?demo=true + novo login).
 func (c *Client) EnsureSession(ctx context.Context) error {
-	if c.RestoreSession(ctx) {
+	ok, rerr := c.RestoreSession(ctx)
+	if ok {
 		return nil
+	}
+	if rerr != nil {
+		// Falha de transporte: o login bateria no mesmo problema, gastando outro
+		// timeout e devolvendo uma causa menos precisa.
+		return rerr
 	}
 	if err := c.loginAndValidate(ctx); err != nil {
 		return err

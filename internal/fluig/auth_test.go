@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fluigStub simula os servlets de autenticação do Fluig.
@@ -297,8 +299,9 @@ func TestRestoreSessionSemSenha(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.RestoreSession(context.Background()) {
-		t.Fatal("sessão em cache válida deveria ser restaurada sem senha")
+	ok, rerr := c.RestoreSession(context.Background())
+	if !ok || rerr != nil {
+		t.Fatalf("sessão em cache válida deveria ser restaurada sem senha (ok=%v err=%v)", ok, rerr)
 	}
 	if n := stub.loginCalls.Load(); n != 0 {
 		t.Errorf("RestoreSession não pode logar, mas houve %d login(s)", n)
@@ -315,10 +318,112 @@ func TestRestoreSessionSemCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.RestoreSession(context.Background()) {
+	ok, rerr := c.RestoreSession(context.Background())
+	if ok {
 		t.Fatal("sem cache não há sessão a restaurar")
+	}
+	// Sem sessão NÃO é falha de transporte: o erro tem de vir nil para o fluxo
+	// seguir para o login com senha (ROADMAP §2.10-H).
+	if rerr != nil {
+		t.Errorf("ausência de sessão não é erro de transporte: %v", rerr)
 	}
 	if n := stub.loginCalls.Load(); n != 0 {
 		t.Errorf("RestoreSession não pode logar, mas houve %d login(s)", n)
+	}
+}
+
+// Falha de TRANSPORTE no ping (rede/timeout) não é "sessão inválida": o
+// RestoreSession devolve a causa para quem chama abortar, em vez de deixar a CLI
+// cair na resolução de senha e morrer com "nenhuma senha disponível"
+// (ROADMAP §2.10-H).
+func TestRestoreSessionDistingueTransporte(t *testing.T) {
+	t.Run("ping lento vira erro de transporte", func(t *testing.T) {
+		lento := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			io.WriteString(w, `{"message":"pong"}`)
+		}))
+		defer lento.Close()
+
+		cache := &fakeSessionCache{load: []*http.Cookie{{Name: "JSESSIONIDSSO", Value: "s", Path: "/"}}}
+		c, err := NewClient(Options{BaseURL: lento.URL, Username: "u", SessionCache: cache, Timeout: 40 * time.Millisecond})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, rerr := c.RestoreSession(context.Background())
+		if ok {
+			t.Fatal("o ping estourou: não há sessão confirmada")
+		}
+		if rerr == nil {
+			t.Fatal("timeout no ping tem de devolver erro, não silêncio")
+		}
+		if errors.Is(rerr, ErrAuthFailed) {
+			t.Errorf("timeout não é falha de autenticação: %v", rerr)
+		}
+	})
+
+	t.Run("servidor fora do ar vira erro de transporte", func(t *testing.T) {
+		morto := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		url := morto.URL
+		morto.Close() // ninguém escutando na porta
+
+		cache := &fakeSessionCache{load: []*http.Cookie{{Name: "JSESSIONIDSSO", Value: "s", Path: "/"}}}
+		c, err := NewClient(Options{BaseURL: url, Username: "u", SessionCache: cache})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok, rerr := c.RestoreSession(context.Background()); ok || rerr == nil {
+			t.Fatalf("servidor fora do ar: ok=%v err=%v", ok, rerr)
+		}
+	})
+
+	// Sessão que o servidor RECUSA (ping sem pong) mantém o caminho normal:
+	// erro nil, para o fluxo seguir para o login com senha.
+	t.Run("sessão recusada não é erro de transporte", func(t *testing.T) {
+		recusa := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		}))
+		defer recusa.Close()
+
+		cache := &fakeSessionCache{load: []*http.Cookie{{Name: "JSESSIONIDSSO", Value: "velha", Path: "/"}}}
+		c, err := NewClient(Options{BaseURL: recusa.URL, Username: "u", SessionCache: cache})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, rerr := c.RestoreSession(context.Background())
+		if ok {
+			t.Fatal("sessão recusada não pode passar por válida")
+		}
+		if rerr != nil {
+			t.Errorf("sessão recusada tem de deixar o fluxo seguir para a senha (err=%v)", rerr)
+		}
+	})
+}
+
+// EnsureSession não gasta um segundo timeout tentando login quando o ping já
+// falhou por transporte: devolve a causa real.
+func TestEnsureSessionFalhaDeTransporteNaoTentaLogin(t *testing.T) {
+	var pings, logins int32
+	lento := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "login.do") {
+			atomic.AddInt32(&logins, 1)
+			return
+		}
+		atomic.AddInt32(&pings, 1)
+		time.Sleep(200 * time.Millisecond)
+	}))
+	defer lento.Close()
+
+	cache := &fakeSessionCache{load: []*http.Cookie{{Name: "JSESSIONIDSSO", Value: "s", Path: "/"}}}
+	c, err := NewClient(Options{BaseURL: lento.URL, Username: "u", Password: "p", SessionCache: cache, Timeout: 40 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.EnsureSession(context.Background()); err == nil {
+		t.Fatal("deveria falhar")
+	} else if errors.Is(err, ErrAuthFailed) {
+		t.Errorf("a causa é transporte, não autenticação: %v", err)
+	}
+	if n := atomic.LoadInt32(&logins); n != 0 {
+		t.Errorf("não deveria tentar login depois de falha de transporte, houve %d", n)
 	}
 }

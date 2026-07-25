@@ -159,10 +159,16 @@ func isTimeoutErr(err error) bool {
 
 // mapErr é o mapFluigError das operações que sabem o tempo limite em vigor: no
 // timeout, a mensagem cita o valor real em vez de falar só da flag.
+//
+// A ressalva sobre o resultado é CONDICIONAL de propósito: este mapeamento serve
+// leitura e escrita. Afirmar "a operação pode ter sido concluída" numa leitura
+// seria ruído — nada foi gravado. Quem SABE que escreve (o `request move`/`start`)
+// tem mensagem própria, com veredicto.
 func (a *App) mapErr(err error) error {
 	if isTimeoutErr(err) {
 		return output.Timeoutf("a requisição excedeu o tempo limite de %s (--timeout). "+
-			"A operação pode ter sido concluída no servidor — verifique o estado antes de repetir.",
+			"Se o comando escreve no servidor, a operação pode ter sido concluída mesmo assim — "+
+			"verifique o estado antes de repetir.",
 			a.Timeout).WithCause(err)
 	}
 	return mapFluigError(err)

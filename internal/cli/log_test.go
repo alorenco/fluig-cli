@@ -750,3 +750,34 @@ func TestLogTailFollowRecusas(t *testing.T) {
 
 // garante que o helper de projeto compartilhado segue disponível aqui
 var _ = config.Server{}
+
+// Com o servidor lento, o ping de validação da sessão estourava o tempo limite e
+// a CLI caía na resolução de senha, morrendo com AUTH_FAILED "nenhuma senha
+// disponível" — mandando o usuário atrás do problema errado. Agora a causa real
+// aparece (ROADMAP §2.10-H).
+func TestTimeoutNaValidacaoDaSessaoNaoViraAuthFailed(t *testing.T) {
+	lento := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		io.WriteString(w, `{"message":"pong"}`)
+	}))
+	t.Cleanup(lento.Close)
+
+	proj := serverTestProject(t, lento.URL)
+	code, stdout := runMain(t, "log", "files", "--timeout", "60ms", "--json", "--project", proj)
+	if code == output.ExitAuth {
+		t.Fatalf("timeout não é falha de credencial (exit %d)\n%s", code, stdout)
+	}
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil || env.Error.Code != output.CodeTimeout {
+		t.Fatalf("esperava code %s: %+v", output.CodeTimeout, env.Error)
+	}
+	if strings.Contains(env.Error.Message, "senha") {
+		t.Errorf("a mensagem não deveria falar de senha: %q", env.Error.Message)
+	}
+}

@@ -26,8 +26,18 @@ func (a *App) authenticate(ctx context.Context, server *config.Server, passwordS
 	// --password-stdin a etapa é pulada: quem manda a senha explicitamente
 	// quer vê-la validada por um login de verdade.
 	if !a.NoSessionCache && !passwordStdin {
-		if client, err := a.clientFor(server, ""); err == nil && client.RestoreSession(ctx) {
-			return client, nil
+		if client, err := a.clientFor(server, ""); err == nil {
+			ok, rerr := client.RestoreSession(ctx)
+			if ok {
+				return client, nil
+			}
+			// Falha de TRANSPORTE (rede/timeout) não é falta de credencial:
+			// seguir para a resolução de senha terminaria em "nenhuma senha
+			// disponível", que manda o usuário atrás do problema errado
+			// (ROADMAP §2.10-H).
+			if rerr != nil {
+				return nil, a.mapErr(rerr)
+			}
 		}
 	}
 

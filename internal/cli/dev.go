@@ -443,8 +443,16 @@ func (a *App) deployBridge(current *config.Server) ([]devserver.DeployServerInfo
 		}
 		// Sessão em cache vale como credencial (igual ao authenticate da CLI).
 		if password == "" && !a.NoSessionCache {
-			if client, err := a.clientFor(target, ""); err == nil && client.RestoreSession(ctx) {
-				return client, target.FormScopeKey(), nil
+			if client, err := a.clientFor(target, ""); err == nil {
+				ok, rerr := client.RestoreSession(ctx)
+				if ok {
+					return client, target.FormScopeKey(), nil
+				}
+				// Servidor fora do ar / timeout: reportar a causa em vez de
+				// pedir senha (ROADMAP §2.10-H).
+				if rerr != nil {
+					return nil, "", a.mapErr(rerr)
+				}
 			}
 		}
 		pw := password
