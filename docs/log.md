@@ -113,6 +113,51 @@ pela rede. No terminal, o comando mostra as entradas ERROR e FATAL em vermelho.
 O comando mostra as entradas WARN em amarelo. As cores aparecem quando há um
 TTY e a variável `NO_COLOR` não está definida.
 
+### Monitor para agente (`--follow --ndjson`)
+
+O `--follow` sozinho é interativo e não aceita `--json`, porque o envelope JSON
+é único por execução. Para um monitor programático, use `--follow --ndjson`.
+Neste modo cada linha do stdout é **um objeto JSON completo** de uma entrada, no
+mesmo formato do `records[]`. As mensagens humanas vão para o stderr. Assim o
+stdout fica exclusivo dos dados.
+
+⚠️ Neste modo o stream começa **agora**. O histórico (as últimas `-n` entradas)
+não entra. Esta regra evita um falso positivo: um `--until-match` casaria com uma
+entrada antiga e o monitor terminaria antes do evento que você espera.
+
+Combine o modo com uma condição de parada. Sem nenhuma, o comando espera
+`Ctrl+C`.
+
+| Flag | Efeito |
+|---|---|
+| `--until-match <texto>` | encerra na primeira entrada que contém o texto (exit **0**) |
+| `--for <duração>` | acompanha por no máximo esse tempo |
+| `--idle-timeout <duração>` | encerra depois desse tempo sem entrada nova |
+| `--max-entries <n>` | encerra depois de emitir N entradas |
+
+Com `--until-match`, o resultado é um veredicto:
+
+- o texto apareceu → exit **0**;
+- o tempo ou o limite acabou antes → exit **4** (não encontrado). O agente
+  distingue "vi o que esperava" de "desisti de esperar".
+
+As entradas vistas no caminho saem no stream nos dois casos. O monitor não perde
+dado.
+
+```sh
+# dispare a ação e espere o efeito no log, com teto de tempo
+fluigcli log tail --follow --ndjson --until-match "ZZTOKEN" --for 2m
+echo "exit=$?"   # 0 = apareceu · 4 = não apareceu no tempo
+
+# só os erros, no máximo 20 entradas
+fluigcli log tail --follow --ndjson --level error --max-entries 20
+```
+
+O acompanhamento é por **entrada**, não por linha. Um stack trace nunca sai
+partido. Uma entrada só fecha quando a próxima começa, ou quando o log fica em
+silêncio por um ciclo de leitura. Por isso a última entrada aparece com alguns
+segundos de atraso.
+
 ### Saída `--json`
 
 Com `--json` (e sem `--follow`), o envelope traz
@@ -157,6 +202,6 @@ fluigcli log download --file server.log.2026-07-17 -o /tmp/ontem.log
 | código | quando |
 |---|---|
 | `0` | sucesso |
-| `2` | uso incorreto (`--level` inválido, `--follow` com `--json`, `--since` com `--follow`/`-n`/`--skip`, valor de janela irreconhecível) |
-| `4` | o arquivo de log não existe |
+| `2` | uso incorreto (`--level` inválido, `--follow` com `--json`, `--ndjson` com `--json`, `--ndjson`/condição de parada sem `--follow`, `--since` com `--follow`/`-n`/`--skip`, valor de janela irreconhecível) |
+| `4` | o arquivo de log não existe; ou `--until-match` não apareceu antes da condição de parada |
 | `7` | fluigcliHelper ausente ou **desatualizado** (< 0.3.0 sem as rotas de log; < 0.5.0 sem a janela de tempo). Atualize com `server install-helper <name> --force`. |

@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/alorenco/fluig-cli/internal/config"
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
@@ -400,6 +402,217 @@ func TestLogTailJanelaHelperAntigo(t *testing.T) {
 	code, stdout := runMain(t, "log", "tail", "--since", "30m", "--json", "--project", proj)
 	if code != output.ExitMissingHelper {
 		t.Fatalf("exit=%d, quer %d (helper sem /range)\n%s", code, output.ExitMissingHelper, stdout)
+	}
+}
+
+// --- log tail --follow --ndjson + condições de parada (ROADMAP §2.10-F) ---
+
+// logFollowStub serve /read?from= com uma sequência roteirizada de trechos: é
+// assim que o polling do --follow vê o log crescer. Trecho vazio = log em
+// silêncio (o que fecha a entrada pendente).
+func logFollowStub(t *testing.T, chunks []string) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.7.0"}`)
+	})
+	// O tail inicial só posiciona o offset: o --follow começa do fim do arquivo.
+	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/tail", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"file":"server.log","size":100,"entries":[],"truncated":false}`)
+	})
+	var mu sync.Mutex
+	call, size := 0, 100 // o arquivo só CRESCE (encolher significaria rotação)
+	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/read", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		content := ""
+		if call < len(chunks) {
+			content = chunks[call]
+		}
+		call++
+		from := size
+		size += len(content)
+		to := size
+		mu.Unlock()
+		body, _ := json.Marshal(map[string]any{
+			"file": "server.log", "from": from, "to": to, "size": to, "content": content,
+		})
+		w.Write(body)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// O polling entrega LINHAS; o acompanhamento emite ENTRADAS. Uma entrada só
+// fecha quando a próxima começa (ou quando o log silencia).
+func TestLogEntryAccumulator(t *testing.T) {
+	acc := &logEntryAccumulator{}
+
+	// Primeiro trecho: uma entrada completa + o começo da segunda.
+	done := acc.add([]string{
+		"2026-07-25 10:00:00,000 INFO  [a] (t) primeira",
+		"2026-07-25 10:00:01,000 ERROR [b] (t) segunda",
+		"\tat foo.Bar(Bar.java:1)",
+	})
+	if len(done) != 1 || done[0] != "2026-07-25 10:00:00,000 INFO  [a] (t) primeira" {
+		t.Fatalf("a primeira entrada deveria fechar ao começar a segunda: %q", done)
+	}
+
+	// A segunda continua pendente: o stack pode ter mais linhas.
+	if done := acc.add([]string{"\tat foo.Baz(Baz.java:2)"}); len(done) != 0 {
+		t.Errorf("entrada com stack não deveria fechar sem cabeçalho novo: %q", done)
+	}
+
+	// Silêncio do log fecha a pendente, com o stack inteiro junto.
+	entry := acc.flush()
+	if !strings.HasPrefix(entry, "2026-07-25 10:00:01,000 ERROR") ||
+		!strings.Contains(entry, "Bar.java:1") || !strings.Contains(entry, "Baz.java:2") {
+		t.Errorf("flush deveria devolver a entrada inteira: %q", entry)
+	}
+	if acc.flush() != "" {
+		t.Error("flush duas vezes não deveria repetir a entrada")
+	}
+}
+
+func TestLogEntryFilter(t *testing.T) {
+	entry := "2026-07-25 10:00:00,000 ERROR [a.B] (t) falhou\n\tat foo.Bar(Bar.java:1)"
+	info := "2026-07-25 10:00:00,000 INFO  [a.B] (t) subiu"
+
+	if f := newLogEntryFilter("WARN", ""); !f.match(entry) || f.match(info) {
+		t.Error("--level filtra pela severidade da linha de cabeçalho")
+	}
+	// O texto é procurado na entrada INTEIRA: acha dentro do stack trace.
+	if f := newLogEntryFilter("", "bar.java"); !f.match(entry) {
+		t.Error("--grep deveria alcançar o stack trace")
+	}
+	if f := newLogEntryFilter("", "inexistente"); f.match(entry) {
+		t.Error("--grep sem casar deveria filtrar fora")
+	}
+	if f := newLogEntryFilter("", ""); !f.match(entry) || f.match("") {
+		t.Error("sem filtro passa tudo, menos entrada vazia")
+	}
+}
+
+// --follow --ndjson: uma linha por entrada, e o --until-match encerra com 0.
+func TestLogTailFollowNDJSON(t *testing.T) {
+	logFollowInterval = 5 * time.Millisecond
+	t.Cleanup(func() { logFollowInterval = 2 * time.Second })
+
+	stub := logFollowStub(t, []string{
+		"2026-07-25 10:00:00,000 INFO  [a.B] (task-1) subiu\n",
+		"2026-07-25 10:00:01,000 ERROR [a.B] (task-2) falha na integração\n\tat foo.Bar(Bar.java:1)\n",
+		"", // silêncio: fecha a entrada pendente e o --until-match casa
+	})
+	proj := serverTestProject(t, stub.URL)
+
+	code, stdout := runMain(t, "log", "tail", "--follow", "--ndjson",
+		"--until-match", "falha na integração", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d, quer 0 (o texto apareceu)\n%s", code, stdout)
+	}
+	linhas := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(linhas) != 2 {
+		t.Fatalf("esperava 2 linhas NDJSON, veio %d:\n%s", len(linhas), stdout)
+	}
+	// Cada linha é um JSON completo e independente (não um envelope).
+	var primeira, segunda fluig.LogEntry
+	if err := json.Unmarshal([]byte(linhas[0]), &primeira); err != nil {
+		t.Fatalf("linha 1 não é JSON: %v (%q)", err, linhas[0])
+	}
+	if err := json.Unmarshal([]byte(linhas[1]), &segunda); err != nil {
+		t.Fatalf("linha 2 não é JSON: %v (%q)", err, linhas[1])
+	}
+	if primeira.Level != "INFO" || primeira.Logger != "a.B" || primeira.Message != "subiu" {
+		t.Errorf("entrada 1: %+v", primeira)
+	}
+	if segunda.Level != "ERROR" || segunda.Thread != "task-2" ||
+		segunda.Message != "falha na integração" || !strings.Contains(segunda.Stack, "Bar.java:1") {
+		t.Errorf("entrada 2 (com stack): %+v", segunda)
+	}
+	if strings.Contains(stdout, `"ok"`) {
+		t.Errorf("o streaming não emite envelope:\n%s", stdout)
+	}
+}
+
+// --until-match que não aparece = resultado NEGATIVO: exit 4, para o agente
+// distinguir "vi o que esperava" de "desisti".
+func TestLogTailFollowUntilMatchNaoAparece(t *testing.T) {
+	logFollowInterval = 5 * time.Millisecond
+	t.Cleanup(func() { logFollowInterval = 2 * time.Second })
+
+	stub := logFollowStub(t, []string{"2026-07-25 10:00:00,000 INFO  [a.B] (t) subiu\n", "", ""})
+	proj := serverTestProject(t, stub.URL)
+
+	code, stdout := runMain(t, "log", "tail", "--follow", "--ndjson",
+		"--until-match", "nunca vai aparecer", "--for", "60ms", "--project", proj)
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d (esperou e não viu)\n%s", code, output.ExitNotFound, stdout)
+	}
+	// As entradas vistas no caminho continuam saindo — o monitor não perde dado.
+	if !strings.Contains(stdout, `"subiu"`) {
+		t.Errorf("as entradas do período deveriam sair mesmo sem casar:\n%s", stdout)
+	}
+}
+
+// --max-entries e --idle-timeout encerram com 0 (não há veredicto a dar).
+func TestLogTailFollowCondicoesDeParada(t *testing.T) {
+	logFollowInterval = 5 * time.Millisecond
+	t.Cleanup(func() { logFollowInterval = 2 * time.Second })
+
+	chunks := []string{
+		"2026-07-25 10:00:00,000 INFO  [a] (t) um\n2026-07-25 10:00:01,000 INFO  [a] (t) dois\n",
+		"2026-07-25 10:00:02,000 INFO  [a] (t) tres\n",
+		"", "", "",
+	}
+
+	t.Run("max-entries", func(t *testing.T) {
+		proj := serverTestProject(t, logFollowStub(t, chunks).URL)
+		code, stdout := runMain(t, "log", "tail", "--follow", "--ndjson", "--max-entries", "2", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d\n%s", code, stdout)
+		}
+		if n := len(strings.Split(strings.TrimSpace(stdout), "\n")); n != 2 {
+			t.Errorf("emitiu %d linhas, quer 2:\n%s", n, stdout)
+		}
+	})
+
+	t.Run("idle-timeout", func(t *testing.T) {
+		proj := serverTestProject(t, logFollowStub(t, chunks).URL)
+		code, stdout := runMain(t, "log", "tail", "--follow", "--ndjson", "--idle-timeout", "40ms", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d\n%s", code, stdout)
+		}
+		if !strings.Contains(stdout, `"tres"`) {
+			t.Errorf("a última entrada deveria ter saído antes do encerramento:\n%s", stdout)
+		}
+	})
+}
+
+// O streaming e as condições de parada só existem no modo contínuo, e --ndjson
+// não se mistura com o envelope do --json.
+func TestLogTailFollowRecusas(t *testing.T) {
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, args := range [][]string{
+		{"log", "tail", "--ndjson"},
+		{"log", "tail", "--until-match", "x"},
+		{"log", "tail", "--for", "1m"},
+		{"log", "tail", "--idle-timeout", "1m"},
+		{"log", "tail", "--max-entries", "5"},
+		{"log", "tail", "--follow", "--ndjson", "--json"},
+	} {
+		code, stdout := runMain(t, append(args, "--project", proj)...)
+		if code != output.ExitUsage {
+			t.Errorf("%v: exit=%d, quer %d\n%s", args, code, output.ExitUsage, stdout)
+		}
 	}
 }
 

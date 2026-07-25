@@ -268,6 +268,7 @@ as flags, e inclui as vigências expiradas).
 | `log tail --json` (qualquer modo) | além de `entries[]` (texto cru) traz `records[]` com a entrada DECOMPOSTA: `{timestamp, level, logger, thread, message, stack}`, mesmo índice de `entries`. Cabeçalho irreconhecível vem em `raw` (nada é descartado). `timestamp` = hora local do SERVIDOR, sem fuso |
 | `log tail --since <janela> [--until <janela>]` | JANELA DE TEMPO em vez das últimas entradas: duração (`30m`, `2h`), hora de hoje (`18:19`), data (`2026-07-24`) ou data e hora (`2026-07-24T18:19`). Horários = hora local do SERVIDOR (a CLI usa o fuso que o helper informa). ⚠️ `18h` é duração, não 18:00. Não combina com `--follow`/`-n`/`--skip`; `--json` traz `{file, from, to, entries, truncated}`. Exige helper ≥ 0.5.0 |
 | `log tail --follow` | acompanha o log ao vivo (como `tail -f`; interativo — recusa `--json`) |
+| `log tail --follow --ndjson [--until-match txt] [--for d] [--idle-timeout d] [--max-entries N]` | **monitor de agente**: uma entrada por linha no stdout (formato de streaming, não é o envelope), mensagens humanas no stderr. Começa AGORA (não replica o histórico, para o `--until-match` não casar com entrada antiga). `--until-match`: apareceu = exit 0, acabou o tempo/limite = **exit 4**. Sem condição de parada, espera Ctrl+C |
 | `log download [--file arq] [-o caminho]` | baixa o arquivo inteiro (streaming) |
 
 Sem o helper → exit 7 (`server install-helper`); helper antigo sem as rotas de

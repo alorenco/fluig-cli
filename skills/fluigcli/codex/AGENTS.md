@@ -52,7 +52,10 @@ Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
 `log` (files|tail|download — server.log do servidor via helper; `tail --since 30m`
 ou `--since 18:19 --until 18:30` recorta uma janela de tempo na hora do SERVIDOR
 e exige helper ≥ 0.5.0; o `--json` traz `records[]` já decomposto em
-`{timestamp,level,logger,thread,message,stack}` além do `entries[]` cru),
+`{timestamp,level,logger,thread,message,stack}` além do `entries[]` cru;
+`tail --follow --ndjson --until-match "txt" --for 2m` é o MONITOR de agente —
+uma entrada JSON por linha, começa agora, exit 0 se apareceu e **exit 4** se
+o tempo acabou antes),
 `document` (list|download|upload|mkdir|delete — GED),
 `user` (list|show|create|update|activate|deactivate — requer admin; senha do
 novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,6 +88,11 @@ func newLogTailCmd(app *App) *cobra.Command {
 		since         string
 		until         string
 		follow        bool
+		ndjson        bool
+		untilMatch    string
+		forDuration   time.Duration
+		idleTimeout   time.Duration
+		maxEntries    int
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
@@ -102,12 +108,29 @@ func newLogTailCmd(app *App) *cobra.Command {
 			"Formatos: duração (30m, 2h), hora de hoje (18:19), data (2026-07-24) ou\n" +
 			"data e hora (2026-07-24T18:19). Os horários são os do LOG, ou seja, a hora\n" +
 			"local do servidor — a CLI usa o fuso que o fluigcliHelper informa para\n" +
-			"resolver as durações e as horas de hoje.",
+			"resolver as durações e as horas de hoje.\n\n" +
+			"Para MONITOR de agente, use --follow --ndjson: cada linha do stdout é um\n" +
+			"JSON completo de uma entrada. É formato de streaming, diferente do envelope\n" +
+			"único do --json. Combine com uma condição de parada (--until-match, --for,\n" +
+			"--idle-timeout ou --max-entries) para o comando terminar sozinho em vez de\n" +
+			"esperar Ctrl+C. Com --until-match, terminar sem casar é exit 4.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if follow && app.JSON {
-				return output.Usagef("--follow é um modo contínuo e não suporta --json (use tail sem --follow)")
+				return output.Usagef("--follow é um modo contínuo e não suporta --json (use --follow --ndjson para streaming, ou tail sem --follow)")
+			}
+			if ndjson && app.JSON {
+				return output.Usagef("--ndjson e --json são formatos diferentes: o --json emite um envelope único e o --ndjson um objeto por linha")
+			}
+			// As condições de parada e o streaming só existem no modo contínuo.
+			for flag, ligada := range map[string]bool{
+				"ndjson": ndjson, "until-match": untilMatch != "",
+				"for": forDuration > 0, "idle-timeout": idleTimeout > 0, "max-entries": maxEntries > 0,
+			} {
+				if ligada && !follow {
+					return output.Usagef("--%s só faz sentido com --follow (é o modo contínuo)", flag)
+				}
 			}
 			ranged := since != "" || until != ""
 			if ranged && follow {
@@ -141,10 +164,16 @@ func newLogTailCmd(app *App) *cobra.Command {
 			if len(tail.Entries) == 0 && !follow {
 				p.Infof("Nenhuma entrada de log casa com os filtros em %s.", tail.File)
 			}
-			for _, entry := range tail.Entries {
-				printLogEntry(p, entry)
+			// Em NDJSON o backlog NÃO sai: o stdout é exclusivo do stream (uma
+			// linha de texto quebraria quem consome) e, mais importante, o
+			// --until-match tem de valer para o que acontecer DEPOIS do início —
+			// casar com uma entrada antiga daria falso positivo ao monitor.
+			if !ndjson {
+				for _, entry := range tail.Entries {
+					printLogEntry(p, entry)
+				}
 			}
-			if tail.Truncated {
+			if tail.Truncated && !ndjson {
 				p.Warnf("saída truncada pelo limite de tamanho — refine com --grep/--level ou reduza -n")
 			}
 			if !follow {
@@ -155,7 +184,11 @@ func newLogTailCmd(app *App) *cobra.Command {
 				})
 				return nil
 			}
-			return followServerLog(ctx, p, client, tail.File, tail.Size, lv, grep)
+			return followServerLog(ctx, p, client, followParams{
+				file: tail.File, offset: tail.Size, level: lv, grep: grep,
+				ndjson: ndjson, untilMatch: untilMatch,
+				forDuration: forDuration, idleTimeout: idleTimeout, maxEntries: maxEntries,
+			})
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "", "arquivo de log (default: server.log; veja log files)")
@@ -166,6 +199,11 @@ func newLogTailCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&since, "since", "", "início da janela: duração (30m), hora de hoje (18:19), data ou data e hora")
 	cmd.Flags().StringVar(&until, "until", "", "fim da janela (mesmos formatos do --since)")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "segue acompanhando o log (como tail -f)")
+	cmd.Flags().BoolVar(&ndjson, "ndjson", false, "com --follow: um JSON por linha (streaming para monitor de agente)")
+	cmd.Flags().StringVar(&untilMatch, "until-match", "", "com --follow: encerra (exit 0) na primeira entrada que contém o texto")
+	cmd.Flags().DurationVar(&forDuration, "for", 0, "com --follow: acompanha por no máximo esse tempo (ex.: 5m)")
+	cmd.Flags().DurationVar(&idleTimeout, "idle-timeout", 0, "com --follow: encerra depois desse tempo sem entrada nova")
+	cmd.Flags().IntVar(&maxEntries, "max-entries", 0, "com --follow: encerra depois de emitir N entradas")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
@@ -285,18 +323,113 @@ func boundLabel(bound, vazio string) string {
 	return bound
 }
 
-const logFollowInterval = 2 * time.Second
+// logFollowInterval é o intervalo do polling do --follow. É variável para os
+// testes poderem encurtá-lo (o valor real é o de produção).
+var logFollowInterval = 2 * time.Second
+
+// followParams reúne o que o modo contínuo precisa: de onde ler, o que filtrar,
+// como emitir e quando parar.
+type followParams struct {
+	file        string
+	offset      int64
+	level, grep string
+
+	ndjson      bool          // um JSON por linha em vez de texto
+	untilMatch  string        // encerra na primeira entrada que contém o texto
+	forDuration time.Duration // teto de tempo total
+	idleTimeout time.Duration // teto de tempo sem entrada nova
+	maxEntries  int           // teto de entradas emitidas
+}
+
+// hasStopCondition informa se o comando termina sozinho.
+func (fp followParams) hasStopCondition() bool {
+	return fp.untilMatch != "" || fp.forDuration > 0 || fp.idleTimeout > 0 || fp.maxEntries > 0
+}
+
+// notice manda um recado humano pelo canal certo. Em NDJSON o stdout é
+// EXCLUSIVO dos dados — uma linha que não seja JSON quebraria quem consome o
+// stream —, então o recado vai para o stderr.
+func (fp followParams) notice(p *output.Printer, format string, args ...any) {
+	if fp.ndjson {
+		p.Warnf(format, args...)
+		return
+	}
+	p.Infof(format, args...)
+}
+
+// logEntryAccumulator junta as LINHAS que chegam do polling em ENTRADAS
+// completas. Uma entrada só termina quando a próxima começa (ou quando o log
+// silencia), porque o stack trace vem em linhas de continuação.
+type logEntryAccumulator struct{ pending []string }
+
+// add devolve as entradas fechadas pelas linhas novas.
+func (a *logEntryAccumulator) add(lines []string) []string {
+	var done []string
+	for _, line := range lines {
+		if fluig.IsLogEntryStart(line) && len(a.pending) > 0 {
+			done = append(done, strings.Join(a.pending, "\n"))
+			a.pending = nil
+		}
+		a.pending = append(a.pending, line)
+	}
+	return done
+}
+
+// flush fecha a entrada pendente (o log silenciou ou o comando vai terminar).
+func (a *logEntryAccumulator) flush() string {
+	if len(a.pending) == 0 {
+		return ""
+	}
+	entry := strings.Join(a.pending, "\n")
+	a.pending = nil
+	return entry
+}
 
 // followServerLog acompanha o arquivo por polling de offset. Rotação
 // (tamanho menor que o offset) recomeça do zero; erros transitórios são
 // tolerados até um limite de falhas consecutivas.
-func followServerLog(ctx context.Context, p *output.Printer, client *fluig.Client, file string, offset int64, level, grep string) error {
-	p.Infof("— acompanhando %s (Ctrl+C para sair) —", file)
-	filter := newLogLineFilter(level, grep)
+//
+// O acompanhamento é por ENTRADA, não por linha: assim o stack trace nunca sai
+// partido e os filtros valem para a entrada inteira. O custo é a latência da
+// última entrada, que espera a próxima ou o silêncio do log (um ciclo de poll).
+func followServerLog(ctx context.Context, p *output.Printer, client *fluig.Client, fp followParams) error {
+	switch {
+	case fp.ndjson:
+		fp.notice(p, "acompanhando %s em NDJSON a partir de agora (uma entrada por linha; o histórico não entra no stream)", fp.file)
+	case fp.hasStopCondition():
+		fp.notice(p, "— acompanhando %s (encerra sozinho; Ctrl+C também sai) —", fp.file)
+	default:
+		fp.notice(p, "— acompanhando %s (Ctrl+C para sair) —", fp.file)
+	}
+
+	filter := newLogEntryFilter(fp.level, fp.grep)
+	match := strings.ToLower(fp.untilMatch)
+	acc := &logEntryAccumulator{}
+	emitted := 0
 	failures := 0
+	start := time.Now()
+	lastEntry := start
+	offset := fp.offset
+
+	// emit devolve true quando o --until-match casou (fim de festa, exit 0).
+	emit := func(entry string) bool {
+		if entry == "" || !filter.match(entry) {
+			return false
+		}
+		emitted++
+		lastEntry = time.Now()
+		if fp.ndjson {
+			writeNDJSON(p, entry)
+		} else {
+			printLogEntry(p, entry)
+		}
+		return match != "" && strings.Contains(strings.ToLower(entry), match)
+	}
+
 	for {
 		time.Sleep(logFollowInterval)
-		chunk, err := client.ReadServerLog(ctx, file, offset)
+
+		chunk, err := client.ReadServerLog(ctx, fp.file, offset)
 		if err != nil {
 			failures++
 			if failures >= 5 {
@@ -307,20 +440,65 @@ func followServerLog(ctx context.Context, p *output.Printer, client *fluig.Clien
 		}
 		failures = 0
 		if chunk.Size < offset {
-			p.Infof("— arquivo rotacionado, recomeçando do início —")
+			fp.notice(p, "— arquivo rotacionado, recomeçando do início —")
 			offset = 0
 			continue
 		}
 		offset = chunk.To
+
 		if chunk.Content == "" {
-			continue
-		}
-		for _, line := range strings.Split(strings.TrimSuffix(chunk.Content, "\n"), "\n") {
-			if filter.match(line) {
-				printLogLine(p, line)
+			// Log em silêncio: a entrada pendente já pode ser considerada
+			// completa. É isto que garante latência limitada.
+			if emit(acc.flush()) {
+				return nil
+			}
+		} else {
+			for _, entry := range acc.add(strings.Split(strings.TrimSuffix(chunk.Content, "\n"), "\n")) {
+				if emit(entry) {
+					return nil
+				}
+				if fp.maxEntries > 0 && emitted >= fp.maxEntries {
+					return followStopped(p, fp, emitted, "limite de %d entradas atingido", fp.maxEntries)
+				}
 			}
 		}
+
+		if fp.maxEntries > 0 && emitted >= fp.maxEntries {
+			return followStopped(p, fp, emitted, "limite de %d entradas atingido", fp.maxEntries)
+		}
+		if fp.forDuration > 0 && time.Since(start) >= fp.forDuration {
+			emit(acc.flush())
+			return followStopped(p, fp, emitted, "tempo de acompanhamento (%s) esgotado", fp.forDuration)
+		}
+		if fp.idleTimeout > 0 && time.Since(lastEntry) >= fp.idleTimeout {
+			emit(acc.flush())
+			return followStopped(p, fp, emitted, "nenhuma entrada nova por %s", fp.idleTimeout)
+		}
 	}
+}
+
+// followStopped encerra o acompanhamento por uma condição de parada. Com
+// --until-match, terminar sem casar é resultado NEGATIVO: exit 4 (não
+// encontrado), para o agente distinguir "vi o que esperava" de "desisti".
+func followStopped(p *output.Printer, fp followParams, emitted int, motivo string, args ...any) error {
+	razao := fmt.Sprintf(motivo, args...)
+	if fp.untilMatch != "" {
+		return output.NotFoundf("%s sem nenhuma entrada com %q (%d entradas vistas)", razao, fp.untilMatch, emitted)
+	}
+	fp.notice(p, "— %s (%d entradas) —", razao, emitted)
+	return nil
+}
+
+// writeNDJSON emite uma entrada como um objeto JSON por linha. Este é o formato
+// de STREAMING (não é o envelope do --json, que é único por execução — ver a
+// regra do contrato de saída).
+func writeNDJSON(p *output.Printer, entry string) {
+	data, err := json.Marshal(fluig.ParseLogEntry(entry))
+	if err != nil {
+		p.Warnf("falha ao serializar a entrada de log: %v", err)
+		return
+	}
+	fmt.Fprintln(p.Stdout, string(data))
 }
 
 // --- log download ---
@@ -399,37 +577,37 @@ func printLogLine(p *output.Printer, line string) {
 	p.Successf("%s", line)
 }
 
-// logLineFilter aplica --level/--grep no cliente durante o --follow: a decisão
-// é tomada na linha de cabeçalho da entrada e herdada pelas continuações
-// (o stack trace acompanha o ERROR que o abriu).
-type logLineFilter struct {
-	minLevel     int // -1 = sem filtro
-	grep         string
-	entryMatched bool
+// logEntryFilter aplica --level/--grep no cliente durante o --follow. Agora a
+// decisão é por ENTRADA completa: o nível sai da linha de cabeçalho e o texto do
+// --grep é procurado na entrada inteira (inclusive dentro do stack trace) —
+// mesma semântica dos filtros que o helper aplica no servidor.
+type logEntryFilter struct {
+	minLevel int // -1 = sem filtro
+	grep     string
 }
 
-func newLogLineFilter(level, grep string) *logLineFilter {
-	f := &logLineFilter{minLevel: -1, grep: strings.ToLower(grep), entryMatched: true}
+func newLogEntryFilter(level, grep string) *logEntryFilter {
+	f := &logEntryFilter{minLevel: -1, grep: strings.ToLower(grep)}
 	if level != "" {
 		f.minLevel = fluig.LogLevelRank(level)
 	}
 	return f
 }
 
-func (f *logLineFilter) match(line string) bool {
-	if f.minLevel < 0 && f.grep == "" {
-		return true
+func (f *logEntryFilter) match(entry string) bool {
+	if entry == "" {
+		return false
 	}
-	if fluig.IsLogEntryStart(line) {
-		f.entryMatched = true
-		if f.minLevel >= 0 && fluig.LineLevelRank(line) < f.minLevel {
-			f.entryMatched = false
-		}
-		if f.entryMatched && f.grep != "" && !strings.Contains(strings.ToLower(line), f.grep) {
-			f.entryMatched = false
+	if f.minLevel >= 0 {
+		head, _, _ := strings.Cut(entry, "\n")
+		if fluig.LineLevelRank(head) < f.minLevel {
+			return false
 		}
 	}
-	return f.entryMatched
+	if f.grep != "" && !strings.Contains(strings.ToLower(entry), f.grep) {
+		return false
+	}
+	return true
 }
 
 // fmtLogSize formata bytes para leitura humana.
