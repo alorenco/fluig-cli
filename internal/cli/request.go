@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -115,6 +116,101 @@ func reportMoveResult(p *output.Printer, res *fluig.MoveResult, successMsg strin
 	p.Successf("%s", successMsg)
 	p.Done(map[string]any{"result": res})
 	return nil
+}
+
+// discoverMovement descobre qual movimento concluir quando o usuário não passou
+// --movement. Devolve erro de uso quando a escolha é genuinamente ambígua.
+func discoverMovement(ctx context.Context, p *output.Printer, client *fluig.Client, id int) (int, error) {
+	req, err := client.GetRequest(ctx, id)
+	if err != nil {
+		return 0, mapFluigError(err)
+	}
+	// A MESMA etapa pode aparecer duas vezes na etapa corrente — a tarefa do
+	// pool e a do usuário que a assumiu compartilham o movementSequence
+	// (visto em produção: duas opções idênticas "movimento 15"). Isso não é
+	// ambiguidade: o movimento é um só.
+	steps := dedupStepsByMovement(req.CurrentSteps)
+	switch len(steps) {
+	case 0:
+		return 0, output.Usagef("a solicitação %d não tem tarefa em aberto (status %s)", id, req.Status)
+	case 1:
+		return steps[0].Movement, nil
+	}
+
+	// Movimentos diferentes = atividades paralelas: aí a escolha é do usuário.
+	// Responsável e status vêm das tarefas (o expand da etapa corrente não os
+	// traz). Best-effort: sem eles, a lista sai só com etapa e SLA.
+	tasks, terr := client.RequestTasks(ctx, id)
+	if terr != nil {
+		p.Warnf("não foi possível detalhar as tarefas (%s) — a lista sai sem responsável", output.AsError(mapFluigError(terr)).Message)
+	}
+	rows := make([][]string, 0, len(steps))
+	options := make([]map[string]any, 0, len(steps))
+	for _, s := range steps {
+		who, status := taskInfoForMovement(tasks, s.Movement)
+		rows = append(rows, []string{strconv.Itoa(s.Movement), s.StateName, who, status, s.SLAStatus})
+		options = append(options, map[string]any{
+			"movement": s.Movement, "stateName": s.StateName,
+			"assignee": who, "status": status, "slaStatus": s.SLAStatus,
+		})
+	}
+	p.Table(output.Table{
+		Headers: []string{"Movimento", "Etapa", "Responsável", "Status", "SLA"},
+		Rows:    rows,
+		Style:   output.BoldHeaderStyle(nil),
+	})
+	msg := fmt.Sprintf("a solicitação %d tem %d tarefas em aberto em movimentos diferentes — escolha com --movement %d (ou %d)",
+		id, len(steps), steps[0].Movement, steps[1].Movement)
+	p.FailData(map[string]any{"requestId": id, "options": options}, output.CodeUsage, msg)
+	return 0, output.Usagef("%s", msg)
+}
+
+// dedupStepsByMovement remove passos repetidos do mesmo movimento, preservando a
+// ordem em que o servidor devolveu.
+func dedupStepsByMovement(steps []fluig.RequestStep) []fluig.RequestStep {
+	out := make([]fluig.RequestStep, 0, len(steps))
+	visto := make(map[int]bool, len(steps))
+	for _, s := range steps {
+		if visto[s.Movement] {
+			continue
+		}
+		visto[s.Movement] = true
+		out = append(out, s)
+	}
+	return out
+}
+
+// taskInfoForMovement resume as tarefas de um movimento: quem responde por ele e
+// em que status. Um movimento pode ter várias tarefas (pool + usuário), então as
+// EM ABERTO têm preferência — são as que interessam para movimentar.
+func taskInfoForMovement(tasks []fluig.RequestTask, movement int) (assignee, status string) {
+	var abertas, todas []fluig.RequestTask
+	for _, t := range tasks {
+		if t.Movement != movement {
+			continue
+		}
+		todas = append(todas, t)
+		if t.Status != "COMPLETED" && t.Status != "CANCELED" {
+			abertas = append(abertas, t)
+		}
+	}
+	escolhidas := abertas
+	if len(escolhidas) == 0 {
+		escolhidas = todas
+	}
+	var nomes, situacoes []string
+	for _, t := range escolhidas {
+		if label := requestUserLabel(t.Assignee); label != "" && !slices.Contains(nomes, label) {
+			nomes = append(nomes, label)
+		}
+		if t.Status != "" && !slices.Contains(situacoes, t.Status) {
+			situacoes = append(situacoes, t.Status)
+		}
+	}
+	if len(nomes) == 0 {
+		nomes = []string{"(pool, sem responsável)"}
+	}
+	return strings.Join(nomes, ", "), strings.Join(situacoes, "/")
 }
 
 // Veredictos da pós-checagem de timeout do `request move`. São valores do
@@ -330,20 +426,9 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 
 			seq := movement
 			if seq == 0 {
-				req, gerr := client.GetRequest(ctx, id)
-				if gerr != nil {
-					return mapFluigError(gerr)
-				}
-				switch len(req.CurrentSteps) {
-				case 0:
-					return output.Usagef("a solicitação %d não tem tarefa em aberto (status %s)", id, req.Status)
-				case 1:
-					seq = req.CurrentSteps[0].Movement
-				default:
-					for _, s := range req.CurrentSteps {
-						p.Infof("  - movimento %d: %s", s.Movement, s.StateName)
-					}
-					return output.Usagef("a solicitação %d tem %d tarefas em aberto — escolha com --movement (opções acima)", id, len(req.CurrentSteps))
+				seq, err = discoverMovement(ctx, p, client, id)
+				if err != nil {
+					return err
 				}
 			}
 

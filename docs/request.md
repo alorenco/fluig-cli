@@ -127,10 +127,9 @@ automaticamente. A atividade seguinte pode exigir a escolha de responsável
 ## `fluigcli request move <número> [flags]`
 
 Este comando conclui a tarefa corrente e envia a solicitação adiante. Sem
-`--movement`, a CLI descobre a tarefa em aberto sozinha. Informe `--movement`
-quando houver mais de uma tarefa. Flags: `--target-state`, `--assignee`,
-`--comment`, `--field` (atualiza campos do formulário no movimento) e
-`--movement`.
+`--movement`, a CLI descobre a tarefa em aberto sozinha. Flags:
+`--target-state`, `--assignee`, `--comment`, `--field` (atualiza campos do
+formulário no movimento) e `--movement`.
 
 ```sh
 fluigcli request move 196542 --target-state 5 --comment "enviado via CLI"
@@ -140,6 +139,32 @@ fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
 ⚠️ Você só movimenta **a sua** tarefa. A solicitação cuja tarefa aberta é de
 outro usuário responde **404**. Neste caso, o servidor a esconde. Este é o
 comportamento real.
+
+### Quando a CLI pede `--movement`
+
+A etapa corrente pode ter mais de uma tarefa no **mesmo movimento**. Um exemplo
+é a tarefa do pool mais a tarefa do usuário que a assumiu. Isto é comum: numa
+medição em produção, 53 de 200 solicitações abertas estavam assim. Neste caso
+não existe ambiguidade. A CLI segue com esse movimento sem perguntar.
+
+A CLI pede `--movement` somente quando existem movimentos **diferentes** em
+aberto, ou seja, atividades paralelas. Neste caso ela lista as opções com
+responsável e status, e sai com exit 2.
+
+```
+┌───────────┬─────────────────────┬─────────────────────┬────────────────────────────┬─────────┐
+│ Movimento │ Etapa               │ Responsável         │ Status                     │ SLA     │
+├───────────┼─────────────────────┼─────────────────────┼────────────────────────────┼─────────┤
+│ 15        │ Corrigir Integração │ João Silva (jsilva) │ TRANSFERRED/NOT_COMPLETED  │ ON_TIME │
+│ 16        │ Aprovar Diretoria   │ Maria Souza         │ NOT_COMPLETED              │ EXPIRED │
+└───────────┴─────────────────────┴─────────────────────┴────────────────────────────┴─────────┘
+```
+
+O responsável e o status vêm das tarefas da solicitação. Uma tarefa de pool não
+tem responsável. Neste caso a CLI mostra `(pool, sem responsável)`. Com `--json`,
+as mesmas opções vão no envelope em `data.options[]`, com
+`{movement, stateName, assignee, status, slaStatus}`. Assim um agente escolhe o
+movimento sem ler texto.
 
 ### Tempo limite no move e no start
 

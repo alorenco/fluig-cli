@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/alorenco/fluig-cli/internal/config"
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
@@ -98,14 +99,42 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 		if s.writeDelay > 0 && strings.HasSuffix(r.URL.Path, "/move") {
 			time.Sleep(s.writeDelay)
 		}
+		if strings.HasSuffix(r.URL.Path, "/move") {
+			json.NewDecoder(r.Body).Decode(&s.moveBody)
+			io.WriteString(w, moveResponse)
+			return
+		}
+		// Etapa corrente com o MESMO movimento duas vezes (tarefa do pool + a do
+		// usuário que assumiu) — o caso real de produção que gerava duas opções
+		// idênticas. Não é ambiguidade.
+		const movDuplicado = `{"processInstanceId":196527,"processId":"contratos_taxa_limpeza","status":"OPEN",` +
+			`"currentMovements":[` +
+			`{"movementSequence":15,"active":true,"slaStatus":"ON_TIME","state":{"sequence":22,"stateName":"Corrigir Integração"}},` +
+			`{"movementSequence":15,"active":true,"slaStatus":"ON_TIME","state":{"sequence":22,"stateName":"Corrigir Integração"}}]}`
+		// Movimentos DIFERENTES em aberto (atividades paralelas): aí sim é escolha.
+		const movParalelo = `{"processInstanceId":196528,"processId":"contratos_taxa_limpeza","status":"OPEN",` +
+			`"currentMovements":[` +
+			`{"movementSequence":15,"active":true,"slaStatus":"ON_TIME","state":{"sequence":22,"stateName":"Corrigir Integração"}},` +
+			`{"movementSequence":16,"active":true,"slaStatus":"EXPIRED","state":{"sequence":30,"stateName":"Aprovar Diretoria"}}]}`
+		const tarefasParalelo = `{"items":[` +
+			`{"processInstanceId":196528,"movementSequence":15,"status":"TRANSFERRED","slaStatus":"ON_TIME","state":{"sequence":22,"stateName":"Corrigir Integração"}},` +
+			`{"processInstanceId":196528,"movementSequence":15,"status":"NOT_COMPLETED","slaStatus":"ON_TIME","assignee":{"code":"c3","name":"João Silva","login":"jsilva"},"state":{"sequence":22,"stateName":"Corrigir Integração"}},` +
+			`{"processInstanceId":196528,"movementSequence":16,"status":"NOT_COMPLETED","slaStatus":"EXPIRED","assignee":{"code":"c4","name":"Maria Souza","login":"msouza"},"state":{"sequence":30,"stateName":"Aprovar Diretoria"}}],"hasNext":false}`
+		// Solicitação sem tarefa em aberto.
+		const semTarefa = `{"processInstanceId":196529,"processId":"contratos_taxa_limpeza","status":"FINALIZED","currentMovements":[]}`
 		switch r.URL.Path {
 		case "/process-management/api/v2/requests/196526":
 			w.Write(readTD("rest_request_show.json"))
 		case "/process-management/api/v2/requests/196526/tasks":
 			w.Write(readTD("rest_request_tasks.json"))
-		case "/process-management/api/v2/requests/196526/move":
-			json.NewDecoder(r.Body).Decode(&s.moveBody)
-			io.WriteString(w, moveResponse)
+		case "/process-management/api/v2/requests/196527":
+			io.WriteString(w, movDuplicado)
+		case "/process-management/api/v2/requests/196528":
+			io.WriteString(w, movParalelo)
+		case "/process-management/api/v2/requests/196528/tasks":
+			io.WriteString(w, tarefasParalelo)
+		case "/process-management/api/v2/requests/196529":
+			io.WriteString(w, semTarefa)
 		case "/process-management/api/v2/requests/196540/attachments":
 			w.Write(readTD("rest_request_attachments.json"))
 		case "/process-management/api/v2/requests/196540/attachments/2/download":
@@ -382,6 +411,100 @@ func TestRequestMove(t *testing.T) {
 	ff, _ := stub.moveBody["formFields"].(map[string]any)
 	if ff["aprNivel1"] != "aprovado" {
 		t.Errorf("formFields não repassados: %+v", stub.moveBody)
+	}
+}
+
+// Duas tarefas no MESMO movimento (pool + usuário que assumiu) não são
+// ambiguidade: o movimento é um só e o move segue (ROADMAP §2.10-C — antes a
+// CLI pedia --movement listando duas opções idênticas).
+func TestRequestMoveMovimentoDuplicado(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "move", "196527", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d, quer 0 (movimento repetido não é escolha)\n%s", code, stdout)
+	}
+	if stub.moveBody["movementSequence"].(float64) != 15 {
+		t.Errorf("movementSequence=%v, quer 15", stub.moveBody["movementSequence"])
+	}
+}
+
+// Movimentos DIFERENTES em aberto: aí a escolha é do usuário, e cada opção sai
+// com responsável e status para dar para diferenciar.
+func TestRequestMoveMovimentosParalelos(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+
+	// Modo humano: tabela com responsável e status.
+	code, stdout := runMain(t, "request", "move", "196528", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitUsage, stdout)
+	}
+	for _, want := range []string{"Movimento", "Responsável", "Status", "SLA",
+		"Corrigir Integração", "João Silva (jsilva)", "NOT_COMPLETED",
+		"Aprovar Diretoria", "Maria Souza (msouza)", "EXPIRED"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+	if stub.moveBody != nil {
+		t.Error("nada deveria ter sido movimentado no caso ambíguo")
+	}
+
+	// --json: as opções vão no envelope, para o agente escolher sem parsear texto.
+	code, stdout = runMain(t, "request", "move", "196528", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("--json exit=%d, quer %d\n%s", code, output.ExitUsage, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil || env.Error.Code != output.CodeUsage {
+		t.Fatalf("envelope inesperado: %+v", env)
+	}
+	if !strings.Contains(env.Error.Message, "--movement 15") {
+		t.Errorf("a mensagem deveria citar um --movement concreto: %q", env.Error.Message)
+	}
+	data, _ := env.Data.(map[string]any)
+	options, _ := data["options"].([]any)
+	if len(options) != 2 {
+		t.Fatalf("options=%d, quer 2: %+v", len(options), data)
+	}
+	primeira, _ := options[0].(map[string]any)
+	if primeira["movement"].(float64) != 15 || primeira["assignee"] != "João Silva (jsilva)" ||
+		primeira["stateName"] != "Corrigir Integração" {
+		t.Errorf("options[0] inesperada: %+v", primeira)
+	}
+	// A tarefa TRANSFERRED do pool não tem responsável: o status resume as duas.
+	if st, _ := primeira["status"].(string); !strings.Contains(st, "TRANSFERRED") || !strings.Contains(st, "NOT_COMPLETED") {
+		t.Errorf("status deveria resumir as tarefas do movimento: %q", st)
+	}
+}
+
+// Solicitação sem tarefa em aberto continua sendo erro de uso claro.
+func TestRequestMoveSemTarefaAberta(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "move", "196529", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitUsage, stdout)
+	}
+}
+
+func TestDedupStepsByMovement(t *testing.T) {
+	steps := []fluig.RequestStep{
+		{Movement: 15, StateName: "Corrigir Integração"},
+		{Movement: 15, StateName: "Corrigir Integração"},
+		{Movement: 16, StateName: "Aprovar Diretoria"},
+		{Movement: 15, StateName: "Corrigir Integração"},
+	}
+	got := dedupStepsByMovement(steps)
+	if len(got) != 2 || got[0].Movement != 15 || got[1].Movement != 16 {
+		t.Errorf("dedup preservando a ordem do servidor: %+v", got)
+	}
+	if got := dedupStepsByMovement(nil); len(got) != 0 {
+		t.Errorf("nil não deveria virar entrada: %+v", got)
 	}
 }
 
