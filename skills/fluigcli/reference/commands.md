@@ -142,7 +142,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `form records show <form> <cardId> [--no-children]` | — | registro completo; as linhas das tabelas filhas vêm por padrão, agrupadas por `tableId` (`--no-children` traz só o pai — num card de 150 linhas a resposta cai de 141 KB para 5 KB) |
 | `form records create <form> --field k=v... \| --fields-file` | — | cria registro (eventos do form NÃO rodam) |
 | `form records update <form> <cardId> --field k=v...` | — | atualiza (MESCLA campos; cria versão nova do registro) |
-| `form records delete <form> <cardId>...` | — | exclui registros (exige `--yes` em modo não-interativo) |
+| `form records delete <form> <cardId>...` | — | exclui registros (exige `--yes` em modo não-interativo). ⚠️ A API do Fluig apaga por id **sem validar o formulário** (chega a apagar arquivo do GED e responde 204), então a CLI CONFIRMA antes com um GET e CANCELA se o par não bater — a mensagem sempre diz quando `nada foi excluído` |
 
 ## workflow — scripts de eventos de processo
 

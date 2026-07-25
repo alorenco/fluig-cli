@@ -1,7 +1,13 @@
 package fluig
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -107,4 +113,97 @@ func TestCardFindChildrenFixture(t *testing.T) {
 			}
 		}
 	}
+}
+
+// cardDeleteStub replica a semântica REAL da homologação (2026-07-25): o GET
+// valida o par formulário/registro (400 quando não bate) e o DELETE NÃO valida —
+// responde 204 e apaga o documento pelo id, seja ele de outro formulário ou um
+// arquivo do GED.
+type cardDeleteStub struct {
+	ownerForm  int  // formulário a que o card realmente pertence
+	cardExists bool // o card existe em algum lugar
+	deleteHits []string
+}
+
+func (s *cardDeleteStub) server(t *testing.T) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/ecm-forms/api/v2/cardindex/", func(w http.ResponseWriter, r *http.Request) {
+		partes := strings.Split(strings.TrimPrefix(r.URL.Path, "/ecm-forms/api/v2/cardindex/"), "/")
+		if len(partes) < 3 {
+			http.NotFound(w, r)
+			return
+		}
+		formID, cardID := partes[0], partes[2]
+		if r.Method == http.MethodDelete {
+			// O servidor real ignora o formulário: apaga e responde 204.
+			s.deleteHits = append(s.deleteHits, formID+"/"+cardID)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// GET: valida o par.
+		if !s.cardExists {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"message":"Oops, something went wrong!"}`)
+			return
+		}
+		if formID != strconv.Itoa(s.ownerForm) {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"message":"Documento não encontrado. Documento: `+cardID+`"}`)
+			return
+		}
+		io.WriteString(w, `{"cardId":`+cardID+`,"parentDocumentId":`+formID+`,"activeVersion":true,"values":[],"children":[]}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// A guarda do DeleteFormRecord (ROADMAP §2.10-I) existe porque o DELETE do Fluig
+// apaga por id sem validar o formulário — um id trocado destruía o documento
+// errado, em silêncio.
+func TestDeleteFormRecordConfirmaAntes(t *testing.T) {
+	t.Run("registro do formulário certo é excluído", func(t *testing.T) {
+		stub := &cardDeleteStub{ownerForm: 1111295, cardExists: true}
+		c := helperClient(t, stub.server(t).URL)
+		if err := c.DeleteFormRecord(context.Background(), 1111295, 1111297); err != nil {
+			t.Fatalf("deveria excluir: %v", err)
+		}
+		if len(stub.deleteHits) != 1 || stub.deleteHits[0] != "1111295/1111297" {
+			t.Errorf("DELETE não chegou como esperado: %v", stub.deleteHits)
+		}
+	})
+
+	// O caso que destruiu um PDF do GED na homologação.
+	t.Run("formulário errado NÃO chega a apagar", func(t *testing.T) {
+		stub := &cardDeleteStub{ownerForm: 1111295, cardExists: true}
+		c := helperClient(t, stub.server(t).URL)
+		err := c.DeleteFormRecord(context.Background(), 28, 1111297)
+		if err == nil {
+			t.Fatal("a exclusão pelo formulário errado tinha de falhar")
+		}
+		if len(stub.deleteHits) != 0 {
+			t.Fatalf("NADA deveria ter sido apagado, mas o DELETE foi chamado: %v", stub.deleteHits)
+		}
+		if !strings.Contains(err.Error(), "cancelada") || !strings.Contains(err.Error(), "28") {
+			t.Errorf("a mensagem deveria dizer que cancelou e citar o formulário: %v", err)
+		}
+	})
+
+	t.Run("registro inexistente vira NOT_FOUND sem apagar", func(t *testing.T) {
+		stub := &cardDeleteStub{ownerForm: 1111295, cardExists: false}
+		c := helperClient(t, stub.server(t).URL)
+		err := c.DeleteFormRecord(context.Background(), 1111295, 999998)
+		if err == nil || len(stub.deleteHits) != 0 {
+			t.Fatalf("err=%v deleteHits=%v (não deveria apagar nada)", err, stub.deleteHits)
+		}
+		if !strings.Contains(err.Error(), "nada foi excluído") {
+			t.Errorf("a mensagem deveria deixar claro que nada foi excluído: %v", err)
+		}
+	})
 }

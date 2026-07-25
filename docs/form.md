@@ -158,6 +158,27 @@ Semântica (validada na homologação):
   enviados, sem validateForm. Para testar as validações, use o processo
   (`request start`) ou o preview do `fluigcli dev`.
 
+### Segurança do `delete`
+
+A API de exclusão do Fluig **não valida** o formulário informado. Ela apaga o
+documento cujo id é o `cardId`, mesmo que ele pertença a outro formulário. Ela
+também apaga arquivos do GED que não são registro de formulário. E responde
+"204 sem conteúdo" como se estivesse tudo certo.
+
+Por isso a CLI **confirma antes de apagar**. Ela lê o registro no formulário que
+você informou. A exclusão só acontece quando o registro existe e pertence a esse
+formulário. Nos outros casos a CLI cancela e diz `nada foi excluído`:
+
+```sh
+# o registro 1111299 pertence ao formulário 1111295, não ao 28
+fluigcli form records delete 28 1111299 --yes
+# erro: exclusão do registro 1111299 cancelada (nada foi excluído): ...
+```
+
+⚠️ Esta proteção existe porque o comportamento do servidor já destruiu um
+arquivo por engano durante o desenvolvimento da CLI. Se você chamar a API do
+Fluig direto, sem a CLI, faça a mesma confirmação.
+
 ## Observações
 
 - A CLI suporta nomes de pasta com acento e espaço (por exemplo, `Formulário de

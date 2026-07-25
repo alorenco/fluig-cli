@@ -3,6 +3,7 @@ package fluig
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -248,9 +249,31 @@ func (c *Client) writeFormRecord(ctx context.Context, method, path string, docum
 }
 
 // DeleteFormRecord exclui um registro do formulário.
+//
+// ⚠️ GUARDA OBRIGATÓRIA (validado na homologação em 2026-07-25): o
+// `DELETE /v2/cardindex/{documentId}/cards/{cardId}` do Fluig **ignora o
+// documentId do caminho** e remove o documento cujo id é o cardId — inclusive
+// documentos do GED que não são registro de formulário nenhum. O GET e o PUT da
+// mesma rota validam o par (HTTP 400); só o DELETE não valida, e ainda responde
+// 204 como se tudo estivesse certo.
+//
+// Por isso este método confirma ANTES, com um GET, que o registro existe e
+// pertence ao formulário informado. Sem essa confirmação a exclusão é cancelada:
+// um id trocado apagaria o documento errado, em silêncio e sem volta.
 func (c *Client) DeleteFormRecord(ctx context.Context, documentID, cardID int) error {
 	if err := c.EnsureSession(ctx); err != nil {
 		return err
+	}
+	if _, err := c.GetFormRecord(ctx, documentID, cardID, FormRecordOptions{NoChildren: true}); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("%w: registro %d no formulário %d (nada foi excluído)", ErrNotFound, cardID, documentID)
+		}
+		// O servidor responde 500 genérico ("Oops...") para registro
+		// inexistente, então a causa não dá para inferir sem chutar. O que a
+		// mensagem SEMPRE afirma é o que importa a quem chamou: nada foi
+		// excluído.
+		return fmt.Errorf("exclusão do registro %d cancelada (nada foi excluído): não foi possível confirmar que ele pertence ao formulário %d: %w",
+			cardID, documentID, err)
 	}
 	endpoint := c.url(restCardsBase(documentID) + "/" + strconv.Itoa(cardID))
 	body, status, err := c.doJSON(ctx, http.MethodDelete, endpoint, nil)
