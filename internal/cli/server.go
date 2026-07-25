@@ -88,10 +88,11 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 
 func newServerInstallHelperCmd(app *App) *cobra.Command {
 	var (
-		warPath       string
-		warSHA256     string
-		passwordStdin bool
-		force         bool
+		warPath        string
+		warSHA256      string
+		passwordStdin  bool
+		force          bool
+		allowDowngrade bool
 	)
 	cmd := &cobra.Command{
 		Use:   "install-helper [<name>]",
@@ -118,7 +119,37 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			if !force {
+			// Comparação de versões antes de publicar (ROADMAP §2.10-J): sem
+			// isso um binário antigo rebaixa o helper do servidor em silêncio.
+			// Só vale para o WAR embutido — com --war o usuário escolheu o
+			// artefato e a responsabilidade é dele.
+			embedded := helperwar.Version()
+			var installedVersion string
+			if info, ierr := client.HelperStatus(ctx); ierr == nil && info.Installed {
+				installedVersion = info.Version
+			}
+			if warPath == "" && installedVersion != "" && embedded != "" {
+				switch cmp := compareHelperVersions(installedVersion, embedded); {
+				case cmp > 0 && !allowDowngrade:
+					return output.Usagef(
+						"o servidor %s tem o fluigcliHelper %s, mais NOVO que o %s embutido neste binário — "+
+							"publicar rebaixaria o servidor. Atualize a CLI (fluigcli upgrade) ou, se o rebaixamento "+
+							"for intencional, repita com --allow-downgrade",
+						server.Name, installedVersion, embedded)
+				case cmp > 0:
+					p.Warnf("rebaixando o fluigcliHelper de %s para %s em %s (--allow-downgrade)",
+						installedVersion, embedded, server.Name)
+				case cmp == 0 && !force:
+					p.Successf("fluigcliHelper %s já está instalado em %s (o mesmo do binário).", installedVersion, server.Name)
+					p.Done(map[string]any{
+						"installed": true, "action": "none", "helper": fluig.HelperFluigcli,
+						"version": installedVersion, "embeddedVersion": embedded,
+					})
+					return nil
+				case cmp < 0:
+					p.Infof("Atualizando o fluigcliHelper: %s → %s.", installedVersion, embedded)
+				}
+			} else if !force {
 				if installed, _ := client.HelperInstalled(ctx); installed {
 					p.Successf("fluigcliHelper já está instalado em %s.", server.Name)
 					p.Done(map[string]any{"installed": true, "action": "none", "helper": fluig.HelperFluigcli})
@@ -141,19 +172,80 @@ func newServerInstallHelperCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			p.Successf("WAR enviado. A instalação é assíncrona no servidor — aguarde alguns instantes e valide com: fluigcli server test %s", server.Name)
-			p.Done(map[string]any{"installed": true, "action": "uploaded", "helper": fluig.HelperFluigcli})
+			p.Done(map[string]any{
+				"installed": true, "action": "uploaded", "helper": fluig.HelperFluigcli,
+				"version": installedVersion, "embeddedVersion": embedded,
+			})
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&warPath, "war", "", "usa um WAR local em vez do embutido no binário")
 	cmd.Flags().StringVar(&warSHA256, "war-sha256", "", "verifica o SHA-256 do WAR antes de publicar (integridade)")
 	cmd.Flags().BoolVar(&force, "force", false, "reenvia mesmo se o helper já estiver instalado")
+	cmd.Flags().BoolVar(&allowDowngrade, "allow-downgrade", false, "permite publicar uma versão do helper MAIS ANTIGA que a do servidor")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 
 // loadHelperWAR devolve o WAR do fluigcliHelper: de --war (local) ou o
 // embutido no binário (helper/fluigcliHelper.war, via go:embed).
+// warnHelperVersionDrift avisa quando a versão do helper NO SERVIDOR e a
+// embutida neste binário divergem. Os dois sentidos importam: servidor atrasado
+// significa recursos indisponíveis; servidor à frente significa que o binário
+// local está velho — e aí um install-helper rebaixaria o servidor
+// (ROADMAP §2.10-J).
+func warnHelperVersionDrift(p *output.Printer, serverName, installed string) {
+	embedded := helperwar.Version()
+	if installed == "" || embedded == "" {
+		return
+	}
+	switch cmp := compareHelperVersions(installed, embedded); {
+	case cmp < 0:
+		p.Warnf("o fluigcliHelper do servidor está desatualizado (%s; este binário traz %s) — atualize com: fluigcli server install-helper %s --force",
+			installed, embedded, serverName)
+	case cmp > 0:
+		p.Warnf("o fluigcliHelper do servidor (%s) é mais novo que o deste binário (%s) — atualize a CLI com: fluigcli upgrade",
+			installed, embedded)
+	}
+}
+
+// compareHelperVersions compara duas versões "MAJOR.MINOR[.PATCH]" campo a
+// campo: <0 se a for mais antiga, 0 se iguais, >0 se a for mais nova. Parte
+// não numérica conta como 0 (defensivo: versão estranha não deve travar o
+// install).
+func compareHelperVersions(a, b string) int {
+	pa, pb := versionParts(a), versionParts(b)
+	for i := 0; i < 3; i++ {
+		if pa[i] != pb[i] {
+			if pa[i] < pb[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+func versionParts(v string) [3]int {
+	var out [3]int
+	for i, part := range strings.SplitN(strings.TrimSpace(v), ".", 3) {
+		if i > 2 {
+			break
+		}
+		// Ignora sufixos tipo "0.8.0-SNAPSHOT".
+		numero := part
+		if idx := strings.IndexFunc(part, func(r rune) bool { return r < '0' || r > '9' }); idx >= 0 {
+			numero = part[:idx]
+		}
+		n, err := strconv.Atoi(numero)
+		if err != nil {
+			continue
+		}
+		out[i] = n
+	}
+	return out
+}
+
 func loadHelperWAR(warPath string) ([]byte, string, error) {
 	if warPath != "" {
 		data, err := os.ReadFile(warPath)
@@ -775,19 +867,25 @@ func newServerTestCmd(app *App) *cobra.Command {
 			}
 
 			// Status do componente auxiliar (widgets e scripts de processo).
-			helperInstalled, _ := client.HelperInstalled(ctx)
-			if helperInstalled {
-				p.Successf("Componente auxiliar (fluigcliHelper): instalado")
-			} else {
+			helperInfo, _ := client.HelperStatus(ctx)
+			switch {
+			case helperInfo.Installed && helperInfo.Version != "":
+				p.Successf("Componente auxiliar (fluigcliHelper): instalado · v%s", helperInfo.Version)
+			case helperInfo.Installed:
+				p.Successf("Componente auxiliar (fluigcliHelper): instalado · versão desconhecida")
+			default:
 				p.Successf("Componente auxiliar (fluigcliHelper): ausente (instale com: fluigcli server install-helper %s)", server.Name)
 			}
+			warnHelperVersionDrift(p, server.Name, helperInfo.Version)
 			hintFormLink(app, p, server)
 
 			p.Done(map[string]any{
 				"server":          server.Name,
 				"url":             server.BaseURL(),
 				"user":            user.Raw,
-				"helperInstalled": helperInstalled,
+				"helperInstalled": helperInfo.Installed,
+				"helperVersion":   helperInfo.Version,
+				"cliHelperWAR":    helperwar.Version(),
 			})
 			return nil
 		},
@@ -869,6 +967,7 @@ func newServerStatusCmd(app *App) *cobra.Command {
 			default:
 				p.Successf("Helper (fluigcliHelper): ausente (instale com: fluigcli server install-helper %s)", server.Name)
 			}
+			warnHelperVersionDrift(p, server.Name, helper.Version)
 			p.Successf("Uptime: %s · Usuários conectados: %d · Threads: %d (pico %d)",
 				fmtUptime(stats.UptimeMillis), stats.ConnectedUsers, stats.ThreadCount, stats.ThreadPeak)
 			p.Successf("Memória JVM: %s heap + %s non-heap · SO: %s livres de %s",

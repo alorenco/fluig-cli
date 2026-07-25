@@ -66,6 +66,29 @@
 	<build>
 		<finalName>${project.artifactId}</finalName>
 
+		<!-- Fonte única da versão: o application.info é o manifesto que o Fluig
+		     lê e é de onde o /api/version do helper anuncia a versão. O
+		     filtering resolve ${project.version} nele, para a versão viver só
+		     no <version> deste pom. O filtro é restrito a esse arquivo: o
+		     view.ftl/edit.ftl usam ${...} do FreeMarker e não podem passar
+		     pelo filtro. -->
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>application.info</include>
+				</includes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>application.info</exclude>
+				</excludes>
+			</resource>
+		</resources>
+
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

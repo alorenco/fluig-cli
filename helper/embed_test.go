@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -86,5 +87,44 @@ func TestHelperWARAtualizado(t *testing.T) {
 	got := hex.EncodeToString(h.Sum(nil))
 	if got != strings.TrimSpace(string(want)) {
 		t.Errorf("fontes do helper mudaram sem rebuild do WAR versionado — rode helper/build.sh (hash das fontes %s ≠ .srchash %s)", got, strings.TrimSpace(string(want)))
+	}
+}
+
+// A versão embutida sai do próprio WAR e tem de casar com o <version> do pom —
+// a divergência entre os dois foi o que fez o helper 0.8.0 subir anunciando
+// 0.7.0 em 2026-07-25 (ROADMAP §2.10-J).
+func TestVersionDoWAREmbutido(t *testing.T) {
+	got := Version()
+	if got == "" {
+		t.Fatal("Version() vazia: o WAR embutido não trouxe application.version")
+	}
+	if !regexp.MustCompile(`^\d+\.\d+\.\d+$`).MatchString(got) {
+		t.Errorf("Version()=%q, esperado MAJOR.MINOR.PATCH", got)
+	}
+	pom, err := os.ReadFile("pom.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`<version>([^<]+)</version>`).FindSubmatch(pom)
+	if m == nil {
+		t.Fatal("não achei <version> no pom.xml")
+	}
+	if quer := string(m[1]); got != quer {
+		t.Errorf("WAR embutido anuncia %q, pom.xml diz %q — rode helper/build.sh", got, quer)
+	}
+}
+
+func TestVersionFromInfo(t *testing.T) {
+	casos := map[string]string{
+		"application.version=0.8.0\nview.file=view.ftl\n": "0.8.0",
+		"# comentário\napplication.version = 1.2.3 \n":    "1.2.3",
+		"application.version=":                            "",
+		"outra.chave=0.9.9\n":                             "",
+		"":                                                "",
+	}
+	for info, quer := range casos {
+		if got := versionFromInfo(info); got != quer {
+			t.Errorf("versionFromInfo(%q)=%q, quer %q", info, got, quer)
+		}
 	}
 }

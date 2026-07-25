@@ -35,12 +35,33 @@ TOTVS passou a exigir autenticação em 2026; os jars vieram do WAR MIT da
 fluiggers).
 
 ```sh
-mvn -f helper/pom.xml package
-cp helper/target/fluigcliHelper.war helper/fluigcliHelper.war  # artefato versionado
+./helper/build.sh     # builda, copia o WAR versionado e atualiza o .srchash
 ```
+
+Use **sempre o `build.sh`**. Ele faz o `mvn package`, copia o WAR para
+`helper/fluigcliHelper.war` e atualiza o `.srchash` que o teste anti-drift
+confere. Um `mvn` na mão deixa o hash velho e o teste
+`TestHelperWARAtualizado` reprova.
 
 O WAR **buildado é versionado no Git** (`helper/fluigcliHelper.war`) e
 embutido no binário via `go:embed` — o release da CLI não precisa de
-toolchain Java (mesmo padrão dos bundles das widgets SPA). Ao alterar
-qualquer fonte em `helper/src`, rebuilde e atualize o WAR versionado; o
-teste `TestHelperWARAtualizado` acusa drift.
+toolchain Java (mesmo padrão dos bundles das widgets SPA).
+
+## Versão do helper
+
+A versão vive num lugar só: o `<version>` do `helper/pom.xml`. O Maven resolve
+esse valor no `application.version` do `src/main/resources/application.info`
+(resource filtering restrito a esse arquivo — o `view.ftl` e o `edit.ftl` usam
+`${...}` do FreeMarker e ficam fora do filtro). O `application.info` é o
+manifesto que o Fluig lê e a fonte do `GET /api/version`.
+
+Para subir a versão: mude o `<version>` do pom, rode `./helper/build.sh` e
+commite o WAR.
+
+⚠️ Antes de 2026-07-25 o número aparecia nos dois arquivos, e o helper 0.8.0
+subiu anunciando 0.7.0 — a própria porta de versão da CLI recusou o recurso que
+o servidor já tinha. Por isso a versão agora sai do pom.
+
+A CLI lê a versão do WAR que ela embute (`helperwar.Version()`, direto do
+`application.info` dentro do artefato) e a compara com a instalada no servidor
+antes de publicar. Ver `docs/server.md` (install-helper).

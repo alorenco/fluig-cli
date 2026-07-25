@@ -199,3 +199,184 @@ func TestServerStatus(t *testing.T) {
 		t.Errorf("envelope inesperado: stats=%v monitors=%d", stats["connectedUsers"], len(monitors))
 	}
 }
+
+// helperVersionStub simula um servidor com o fluigcliHelper numa versão dada e
+// captura o que for publicado no uploadfile.
+type helperVersionStub struct {
+	version      string // versão que o helper anuncia ("" = rota ausente)
+	uploadedName string
+	uploadedSize int
+}
+
+func (s *helperVersionStub) server(t *testing.T) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"content":{"login":"u","fullName":"Fulano de Teste","email":"u@x","userCode":"uc"}}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		if s.version == "" {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"`+s.version+`"}`)
+	})
+	mux.HandleFunc("/portal/api/rest/wcmservice/rest/product/uploadfile", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseMultipartForm(20 << 20)
+		s.uploadedName = r.FormValue("fileName")
+		if f, _, err := r.FormFile("attachment"); err == nil {
+			b, _ := io.ReadAll(f)
+			s.uploadedSize = len(b)
+		}
+		io.WriteString(w, `{}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// install-helper compara a versão do servidor com a do WAR embutido antes de
+// publicar (ROADMAP §2.10-J): sem isso, um binário antigo rebaixaria o servidor
+// em silêncio.
+func TestServerInstallHelperComparaVersao(t *testing.T) {
+	embutida := helperwar.Version()
+	if embutida == "" {
+		t.Fatal("o WAR embutido precisa anunciar a versão para este teste valer")
+	}
+
+	t.Run("servidor mais antigo é atualizado", func(t *testing.T) {
+		stub := &helperVersionStub{version: "0.3.0"}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d stdout=%s", code, stdout)
+		}
+		var env output.Envelope
+		json.Unmarshal([]byte(stdout), &env)
+		data, _ := env.Data.(map[string]any)
+		if data["action"] != "uploaded" || stub.uploadedName != helperwar.Name {
+			t.Errorf("deveria publicar: action=%v upload=%q", data["action"], stub.uploadedName)
+		}
+		if data["embeddedVersion"] != embutida || data["version"] != "0.3.0" {
+			t.Errorf("o envelope deveria trazer as duas versões: %+v", data)
+		}
+	})
+
+	t.Run("mesma versão não reenvia sem --force", func(t *testing.T) {
+		stub := &helperVersionStub{version: embutida}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d stdout=%s", code, stdout)
+		}
+		var env output.Envelope
+		json.Unmarshal([]byte(stdout), &env)
+		data, _ := env.Data.(map[string]any)
+		if data["action"] != "none" || stub.uploadedName != "" {
+			t.Errorf("mesma versão: action=%v upload=%q (quer none, sem upload)", data["action"], stub.uploadedName)
+		}
+	})
+
+	t.Run("mesma versão com --force reenvia (reparo)", func(t *testing.T) {
+		stub := &helperVersionStub{version: embutida}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, _ := runMain(t, "server", "install-helper", "homolog", "--force", "--json", "--project", proj)
+		if code != output.ExitOK || stub.uploadedName != helperwar.Name {
+			t.Errorf("--force deveria reenviar: exit=%d upload=%q", code, stub.uploadedName)
+		}
+	})
+
+	// O caso que motivou o item: binário velho contra servidor novo.
+	t.Run("servidor mais novo é recusado, mesmo com --force", func(t *testing.T) {
+		stub := &helperVersionStub{version: "99.0.0"}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--force", "--json", "--project", proj)
+		if code != output.ExitUsage {
+			t.Fatalf("exit=%d, quer %d (rebaixamento recusado)\n%s", code, output.ExitUsage, stdout)
+		}
+		if stub.uploadedName != "" {
+			t.Errorf("nada deveria ter sido publicado: %q", stub.uploadedName)
+		}
+		var env output.Envelope
+		json.Unmarshal([]byte(stdout), &env)
+		if env.Error == nil || !strings.Contains(env.Error.Message, "99.0.0") ||
+			!strings.Contains(env.Error.Message, "--allow-downgrade") {
+			t.Errorf("a mensagem deveria citar a versão do servidor e a saída: %+v", env.Error)
+		}
+	})
+
+	t.Run("--allow-downgrade permite rebaixar", func(t *testing.T) {
+		stub := &helperVersionStub{version: "99.0.0"}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--allow-downgrade", "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d stdout=%s", code, stdout)
+		}
+		if stub.uploadedName != helperwar.Name {
+			t.Errorf("com --allow-downgrade deveria publicar: %q", stub.uploadedName)
+		}
+	})
+
+	// Helper antigo sem a rota /version: sem versão para comparar, vale a regra
+	// de antes (não reenvia sem --force).
+	t.Run("sem rota de versão mantém o comportamento antigo", func(t *testing.T) {
+		stub := &helperVersionStub{version: ""}
+		proj := serverTestProject(t, stub.server(t).URL)
+		code, stdout := runMain(t, "server", "install-helper", "homolog", "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d stdout=%s", code, stdout)
+		}
+		var env output.Envelope
+		json.Unmarshal([]byte(stdout), &env)
+		data, _ := env.Data.(map[string]any)
+		if data["action"] != "none" {
+			t.Errorf("action=%v, quer none", data["action"])
+		}
+	})
+}
+
+// server test passa a reportar a versão do helper e a do WAR do binário.
+func TestServerTestReportaVersoesDoHelper(t *testing.T) {
+	stub := &helperVersionStub{version: "0.3.0"}
+	proj := serverTestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "server", "test", "homolog", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["helperVersion"] != "0.3.0" || data["cliHelperWAR"] != helperwar.Version() {
+		t.Errorf("versões no envelope: %+v", data)
+	}
+}
+
+func TestCompareHelperVersions(t *testing.T) {
+	casos := []struct {
+		a, b string
+		quer int
+	}{
+		{"0.7.0", "0.8.0", -1},
+		{"0.8.0", "0.8.0", 0},
+		{"0.8.1", "0.8.0", 1},
+		{"1.0.0", "0.9.9", 1},
+		{"0.10.0", "0.9.0", 1}, // comparação numérica, não alfabética
+		{"0.8", "0.8.0", 0},    // sem patch = patch 0
+		{"0.8.0-SNAPSHOT", "0.8.0", 0},
+		{"", "0.8.0", -1},
+		{"lixo", "0.0.0", 0}, // formato irreconhecível não trava o install
+	}
+	for _, tc := range casos {
+		if got := compareHelperVersions(tc.a, tc.b); got != tc.quer {
+			t.Errorf("compareHelperVersions(%q,%q)=%d, quer %d", tc.a, tc.b, got, tc.quer)
+		}
+	}
+}

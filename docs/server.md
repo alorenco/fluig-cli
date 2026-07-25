@@ -212,6 +212,43 @@ gravadas.
 
 Este comando instala o componente auxiliar `fluigcliHelper`. O WAR vai embutido
 no binário da CLI. O helper é pré-requisito dos scripts de processo, do
-`widget import` e do grupo [log](log.md). Com `--force`, a CLI reenvia mesmo que
-já exista uma versão instalada. É assim que você **atualiza** o helper. Ver mais
-detalhes em [workflow](workflow.md).
+`widget import` e do grupo [log](log.md). Ver mais detalhes em
+[workflow](workflow.md).
+
+**A CLI compara as versões antes de publicar.** Ela conhece a versão do WAR que
+carrega e pergunta ao servidor qual está instalada. O resultado decide a ação:
+
+| Situação | O que acontece |
+|---|---|
+| servidor mais antigo | a CLI atualiza e informa `0.7.0 → 0.8.0` |
+| versões iguais | a CLI não reenvia. Com `--force` ela reenvia (use para reparar uma instalação) |
+| servidor **mais novo** | a CLI **recusa** com exit 2, mesmo com `--force`. Publicar rebaixaria o servidor |
+
+O último caso protege contra um erro fácil: um binário antigo do `fluigcli`
+carrega um helper antigo. Sem a comparação, um `--force` rebaixaria o servidor em
+silêncio e derrubaria recursos que os outros usuários já usam. Quando o
+rebaixamento é intencional, informe `--allow-downgrade`.
+
+A instalação é assíncrona no servidor. Depois do envio, o `server status` leva
+alguns segundos para mostrar a versão nova.
+
+O `server test` e o `server status` avisam quando as versões divergem, nos dois
+sentidos:
+
+```
+aviso: o fluigcliHelper do servidor está desatualizado (0.7.0; este binário traz 0.8.0)
+       — atualize com: fluigcli server install-helper homolog --force
+aviso: o fluigcliHelper do servidor (0.9.0) é mais novo que o deste binário (0.8.0)
+       — atualize a CLI com: fluigcli upgrade
+```
+
+Com `--json`, o envelope do `server test` traz `helperVersion` (a do servidor) e
+`cliHelperWAR` (a do binário). O `install-helper` traz `version` e
+`embeddedVersion`.
+
+Piso de versão por recurso: 0.3.0 para o grupo `log`, 0.5.0 para a janela
+`--since/--until`, 0.6.0 para o grupo `db`, 0.7.0 para o `dataset delete` e
+0.8.0 para vários `--grep` (OU).
+
+Com `--war <arquivo>` a CLI publica o artefato que você indicar e **não** compara
+versões. Neste caso a escolha é sua.
