@@ -10,6 +10,11 @@
 *.out
 *.test
 
+# Config de projeto que a própria CLI grava quando é executada daqui (o repo
+# vira a "raiz do projeto" e comandos como `form export` criam este diretório).
+# É configuração de máquina, não do repo da ferramenta.
+/.fluigcli/
+
 # Documentos de trabalho do mantenedor (não publicados)
 /SPEC.md
 /ROADMAP.md
