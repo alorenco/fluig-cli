@@ -122,11 +122,21 @@ func newFormRecordsListCmd(app *App) *cobra.Command {
 // --- form records show ---
 
 func newFormRecordsShowCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var (
+		noChildren    bool
+		passwordStdin bool
+	)
 	cmd := &cobra.Command{
 		Use:   "show <documentId|nome> <cardId>",
-		Short: "Mostra um registro completo (com as linhas filhas, se houver)",
-		Args:  cobra.ExactArgs(2),
+		Short: "Mostra um registro completo (com as linhas das tabelas filhas)",
+		Long: "Mostra um registro (card) com os campos do pai e as linhas das tabelas\n" +
+			"filhas, agrupadas por tabela.\n\n" +
+			"As linhas filhas engordam a resposta (num card real de 150 linhas, de 5 KB\n" +
+			"para 141 KB) — use --no-children quando só os campos do pai importarem.\n" +
+			"No modo humano os campos de controle do Fluig (cardid, companyid,\n" +
+			"documentid, masterid, tableid, version e anonymization_*) ficam fora das\n" +
+			"linhas filhas; com --json vem tudo.",
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			cardID, err := strconv.Atoi(args[1])
@@ -142,7 +152,7 @@ func newFormRecordsShowCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rec, err := client.GetFormRecord(ctx, formID, cardID)
+			rec, err := client.GetFormRecord(ctx, formID, cardID, fluig.FormRecordOptions{NoChildren: noChildren})
 			if err != nil {
 				return mapFluigError(err)
 			}
@@ -150,18 +160,102 @@ func newFormRecordsShowCmd(app *App) *cobra.Command {
 			for _, k := range sortedFieldKeys(rec.Values) {
 				p.Successf("  %s = %s", k, rec.Values[k])
 			}
-			for i, child := range rec.Children {
-				p.Successf("  filho %d:", i+1)
-				for _, k := range sortedFieldKeys(child) {
-					p.Successf("    %s = %s", k, child[k])
-				}
-			}
+			printChildRows(p, rec.Children, noChildren)
 			p.Done(map[string]any{"formId": formID, "record": rec})
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&noChildren, "no-children", false, "não trazer as linhas das tabelas filhas (resposta muito menor)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// childInternalFields são as colunas de controle que o Fluig grava em toda linha
+// filha. Elas repetem o mesmo valor linha a linha e atrapalham a leitura, então
+// saem do modo humano. No --json continuam (fidelidade do registro).
+var childInternalFields = map[string]bool{
+	"cardid": true, "companyid": true, "documentid": true, "masterid": true,
+	"tableid": true, "version": true,
+	"anonymization_date": true, "anonymization_user_id": true,
+}
+
+// printChildRows imprime as linhas filhas agrupadas por tabela: uma tabela de
+// resumo (quantas linhas por tabela filha) e depois o detalhe linha a linha.
+func printChildRows(p *output.Printer, children []fluig.FormRecordChild, noChildren bool) {
+	if len(children) == 0 {
+		if noChildren {
+			p.Infof("Linhas filhas não consultadas (--no-children).")
+		} else {
+			p.Infof("O registro não tem linhas de tabela filha.")
+		}
+		return
+	}
+
+	// Ordem de primeira aparição — é a ordem em que o servidor devolveu.
+	var tables []string
+	rows := map[string][]fluig.FormRecordChild{}
+	for _, ch := range children {
+		if _, seen := rows[ch.TableID]; !seen {
+			tables = append(tables, ch.TableID)
+		}
+		rows[ch.TableID] = append(rows[ch.TableID], ch)
+	}
+
+	summary := make([][]string, 0, len(tables))
+	for _, t := range tables {
+		// União dos campos das linhas: uma linha pode carregar campos de outra
+		// tabela filha, então contar só a primeira enganaria.
+		fields := map[string]bool{}
+		for _, ch := range rows[t] {
+			for _, k := range visibleChildFields(ch.Values) {
+				fields[k] = true
+			}
+		}
+		summary = append(summary, []string{childTableLabel(t), strconv.Itoa(len(rows[t])), strconv.Itoa(len(fields))})
+	}
+	p.Table(output.Table{
+		Headers: []string{"Tabela filha", "Linhas", "Campos"},
+		Rows:    summary,
+		Style:   output.BoldHeaderStyle(nil),
+	})
+
+	for _, t := range tables {
+		p.Successf("%s (%d linha(s)):", childTableLabel(t), len(rows[t]))
+		for _, ch := range rows[t] {
+			p.Successf("  linha %s:", childRowLabel(ch.RowID))
+			for _, k := range visibleChildFields(ch.Values) {
+				p.Successf("    %s = %s", k, ch.Values[k])
+			}
+		}
+	}
+}
+
+// visibleChildFields devolve os campos da linha filha em ordem estável, sem as
+// colunas de controle.
+func visibleChildFields(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		if childInternalFields[k] {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func childTableLabel(tableID string) string {
+	if tableID == "" {
+		return "(tabela sem nome)"
+	}
+	return tableID
+}
+
+func childRowLabel(rowID string) string {
+	if rowID == "" {
+		return "?"
+	}
+	return rowID
 }
 
 // --- form records create / update ---

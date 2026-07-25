@@ -115,8 +115,11 @@ fluigcli form records list "Cadastro de Clientes" --fields nome,email --limit 20
 # filtrar (sintaxe $filter da API, estilo OData)
 fluigcli form records list 12345 --filter "quantidade eq '99'"
 
-# registro completo (com linhas filhas de tabela pai×filho)
+# registro completo (com as linhas das tabelas filhas)
 fluigcli form records show 12345 67890
+
+# só os campos do pai (resposta muito menor)
+fluigcli form records show 12345 67890 --no-children
 
 # criar e atualizar (mesmos --field/--fields-file do request start)
 fluigcli form records create 12345 --field nome="Maria" --field quantidade=10
@@ -126,6 +129,24 @@ fluigcli form records update 12345 67890 --field quantidade=99
 # excluir (pede confirmação; --yes pula)
 fluigcli form records delete 12345 67890 --yes
 ```
+
+### Linhas das tabelas filhas
+
+O `show` traz as linhas das tabelas filhas por padrão. A CLI agrupa as linhas
+por tabela e mostra primeiro um resumo com a quantidade de linhas de cada uma.
+
+- Um registro grande fica caro. Num card real de 150 linhas filhas a resposta
+  passou de 5 KB para 141 KB. Use `--no-children` quando só os campos do pai
+  importarem.
+- No modo humano, a CLI esconde os campos de controle do Fluig nas linhas
+  filhas (`cardid`, `companyid`, `documentid`, `masterid`, `tableid`, `version`
+  e `anonymization_*`). Eles repetem o mesmo valor em cada linha. Com `--json`
+  vem tudo.
+- No `--json`, cada linha é `{"tableId": ..., "rowId": ..., "values": {...}}`.
+  A API sufixa cada campo com `___<rowId>`. A CLI remove esse sufixo, por isso
+  os nomes dos campos são iguais aos do formulário.
+- Uma linha pode carregar campos de outra tabela filha do mesmo formulário.
+  Este comportamento é do servidor, não é erro da CLI.
 
 Semântica (validada na homologação):
 

@@ -119,6 +119,20 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 > identificado) e não traz o nome do `.war` (necessário ao `widget import`).
 > Por isso é o **fallback** do `widget list`, não a fonte primária.
 
+## form records — linhas filhas (investigação ROADMAP §2.10-A, 2026-07-25)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_form_card_children.json` | `GET /ecm-forms/api/v2/cardindex/{documentId}/cards/{cardId}?expand=children` | ✅ shape gravado da **produção** em 2026-07-25 (card com 2 tabelas filhas, 150 linhas); reduzida a 4 linhas e com **todos os valores trocados por fictícios** |
+
+> Descoberta: **sem `?expand=children` o servidor devolve `children: []`** — a
+> `rest_form_cards.json` (E2E de 2026-07-14) nunca teve filhas porque o
+> formulário de teste não tinha tabela, não porque a API não entregue.
+> Estrutura real preservada na fixture: as linhas das VÁRIAS tabelas filhas vêm
+> num array único, cada linha traz `rowId` + `tableId` sem sufixo, e todos os
+> outros campos vêm com sufixo `___<rowId>`. Uma linha da fixture carrega
+> campos de outra tabela filha (parcelas/anexo) — caso real, não erro.
+
 ---
 
 > `TestIntegrationFormListAndDownload` (`-tags=integration`) exercita list +

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // restCardsBase monta o caminho dos registros de um formulário.
@@ -18,12 +19,22 @@ func restCardsBase(documentID int) string {
 // FormRecord é um registro (card) de formulário. Values é o mapa campo →
 // valor (a API devolve array {fieldId, value}; valor null vira "").
 type FormRecord struct {
-	CardID   int64               `json:"cardId"`
-	Version  int                 `json:"version"`
-	FormID   int64               `json:"formId"` // parentDocumentId
-	Active   bool                `json:"active"`
-	Values   map[string]string   `json:"values"`
-	Children []map[string]string `json:"children,omitempty"` // linhas de tabela pai×filho
+	CardID   int64             `json:"cardId"`
+	Version  int               `json:"version"`
+	FormID   int64             `json:"formId"` // parentDocumentId
+	Active   bool              `json:"active"`
+	Values   map[string]string `json:"values"`
+	Children []FormRecordChild `json:"children,omitempty"` // linhas de tabela pai×filho
+}
+
+// FormRecordChild é uma linha de tabela pai×filho. A API devolve as linhas de
+// TODAS as tabelas filhas num array só, então TableID é a chave de
+// agrupamento. Values já vem sem o sufixo ___<rowId> que a API acrescenta em
+// cada campo (validado na produção em 2026-07-25; ver FLUIG-APIS.md).
+type FormRecordChild struct {
+	TableID string            `json:"tableId"`
+	RowID   string            `json:"rowId"`
+	Values  map[string]string `json:"values"`
 }
 
 // cardField é o par campo/valor cru da API.
@@ -79,9 +90,41 @@ func (c cardFind) toRecord() FormRecord {
 		Values:  fieldsToMap(c.Values),
 	}
 	for _, ch := range c.Children {
-		rec.Children = append(rec.Children, fieldsToMap(ch.Values))
+		rec.Children = append(rec.Children, toChildRow(ch.Values))
 	}
 	return rec
+}
+
+// Metadados da linha filha: vêm SEM o sufixo ___<rowId>, ao contrário de todos
+// os outros campos. Cuidado: `tableId` (metadado da API) não é o mesmo que
+// `tableid___N` (coluna interna da linha).
+const (
+	childFieldTableID = "tableId"
+	childFieldRowID   = "rowId"
+)
+
+// toChildRow converte uma linha filha crua: separa os metadados e tira o
+// sufixo ___<rowId> dos campos. O sufixo casou com o rowId em 150/150 linhas na
+// produção — mesmo assim, sufixo diferente do rowId fica como veio, porque
+// perder dado silenciosamente é pior que devolver um nome estranho.
+func toChildRow(fields []cardField) FormRecordChild {
+	raw := fieldsToMap(fields)
+	row := FormRecordChild{
+		TableID: raw[childFieldTableID],
+		RowID:   raw[childFieldRowID],
+		Values:  make(map[string]string, len(raw)),
+	}
+	suffix := "___" + row.RowID
+	for k, v := range raw {
+		if k == childFieldTableID || k == childFieldRowID {
+			continue
+		}
+		if row.RowID != "" && strings.HasSuffix(k, suffix) {
+			k = strings.TrimSuffix(k, suffix)
+		}
+		row.Values[k] = v
+	}
+	return row
 }
 
 // ListFormRecords lista os registros de um formulário (paginado). filter é a
@@ -128,12 +171,24 @@ func (c *Client) ListFormRecords(ctx context.Context, documentID int, filter str
 	}
 }
 
-// GetFormRecord carrega um registro (com as linhas filhas, se houver).
-func (c *Client) GetFormRecord(ctx context.Context, documentID, cardID int) (*FormRecord, error) {
+// FormRecordOptions parametriza a leitura de um registro.
+type FormRecordOptions struct {
+	// NoChildren desliga o expand=children. As linhas filhas SÓ vêm com esse
+	// parâmetro — sem ele o servidor devolve children vazio em silêncio. O
+	// expand custa tamanho: num card real de 150 linhas filhas a resposta foi
+	// de 5 KB para 141 KB (produção, 2026-07-25).
+	NoChildren bool
+}
+
+// GetFormRecord carrega um registro com as linhas filhas (ver FormRecordOptions).
+func (c *Client) GetFormRecord(ctx context.Context, documentID, cardID int, opts FormRecordOptions) (*FormRecord, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
 	endpoint := c.url(restCardsBase(documentID) + "/" + strconv.Itoa(cardID))
+	if !opts.NoChildren {
+		endpoint += "?expand=children"
+	}
 	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
