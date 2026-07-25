@@ -76,6 +76,14 @@ func TestLogFilesTabela(t *testing.T) {
 		}
 	}
 
+	// O CSV de monitoramento da fixture NÃO entra por padrão (ROADMAP §2.10-G).
+	if strings.Contains(stdout, ".csv") {
+		t.Errorf("CSV de monitoramento não deveria aparecer por padrão:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "1 fora da listagem") {
+		t.Errorf("a saída precisa dizer quantos arquivos ficaram de fora:\n%s", stdout)
+	}
+
 	code, stdout = runMain(t, "log", "files", "--json", "--project", proj)
 	if code != output.ExitOK {
 		t.Fatalf("--json exit=%d", code)
@@ -86,12 +94,101 @@ func TestLogFilesTabela(t *testing.T) {
 	}
 	data, _ := env.Data.(map[string]any)
 	files, _ := data["files"].([]any)
-	if len(files) != 3 {
-		t.Errorf("files=%d, quer 3", len(files))
+	if len(files) != 2 {
+		t.Errorf("files=%d, quer 2 (o CSV fica fora)", len(files))
 	}
+	// O contrato ganhou a contagem do que ficou de fora — nada é omitido em silêncio.
+	if data["total"].(float64) != 3 || data["omitted"].(float64) != 1 {
+		t.Errorf("total/omitted inesperados: %+v", data)
+	}
+	// Ordem por recência: o log corrente primeiro (é o que se quer no tail).
 	first, _ := files[0].(map[string]any)
 	if first["name"] != "server.log" || first["lastModified"] == nil {
 		t.Errorf("primeiro arquivo inesperado: %v", first)
+	}
+}
+
+// --all, --pattern e --limit: os escapes da listagem enxuta.
+func TestLogFilesFiltros(t *testing.T) {
+	stub := logServerStub(t)
+	proj := serverTestProject(t, stub.URL)
+
+	// --all inclui os CSVs de monitoramento.
+	code, stdout := runMain(t, "log", "files", "--all", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if files, _ := data["files"].([]any); len(files) != 3 || data["omitted"].(float64) != 0 {
+		t.Errorf("--all deveria trazer tudo: %+v", data)
+	}
+
+	// --pattern manda no filtro, inclusive para pegar um CSV de propósito.
+	code, stdout = runMain(t, "log", "files", "--pattern", "*.csv", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ = env.Data.(map[string]any)
+	files, _ := data["files"].([]any)
+	primeiro, _ := files[0].(map[string]any)
+	if len(files) != 1 || !strings.HasSuffix(primeiro["name"].(string), ".csv") {
+		t.Errorf("--pattern '*.csv' deveria achar só o CSV: %+v", data)
+	}
+
+	// --limit corta e a saída humana diz o que ficou de fora.
+	code, stdout = runMain(t, "log", "files", "--limit", "1", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "server.log ") || strings.Contains(stdout, "server.log.2026-07-17") {
+		t.Errorf("--limit 1 deveria mostrar só o mais recente:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "2 fora da listagem") {
+		t.Errorf("--limit precisa reportar os omitidos:\n%s", stdout)
+	}
+
+	// Filtro que não casa com nada: mensagem clara, não tabela vazia.
+	code, stdout = runMain(t, "log", "files", "--pattern", "nada-*", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "Nenhum arquivo de log casa com o filtro") {
+		t.Errorf("saída inesperada:\n%s", stdout)
+	}
+}
+
+func TestSortLogFilesByRecency(t *testing.T) {
+	t1 := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
+	files := []fluig.ServerLogFile{
+		{Name: "sem-data.log"},
+		{Name: "antigo.log", LastModified: &t1},
+		{Name: "novo.log", LastModified: &t2},
+	}
+	sortLogFilesByRecency(files)
+	if files[0].Name != "novo.log" || files[1].Name != "antigo.log" || files[2].Name != "sem-data.log" {
+		t.Errorf("ordem inesperada: %+v", files)
+	}
+}
+
+func TestIsLogFileName(t *testing.T) {
+	casos := map[string]bool{
+		"server.log":            true,
+		"server.log.2026-07-17": true,
+		"chrono.log":            true,
+		"audit.log":             true,
+		"CustomizationManagerImpl.invokeFunction.batch.csv": false,
+		// CSV com "log" no MEIO do nome não é log (caso real da homologação).
+		"FreemarkerPageRenderer.renderWidget.logcontrol.csv": false,
+		"logurl.log": true,
+	}
+	for nome, quer := range casos {
+		if got := isLogFileName(nome); got != quer {
+			t.Errorf("isLogFileName(%q)=%v, quer %v", nome, got, quer)
+		}
 	}
 }
 

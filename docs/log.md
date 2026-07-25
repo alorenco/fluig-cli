@@ -26,19 +26,38 @@ cores.
 
 ## `fluigcli log files`
 
-Este comando lista os arquivos do diretório de log. A lista mostra o tamanho e
-a data de modificação de cada arquivo.
+Este comando lista os arquivos do diretório de log, **do mais recente para o
+mais antigo**. A lista mostra o tamanho e a data de modificação de cada arquivo.
 
 ```sh
-fluigcli log files
+fluigcli log files                              # os 20 arquivos de log mais recentes
+fluigcli log files --pattern 'chrono.log*'      # filtra por nome (glob)
+fluigcli log files --all --limit 0              # tudo, sem limite
 fluigcli log files --json
 ```
 
-O diretório contém o `server.log` e os arquivos rotacionados (por exemplo,
-`server.log.2026-07-17`). O diretório também contém outros arquivos do Fluig.
-Um exemplo são os arquivos CSV de telemetria de eventos
-(`CustomizationManagerImpl.invokeFunction.*.csv`). Você lê todos estes arquivos
-com a opção `--file`.
+| Flag | Uso |
+|---|---|
+| `--all` | inclui os arquivos que não são de log, por exemplo os CSVs de monitoramento |
+| `--pattern <glob>` | filtra por nome. O padrão manda: ele também alcança os CSVs |
+| `--limit N` | número máximo de arquivos. O valor padrão é 20. Use `0` para não limitar |
+
+O diretório de log do Fluig é grande. Na homologação ele tem **622 arquivos**, e
+**395 são CSVs de monitoramento** (por exemplo
+`CustomizationManagerImpl.invokeFunction.*.csv`). Estes arquivos poluem a
+leitura. Por isso a listagem padrão traz somente os arquivos de log, ou seja
+`server.log`, as rotações (`server.log.2026-07-17`) e os outros `*.log`
+(`chrono.log`, `audit.log`, `conversion.log`).
+
+A CLI sempre informa quantos arquivos ficaram de fora. **Nada é omitido em
+silêncio.** Na homologação, a listagem padrão gasta 1,9 KB. Com `--all --limit 0`
+ela gasta 72 KB.
+
+Com `--json`, o envelope traz `{files[], total, omitted}`. O campo `total` é a
+quantidade de arquivos no diretório e `omitted` é quanto ficou fora da listagem.
+
+Você lê qualquer um destes arquivos com a opção `--file` do `tail` e do
+`download`, inclusive os CSVs.
 
 ## `fluigcli log tail`
 

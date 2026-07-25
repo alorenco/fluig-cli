@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -31,12 +32,30 @@ func newLogCmd(app *App) *cobra.Command {
 
 // --- log files ---
 
+// logFilesDefaultLimit limita a listagem no caso comum. O diretório de log do
+// Fluig é grande (622 arquivos na homologação, sendo 395 CSVs de monitoramento),
+// e quem lista quer escolher um arquivo para o tail/download — quase sempre um
+// dos mais recentes. O limite é explícito: a CLI diz quantos ficaram de fora.
+const logFilesDefaultLimit = 20
+
 func newLogFilesCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var (
+		all           bool
+		pattern       string
+		limit         int
+		passwordStdin bool
+	)
 	cmd := &cobra.Command{
 		Use:   "files",
 		Short: "Lista os arquivos do diretório de log do servidor",
-		Args:  cobra.NoArgs,
+		Long: "Lista os arquivos do diretório de log, do mais recente para o mais antigo.\n\n" +
+			"Por padrão a listagem traz só os ARQUIVOS DE LOG (server.log, as rotações e\n" +
+			"os outros *.log) e no máximo 20 deles. O diretório do Fluig também guarda\n" +
+			"centenas de CSVs de monitoramento, que poluem a leitura. A CLI informa\n" +
+			"quantos arquivos ficaram de fora — nada é omitido em silêncio.\n\n" +
+			"Use --all para ver tudo, --pattern para filtrar por nome (ex.: 'chrono.log*')\n" +
+			"e --limit 0 para não limitar.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			ctx := context.Background()
@@ -48,11 +67,28 @@ func newLogFilesCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			if len(files) == 0 {
+			total := len(files)
+			if total == 0 {
 				p.Infof("Nenhum arquivo no diretório de log do servidor.")
+				p.Done(map[string]any{"files": []fluig.ServerLogFile{}, "total": 0, "omitted": 0})
+				return nil
+			}
+
+			selected, err := selectLogFiles(files, pattern, all)
+			if err != nil {
+				return err
+			}
+			sortLogFilesByRecency(selected)
+			shown := selected
+			if limit > 0 && len(shown) > limit {
+				shown = shown[:limit]
+			}
+
+			if len(shown) == 0 {
+				p.Infof("Nenhum arquivo de log casa com o filtro (%d arquivos no diretório; use --all).", total)
 			} else {
-				rows := make([][]string, 0, len(files))
-				for _, f := range files {
+				rows := make([][]string, 0, len(shown))
+				for _, f := range shown {
 					rows = append(rows, []string{f.Name, fmtLogSize(f.Size), fmtRequestTime(f.LastModified)})
 				}
 				// Padrão de listagem (ver CLAUDE.md): o log corrente (default
@@ -61,19 +97,78 @@ func newLogFilesCmd(app *App) *cobra.Command {
 					Headers: []string{"Arquivo", "Tamanho", "Modificado"},
 					Rows:    rows,
 					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
-						if col == 0 && files[row].Name == fluig.DefaultServerLog {
+						if col == 0 && shown[row].Name == fluig.DefaultServerLog {
 							return output.Green(padded)
 						}
 						return padded
 					}),
 				})
 			}
-			p.Done(map[string]any{"files": files})
+			if omitted := total - len(shown); omitted > 0 {
+				p.Infof("%d de %d arquivos — %d fora da listagem. Use --all, --pattern <glob> ou --limit 0.",
+					len(shown), total, omitted)
+			}
+			p.Done(map[string]any{
+				"files": shown, "total": total, "omitted": total - len(shown),
+			})
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&all, "all", false, "lista todos os arquivos do diretório, inclusive os CSVs de monitoramento")
+	cmd.Flags().StringVar(&pattern, "pattern", "", "filtra por nome (glob, ex.: 'server.log*')")
+	cmd.Flags().IntVar(&limit, "limit", logFilesDefaultLimit, "número máximo de arquivos (0 = todos)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// isLogFileName reconhece arquivo de log: `*.log` ou uma rotação `*.log.<algo>`.
+// Não confundir com os CSVs de monitoramento que têm "log" no meio do nome
+// (ex.: FreemarkerPageRenderer.renderWidget.logcontrol.csv).
+func isLogFileName(name string) bool {
+	return strings.HasSuffix(name, ".log") || strings.Contains(name, ".log.")
+}
+
+// selectLogFiles aplica o filtro da listagem: um --pattern explícito manda (o
+// usuário sabe o que quer); sem ele, só arquivos de log, a menos que --all.
+func selectLogFiles(files []fluig.ServerLogFile, pattern string, all bool) ([]fluig.ServerLogFile, error) {
+	if pattern != "" {
+		if _, err := filepath.Match(pattern, "teste"); err != nil {
+			return nil, output.Usagef("--pattern inválido %q: %v", pattern, err)
+		}
+	}
+	out := make([]fluig.ServerLogFile, 0, len(files))
+	for _, f := range files {
+		switch {
+		case pattern != "":
+			if ok, _ := filepath.Match(pattern, f.Name); !ok {
+				continue
+			}
+		case !all && !isLogFileName(f.Name):
+			continue
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// sortLogFilesByRecency ordena do mais recente para o mais antigo. É a ordem
+// útil: quem lista quer o log corrente e as últimas rotações. Arquivo sem data
+// vai para o fim, com desempate por nome (ordem estável).
+func sortLogFilesByRecency(files []fluig.ServerLogFile) {
+	sort.SliceStable(files, func(i, j int) bool {
+		a, b := files[i].LastModified, files[j].LastModified
+		switch {
+		case a == nil && b == nil:
+			return files[i].Name < files[j].Name
+		case a == nil:
+			return false
+		case b == nil:
+			return true
+		case a.Equal(*b):
+			return files[i].Name < files[j].Name
+		}
+		return a.After(*b)
+	})
 }
 
 // --- log tail ---
