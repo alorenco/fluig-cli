@@ -102,8 +102,8 @@ helper não informa o fuso, a CLI usa o horário desta máquina e avisa.
 
 A janela é um recorte fechado. Ela não aceita `--follow`, `-n` nem `--skip`. Os
 filtros `--level`, `--grep` e `--file` continuam valendo. Com `--json`, o
-envelope traz `{file, from, to, entries[], truncated}` — não traz `size`,
-porque a janela não usa o offset do arquivo.
+envelope traz `{file, from, to, entries[], records[], truncated}` — não traz
+`size`, porque a janela não usa o offset do arquivo.
 
 A janela exige o fluigcliHelper **0.5.0 ou maior**. Com uma versão anterior, o
 comando sai com exit 7 e orienta a atualização.
@@ -113,11 +113,34 @@ pela rede. No terminal, o comando mostra as entradas ERROR e FATAL em vermelho.
 O comando mostra as entradas WARN em amarelo. As cores aparecem quando há um
 TTY e a variável `NO_COLOR` não está definida.
 
+### Saída `--json`
+
 Com `--json` (e sem `--follow`), o envelope traz
-`{file, size, entries[], truncated}`. O valor `truncated=true` indica que a
-resposta chegou ao limite de tamanho. Neste caso, o servidor cortou a lista.
-Para reduzir o resultado, use `--grep` ou `--level`, ou diminua o valor de
-`-n`.
+`{file, size, entries[], records[], truncated}`. O valor `truncated=true`
+indica que a resposta chegou ao limite de tamanho. Neste caso, o servidor cortou
+a lista. Para reduzir o resultado, use `--grep` ou `--level`, ou diminua o valor
+de `-n`.
+
+O campo `entries[]` traz o texto cru de cada entrada. O campo `records[]` traz a
+mesma entrada **decomposta em campos**. Os dois têm o mesmo tamanho e a mesma
+ordem, então `records[i]` corresponde a `entries[i]`. Cada record tem:
+
+| campo | conteúdo |
+|---|---|
+| `timestamp` | data e hora, no formato `2026-07-25T17:58:16.089` |
+| `level` | a severidade, como veio no log (`INFO`, `WARN`, `ERROR`…) |
+| `logger` | a classe entre colchetes |
+| `thread` | a thread entre parênteses |
+| `message` | o texto da primeira linha |
+| `stack` | as linhas de continuação, por exemplo o stack trace |
+| `raw` | a entrada inteira, **somente** quando a CLI não reconhece o cabeçalho |
+
+⚠️ O `timestamp` é a hora local do **servidor**. O `server.log` não registra o
+fuso. Use `server status` para ver o fuso do servidor.
+
+O formato do cabeçalho é configurável em cada servidor. Quando a CLI não
+reconhece o cabeçalho, ela devolve a entrada em `raw` e deixa os outros campos
+vazios. A CLI nunca descarta conteúdo.
 
 ## `fluigcli log download`
 

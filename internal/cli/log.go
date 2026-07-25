@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -151,7 +150,8 @@ func newLogTailCmd(app *App) *cobra.Command {
 			if !follow {
 				p.Done(map[string]any{
 					"file": tail.File, "size": tail.Size,
-					"entries": tail.Entries, "truncated": tail.Truncated,
+					"entries": tail.Entries, "records": fluig.ParseLogEntries(tail.Entries),
+					"truncated": tail.Truncated,
 				})
 				return nil
 			}
@@ -206,7 +206,8 @@ func runLogRange(ctx context.Context, app *App, p *output.Printer, client *fluig
 	}
 	p.Done(map[string]any{
 		"file": res.File, "from": from, "to": to,
-		"entries": res.Entries, "truncated": res.Truncated,
+		"entries": res.Entries, "records": fluig.ParseLogEntries(res.Entries),
+		"truncated": res.Truncated,
 	})
 	return nil
 }
@@ -388,7 +389,7 @@ func printLogEntry(p *output.Printer, entry string) {
 
 func printLogLine(p *output.Printer, line string) {
 	if output.ColorEnabled() {
-		switch logLineLevel(line) {
+		switch fluig.LineLevelRank(line) {
 		case 4, 5: // ERROR/FATAL
 			line = output.Red(line)
 		case 3: // WARN
@@ -396,28 +397,6 @@ func printLogLine(p *output.Printer, line string) {
 		}
 	}
 	p.Successf("%s", line)
-}
-
-var logEntryStartRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}[ T]`)
-
-var logLevelRanks = map[string]int{
-	"TRACE": 0, "FINEST": 0, "FINER": 0,
-	"DEBUG": 1, "FINE": 1,
-	"INFO": 2, "CONFIG": 2,
-	"WARN": 3, "WARNING": 3,
-	"ERROR": 4, "SEVERE": 4,
-	"FATAL": 5,
-}
-
-// logLineLevel devolve o nível de uma linha de cabeçalho (-1 = sem nível).
-func logLineLevel(line string) int {
-	tokens := strings.Fields(line)
-	for i := 0; i < len(tokens) && i < 4; i++ {
-		if rank, ok := logLevelRanks[strings.ToUpper(tokens[i])]; ok {
-			return rank
-		}
-	}
-	return -1
 }
 
 // logLineFilter aplica --level/--grep no cliente durante o --follow: a decisão
@@ -432,9 +411,7 @@ type logLineFilter struct {
 func newLogLineFilter(level, grep string) *logLineFilter {
 	f := &logLineFilter{minLevel: -1, grep: strings.ToLower(grep), entryMatched: true}
 	if level != "" {
-		if rank, ok := logLevelRanks[strings.ToUpper(level)]; ok {
-			f.minLevel = rank
-		}
+		f.minLevel = fluig.LogLevelRank(level)
 	}
 	return f
 }
@@ -443,9 +420,9 @@ func (f *logLineFilter) match(line string) bool {
 	if f.minLevel < 0 && f.grep == "" {
 		return true
 	}
-	if logEntryStartRe.MatchString(line) {
+	if fluig.IsLogEntryStart(line) {
 		f.entryMatched = true
-		if f.minLevel >= 0 && logLineLevel(line) < f.minLevel {
+		if f.minLevel >= 0 && fluig.LineLevelRank(line) < f.minLevel {
 			f.entryMatched = false
 		}
 		if f.entryMatched && f.grep != "" && !strings.Contains(strings.ToLower(line), f.grep) {

@@ -42,11 +42,15 @@ func logServerStub(t *testing.T) *httptest.Server {
 		w.Write(readTD("helper_logs.json"))
 	})
 	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/tail", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("grep") == "Dataset query:" {
+		switch r.URL.Query().Get("grep") {
+		case "Dataset query:":
 			w.Write(readTD("helper_log_tail_multiline.json"))
-			return
+		case "formatos":
+			// Cabeçalhos variados + uma entrada sem cabeçalho (ROADMAP §2.10-D).
+			w.Write(readTD("helper_log_tail_formatos.json"))
+		default:
+			w.Write(readTD("helper_log_tail.json"))
 		}
-		w.Write(readTD("helper_log_tail.json"))
 	})
 	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/download", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "linha 1\nlinha 2\n")
@@ -116,6 +120,58 @@ func TestLogTail(t *testing.T) {
 	entries, _ := data["entries"].([]any)
 	if data["file"] != "server.log" || len(entries) != 3 || data["truncated"] != false {
 		t.Errorf("envelope inesperado: file=%v entries=%d truncated=%v", data["file"], len(entries), data["truncated"])
+	}
+	// `entries` (texto cru) continua no contrato; `records` é o campo novo,
+	// com a entrada decomposta e o MESMO índice (ROADMAP §2.10-D).
+	records, _ := data["records"].([]any)
+	if len(records) != len(entries) {
+		t.Fatalf("records=%d, entries=%d — os índices têm de casar", len(records), len(entries))
+	}
+	first, _ := records[0].(map[string]any)
+	if first["timestamp"] != "2026-07-18T15:39:31.759" || first["level"] != "INFO" ||
+		first["logger"] != "org.wildfly.extension.undertow" ||
+		!strings.Contains(first["message"].(string), "Registered web context") {
+		t.Errorf("record[0] inesperado: %+v", first)
+	}
+	if _, temRaw := first["raw"]; temRaw {
+		t.Errorf("cabeçalho reconhecido não deveria trazer raw: %+v", first)
+	}
+}
+
+// Entradas estruturadas: cabeçalhos variados viram campos e a entrada sem
+// cabeçalho vem em `raw`, sem inventar campo nenhum.
+func TestLogTailRecords(t *testing.T) {
+	stub := logServerStub(t)
+	proj := serverTestProject(t, stub.URL)
+	code, stdout := runMain(t, "log", "tail", "--grep", "formatos", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := env.Data.(map[string]any)
+	records, _ := data["records"].([]any)
+	if len(records) != 5 {
+		t.Fatalf("records=%d, quer 5", len(records))
+	}
+	comStack, _ := records[1].(map[string]any)
+	if comStack["level"] != "ERROR" || comStack["thread"] != "default task-22" {
+		t.Errorf("record com stack: %+v", comStack)
+	}
+	if stack, _ := comStack["stack"].(string); !strings.Contains(stack, "at com.fluig.auth//") {
+		t.Errorf("stack não separado do cabeçalho: %+v", comStack)
+	}
+	// Thread com parênteses dentro do nome (ActiveMQ).
+	activeMQ, _ := records[3].(map[string]any)
+	if activeMQ["thread"] != "Thread-2039 (ActiveMQ-client-global-threads)" {
+		t.Errorf("thread com parênteses: %+v", activeMQ)
+	}
+	// Entrada sem cabeçalho: só `raw`.
+	semCabecalho, _ := records[4].(map[string]any)
+	if semCabecalho["raw"] == nil || semCabecalho["level"] != nil || semCabecalho["timestamp"] != nil {
+		t.Errorf("entrada sem cabeçalho deveria vir só em raw: %+v", semCabecalho)
 	}
 }
 
@@ -293,6 +349,11 @@ func TestLogTailJanela(t *testing.T) {
 	entries, _ := data["entries"].([]any)
 	if data["from"] != "2026-07-24T18:19" || data["to"] != "2026-07-24T18:30" || len(entries) != 1 {
 		t.Errorf("envelope inesperado: %+v", data)
+	}
+	records, _ := data["records"].([]any)
+	rec, _ := records[0].(map[string]any)
+	if len(records) != 1 || rec["level"] != "ERROR" || rec["logger"] != "stderr" {
+		t.Errorf("a janela também traz records decompostos: %+v", records)
 	}
 	if _, temSize := data["size"]; temSize {
 		t.Errorf("a janela não tem offset de arquivo — `size` não deveria aparecer: %+v", data)

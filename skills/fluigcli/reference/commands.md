@@ -265,6 +265,7 @@ as flags, e inclui as vigências expiradas).
 |---|---|
 | `log files` | lista os arquivos do diretório de log do servidor (server.log + rotacionados) |
 | `log tail [-n N] [--file arq] [--level nível] [--grep texto] [--skip N]` | últimas N ENTRADAS (stack trace conta como uma e vem inteiro); `--level warn` = severidade mínima (warn+error+fatal); `--grep` = substring case-insensitive na entrada completa |
+| `log tail --json` (qualquer modo) | além de `entries[]` (texto cru) traz `records[]` com a entrada DECOMPOSTA: `{timestamp, level, logger, thread, message, stack}`, mesmo índice de `entries`. Cabeçalho irreconhecível vem em `raw` (nada é descartado). `timestamp` = hora local do SERVIDOR, sem fuso |
 | `log tail --since <janela> [--until <janela>]` | JANELA DE TEMPO em vez das últimas entradas: duração (`30m`, `2h`), hora de hoje (`18:19`), data (`2026-07-24`) ou data e hora (`2026-07-24T18:19`). Horários = hora local do SERVIDOR (a CLI usa o fuso que o helper informa). ⚠️ `18h` é duração, não 18:00. Não combina com `--follow`/`-n`/`--skip`; `--json` traz `{file, from, to, entries, truncated}`. Exige helper ≥ 0.5.0 |
 | `log tail --follow` | acompanha o log ao vivo (como `tail -f`; interativo — recusa `--json`) |
 | `log download [--file arq] [-o caminho]` | baixa o arquivo inteiro (streaming) |

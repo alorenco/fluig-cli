@@ -119,6 +119,19 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 > identificado) e não traz o nome do `.war` (necessário ao `widget import`).
 > Por isso é o **fallback** do `widget list`, não a fonte primária.
 
+## log tail — formatos de cabeçalho (ROADMAP §2.10-D, 2026-07-25)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `helper_log_tail_formatos.json` | `GET /fluigcliHelper/api/logs/server.log/tail` | ✅ entradas REAIS da homologação (2026-07-25), sanitizadas e reduzidas: INFO do WildFly, ERROR com stack trace (45 → 4 linhas), log de script (ScriptingLog), WARN com **parênteses dentro do nome da thread** (ActiveMQ) e uma entrada **sem cabeçalho** |
+
+> Serve ao parser de entradas (`internal/fluig/logentry.go`). Os dois casos que
+> quebram parse ingênuo estão preservados de propósito: a thread
+> `Thread-2039 (ActiveMQ-client-global-threads)` (parênteses aninhados) e a
+> entrada sem timestamp, que o helper devolve quando o bloco não tem cabeçalho.
+> Medição ao vivo na homolog em 2026-07-25: 126 entradas reais, 0 sem cabeçalho
+> reconhecido.
+
 ## form records — linhas filhas (investigação ROADMAP §2.10-A, 2026-07-25)
 
 | Arquivo | Origem | Status |
