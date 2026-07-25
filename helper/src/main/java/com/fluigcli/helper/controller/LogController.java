@@ -42,7 +42,8 @@ public class LogController extends BaseController {
         @QueryParam("lines") @DefaultValue("100") int lines,
         @QueryParam("skip") @DefaultValue("0") int skip,
         @QueryParam("level") String level,
-        @QueryParam("grep") String grep
+        // grep repetido = OU (a entrada passa se casar com qualquer um).
+        @QueryParam("grep") List<String> grep
     ) {
         try {
             return new LogService().tail(file, lines, skip, level, grep);
@@ -62,7 +63,8 @@ public class LogController extends BaseController {
         @QueryParam("from") String from,
         @QueryParam("to") String to,
         @QueryParam("level") String level,
-        @QueryParam("grep") String grep
+        // grep repetido = OU (idem tail).
+        @QueryParam("grep") List<String> grep
     ) {
         try {
             return new LogService().range(file, from, to, level, grep);

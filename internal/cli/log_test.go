@@ -579,21 +579,56 @@ func TestLogEntryAccumulator(t *testing.T) {
 	}
 }
 
+// Filtro do --follow com vários padrões: OU, igual ao do servidor.
+func TestLogEntryFilterVariosGreps(t *testing.T) {
+	f := newLogEntryFilter("", []string{"widget", "TIMEOUT"})
+	if !f.match("2026-07-25 10:00:00,000 INFO  [a] (t) deploy da widget") {
+		t.Error("deveria casar com o primeiro padrão")
+	}
+	if !f.match("2026-07-25 10:00:00,000 ERROR [a] (t) timeout no dataset") {
+		t.Error("deveria casar com o segundo padrão (case-insensitive)")
+	}
+	if f.match("2026-07-25 10:00:00,000 INFO  [a] (t) nada a ver") {
+		t.Error("não deveria casar sem nenhum dos padrões")
+	}
+	// Nível + OU de texto continuam somando (E entre os critérios).
+	f = newLogEntryFilter("ERROR", []string{"widget", "timeout"})
+	if f.match("2026-07-25 10:00:00,000 INFO  [a] (t) deploy da widget") {
+		t.Error("o nível mínimo tem de valer junto com o OU do texto")
+	}
+}
+
+// Vários --grep exigem helper >= 0.8.0: a CLI recusa em vez de filtrar no
+// cliente (filtrar depois do teto de 2 MB perderia entradas em silêncio).
+func TestLogTailVariosGrepsHelperAntigo(t *testing.T) {
+	stub := logServerStub(t) // versão 0.3.0
+	proj := serverTestProject(t, stub.URL)
+	code, stdout := runMain(t, "log", "tail", "--grep", "a", "--grep", "b", "--json", "--project", proj)
+	if code != output.ExitMissingHelper {
+		t.Fatalf("exit=%d, quer %d (helper sem OU)\n%s", code, output.ExitMissingHelper, stdout)
+	}
+	// Um padrão só continua funcionando no helper antigo.
+	code, _ = runMain(t, "log", "tail", "--grep", "a", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Errorf("um grep só não deveria exigir helper novo: exit=%d", code)
+	}
+}
+
 func TestLogEntryFilter(t *testing.T) {
 	entry := "2026-07-25 10:00:00,000 ERROR [a.B] (t) falhou\n\tat foo.Bar(Bar.java:1)"
 	info := "2026-07-25 10:00:00,000 INFO  [a.B] (t) subiu"
 
-	if f := newLogEntryFilter("WARN", ""); !f.match(entry) || f.match(info) {
+	if f := newLogEntryFilter("WARN", nil); !f.match(entry) || f.match(info) {
 		t.Error("--level filtra pela severidade da linha de cabeçalho")
 	}
 	// O texto é procurado na entrada INTEIRA: acha dentro do stack trace.
-	if f := newLogEntryFilter("", "bar.java"); !f.match(entry) {
+	if f := newLogEntryFilter("", []string{"bar.java"}); !f.match(entry) {
 		t.Error("--grep deveria alcançar o stack trace")
 	}
-	if f := newLogEntryFilter("", "inexistente"); f.match(entry) {
+	if f := newLogEntryFilter("", []string{"inexistente"}); f.match(entry) {
 		t.Error("--grep sem casar deveria filtrar fora")
 	}
-	if f := newLogEntryFilter("", ""); !f.match(entry) || f.match("") {
+	if f := newLogEntryFilter("", nil); !f.match(entry) || f.match("") {
 		t.Error("sem filtro passa tudo, menos entrada vazia")
 	}
 }

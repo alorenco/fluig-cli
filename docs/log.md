@@ -5,7 +5,8 @@ O grupo `log` lê os logs do servidor de aplicação do Fluig. Ele lê o
 sem acesso SSH. Você filtra as entradas e acompanha o log ao vivo.
 
 Estes comandos precisam do componente auxiliar **fluigcliHelper 0.3.0 ou
-superior** no servidor. Instale ou atualize o helper com o comando
+superior** no servidor. A janela de tempo pede 0.5.0 e o OU de vários `--grep`
+pede 0.8.0. Instale ou atualize o helper com o comando
 `fluigcli server install-helper <name> [--force]`.
 
 O helper encontra o diretório de log pela propriedade `jboss.server.log.dir`
@@ -83,7 +84,20 @@ fluigcli log tail -f                     # acompanha ao vivo (Ctrl+C sai)
   maiores. Por exemplo, `--level warn` mostra as entradas WARN, ERROR e FATAL.
 - `--grep` — o texto que você quer procurar. O comando não diferencia
   maiúsculas de minúsculas. O comando procura o texto na entrada completa. Por
-  isso, ele encontra o texto também dentro de um stack trace.
+  isso, ele encontra o texto também dentro de um stack trace. **Repita a opção
+  para procurar vários textos**: a entrada passa quando casa com qualquer um
+  deles (OU).
+
+  ```sh
+  fluigcli log tail --grep "Session expired" --grep "AlertAppSender"
+  ```
+
+  O servidor aplica o filtro. Este é o ponto importante: o servidor corta a
+  resposta em 5000 entradas ou 2 MB. Um filtro no lado da CLI rodaria **depois**
+  do corte e perderia entradas em silêncio. Por isso vários `--grep` exigem o
+  fluigcliHelper **0.8.0 ou maior**. Com uma versão anterior o comando sai com
+  exit 7 e orienta a atualização. Um `--grep` só continua funcionando em
+  qualquer versão.
 - `--skip` — pula as N entradas mais recentes. Use esta opção para ver as
   entradas mais antigas. Por exemplo, `--skip 100 -n 100` mostra a página
   anterior.
@@ -223,4 +237,4 @@ fluigcli log download --file server.log.2026-07-17 -o /tmp/ontem.log
 | `0` | sucesso |
 | `2` | uso incorreto (`--level` inválido, `--follow` com `--json`, `--ndjson` com `--json`, `--ndjson`/condição de parada sem `--follow`, `--since` com `--follow`/`-n`/`--skip`, valor de janela irreconhecível) |
 | `4` | o arquivo de log não existe; ou `--until-match` não apareceu antes da condição de parada |
-| `7` | fluigcliHelper ausente ou **desatualizado** (< 0.3.0 sem as rotas de log; < 0.5.0 sem a janela de tempo). Atualize com `server install-helper <name> --force`. |
+| `7` | fluigcliHelper ausente ou **desatualizado** (< 0.3.0 sem as rotas de log; < 0.5.0 sem a janela de tempo; < 0.8.0 sem o OU de vários `--grep`). Atualize com `server install-helper <name> --force`. |

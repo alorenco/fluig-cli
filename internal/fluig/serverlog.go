@@ -66,11 +66,11 @@ func (c *Client) ListServerLogs(ctx context.Context) ([]ServerLogFile, error) {
 
 // ServerLogTailOptions são os parâmetros do tail server-side.
 type ServerLogTailOptions struct {
-	File  string // vazio = server.log
-	Lines int    // entradas de log (stack trace inteiro conta como uma)
-	Skip  int    // pula as N entradas mais recentes (paginação para trás)
-	Level string // nível mínimo (trace|debug|info|warn|error|fatal)
-	Grep  string // substring case-insensitive na entrada completa
+	File  string   // vazio = server.log
+	Lines int      // entradas de log (stack trace inteiro conta como uma)
+	Skip  int      // pula as N entradas mais recentes (paginação para trás)
+	Level string   // nível mínimo (trace|debug|info|warn|error|fatal)
+	Grep  []string // substrings case-insensitive na entrada completa; vários = OU
 }
 
 // ServerLogTail é o resultado do tail: entradas da mais antiga para a mais
@@ -103,8 +103,10 @@ func (c *Client) TailServerLog(ctx context.Context, opts ServerLogTailOptions) (
 	if opts.Level != "" {
 		q.Set("level", opts.Level)
 	}
-	if opts.Grep != "" {
-		q.Set("grep", opts.Grep)
+	for _, g := range opts.Grep {
+		if g != "" {
+			q.Add("grep", g)
+		}
 	}
 	endpoint := c.url(helperLogsPath+"/") + url.PathEscape(file) + "/tail"
 	if enc := q.Encode(); enc != "" {
@@ -138,7 +140,7 @@ type ServerLogRangeOptions struct {
 	From  string
 	To    string
 	Level string
-	Grep  string
+	Grep  []string // vários = OU (helper >= 0.8.0)
 }
 
 // ServerLogRange é o resultado da busca por intervalo: entradas da mais antiga
@@ -172,8 +174,10 @@ func (c *Client) RangeServerLog(ctx context.Context, opts ServerLogRangeOptions)
 	if opts.Level != "" {
 		q.Set("level", opts.Level)
 	}
-	if opts.Grep != "" {
-		q.Set("grep", opts.Grep)
+	for _, g := range opts.Grep {
+		if g != "" {
+			q.Add("grep", g)
+		}
 	}
 	endpoint := c.url(helperLogsPath+"/") + url.PathEscape(file) + "/range"
 	if enc := q.Encode(); enc != "" {
@@ -293,6 +297,28 @@ func helperHasLogAPI(version string) bool { return helperAtLeast(version, 0, 3) 
 
 // helperHasRangeAPI: a rota /range existe a partir do fluigcliHelper 0.5.0.
 func helperHasRangeAPI(version string) bool { return helperAtLeast(version, 0, 5) }
+
+// helperHasMultiGrep: o `grep` repetido (OU) existe a partir do 0.8.0. Antes
+// disso o helper lê um só valor, e mandar dois faria o filtro sair errado em
+// silêncio — daí a checagem explícita.
+func helperHasMultiGrep(version string) bool { return helperAtLeast(version, 0, 8) }
+
+// EnsureMultiGrep confirma que o servidor sabe casar vários padrões com OU.
+// Devolve ErrHelperOutdated quando o helper é antigo — melhor recusar que
+// devolver resultado errado.
+func (c *Client) EnsureMultiGrep(ctx context.Context) error {
+	info, err := c.HelperStatus(ctx)
+	if err != nil {
+		return err
+	}
+	if !info.Installed {
+		return ErrHelperMissing
+	}
+	if !helperHasMultiGrep(info.Version) {
+		return fmt.Errorf("%w: o fluigcliHelper %s aceita um único --grep (o OU exige 0.8.0)", ErrHelperOutdated, info.Version)
+	}
+	return nil
+}
 
 // HelperSupportsLogRange informa se a versão do helper tem a busca por
 // intervalo (/range, 0.5.0+) — usado pelo dev server para mostrar ou não o

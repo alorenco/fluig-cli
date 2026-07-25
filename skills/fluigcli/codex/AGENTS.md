@@ -49,7 +49,8 @@ Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
 `widget` (new|list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
-`log` (files|tail|download — server.log do servidor via helper; `tail --since 30m`
+`log` (files|tail|download — server.log do servidor via helper; `--grep` repetível
+= OU, filtrado no servidor (2+ padrões exigem helper ≥ 0.8.0); `tail --since 30m`
 ou `--since 18:19 --until 18:30` recorta uma janela de tempo na hora do SERVIDOR
 e exige helper ≥ 0.5.0; o `--json` traz `records[]` já decomposto em
 `{timestamp,level,logger,thread,message,stack}` além do `entries[]` cru;

@@ -179,7 +179,7 @@ func newLogTailCmd(app *App) *cobra.Command {
 		lines         int
 		skip          int
 		level         string
-		grep          string
+		grep          []string
 		since         string
 		until         string
 		follow        bool
@@ -197,8 +197,11 @@ func newLogTailCmd(app *App) *cobra.Command {
 			"Uma ENTRADA é a linha com timestamp + as continuações dela — um stack trace\n" +
 			"inteiro conta como uma entrada só e vem completo.\n\n" +
 			"--level filtra por severidade mínima (--level warn = WARN, ERROR e FATAL);\n" +
-			"--grep filtra por substring (sem diferenciar maiúsculas); --follow segue\n" +
-			"acompanhando o arquivo (como tail -f; Ctrl+C para sair).\n\n" +
+			"--grep filtra por substring (sem diferenciar maiúsculas). Repita o --grep\n" +
+			"para procurar VÁRIOS textos: a entrada passa se casar com qualquer um deles\n" +
+			"(OU). O filtro roda no servidor e exige o fluigcliHelper >= 0.8.0 quando há\n" +
+			"mais de um padrão. --follow segue acompanhando o arquivo (como tail -f;\n" +
+			"Ctrl+C para sair).\n\n" +
 			"--since/--until buscam uma JANELA DE TEMPO em vez das últimas entradas.\n" +
 			"Formatos: duração (30m, 2h), hora de hoje (18:19), data (2026-07-24) ou\n" +
 			"data e hora (2026-07-24T18:19). Os horários são os do LOG, ou seja, a hora\n" +
@@ -247,6 +250,13 @@ func newLogTailCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Vários padrões dependem do servidor: filtrar no cliente perderia
+			// entradas em silêncio quando a resposta vem truncada.
+			if len(grep) > 1 {
+				if err := client.EnsureMultiGrep(ctx); err != nil {
+					return mapFluigError(err)
+				}
+			}
 			if ranged {
 				return runLogRange(ctx, app, p, client, file, since, until, lv, grep)
 			}
@@ -290,7 +300,7 @@ func newLogTailCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVarP(&lines, "lines", "n", 100, "número de entradas (stack trace conta como uma)")
 	cmd.Flags().IntVar(&skip, "skip", 0, "pula as N entradas mais recentes (paginação para trás)")
 	cmd.Flags().StringVar(&level, "level", "", "severidade mínima: trace, debug, info, warn, error ou fatal")
-	cmd.Flags().StringVar(&grep, "grep", "", "filtra por substring (case-insensitive, entrada completa)")
+	cmd.Flags().StringArrayVar(&grep, "grep", nil, "filtra por substring (case-insensitive, entrada completa; repita para OU — exige helper ≥ 0.8.0)")
 	cmd.Flags().StringVar(&since, "since", "", "início da janela: duração (30m), hora de hoje (18:19), data ou data e hora")
 	cmd.Flags().StringVar(&until, "until", "", "fim da janela (mesmos formatos do --since)")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "segue acompanhando o log (como tail -f)")
@@ -305,7 +315,7 @@ func newLogTailCmd(app *App) *cobra.Command {
 
 // runLogRange atende o `log tail --since/--until`: busca a janela fechada pela
 // rota /range do helper (a mesma que o painel do `dev` usa).
-func runLogRange(ctx context.Context, app *App, p *output.Printer, client *fluig.Client, file, since, until, level, grep string) error {
+func runLogRange(ctx context.Context, app *App, p *output.Printer, client *fluig.Client, file, since, until, level string, grep []string) error {
 	now, zoneKnown := serverNow(ctx, client)
 	from, fromUsedNow, err := resolveLogBound("--since", since, false, now)
 	if err != nil {
@@ -425,9 +435,10 @@ var logFollowInterval = 2 * time.Second
 // followParams reúne o que o modo contínuo precisa: de onde ler, o que filtrar,
 // como emitir e quando parar.
 type followParams struct {
-	file        string
-	offset      int64
-	level, grep string
+	file   string
+	offset int64
+	level  string
+	grep   []string
 
 	ndjson      bool          // um JSON por linha em vez de texto
 	untilMatch  string        // encerra na primeira entrada que contém o texto
@@ -677,12 +688,17 @@ func printLogLine(p *output.Printer, line string) {
 // --grep é procurado na entrada inteira (inclusive dentro do stack trace) —
 // mesma semântica dos filtros que o helper aplica no servidor.
 type logEntryFilter struct {
-	minLevel int // -1 = sem filtro
-	grep     string
+	minLevel int      // -1 = sem filtro
+	greps    []string // já em minúsculas; vários = OU (igual ao servidor)
 }
 
-func newLogEntryFilter(level, grep string) *logEntryFilter {
-	f := &logEntryFilter{minLevel: -1, grep: strings.ToLower(grep)}
+func newLogEntryFilter(level string, greps []string) *logEntryFilter {
+	f := &logEntryFilter{minLevel: -1}
+	for _, g := range greps {
+		if g != "" {
+			f.greps = append(f.greps, strings.ToLower(g))
+		}
+	}
 	if level != "" {
 		f.minLevel = fluig.LogLevelRank(level)
 	}
@@ -699,10 +715,16 @@ func (f *logEntryFilter) match(entry string) bool {
 			return false
 		}
 	}
-	if f.grep != "" && !strings.Contains(strings.ToLower(entry), f.grep) {
-		return false
+	if len(f.greps) == 0 {
+		return true
 	}
-	return true
+	lower := strings.ToLower(entry)
+	for _, g := range f.greps {
+		if strings.Contains(lower, g) {
+			return true
+		}
+	}
+	return false
 }
 
 // fmtLogSize formata bytes para leitura humana.

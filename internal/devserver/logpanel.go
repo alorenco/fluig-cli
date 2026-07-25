@@ -254,6 +254,14 @@ func (s *Server) handleLogFilesAPI(w http.ResponseWriter, r *http.Request) {
 	simJSON(w, payload)
 }
 
+// grepList transforma o padrão do painel na lista que o cliente espera.
+func grepList(v string) []string {
+	if v = strings.TrimSpace(v); v == "" {
+		return nil
+	}
+	return []string{v}
+}
+
 // handleLogRangeAPI busca (one-shot) as entradas de um arquivo num intervalo
 // de tempo — o "resgatar um log num momento específico" do painel. From/To já
 // chegam em hora local do servidor (o painel converte conforme o 🕓).
@@ -274,7 +282,9 @@ func (s *Server) handleLogRangeAPI(w http.ResponseWriter, r *http.Request) {
 		From:  strings.TrimSpace(q.Get("from")),
 		To:    strings.TrimSpace(q.Get("to")),
 		Level: strings.TrimSpace(q.Get("level")),
-		Grep:  strings.TrimSpace(q.Get("grep")),
+		// O painel manda um padrão só; o cliente aceita lista (OU) desde o
+		// helper 0.8.0.
+		Grep: grepList(q.Get("grep")),
 	})
 	if err != nil {
 		simError(w, http.StatusBadGateway, err.Error())

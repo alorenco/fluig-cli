@@ -97,10 +97,13 @@ public class LogService {
     /**
      * Últimas entradas do arquivo, varrendo de trás para frente. Uma entrada =
      * linha com timestamp + as continuações dela (stack trace inteiro conta
-     * como UMA entrada). Filtros: nível mínimo e substring (case-insensitive)
-     * aplicados à entrada completa.
+     * como UMA entrada). Filtros: nível mínimo e substrings (case-insensitive)
+     * aplicados à entrada completa. Vários padrões = OU (a entrada passa se
+     * casar com QUALQUER um deles); o filtro roda aqui, no servidor, antes dos
+     * tetos de MAX_ENTRIES/2 MB — filtrar no cliente perderia entradas em
+     * silêncio quando a resposta fosse truncada.
      */
-    public LogTailDto tail(String name, int wantEntries, int skip, String level, String grep) throws IOException {
+    public LogTailDto tail(String name, int wantEntries, int skip, String level, List<String> greps) throws IOException {
         File f = resolve(name);
         if (wantEntries < 1) {
             wantEntries = 1;
@@ -109,7 +112,7 @@ public class LogService {
             wantEntries = MAX_ENTRIES;
         }
         TailCollector collector = new TailCollector(wantEntries, Math.max(0, skip), levelRank(level),
-            grep == null || grep.isEmpty() ? null : grep.toLowerCase(Locale.ROOT));
+            needles(greps));
 
         long size;
         try (RandomAccessFile raf = new RandomAccessFile(f, "r")) {
@@ -199,16 +202,15 @@ public class LogService {
      * O log é (aproximadamente) ordenado no tempo, então a varredura PARA ao
      * passar de `to` — sem ler o arquivo inteiro à toa. from/to no formato
      * "yyyy-MM-dd HH:mm:ss" (ou com 'T'; segundos opcionais); vazios = sem
-     * limite naquele lado. Mesmos filtros e tetos do tail (nível/substring,
+     * limite naquele lado. Mesmos filtros e tetos do tail (nível/substrings,
      * MAX_ENTRIES/2 MB → truncated). Entradas sem timestamp reconhecível não
      * podem ser situadas no tempo e são ignoradas.
      */
-    public LogRangeDto range(String name, String from, String to, String level, String grep) throws IOException {
+    public LogRangeDto range(String name, String from, String to, String level, List<String> greps) throws IOException {
         File f = resolve(name);
         LocalDateTime lo = parseBound(from, false);
         LocalDateTime hi = parseBound(to, true);
-        RangeCollector c = new RangeCollector(lo, hi, levelRank(level),
-            grep == null || grep.isEmpty() ? null : grep.toLowerCase(Locale.ROOT));
+        RangeCollector c = new RangeCollector(lo, hi, levelRank(level), needles(greps));
 
         try (BufferedReader br = new BufferedReader(
                 new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
@@ -219,6 +221,41 @@ public class LogService {
             c.finish();
         }
         return new LogRangeDto(name, from, to, c.entries, c.truncated);
+    }
+
+    /**
+     * Padrões de busca normalizados: em minúsculas, sem vazios e sem repetidos.
+     * Lista vazia (ou nula) = sem filtro de texto.
+     */
+    static List<String> needles(List<String> greps) {
+        List<String> out = new ArrayList<>();
+        if (greps == null) {
+            return out;
+        }
+        for (String g : greps) {
+            if (g == null) {
+                continue;
+            }
+            String v = g.trim().toLowerCase(Locale.ROOT);
+            if (!v.isEmpty() && !out.contains(v)) {
+                out.add(v);
+            }
+        }
+        return out;
+    }
+
+    /** OU entre os padrões: a entrada passa se casar com QUALQUER um. */
+    static boolean matchesAnyNeedle(String entry, List<String> needles) {
+        if (needles == null || needles.isEmpty()) {
+            return true;
+        }
+        String lower = entry.toLowerCase(Locale.ROOT);
+        for (String n : needles) {
+            if (lower.contains(n)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Limite [from|to]: aceita "yyyy-MM-dd['T'| ]HH:mm[:ss]"; sem segundos, o
@@ -266,17 +303,17 @@ public class LogService {
 
         private final int want;
         private final Integer minLevel;
-        private final String needle;
+        private final List<String> needles;
         private int toSkip;
         private long bytes;
         private boolean stopped;
         private final List<String> pending = new ArrayList<>();
 
-        TailCollector(int want, int skip, Integer minLevel, String needle) {
+        TailCollector(int want, int skip, Integer minLevel, List<String> needles) {
             this.want = want;
             this.toSkip = skip;
             this.minLevel = minLevel;
-            this.needle = needle;
+            this.needles = needles;
         }
 
         boolean done() {
@@ -332,7 +369,7 @@ public class LogService {
         }
 
         private boolean matches(String entry) {
-            if (needle != null && !entry.toLowerCase(Locale.ROOT).contains(needle)) {
+            if (!matchesAnyNeedle(entry, needles)) {
                 return false;
             }
             if (minLevel != null) {
@@ -367,17 +404,17 @@ public class LogService {
         private final LocalDateTime lo;
         private final LocalDateTime hi;
         private final Integer minLevel;
-        private final String needle;
+        private final List<String> needles;
         private long bytes;
         private boolean stopped;
         private String head;
         private final List<String> cont = new ArrayList<>();
 
-        RangeCollector(LocalDateTime lo, LocalDateTime hi, Integer minLevel, String needle) {
+        RangeCollector(LocalDateTime lo, LocalDateTime hi, Integer minLevel, List<String> needles) {
             this.lo = lo;
             this.hi = hi;
             this.minLevel = minLevel;
-            this.needle = needle;
+            this.needles = needles;
         }
 
         boolean done() {
@@ -437,7 +474,7 @@ public class LogService {
         }
 
         private boolean matches(String entry) {
-            if (needle != null && !entry.toLowerCase(Locale.ROOT).contains(needle)) {
+            if (!matchesAnyNeedle(entry, needles)) {
                 return false;
             }
             if (minLevel != null) {

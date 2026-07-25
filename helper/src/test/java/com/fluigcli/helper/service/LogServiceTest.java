@@ -10,6 +10,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.After;
@@ -115,11 +117,62 @@ public class LogServiceTest {
             + "2026-07-18 09:00:03,000 ERROR [c] (t) falhou\n"
             + "na widget Y\n";
         write("server.log", content);
-        LogTailDto tail = service.tail("server.log", 100, 0, null, "WIDGET");
+        LogTailDto tail = service.tail("server.log", 100, 0, null, Collections.singletonList("WIDGET"));
         assertEquals(2, tail.getEntries().size());
         assertTrue(tail.getEntries().get(0).contains("Widget X"));
         // O grep casa na continuação: a entrada inteira volta.
         assertTrue(tail.getEntries().get(1).contains("falhou"));
+    }
+
+    // Vários --grep = OU: a entrada passa se casar com QUALQUER um dos padrões.
+    // O filtro roda no SERVIDOR, antes dos tetos de MAX_ENTRIES/2 MB — filtrar
+    // no cliente perderia entradas quando a resposta fosse truncada.
+    @Test
+    public void tailComVariosGrepsCasaQualquerUm() throws Exception {
+        String content = "2026-07-18 09:00:01,000 INFO  [c] (t) Deploy da Widget X\n"
+            + "2026-07-18 09:00:02,000 INFO  [c] (t) outra coisa\n"
+            + "2026-07-18 09:00:03,000 ERROR [c] (t) timeout no dataset\n"
+            + "2026-07-18 09:00:04,000 INFO  [c] (t) nada a ver\n";
+        write("server.log", content);
+
+        List<String> e = service.tail("server.log", 100, 0, null,
+            Arrays.asList("widget", "TIMEOUT")).getEntries();
+        assertEquals(2, e.size());
+        assertTrue(e.get(0).contains("Widget X"));
+        assertTrue(e.get(1).contains("timeout no dataset"));
+
+        // Um padrão só continua funcionando igual (compatibilidade).
+        assertEquals(1, service.tail("server.log", 100, 0, null,
+            Collections.singletonList("widget")).getEntries().size());
+
+        // Padrão que não casa com nada não devolve entrada.
+        assertTrue(service.tail("server.log", 100, 0, null,
+            Collections.singletonList("inexistente")).getEntries().isEmpty());
+    }
+
+    @Test
+    public void rangeComVariosGrepsCasaQualquerUm() throws Exception {
+        String content = "2026-07-18 09:00:01,000 INFO  [c] (t) alfa\n"
+            + "2026-07-18 09:00:02,000 INFO  [c] (t) beta\n"
+            + "2026-07-18 09:00:03,000 INFO  [c] (t) gama\n";
+        write("server.log", content);
+        List<String> e = service.range("server.log", "2026-07-18 09:00:00", "2026-07-18 09:00:59",
+            null, Arrays.asList("alfa", "gama")).getEntries();
+        assertEquals(2, e.size());
+        assertTrue(e.get(0).contains("alfa"));
+        assertTrue(e.get(1).contains("gama"));
+    }
+
+    // Normalização dos padrões: minúsculas, sem vazios e sem repetidos. Lista
+    // vazia = sem filtro (não é "não casa nada").
+    @Test
+    public void needlesNormalizaPadroes() {
+        assertEquals(Arrays.asList("abc"), LogService.needles(Arrays.asList("ABC", " abc ", "")));
+        assertTrue(LogService.needles(null).isEmpty());
+        assertTrue(LogService.needles(Arrays.asList("", "   ")).isEmpty());
+        assertTrue(LogService.matchesAnyNeedle("qualquer coisa", Collections.<String>emptyList()));
+        assertFalse(LogService.matchesAnyNeedle("qualquer coisa", Collections.singletonList("nada")));
+        assertTrue(LogService.matchesAnyNeedle("Tem WIDGET aqui", Collections.singletonList("widget")));
     }
 
     @Test

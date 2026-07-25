@@ -118,7 +118,7 @@ func TestTailServerLog(t *testing.T) {
 	stub := &logStub{version: "0.3.0", hasLogAPI: true}
 	c := helperClient(t, stub.server(t).URL)
 	tail, err := c.TailServerLog(context.Background(), ServerLogTailOptions{
-		Lines: 50, Skip: 10, Level: "warn", Grep: "widget",
+		Lines: 50, Skip: 10, Level: "warn", Grep: []string{"widget"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestTailServerLog(t *testing.T) {
 func TestTailServerLogMultilinha(t *testing.T) {
 	stub := &logStub{version: "0.3.0", hasLogAPI: true, tailFixture: "helper_log_tail_multiline.json"}
 	c := helperClient(t, stub.server(t).URL)
-	tail, err := c.TailServerLog(context.Background(), ServerLogTailOptions{Lines: 1, Grep: "Dataset query:"})
+	tail, err := c.TailServerLog(context.Background(), ServerLogTailOptions{Lines: 1, Grep: []string{"Dataset query:"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestRangeServerLog(t *testing.T) {
 	stub := &logStub{version: "0.5.0", hasLogAPI: true, hasRangeAPI: true}
 	c := helperClient(t, stub.server(t).URL)
 	res, err := c.RangeServerLog(context.Background(), ServerLogRangeOptions{
-		From: "2026-07-18T09:00:00", To: "2026-07-18T09:30:00", Level: "info", Grep: "x",
+		From: "2026-07-18T09:00:00", To: "2026-07-18T09:30:00", Level: "info", Grep: []string{"x"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -255,6 +255,57 @@ func TestHelperHasLogAPI(t *testing.T) {
 	for version, want := range cases {
 		if got := helperHasLogAPI(version); got != want {
 			t.Errorf("helperHasLogAPI(%q) = %v, quer %v", version, got, want)
+		}
+	}
+}
+
+// Vários --grep viajam como `grep` REPETIDO na query (OU no servidor) — não
+// concatenados nem filtrados no cliente (ROADMAP §2.10-E-2).
+func TestTailServerLogVariosGreps(t *testing.T) {
+	stub := &logStub{version: "0.8.0", hasLogAPI: true}
+	c := helperClient(t, stub.server(t).URL)
+	if _, err := c.TailServerLog(context.Background(), ServerLogTailOptions{
+		Grep: []string{"widget", "timeout", ""}, // o vazio é descartado
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := stub.tailQuery["grep"]
+	if len(got) != 2 || got[0] != "widget" || got[1] != "timeout" {
+		t.Errorf("query grep=%v, quer [widget timeout]", got)
+	}
+}
+
+func TestRangeServerLogVariosGreps(t *testing.T) {
+	stub := &logStub{version: "0.8.0", hasLogAPI: true, hasRangeAPI: true}
+	c := helperClient(t, stub.server(t).URL)
+	if _, err := c.RangeServerLog(context.Background(), ServerLogRangeOptions{
+		From: "2026-07-24T18:19", Grep: []string{"a", "b"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := stub.rangeQuery["grep"]; len(got) != 2 {
+		t.Errorf("range query grep=%v, quer 2 valores", got)
+	}
+}
+
+// Helper antigo lê UM grep só: mandar dois daria filtro errado em silêncio.
+// Por isso o OU é recusado com ErrHelperOutdated (exit 7), não degradado.
+func TestEnsureMultiGrep(t *testing.T) {
+	casos := map[string]bool{"0.8.0": true, "0.9.1": true, "1.0.0": true, "0.7.0": false, "0.5.0": false}
+	for versao, aceita := range casos {
+		stub := &logStub{version: versao, hasLogAPI: true}
+		c := helperClient(t, stub.server(t).URL)
+		err := c.EnsureMultiGrep(context.Background())
+		if aceita && err != nil {
+			t.Errorf("helper %s deveria aceitar vários greps: %v", versao, err)
+		}
+		if !aceita {
+			if !errors.Is(err, ErrHelperOutdated) {
+				t.Errorf("helper %s: erro=%v, quer ErrHelperOutdated", versao, err)
+			}
+			if err != nil && !strings.Contains(err.Error(), versao) {
+				t.Errorf("a mensagem deveria citar a versão instalada: %v", err)
+			}
 		}
 	}
 }
