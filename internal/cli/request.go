@@ -117,6 +117,87 @@ func reportMoveResult(p *output.Printer, res *fluig.MoveResult, successMsg strin
 	return nil
 }
 
+// Veredictos da pós-checagem de timeout do `request move`. São valores do
+// contrato --json (campo `outcome`).
+const (
+	moveOutcomeMoved    = "moved"     // a tarefa alvo não está mais em aberto
+	moveOutcomeNotMoved = "not_moved" // a tarefa alvo continua em aberto
+	moveOutcomeUnknown  = "unknown"   // não foi possível reler o estado
+)
+
+// reportMoveTimeout trata o timeout do move: o cliente desistiu de esperar, mas
+// o servidor pode ter concluído a movimentação (visto em produção — o move
+// respondeu depois de ~80 s e movimentou). Repetir às cegas movimenta duas
+// vezes, então a CLI relê o estado e diz o que encontrou. O exit segue 5.
+func reportMoveTimeout(ctx context.Context, app *App, p *output.Printer, client *fluig.Client, id, movement int, cause error) error {
+	p.Warnf("o move da solicitação %d excedeu o tempo limite de %s — consultando o estado atual", id, app.Timeout)
+
+	outcome, detail := moveOutcomeUnknown, ""
+	var steps []fluig.RequestStep
+	req, gerr := client.GetRequest(ctx, id)
+	switch {
+	case gerr != nil:
+		detail = fmt.Sprintf("a releitura do estado também falhou (%s)", output.AsError(mapFluigError(gerr)).Message)
+	case stepWithMovement(req.CurrentSteps, movement) != nil:
+		outcome = moveOutcomeNotMoved
+		steps = req.CurrentSteps
+		detail = fmt.Sprintf("a tarefa do movimento %d continua em aberto (status %s)", movement, req.Status)
+	default:
+		outcome = moveOutcomeMoved
+		steps = req.CurrentSteps
+		detail = fmt.Sprintf("a tarefa do movimento %d não está mais em aberto (status %s)", movement, req.Status)
+		if len(req.CurrentSteps) > 0 {
+			detail += fmt.Sprintf(", agora em %q (movimento %d)", req.CurrentSteps[0].StateName, req.CurrentSteps[0].Movement)
+		}
+	}
+
+	// Cada veredicto tem uma orientação diferente: o erro do "moved" avisa para
+	// NÃO repetir, e é o caso perigoso do relato original.
+	var advice string
+	switch outcome {
+	case moveOutcomeMoved:
+		advice = "a movimentação provavelmente foi concluída no servidor — NÃO repita o comando"
+	case moveOutcomeNotMoved:
+		advice = fmt.Sprintf("a movimentação provavelmente não aconteceu — repita com um tempo limite maior (--timeout %s)", app.Timeout*2)
+	default:
+		advice = fmt.Sprintf("estado indeterminado — confira com: fluigcli request show %d", id)
+	}
+	p.Infof("%s: %s.", detail, advice)
+
+	msg := fmt.Sprintf("o move da solicitação %d excedeu o tempo limite de %s; %s (%s)", id, app.Timeout, detail, advice)
+	p.FailData(map[string]any{
+		"requestId": id, "movement": movement,
+		"outcome": outcome, "currentSteps": steps,
+	}, output.CodeTimeout, msg)
+	return output.Timeoutf("%s", msg).WithCause(cause)
+}
+
+// reportStartTimeout trata o timeout do start. Aqui não dá para conferir
+// sozinho: o número da solicitação nasce na resposta que não chegou. Então a
+// CLI entrega o comando que responde "criou ou não" em vez de arriscar um
+// veredicto — e avisa para não repetir às cegas.
+func reportStartTimeout(app *App, p *output.Printer, processID, login string, cause error) error {
+	check := fmt.Sprintf("fluigcli request list --process %s --requester %s --status open", processID, login)
+	p.Warnf("o start do processo %s excedeu o tempo limite de %s", processID, app.Timeout)
+	p.Infof("A solicitação pode ter sido criada no servidor. Confira antes de repetir: %s", check)
+	msg := fmt.Sprintf("o start do processo %s excedeu o tempo limite de %s; a solicitação pode ter sido criada — confira com: %s",
+		processID, app.Timeout, check)
+	p.FailData(map[string]any{
+		"processId": processID, "outcome": moveOutcomeUnknown, "checkCommand": check,
+	}, output.CodeTimeout, msg)
+	return output.Timeoutf("%s", msg).WithCause(cause)
+}
+
+// stepWithMovement acha o passo corrente de um movimento (nil se não houver).
+func stepWithMovement(steps []fluig.RequestStep, movement int) *fluig.RequestStep {
+	for i := range steps {
+		if steps[i].Movement == movement {
+			return &steps[i]
+		}
+	}
+	return nil
+}
+
 // --- request start ---
 
 func newRequestStartCmd(app *App) *cobra.Command {
@@ -147,7 +228,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
-			_, client, err := app.connectWrite(ctx, passwordStdin, "iniciar uma solicitação")
+			server, client, err := app.connectWrite(ctx, passwordStdin, "iniciar uma solicitação")
 			if err != nil {
 				return err
 			}
@@ -176,7 +257,10 @@ func newRequestStartCmd(app *App) *cobra.Command {
 				}
 				id, _, serr := client.StartRequestWithAttachments(ctx, args[0], opts, atts)
 				if serr != nil {
-					return mapFluigError(serr)
+					if isTimeoutErr(serr) {
+						return reportStartTimeout(app, p, args[0], server.Username, serr)
+					}
+					return app.mapErr(serr)
 				}
 				detail := fmt.Sprintf("%d anexo(s)", len(atts))
 				if noSend {
@@ -189,7 +273,10 @@ func newRequestStartCmd(app *App) *cobra.Command {
 
 			res, err := client.StartRequest(ctx, args[0], opts)
 			if err != nil {
-				return mapFluigError(err)
+				if isTimeoutErr(err) {
+					return reportStartTimeout(app, p, args[0], server.Username, err)
+				}
+				return app.mapErr(err)
 			}
 			return reportMoveResult(p, res, fmt.Sprintf("solicitação %d criada (%s → etapa %q)",
 				res.RequestID, res.ProcessID, res.NextStateName))
@@ -268,7 +355,10 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 				FormFields:       formFields,
 			})
 			if err != nil {
-				return mapFluigError(err)
+				if isTimeoutErr(err) {
+					return reportMoveTimeout(ctx, app, p, client, id, seq, err)
+				}
+				return app.mapErr(err)
 			}
 			// O 200 real pode vir com nextStateName vazio (validado na homolog).
 			dest := fmt.Sprintf("etapa %d", res.NextState)

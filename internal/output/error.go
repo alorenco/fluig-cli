@@ -32,6 +32,13 @@ const (
 	// CodeAuditFailed marca auditoria reprovada por --fail-on: não é um erro
 	// de execução (a auditoria rodou), é o veredito — o exit é o genérico 1.
 	CodeAuditFailed = "AUDIT_FAILED"
+	// CodeTimeout marca requisição que estourou o tempo limite do CLIENTE. O
+	// exit é o 5 (como qualquer falha de servidor), mas o código é próprio
+	// porque o caso é diferente: o resultado da operação é DESCONHECIDO. Numa
+	// operação de escrita, o servidor pode ter concluído depois que a CLI
+	// desistiu de esperar. Quem automatiza deve VERIFICAR o estado antes de
+	// repetir — repetir às cegas duplica a escrita.
+	CodeTimeout = "TIMEOUT"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -80,6 +87,13 @@ func NotFoundf(format string, args ...any) *Error {
 
 func ServerErrorf(format string, args ...any) *Error {
 	return newError(CodeServerError, ExitServer, format, args...)
+}
+
+// Timeoutf sinaliza tempo limite do cliente estourado: exit 5 (como as demais
+// falhas de servidor), com código próprio para quem automatiza distinguir o
+// caso do resultado desconhecido.
+func Timeoutf(format string, args ...any) *Error {
+	return newError(CodeTimeout, ExitServer, format, args...)
 }
 
 func Partialf(format string, args ...any) *Error {

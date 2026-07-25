@@ -16,6 +16,15 @@ Exit codes: `0` ok · `2` uso · `3` auth · `4` não encontrado · `5` erro do
 servidor · `6` falha parcial (ver `data`) · `7` falta o componente auxiliar (fluigcliHelper)
 (rode `fluigcli server install-helper <name>`).
 
+⚠️ Exit `5` com `error.code == "TIMEOUT"` = quem desistiu foi o CLIENTE; o
+resultado da operação é **desconhecido** e o servidor pode ter concluído.
+**NUNCA repita uma escrita às cegas nesse caso** (repetir um `request move`
+movimenta duas vezes). O `move` já relê o estado e devolve `data.outcome`:
+`moved` (não repita) · `not_moved` (pode repetir com `--timeout` maior) ·
+`unknown` (verifique com `request show`). O `start` devolve
+`data.checkCommand`. Leitura pura pode repetir sem medo. A escrita usa piso de
+2m de tempo limite; `--timeout` sempre vence.
+
 Envelope (stdout recebe só isto; logs vão para stderr):
 `{ "ok": bool, "command": str, "server": str, "data": any, "error": {"code","message"}|null }`
 Ramifique por exit code e por `error.code` (estável, inglês), nunca por `message`.

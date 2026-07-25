@@ -9,8 +9,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/output"
@@ -28,6 +30,9 @@ type requestStub struct {
 	needsAssignee  bool   // start responde 412 com possibleAssignees
 	soapStartBody  string // envelope recebido no startProcess SOAP
 	assigneesQuery url.Values
+	// writeDelay atrasa move/start para o cliente estourar o --timeout (o
+	// servidor real continua processando depois disso — ROADMAP §2.10-B).
+	writeDelay time.Duration
 }
 
 func (s *requestStub) server(t *testing.T) *httptest.Server {
@@ -77,6 +82,9 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, "{Erro ao salvar dados de formulário: \n\n<b style='color:red'>Anexe a foto do Hodômetro (KM) antes de prosseguir!</b>}")
 			return
 		}
+		if s.writeDelay > 0 {
+			time.Sleep(s.writeDelay)
+		}
 		json.NewDecoder(r.Body).Decode(&s.startBody)
 		if s.needsAssignee {
 			w.WriteHeader(http.StatusPreconditionFailed)
@@ -87,6 +95,9 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, moveResponse)
 	})
 	mux.HandleFunc("/process-management/api/v2/requests/", func(w http.ResponseWriter, r *http.Request) {
+		if s.writeDelay > 0 && strings.HasSuffix(r.URL.Path, "/move") {
+			time.Sleep(s.writeDelay)
+		}
 		switch r.URL.Path {
 		case "/process-management/api/v2/requests/196526":
 			w.Write(readTD("rest_request_show.json"))
@@ -372,6 +383,126 @@ func TestRequestMove(t *testing.T) {
 	if ff["aprNivel1"] != "aprovado" {
 		t.Errorf("formFields não repassados: %+v", stub.moveBody)
 	}
+}
+
+// Timeout no move (ROADMAP §2.10-B): o cliente desiste, mas o servidor pode ter
+// concluído. A CLI relê o estado e dá o veredicto, sempre com exit 5 e código
+// TIMEOUT. O --timeout explícito também prova que o piso de escrita não o
+// sobrepõe (senão o teste esperaria 2 min).
+func TestRequestMoveTimeout(t *testing.T) {
+	cases := []struct {
+		nome        string
+		id          string
+		movement    string
+		wantOutcome string
+		wantNaSaida []string
+	}{
+		{
+			nome: "tarefa alvo continua em aberto → not_moved",
+			id:   "196526", movement: "4", wantOutcome: "not_moved",
+			wantNaSaida: []string{"continua em aberto", "--timeout"},
+		},
+		{
+			nome: "tarefa alvo não está mais em aberto → moved",
+			id:   "196526", movement: "99", wantOutcome: "moved",
+			wantNaSaida: []string{"não está mais em aberto", "NÃO repita"},
+		},
+		{
+			nome: "releitura falha → unknown",
+			id:   "999999", movement: "7", wantOutcome: "unknown",
+			wantNaSaida: []string{"request show 999999"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			stub := &requestStub{writeDelay: 300 * time.Millisecond}
+			proj := requestProject(t, stub.server(t).URL)
+			code, stdout := runMain(t, "request", "move", tc.id, "--movement", tc.movement,
+				"--timeout", "80ms", "--json", "--project", proj, "--server", "homolog")
+			if code != output.ExitServer {
+				t.Fatalf("exit=%d, quer %d (timeout é erro de servidor)\n%s", code, output.ExitServer, stdout)
+			}
+			var env output.Envelope
+			if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+				t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+			}
+			if env.OK || env.Error == nil || env.Error.Code != output.CodeTimeout {
+				t.Fatalf("envelope deveria falhar com %s: %+v", output.CodeTimeout, env)
+			}
+			data, _ := env.Data.(map[string]any)
+			if data == nil {
+				t.Fatalf("o envelope de timeout precisa levar o estado consultado: %s", stdout)
+			}
+			if data["outcome"] != tc.wantOutcome {
+				t.Errorf("outcome=%v, quer %q", data["outcome"], tc.wantOutcome)
+			}
+			if data["requestId"].(float64) != float64(mustAtoi(t, tc.id)) {
+				t.Errorf("requestId no envelope: %v", data["requestId"])
+			}
+			for _, want := range tc.wantNaSaida {
+				if !strings.Contains(env.Error.Message, want) {
+					t.Errorf("mensagem sem %q: %s", want, env.Error.Message)
+				}
+			}
+		})
+	}
+}
+
+// Modo humano do timeout do move: o veredicto e a orientação saem legíveis,
+// sem envelope.
+func TestRequestMoveTimeoutModoHumano(t *testing.T) {
+	stub := &requestStub{writeDelay: 300 * time.Millisecond}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "move", "196526", "--movement", "4",
+		"--timeout", "80ms", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	for _, want := range []string{"movimento 4 continua em aberto", "repita com um tempo limite maior"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("saída humana sem %q:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, `{"ok"`) {
+		t.Errorf("modo humano não deve emitir envelope:\n%s", stdout)
+	}
+}
+
+// Timeout no start: sem número de solicitação para conferir, a CLI entrega o
+// comando de verificação em vez de arriscar um veredicto.
+func TestRequestStartTimeout(t *testing.T) {
+	stub := &requestStub{writeDelay: 300 * time.Millisecond}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "start", "contratos_taxa_limpeza",
+		"--field", "nome=teste", "--timeout", "80ms", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil || env.Error.Code != output.CodeTimeout {
+		t.Fatalf("esperava %s: %+v", output.CodeTimeout, env)
+	}
+	data, _ := env.Data.(map[string]any)
+	check, _ := data["checkCommand"].(string)
+	// A dica precisa citar flags que existem de verdade (é --process, não
+	// --process-id).
+	for _, want := range []string{"request list", "--process contratos_taxa_limpeza", "--requester u", "--status open"} {
+		if !strings.Contains(check, want) {
+			t.Errorf("checkCommand sem %q: %q", want, check)
+		}
+	}
+}
+
+func mustAtoi(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
 
 // assignees: tabela com os possíveis responsáveis.

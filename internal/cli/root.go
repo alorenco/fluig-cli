@@ -3,7 +3,9 @@
 package cli
 
 import (
+	"context"
 	"errors"
+	"net"
 	"os"
 	"runtime"
 	"strings"
@@ -49,6 +51,28 @@ type App struct {
 	ranCommand   bool
 	projectRoot  string
 	sessionCache *config.DiskSessionCache
+
+	// timeoutExplicit marca que o tempo limite veio do usuário (flag ou env).
+	// Nesse caso a CLI nunca o sobrepõe — ver raiseWriteTimeout.
+	timeoutExplicit bool
+}
+
+// writeTimeoutFloor é o piso do tempo limite das operações que ESCREVEM no
+// servidor. Os 30 s do default são curtos para escrita: em produção, um
+// `request move` que salvou um card de 150 linhas filhas levou ~80 s, estourou
+// o timeout do cliente e a movimentação prosseguiu no servidor — o pior
+// cenário para quem automatiza (exit de erro com a escrita feita). Leitura
+// continua nos 30 s.
+const writeTimeoutFloor = 2 * time.Minute
+
+// raiseWriteTimeout eleva o tempo limite ao piso de escrita. Não mexe em nada
+// se o usuário definiu o valor (--timeout/FLUIGCLI_TIMEOUT) ou se o valor em
+// vigor já é maior.
+func (a *App) raiseWriteTimeout() {
+	if a.timeoutExplicit || a.Timeout >= writeTimeoutFloor {
+		return
+	}
+	a.Timeout = writeTimeoutFloor
 }
 
 // printerFor inicializa o Printer do comando corrente (chamado no início de cada RunE).
@@ -119,6 +143,31 @@ func (a *App) diskSessionCache() *config.DiskSessionCache {
 	return a.sessionCache
 }
 
+// isTimeoutErr informa se o erro é tempo limite do CLIENTE (o `--timeout`), não
+// uma resposta do servidor. Cobre o deadline do contexto e o timeout do
+// http.Client, que chega embrulhado num *url.Error com Timeout() == true.
+func isTimeoutErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+// mapErr é o mapFluigError das operações que sabem o tempo limite em vigor: no
+// timeout, a mensagem cita o valor real em vez de falar só da flag.
+func (a *App) mapErr(err error) error {
+	if isTimeoutErr(err) {
+		return output.Timeoutf("a requisição excedeu o tempo limite de %s (--timeout). "+
+			"A operação pode ter sido concluída no servidor — verifique o estado antes de repetir.",
+			a.Timeout).WithCause(err)
+	}
+	return mapFluigError(err)
+}
+
 // mapFluigError traduz erros do pacote fluig para erros tipados da CLI.
 func mapFluigError(err error) error {
 	if err == nil {
@@ -127,6 +176,11 @@ func mapFluigError(err error) error {
 	var cliErr *output.Error
 	if errors.As(err, &cliErr) {
 		return err
+	}
+	if isTimeoutErr(err) {
+		return output.Timeoutf("a requisição excedeu o tempo limite do cliente (--timeout, ex.: --timeout 3m). " +
+			"Se o comando escreve no servidor, a operação pode ter sido concluída mesmo assim — " +
+			"verifique o estado antes de repetir.").WithCause(err)
 	}
 	if errors.Is(err, fluig.ErrAuthFailed) {
 		return output.AuthFailedf("%s", err.Error()).WithCause(err)
@@ -180,7 +234,7 @@ func newRootCmd(app *App) *cobra.Command {
 	pf.BoolVarP(&app.Yes, "yes", "y", false, "assume \"sim\" em confirmações")
 	pf.BoolVar(&app.NonInteractive, "non-interactive", false, "falha se faltarem argumentos, em vez de perguntar (env: FLUIGCLI_NON_INTERACTIVE=1)")
 	pf.BoolVarP(&app.Verbose, "verbose", "v", false, "loga as requisições HTTP no stderr")
-	pf.DurationVar(&app.Timeout, "timeout", 30*time.Second, "timeout por requisição (env: FLUIGCLI_TIMEOUT)")
+	pf.DurationVar(&app.Timeout, "timeout", 30*time.Second, "timeout por requisição; escrita usa no mínimo 2m sem esta flag (env: FLUIGCLI_TIMEOUT)")
 	pf.BoolVar(&app.NoSessionCache, "no-session-cache", false, "não reaproveita a sessão entre execuções (env: FLUIGCLI_NO_SESSION_CACHE=1)")
 	// A flag --version é definida aqui (em pt-BR) para o cobra não criar a dele.
 	root.Flags().Bool("version", false, "mostra a versão do fluigcli")
@@ -245,6 +299,7 @@ func (a *App) applyEnvDefaults(cmd *cobra.Command) error {
 			a.NoSessionCache = true
 		}
 	}
+	a.timeoutExplicit = flags.Changed("timeout")
 	if !flags.Changed("timeout") {
 		if v := os.Getenv(envTimeout); v != "" {
 			d, err := time.ParseDuration(v)
@@ -252,6 +307,7 @@ func (a *App) applyEnvDefaults(cmd *cobra.Command) error {
 				return output.Usagef("valor inválido em %s: %q (use formatos como 30s, 1m)", envTimeout, v)
 			}
 			a.Timeout = d
+			a.timeoutExplicit = true
 		}
 	}
 	return nil

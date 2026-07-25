@@ -141,6 +141,33 @@ fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
 outro usuário responde **404**. Neste caso, o servidor a esconde. Este é o
 comportamento real.
 
+### Tempo limite no move e no start
+
+O Fluig continua processando depois que a CLI para de esperar. Uma movimentação
+que salva um formulário grande passa de um minuto. Em produção, um `move` levou
+~80 s, estourou o tempo limite do cliente e **a movimentação aconteceu**. Por
+isso:
+
+- As operações de escrita usam **no mínimo 2 minutos** de tempo limite. O
+  `--timeout` que você informar sempre vence, para mais ou para menos.
+- No tempo limite estourado, o comando sai com **exit 5** e
+  `error.code = "TIMEOUT"`. O código é próprio porque o resultado é
+  **desconhecido**.
+- O `move` **relê o estado da solicitação** e diz o que encontrou. O campo
+  `data.outcome` do `--json` traz o veredicto: `moved` (a tarefa alvo saiu de
+  aberto — não repita), `not_moved` (a tarefa continua aberta — repita com
+  `--timeout` maior) ou `unknown` (a releitura também falhou).
+- O `start` não tem número de solicitação para conferir. Ele devolve o comando
+  de verificação em `data.checkCommand`.
+
+⚠️ **Nunca repita uma escrita às cegas depois de um TIMEOUT.** Verifique o
+estado primeiro. Repetir um `move` que já passou movimenta a solicitação duas
+vezes.
+
+```sh
+fluigcli request move 196542 --movement 15 --timeout 5m
+```
+
 ## `fluigcli request assignees <número> [--target-state N]`
 
 Este comando lista quem pode assumir a próxima atividade. O diagrama pode ter

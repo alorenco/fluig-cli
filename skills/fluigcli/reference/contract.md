@@ -48,6 +48,7 @@ Regras para o agente:
 | 3 | `ExitAuth` | `AUTH_FAILED` | login/sessão falhou |
 | 4 | `ExitNotFound` | `NOT_FOUND` | dataset/form/processo/servidor inexistente |
 | 5 | `ExitServer` | `SERVER_ERROR` | o servidor Fluig retornou erro |
+| 5 | `ExitServer` | `TIMEOUT` | a requisição estourou o tempo limite do CLIENTE — **resultado desconhecido** (ver abaixo) |
 | 6 | `ExitPartial` | `PARTIAL_FAILURE` | operação em lote com alguns itens falhos |
 | 7 | `ExitMissingHelper` | `HELPER_NOT_INSTALLED` | falta o componente auxiliar (fluigcliHelper) no servidor |
 
@@ -73,7 +74,32 @@ esac
   identificador; NÃO repita** o mesmo comando (o retry dá o mesmo 4).
 - **exit 5 (servidor)**: erro do Fluig — pode ser **transitório**; um retry com
   pequeno backoff (1–2 tentativas) é razoável. Persistiu? Leia
-  `error.message`.
+  `error.message`. **Confira o `error.code` antes de repetir**: com `TIMEOUT` a
+  regra é outra (abaixo).
+- **exit 5 com `error.code == "TIMEOUT"`**: quem desistiu foi o CLIENTE, não o
+  servidor. **O resultado é desconhecido.** O Fluig continua processando depois
+  que a CLI para de esperar — em produção, um `request move` estourou o tempo
+  limite e a movimentação foi concluída no servidor. **NUNCA repita uma escrita
+  às cegas depois de um TIMEOUT** (repetir movimenta duas vezes). Faça assim:
+  1. Leia `data.outcome` quando existir. O `request move` já relê o estado
+     sozinho: `moved` = a tarefa alvo saiu de aberto (**não repita**),
+     `not_moved` = a tarefa continua aberta (pode repetir com `--timeout`
+     maior), `unknown` = a releitura falhou (verifique você).
+  2. Sem `outcome`, verifique o estado antes de agir. O `request start` devolve
+     `data.checkCommand` — o comando pronto que responde se a solicitação
+     nasceu.
+  3. Em leitura pura (`list`, `show`, `query`), repetir é seguro.
+
+  ```sh
+  out=$(fluigcli request move 230005 --movement 15 --json); rc=$?
+  if [ "$rc" -eq 5 ] && [ "$(echo "$out" | jq -r '.error.code')" = "TIMEOUT" ]; then
+    case "$(echo "$out" | jq -r '.data.outcome')" in
+      moved)     echo "já movimentou — seguir em frente" ;;
+      not_moved) fluigcli request move 230005 --movement 15 --timeout 5m --json ;;
+      *)         fluigcli request show 230005 --json ;;   # decidir pelo estado
+    esac
+  fi
+  ```
 - **exit 6 (lote parcial)**: alguns itens falharam. `data.results[]` traz
   `{id, action, success, error}` — **reprocesse só os que falharam**:
 
@@ -97,7 +123,7 @@ esac
 | `--project <dir>` | `FLUIGCLI_PROJECT` | raiz do projeto (default: descoberta automática) |
 | `--password-stdin` | — | lê a senha do stdin (comandos de auth) |
 | — | `FLUIGCLI_PASSWORD` | senha do servidor selecionado |
-| `--timeout <dur>` | `FLUIGCLI_TIMEOUT` | timeout por requisição (ex.: `30s`, `1m`) |
+| `--timeout <dur>` | `FLUIGCLI_TIMEOUT` | timeout por requisição (ex.: `30s`, `1m`). Default 30s na leitura e **piso de 2m nas operações de escrita**; o valor informado aqui sempre vence |
 | `--no-session-cache` | `FLUIGCLI_NO_SESSION_CACHE=1` | não reaproveita a sessão entre execuções |
 | `--verbose` | — | loga as requisições HTTP no stderr (senha/cookies mascarados) |
 | `--yes` / `-y` | — | assume "sim" em confirmações |

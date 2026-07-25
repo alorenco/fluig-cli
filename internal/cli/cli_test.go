@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/output"
@@ -45,6 +46,33 @@ func runMain(t *testing.T, args ...string) (int, string) {
 
 	w.Close()
 	return code, <-outCh
+}
+
+// Piso de tempo limite da escrita (ROADMAP §2.10-B): os 30 s do default são
+// curtos para salvar card grande, mas a escolha do usuário sempre ganha.
+func TestRaiseWriteTimeout(t *testing.T) {
+	cases := []struct {
+		nome   string
+		app    App
+		quer   time.Duration
+		porQue string
+	}{
+		{"default sobe ao piso", App{Timeout: 30 * time.Second}, writeTimeoutFloor,
+			"escrita com o default precisa do piso"},
+		{"valor do usuário é respeitado", App{Timeout: 5 * time.Second, timeoutExplicit: true}, 5 * time.Second,
+			"--timeout/env explícito não pode ser sobreposto, nem para baixo"},
+		{"valor maior que o piso não baixa", App{Timeout: 10 * time.Minute}, 10 * time.Minute,
+			"o piso é mínimo, não teto"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			app := tc.app
+			app.raiseWriteTimeout()
+			if app.Timeout != tc.quer {
+				t.Errorf("Timeout=%s, quer %s (%s)", app.Timeout, tc.quer, tc.porQue)
+			}
+		})
+	}
 }
 
 func TestVersionJSONEnvelope(t *testing.T) {

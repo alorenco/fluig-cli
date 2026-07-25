@@ -108,7 +108,8 @@ func (a *App) connect(ctx context.Context, passwordStdin bool) (*config.Server, 
 }
 
 // connectWrite é o connect das operações que alteram o servidor: em servidor
-// marcado como produção, exige confirmação (ou --yes) antes de autenticar.
+// marcado como produção, exige confirmação (ou --yes) antes de autenticar. Aqui
+// também vale o piso de tempo limite da escrita (ver raiseWriteTimeout).
 func (a *App) connectWrite(ctx context.Context, passwordStdin bool, action string) (*config.Server, *fluig.Client, error) {
 	server, err := a.resolveServer("")
 	if err != nil {
@@ -118,6 +119,7 @@ func (a *App) connectWrite(ctx context.Context, passwordStdin bool, action strin
 	if err := a.guardProdWrite(server, action); err != nil {
 		return nil, nil, err
 	}
+	a.raiseWriteTimeout()
 	client, err := a.authenticate(ctx, server, passwordStdin)
 	if err != nil {
 		return nil, nil, err
