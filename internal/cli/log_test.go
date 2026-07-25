@@ -5,10 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/output"
@@ -183,6 +185,160 @@ func TestLogFilesSemHelper(t *testing.T) {
 	code, stdout := runMain(t, "log", "files", "--json", "--project", proj)
 	if code != output.ExitMissingHelper {
 		t.Fatalf("exit=%d stdout=%s, quer %d", code, stdout, output.ExitMissingHelper)
+	}
+}
+
+// --- log tail --since/--until (ROADMAP §2.10-E-1) ---
+
+// logRangeStub simula o helper 0.5.0 (rota /range) informando o fuso do
+// servidor (0.4.0+), como o painel do dev já consome.
+func logRangeStub(t *testing.T, gotQuery *url.Values) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.5.0","zoneId":"America/Sao_Paulo","zoneOffsetMinutes":-180}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/range", func(w http.ResponseWriter, r *http.Request) {
+		*gotQuery = r.URL.Query()
+		io.WriteString(w, `{"file":"server.log","from":"`+r.URL.Query().Get("from")+`","to":"`+r.URL.Query().Get("to")+`",`+
+			`"entries":["2026-07-24 18:20:11,004 ERROR [stderr] (default task-1) falha na integração"],"truncated":false}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// A tradução dos limites é lógica pura: hora do SERVIDOR, formato da API.
+func TestResolveLogBound(t *testing.T) {
+	// "Agora" no fuso do servidor (América/São Paulo), não no desta máquina.
+	zone := time.FixedZone("America/Sao_Paulo", -3*3600)
+	now := time.Date(2026, 7, 25, 9, 30, 0, 0, zone)
+
+	cases := []struct {
+		nome        string
+		valor       string
+		end         bool
+		quer        string
+		querUsouNow bool
+	}{
+		{"vazio não limita", "", false, "", false},
+		{"duração volta no tempo", "30m", false, "2026-07-25T09:00:00", true},
+		{"duração composta", "1h30m", false, "2026-07-25T08:00:00", true},
+		{"hora de hoje usa o dia do servidor", "18:19", false, "2026-07-25T18:19", true},
+		{"hora com segundos", "18:19:05", false, "2026-07-25T18:19:05", true},
+		{"data sem hora começa 00:00", "2026-07-24", false, "2026-07-24T00:00", false},
+		{"data sem hora termina no fim do dia", "2026-07-24", true, "2026-07-24T23:59", false},
+		{"data e hora com T", "2026-07-24T18:19", false, "2026-07-24T18:19", false},
+		{"data e hora com espaço", "2026-07-24 18:19:30", false, "2026-07-24T18:19:30", false},
+		// Ambiguidade resolvida a favor da duração: "18h" são 18 HORAS ATRÁS,
+		// não 18:00. Quem quer a hora do dia escreve "18:00".
+		{"18h é duração, não hora do dia", "18h", false, "2026-07-24T15:30:00", true},
+		{"18:00 é hora do dia", "18:00", false, "2026-07-25T18:00", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			got, usouNow, err := resolveLogBound("--since", tc.valor, tc.end, now)
+			if err != nil {
+				t.Fatalf("erro inesperado: %v", err)
+			}
+			if got != tc.quer {
+				t.Errorf("resolveu %q, quer %q", got, tc.quer)
+			}
+			if usouNow != tc.querUsouNow {
+				t.Errorf("usouNow=%v, quer %v (decide o aviso de fuso)", usouNow, tc.querUsouNow)
+			}
+		})
+	}
+
+	for _, ruim := range []string{"ontem", "meio-dia", "2026-13-45", "-30m", "0s", "18:99"} {
+		if _, _, err := resolveLogBound("--since", ruim, false, now); err == nil {
+			t.Errorf("valor %q deveria ser recusado", ruim)
+		} else if output.AsError(err).Exit != output.ExitUsage {
+			t.Errorf("valor %q: exit=%d, quer %d", ruim, output.AsError(err).Exit, output.ExitUsage)
+		}
+	}
+}
+
+// Janela de tempo ponta a ponta: os limites vão na query da rota /range e o
+// envelope troca `size` por `from`/`to`.
+func TestLogTailJanela(t *testing.T) {
+	var q url.Values
+	stub := logRangeStub(t, &q)
+	proj := serverTestProject(t, stub.URL)
+
+	code, stdout := runMain(t, "log", "tail", "--since", "2026-07-24T18:19", "--until", "2026-07-24T18:30",
+		"--level", "error", "--grep", "integração", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if q.Get("from") != "2026-07-24T18:19" || q.Get("to") != "2026-07-24T18:30" {
+		t.Errorf("limites na query: from=%q to=%q", q.Get("from"), q.Get("to"))
+	}
+	if q.Get("level") != "ERROR" || q.Get("grep") != "integração" {
+		t.Errorf("level/grep não repassados: %v", q)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := env.Data.(map[string]any)
+	entries, _ := data["entries"].([]any)
+	if data["from"] != "2026-07-24T18:19" || data["to"] != "2026-07-24T18:30" || len(entries) != 1 {
+		t.Errorf("envelope inesperado: %+v", data)
+	}
+	if _, temSize := data["size"]; temSize {
+		t.Errorf("a janela não tem offset de arquivo — `size` não deveria aparecer: %+v", data)
+	}
+
+	// Modo humano: a entrada sai na íntegra.
+	code, stdout = runMain(t, "log", "tail", "--since", "30m", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("modo humano exit=%d stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "falha na integração") {
+		t.Errorf("entrada não saiu:\n%s", stdout)
+	}
+	// A duração é resolvida no fuso do SERVIDOR (-03:00), não no desta máquina.
+	querDia := time.Now().In(time.FixedZone("srv", -3*3600)).Add(-30 * time.Minute).Format("2006-01-02")
+	if !strings.HasPrefix(q.Get("from"), querDia) {
+		t.Errorf("from=%q não começa com o dia do servidor (%s)", q.Get("from"), querDia)
+	}
+}
+
+// A janela é um recorte fechado: não combina com --follow nem com as flags de
+// contagem das últimas entradas.
+func TestLogTailJanelaRecusas(t *testing.T) {
+	var q url.Values
+	stub := logRangeStub(t, &q)
+	proj := serverTestProject(t, stub.URL)
+	for _, args := range [][]string{
+		{"log", "tail", "--since", "30m", "--follow"},
+		{"log", "tail", "--since", "30m", "-n", "10"},
+		{"log", "tail", "--until", "18:19", "--skip", "5"},
+		{"log", "tail", "--since", "ontem"},
+	} {
+		code, stdout := runMain(t, append(args, "--project", proj)...)
+		if code != output.ExitUsage {
+			t.Errorf("%v: exit=%d, quer %d\n%s", args, code, output.ExitUsage, stdout)
+		}
+	}
+}
+
+// Helper antigo (0.3.0, sem a rota /range): erro de dependência, não 404 solto.
+func TestLogTailJanelaHelperAntigo(t *testing.T) {
+	stub := logServerStub(t) // versão 0.3.0
+	proj := serverTestProject(t, stub.URL)
+	code, stdout := runMain(t, "log", "tail", "--since", "30m", "--json", "--project", proj)
+	if code != output.ExitMissingHelper {
+		t.Fatalf("exit=%d, quer %d (helper sem /range)\n%s", code, output.ExitMissingHelper, stdout)
 	}
 }
 

@@ -72,6 +72,42 @@ fluigcli log tail -f                     # acompanha ao vivo (Ctrl+C sai)
   o arquivo a cada 2 segundos. Quando o servidor rotaciona o arquivo, o comando
   recomeça do início. Este modo é contínuo. Este modo **não aceita `--json`**.
 
+### Janela de tempo (`--since` e `--until`)
+
+Use `--since` e `--until` para procurar um momento específico. O comando busca
+as entradas dentro da janela, em vez das últimas entradas.
+
+```sh
+fluigcli log tail --since 30m                             # os últimos 30 minutos
+fluigcli log tail --since 18:19 --until 18:30             # hoje, entre 18:19 e 18:30
+fluigcli log tail --since 2026-07-24 --until 2026-07-24   # o dia 24 inteiro
+fluigcli log tail --since "2026-07-24T18:19" --level error
+```
+
+Os formatos aceitos são:
+
+- **duração** — `30m`, `2h`, `1h30m`. O comando volta esse tanto no tempo.
+- **hora de hoje** — `18:19` ou `18:19:05`.
+- **data** — `2026-07-24`. No `--since` a janela começa às 00:00. No `--until` a
+  janela termina no fim do dia.
+- **data e hora** — `2026-07-24T18:19` ou `"2026-07-24 18:19:30"`.
+
+⚠️ `18h` é uma **duração** (18 horas atrás), não a hora 18:00. Para a hora do
+dia, escreva `18:00`.
+
+Os horários são os do log, ou seja, a hora local do **servidor**. O timestamp do
+`server.log` não tem fuso. Por isso, a CLI pergunta o fuso ao fluigcliHelper
+(0.4.0 ou maior) e resolve as durações e as horas de hoje nesse fuso. Quando o
+helper não informa o fuso, a CLI usa o horário desta máquina e avisa.
+
+A janela é um recorte fechado. Ela não aceita `--follow`, `-n` nem `--skip`. Os
+filtros `--level`, `--grep` e `--file` continuam valendo. Com `--json`, o
+envelope traz `{file, from, to, entries[], truncated}` — não traz `size`,
+porque a janela não usa o offset do arquivo.
+
+A janela exige o fluigcliHelper **0.5.0 ou maior**. Com uma versão anterior, o
+comando sai com exit 7 e orienta a atualização.
+
 O servidor aplica os filtros. Por isso, apenas as entradas necessárias trafegam
 pela rede. No terminal, o comando mostra as entradas ERROR e FATAL em vermelho.
 O comando mostra as entradas WARN em amarelo. As cores aparecem quando há um
@@ -98,6 +134,6 @@ fluigcli log download --file server.log.2026-07-17 -o /tmp/ontem.log
 | código | quando |
 |---|---|
 | `0` | sucesso |
-| `2` | uso incorreto (`--level` inválido, `--follow` com `--json`) |
+| `2` | uso incorreto (`--level` inválido, `--follow` com `--json`, `--since` com `--follow`/`-n`/`--skip`, valor de janela irreconhecível) |
 | `4` | o arquivo de log não existe |
-| `7` | fluigcliHelper ausente ou **desatualizado** (< 0.3.0, sem as rotas de log). Atualize com `server install-helper <name> --force`. |
+| `7` | fluigcliHelper ausente ou **desatualizado** (< 0.3.0 sem as rotas de log; < 0.5.0 sem a janela de tempo). Atualize com `server install-helper <name> --force`. |

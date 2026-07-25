@@ -49,6 +49,9 @@ Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
 `widget` (new|list|import|export),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
+`log` (files|tail|download — server.log do servidor via helper; `tail --since 30m`
+ou `--since 18:19 --until 18:30` recorta uma janela de tempo na hora do SERVIDOR
+e exige helper ≥ 0.5.0),
 `document` (list|download|upload|mkdir|delete — GED),
 `user` (list|show|create|update|activate|deactivate — requer admin; senha do
 novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
