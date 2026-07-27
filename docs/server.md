@@ -252,3 +252,16 @@ Piso de versão por recurso: 0.3.0 para o grupo `log`, 0.5.0 para a janela
 
 Com `--war <arquivo>` a CLI publica o artefato que você indicar e **não** compara
 versões. Neste caso a escolha é sua.
+
+#### Como remover o helper
+
+A CLI não tem comando para desinstalar o componente. A plataforma não expõe API
+de remoção: os 11 módulos REST do Fluig só permitem tirar uma widget de uma
+**página**, o que é diferente de remover o componente do servidor.
+
+Para remover o `fluigcliHelper`, use a interface administrativa do Fluig, na
+mesma tela em que as widgets aparecem.
+
+O que o componente faz e quem alcança cada endpoint está em
+[helper/README.md](https://github.com/alorenco/fluig-cli/blob/main/helper/README.md).
+Todo endpoint exige um usuário administrador do tenant.
