@@ -1,11 +1,13 @@
 package com.fluigcli.helper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -60,6 +62,47 @@ public class AutorizacaoTest {
         assertEquals("logs/server.log/tail", AuthorizationFilter.semBarraInicial("//logs/server.log/tail"));
         assertEquals("", AuthorizationFilter.semBarraInicial(null));
         assertEquals("", AuthorizationFilter.semBarraInicial("/"));
+    }
+
+    @Test
+    public void requisicaoSemOriginPassa() {
+        // Nenhum cliente legítimo do helper é navegador: a CLI em Go não manda
+        // Origin, e o painel do `dev` fala pelo proxy Go. Recusar aqui quebraria
+        // todo binário existente.
+        URI base = URI.create("http://fluig.exemplo:8080/fluigcliHelper/api");
+        assertTrue(AuthorizationFilter.origemPermitida(null, base));
+        assertTrue(AuthorizationFilter.origemPermitida("", base));
+        assertTrue(AuthorizationFilter.origemPermitida("   ", base));
+    }
+
+    @Test
+    public void mesmaOrigemPassa() {
+        URI base = URI.create("http://fluig.exemplo:8080/fluigcliHelper/api");
+        assertTrue(AuthorizationFilter.origemPermitida("http://fluig.exemplo:8080", base));
+        // Esquema e host não diferenciam maiúscula de minúscula.
+        assertTrue(AuthorizationFilter.origemPermitida("HTTP://Fluig.Exemplo:8080", base));
+
+        // Porta padrão implícita dos dois lados.
+        URI https = URI.create("https://fluig.exemplo/fluigcliHelper/api");
+        assertTrue(AuthorizationFilter.origemPermitida("https://fluig.exemplo", https));
+        assertTrue(AuthorizationFilter.origemPermitida("https://fluig.exemplo:443", https));
+    }
+
+    @Test
+    public void origemCruzadaEhRecusada() {
+        URI base = URI.create("http://fluig.exemplo:8080/fluigcliHelper/api");
+
+        assertFalse("host diferente",
+            AuthorizationFilter.origemPermitida("http://evil.example", base));
+        assertFalse("porta diferente",
+            AuthorizationFilter.origemPermitida("http://fluig.exemplo:9090", base));
+        assertFalse("esquema diferente",
+            AuthorizationFilter.origemPermitida("https://fluig.exemplo:8080", base));
+        assertFalse("host que só CONTÉM o nome do servidor",
+            AuthorizationFilter.origemPermitida("http://fluig.exemplo.evil.example:8080", base));
+        // Iframe sandbox manda o literal "null".
+        assertFalse("origem opaca", AuthorizationFilter.origemPermitida("null", base));
+        assertFalse("lixo", AuthorizationFilter.origemPermitida(":::", base));
     }
 
     @Test

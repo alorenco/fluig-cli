@@ -1,1 +1,5 @@
 target/
+
+# Probe de autorização: ferramenta de trabalho, não versionada (decisão do
+# mantenedor, 2026-07-27). Ver a seção Segurança do README.
+security-probe.sh

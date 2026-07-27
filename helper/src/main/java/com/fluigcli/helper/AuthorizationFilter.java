@@ -1,5 +1,8 @@
 package com.fluigcli.helper;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import javax.naming.InitialContext;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
@@ -15,7 +18,8 @@ import com.fluig.sdk.service.SecurityService;
 import com.fluig.sdk.service.UserService;
 
 /**
- * Autorização de TODA requisição sob /api: só administrador do tenant passa.
+ * Autorização de TODA requisição sob /api: só administrador do tenant passa, e
+ * só de mesma origem.
  *
  * O container exige apenas um usuário autenticado do portal (papel `user` no
  * web.xml). Quem separa usuário comum de administrador é este filtro.
@@ -43,6 +47,13 @@ public class AuthorizationFilter implements ContainerRequestFilter {
 
     @Override
     public void filter(ContainerRequestContext request) {
+        // Origem primeiro: é barato e dispensa o lookup do EJB quando reprova.
+        String origin = request.getHeaderString("Origin");
+        if (!origemPermitida(origin, request.getUriInfo().getBaseUri())) {
+            negarOrigem(request, origin);
+            return;
+        }
+
         String login = null;
         InitialContext ic = null;
 
@@ -95,6 +106,91 @@ public class AuthorizationFilter implements ContainerRequestFilter {
             Response
                 .status(Response.Status.FORBIDDEN)
                 .entity("Acesso restrito aos administradores do tenant.")
+                .type(MediaType.TEXT_PLAIN_TYPE.withCharset("UTF-8"))
+                .build()
+        );
+    }
+
+    /**
+     * Recusa requisição vinda de outra origem (defesa contra CSRF).
+     *
+     * A API autentica só por cookie de sessão. Sem esta checagem, um
+     * administrador logado que abrisse uma página hostil entregaria a API
+     * inteira do helper, inclusive o PUT de eventos de processo — que grava
+     * código executado pelo servidor.
+     *
+     * Hoje o navegador já barra essa requisição, mas por acidente: o Fluig
+     * responde `Access-Control-Allow-Origin: *` JUNTO com
+     * `Allow-Credentials: true`, combinação inválida pela spec do Fetch (medido
+     * na homologação em 2026-07-27). Num ambiente que ecoe o Origin, a proteção
+     * some. Por isso a checagem é nossa, e não da configuração da plataforma.
+     *
+     * Sem o header `Origin` a requisição passa: nenhum cliente legítimo do
+     * helper é navegador. A CLI em Go nunca manda `Origin`, e o painel do `dev`
+     * fala pelo proxy Go. Isso mantém a compatibilidade com binários antigos.
+     *
+     * Não olhamos o `Referer`: ele não acrescenta nada aqui (o navegador manda
+     * `Origin` em toda requisição cross-origin que carrega efeito) e falha com
+     * as políticas de privacidade que o omitem.
+     *
+     * Limite conhecido: GET disparado por `<img>` ou `<script>` numa página
+     * hostil não carrega `Origin`. Ele passa, mas o atacante não lê a resposta
+     * (mesma-origem do navegador) e nenhum GET do helper tem efeito colateral.
+     */
+    static boolean origemPermitida(String origin, URI base) {
+        if (origin == null || origin.trim().isEmpty()) {
+            return true;
+        }
+        if (base == null) {
+            return false;
+        }
+
+        URI o;
+        try {
+            o = new URI(origin.trim());
+        } catch (URISyntaxException e) {
+            // Inclui o literal "null" que iframe sandbox manda.
+            return false;
+        }
+        if (o.getHost() == null) {
+            return false;
+        }
+
+        return equalsIgnoreCase(o.getScheme(), base.getScheme())
+            && equalsIgnoreCase(o.getHost(), base.getHost())
+            && porta(o) == porta(base);
+    }
+
+    /** Porta explícita, ou a padrão do esquema quando a URI não traz. */
+    private static int porta(URI uri) {
+        if (uri.getPort() != -1) {
+            return uri.getPort();
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        return -1;
+    }
+
+    private static boolean equalsIgnoreCase(String a, String b) {
+        return a == null ? b == null : a.equalsIgnoreCase(b);
+    }
+
+    private void negarOrigem(ContainerRequestContext request, String origin) {
+        log.warn(
+            "Requisição RECUSADA por origem cruzada: Origin \"{}\" em {} /{}",
+            origin,
+            request.getMethod(),
+            semBarraInicial(request.getUriInfo().getPath())
+        );
+
+        request.abortWith(
+            Response
+                .status(Response.Status.FORBIDDEN)
+                .entity("Requisição de outra origem não é aceita.")
                 .type(MediaType.TEXT_PLAIN_TYPE.withCharset("UTF-8"))
                 .build()
         );

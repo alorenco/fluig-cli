@@ -20,7 +20,8 @@ plataforma e que a CLI consome:
 ## Segurança
 
 A autorização tem **duas camadas**, e as duas aplicam a mesma política: só
-administrador do tenant (`SecurityService.listTenantAdmins`).
+administrador do tenant (`SecurityService.listTenantAdmins`). Antes delas, o
+filtro recusa requisição de **outra origem**.
 
 1. **`AuthorizationFilter`** (`@Provider @PreMatching`) — vale para toda
    requisição sob `/api`, antes de casar a rota. Nega com **403** e registra a
@@ -41,6 +42,26 @@ O container também exige sessão do portal em `/api/*` (security-domain
 `TOTVSTech`), mas essa camada só garante "usuário autenticado": o papel `user`
 do `web.xml` mapeia para o principal `totvstech`, que qualquer usuário do
 portal tem. **Quem separa usuário comum de administrador é a aplicação.**
+
+### Origem cruzada (CSRF)
+
+Desde o 0.10.0 o filtro recusa com **403** toda requisição cujo header `Origin`
+não seja a origem do próprio servidor (esquema, host e porta, com porta padrão
+normalizada).
+
+Requisição **sem** `Origin` passa. Nenhum cliente legítimo do helper é
+navegador: a CLI em Go não manda o header, e o painel do `fluigcli dev` fala
+pelo proxy Go. Recusar sem `Origin` quebraria os binários existentes.
+
+Por que a checagem é nossa: a API autentica só por cookie de sessão. O
+navegador hoje já barra a requisição credenciada de outra origem, mas por
+acidente — a plataforma responde `Access-Control-Allow-Origin: *` **junto com**
+`Allow-Credentials: true`, combinação inválida pela spec do Fetch. Num ambiente
+que ecoe o `Origin`, essa proteção acidental some.
+
+Limite conhecido: `GET` disparado por `<img>` ou `<script>` numa página hostil
+não carrega `Origin` e passa. O atacante não lê a resposta (mesma-origem do
+navegador), e nenhum `GET` do helper tem efeito colateral.
 
 Nas rotas de log, o nome do arquivo passa por whitelist de caracteres +
 checagem de containment do caminho canônico (anti-traversal), e cada download é
