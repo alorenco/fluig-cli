@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jboss-web>
     <context-root>/fluigcliHelper</context-root>
-    <disable-cross-context>false</disable-cross-context>
+
+    <!-- Cross-context DESLIGADO (helper 0.10.3, ROADMAP §2.11-E). Herdamos
+         `false` do fluig-widget-helper, e isso deixava outro webapp do mesmo
+         servidor obter o ServletContext do helper e despachar internamente para
+         /api/*. Dispatch interno NÃO passa pela security-constraint do
+         container, então sobraria só o gate da aplicação. O helper não usa
+         cross-context em lugar nenhum: o WidgetService resolve o caminho dos
+         WARs por getRealPath, que não depende disto. -->
+    <disable-cross-context>true</disable-cross-context>
 
     <security-domain>TOTVSTech</security-domain>
 
