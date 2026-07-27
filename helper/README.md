@@ -17,11 +17,48 @@ plataforma e que a CLI consome:
 | `GET /api/logs/{arquivo}/read?from` | `log tail --follow` (polling por offset) |
 | `GET /api/logs/{arquivo}/download` | `log download` (streaming octet-stream) |
 
-Segurança: o container exige sessão do portal em `/api/*` (security-domain
-`TOTVSTech`) e o `BaseController` restringe a administradores do tenant. Nas
-rotas de log, o nome do arquivo passa por whitelist de caracteres + checagem
-de containment do caminho canônico (anti-traversal), e cada download é
+## Segurança
+
+A autorização tem **duas camadas**, e as duas aplicam a mesma política: só
+administrador do tenant (`SecurityService.listTenantAdmins`).
+
+1. **`AuthorizationFilter`** (`@Provider @PreMatching`) — vale para toda
+   requisição sob `/api`, antes de casar a rota. Nega com **403** e registra a
+   tentativa no `server.log` com login, método e rota.
+2. **`BaseController`** (`@PostConstruct` herdado por todos os controllers) —
+   segunda camada, mantida de propósito.
+
+As duas ficam de pé porque nenhuma é garantida sozinha: um callback de ciclo de
+vida não é contrato do JAX-RS, e um provider pode deixar de ser registrado. Um
+controller novo que esqueça o `extends BaseController` fica coberto pelo filtro,
+e o `AutorizacaoTest` reprova o build.
+
+Antes do 0.9.0 o `BaseController` era a única camada. A negativa saía como
+**500** e **não gerava nenhuma linha no log** — sem rastro de quem sondou o
+componente. Medido ao vivo na homologação em 2026-07-27 (ROADMAP §2.11-A).
+
+O container também exige sessão do portal em `/api/*` (security-domain
+`TOTVSTech`), mas essa camada só garante "usuário autenticado": o papel `user`
+do `web.xml` mapeia para o principal `totvstech`, que qualquer usuário do
+portal tem. **Quem separa usuário comum de administrador é a aplicação.**
+
+Nas rotas de log, o nome do arquivo passa por whitelist de caracteres +
+checagem de containment do caminho canônico (anti-traversal), e cada download é
 registrado no próprio log (auditoria).
+
+### Probe de regressão
+
+O repositório de trabalho tem o `helper/security-probe.sh` (não versionado). Ele
+roda a matriz completa de endpoints com uma conta real e dá veredito com exit
+code. Use o **par diferencial** a cada release do helper:
+
+```sh
+./helper/security-probe.sh <host> <conta-comum>              # espera 403 em tudo
+./helper/security-probe.sh <host> <conta-admin> --control    # espera 200 em tudo
+```
+
+Isolada, uma execução não distingue "gate negou" de "ambiente quebrado". O par
+distingue.
 
 Baseado no [fluig-widget-helper](https://github.com/fluiggers/fluig-widget-helper)
 da comunidade Fluiggers (MIT) — mesmos endpoints e semântica. Desde 2026-07-18
