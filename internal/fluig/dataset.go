@@ -225,6 +225,19 @@ func (c *Client) DeleteDatasetPermanently(ctx context.Context, id string) error 
 	if err := c.requireHelper(ctx); err != nil {
 		return err
 	}
+
+	// Confirma que o dataset EXISTE antes de mandar apagar. O helper responde
+	// 200 {"deleted":true} para id inexistente (medido na homologação em
+	// 2026-07-27, ROADMAP §2.11-H), então sem esta checagem a CLI confirma uma
+	// exclusão que nunca aconteceu. Mesmo padrão do form records delete
+	// (§2.10-I): confirmar com uma leitura antes de destruir.
+	if _, err := c.LoadDataset(ctx, id); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("%w: dataset %q não existe no servidor (nada foi excluído)", ErrNotFound, id)
+		}
+		return err
+	}
+
 	endpoint := c.url(helperDatasetsPath + "/" + url.PathEscape(id))
 	body, status, err := c.doJSON(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {

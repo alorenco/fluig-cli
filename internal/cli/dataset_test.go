@@ -134,7 +134,11 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		w.Write(readTD("rest_dataset_handle.json"))
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/dataset/loadDataset", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("datasetId") == "ds_exemplo" {
+		switch r.URL.Query().Get("datasetId") {
+		// zz_fluigcli_test_del e zz_recusado existem: o `dataset delete` passou
+		// a confirmar a existência antes de apagar (§2.11-H), então sem isto os
+		// testes de delete mediriam o caminho de "não existe".
+		case "ds_exemplo", "zz_fluigcli_test_del", "zz_recusado":
 			w.Write(readTD("loadDataset.json"))
 			return
 		}
@@ -612,6 +616,24 @@ func TestDatasetDeleteRejeitado(t *testing.T) {
 	}
 	if len(stub.deletedHard) != 0 {
 		t.Errorf("um delete recusado não deveria ser registrado: %v", stub.deletedHard)
+	}
+}
+
+// delete de id inexistente: exit 4 e NENHUM DELETE enviado. O helper responde
+// {"deleted":true} para qualquer id, então quem garante é a confirmação prévia
+// da CLI (§2.11-H).
+func TestDatasetDeleteInexistente(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "delete", "zz_nunca_existiu", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Errorf("exit=%d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
+	}
+	if !strings.Contains(stdout, "nada foi excluído") {
+		t.Errorf("a mensagem tem de deixar claro que nada foi apagado: %s", stdout)
+	}
+	if len(stub.deletedHard) != 0 {
+		t.Errorf("o DELETE não podia ter sido enviado: %v", stub.deletedHard)
 	}
 }
 

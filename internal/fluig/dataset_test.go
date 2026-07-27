@@ -32,6 +32,8 @@ type datasetStub struct {
 
 	handleSeen []string // query strings recebidas no dataset-handle/search
 	handleBig  bool     // 1ª página cheia (força a paginação por offset)
+
+	deleteSeen []string // ids recebidos no DELETE do helper (§2.11-H)
 }
 
 func (s *datasetStub) server(t *testing.T) *httptest.Server {
@@ -133,9 +135,59 @@ func (s *datasetStub) server(t *testing.T) *httptest.Server {
 		s.editedImpl = payload.DatasetImpl
 		io.WriteString(w, `{"content":"OK"}`)
 	})
+	// fluigcliHelper: ping para o requireHelper e o DELETE de dataset.
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.10.3"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/datasets/", func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/fluigcliHelper/api/datasets/")
+		s.deleteSeen = append(s.deleteSeen, id)
+		// O helper devolve deleted:true mesmo para id inexistente — é
+		// justamente o defeito que a CLI passou a cobrir (§2.11-H).
+		fmt.Fprintf(w, `{"id":%q,"deleted":true}`, id)
+	})
+
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// Dataset inexistente: a CLI NÃO pode mandar o DELETE nem reportar sucesso. O
+// helper responde {"deleted":true} para qualquer id (medido na homologação em
+// 2026-07-27), então a garantia tem de vir da confirmação prévia (§2.11-H).
+func TestDeleteDatasetPermanentlyInexistenteNaoApaga(t *testing.T) {
+	stub := &datasetStub{}
+	c := datasetClient(t, stub.server(t).URL)
+
+	err := c.DeleteDatasetPermanently(context.Background(), "nao_existe")
+	if err == nil {
+		t.Fatal("esperava erro para dataset inexistente")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("esperava ErrNotFound, veio %v", err)
+	}
+	if !strings.Contains(err.Error(), "nada foi excluído") {
+		t.Errorf("a mensagem tem de deixar claro que nada foi apagado: %v", err)
+	}
+	if len(stub.deleteSeen) != 0 {
+		t.Errorf("o DELETE não podia ter sido enviado, mas foi: %v", stub.deleteSeen)
+	}
+}
+
+// Dataset existente: segue apagando normalmente.
+func TestDeleteDatasetPermanentlyExistente(t *testing.T) {
+	stub := &datasetStub{}
+	c := datasetClient(t, stub.server(t).URL)
+
+	if err := c.DeleteDatasetPermanently(context.Background(), "ds_exemplo"); err != nil {
+		t.Fatalf("DeleteDatasetPermanently: %v", err)
+	}
+	if len(stub.deleteSeen) != 1 || stub.deleteSeen[0] != "ds_exemplo" {
+		t.Errorf("esperava DELETE de ds_exemplo, veio %v", stub.deleteSeen)
+	}
 }
 
 func datasetClient(t *testing.T, url string) *Client {
