@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
@@ -199,9 +200,42 @@ func mapFluigError(err error) error {
 	}
 	var httpErr *fluig.HTTPError
 	if errors.As(err, &httpErr) {
+		if httpErr.StatusCode == http.StatusForbidden {
+			return output.ServerErrorf("%s", mensagemDe403(httpErr)).WithCause(err)
+		}
 		return output.ServerErrorf("%s", httpErr.Error()).WithCause(err)
 	}
 	return output.ServerErrorf("%s", err.Error()).WithCause(err)
+}
+
+// mensagemDe403 explica a recusa por permissão em vez de despejar o HTTP cru.
+// O fluigcliHelper responde 403 com uma mensagem pronta em text/plain (desde a
+// 0.9.0); antes disto a CLI descartava esse texto e imprimia só "servidor Fluig
+// respondeu HTTP 403" (ROADMAP §2.11-I). O exit code não muda: segue o 5.
+func mensagemDe403(httpErr *fluig.HTTPError) string {
+	motivo := strings.TrimSpace(httpErr.Body)
+	// Corpo HTML (página de erro do container) não ajuda ninguém.
+	if strings.HasPrefix(motivo, "<") {
+		motivo = ""
+	}
+	if len(motivo) > 300 {
+		motivo = motivo[:300] + "…"
+	}
+
+	if strings.Contains(httpErr.URL, fluig.HelperFluigcli) {
+		msg := "sem permissão no componente auxiliar (fluigcliHelper): estes recursos" +
+			" exigem um usuário administrador do tenant"
+		if motivo != "" {
+			msg += " — o servidor respondeu: " + motivo
+		}
+		return msg
+	}
+
+	msg := "o servidor Fluig recusou por falta de permissão (HTTP 403) em " + httpErr.URL
+	if motivo != "" {
+		msg += ": " + motivo
+	}
+	return msg
 }
 
 // Grupos de comandos do help.
