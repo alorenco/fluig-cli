@@ -32,6 +32,24 @@ jobs:
         with:
           version: latest
 
+  # O WAR do helper é versionado em binário e embutido na CLI por go:embed. Este
+  # job prova que ele veio das fontes do repositório: sem isso, um PR que
+  # alterasse só o binário passaria no `TestHelperWARAtualizado` (o .srchash
+  # cobre pom.xml + src/**, não o WAR) e seria publicado nos servidores de quem
+  # usa a CLI. ROADMAP §2.11-F.
+  helper-war:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          # Mesma major do <release> do pom: bytecode de javac diferente
+          # produziria divergência sem que ninguém tenha adulterado nada.
+          java-version: "17"
+      - name: WAR versionado corresponde à fonte
+        run: ./helper/verify-war.sh
+
   vuln:
     runs-on: ubuntu-latest
     steps:
