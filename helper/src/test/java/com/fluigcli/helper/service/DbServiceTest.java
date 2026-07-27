@@ -42,6 +42,67 @@ public class DbServiceTest {
         assertRejeitado(null);
     }
 
+    /**
+     * Os dois bypasses MEDIDOS ao vivo na homologação (SQL Server 2017) em
+     * 2026-07-27, que a checagem de primeira palavra deixava passar. O
+     * `setReadOnly(true)` da conexão não segura nenhum dos dois: é no-op no
+     * driver da Microsoft (ROADMAP §2.11-C).
+     */
+    @Test
+    public void recusaEscritaDepoisDeCte() {
+        assertRejeitado(
+            "WITH x AS (SELECT 1 AS n) UPDATE wcm_application SET DESCRIPTION = DESCRIPTION "
+            + "OUTPUT deleted.APPLICATION_CODE WHERE 1 = 0"
+        );
+        assertRejeitado("WITH x AS (SELECT 1 AS n) SELECT n INTO #tmp FROM x");
+    }
+
+    @Test
+    public void recusaEscritaEmQualquerPosicao() {
+        assertRejeitado("SELECT 1 AS n INTO zz_nova_tabela");
+        assertRejeitado("WITH x AS (SELECT 1 n) DELETE FROM t");
+        assertRejeitado("SELECT * FROM t WHERE id IN (SELECT id FROM u) MERGE INTO v");
+        assertRejeitado("select * from openquery(srv, 'delete from t') EXEC sp_who");
+    }
+
+    /**
+     * Falsos positivos que NÃO podem acontecer: a varredura ignora literais,
+     * comentários e identificadores entre colchetes ou aspas.
+     */
+    @Test
+    public void aceitaPalavraDeEscritaForaDoCodigo() {
+        // Dentro de literal.
+        assertEquals(
+            "SELECT * FROM t WHERE acao = 'update'",
+            DbService.sanitizeReadOnly("SELECT * FROM t WHERE acao = 'update'")
+        );
+        // Aspa simples escapada dentro do literal.
+        String comEscape = "SELECT * FROM t WHERE txt = 'não é delete'''";
+        assertEquals(comEscape, DbService.sanitizeReadOnly(comEscape));
+        // Coluna com nome reservado, entre colchetes (T-SQL) e aspas.
+        assertEquals("SELECT [update] FROM t", DbService.sanitizeReadOnly("SELECT [update] FROM t"));
+        assertEquals("SELECT \"delete\" FROM t", DbService.sanitizeReadOnly("SELECT \"delete\" FROM t"));
+        // Comentário de linha e de bloco.
+        assertEquals(
+            "SELECT 1 -- update depois",
+            DbService.sanitizeReadOnly("SELECT 1 -- update depois")
+        );
+        assertEquals(
+            "SELECT 1 /* insert aqui */ FROM t",
+            DbService.sanitizeReadOnly("SELECT 1 /* insert aqui */ FROM t")
+        );
+        // Identificadores que só CONTÊM a palavra não casam (fronteira).
+        String colunas = "SELECT updated_at, deleted_by, created FROM t";
+        assertEquals(colunas, DbService.sanitizeReadOnly(colunas));
+    }
+
+    @Test
+    public void pontoEVirgulaDentroDeLiteralNaoSeparaInstrucao() {
+        // Antes do §2.11-C isto era recusado por engano.
+        String sql = "SELECT * FROM t WHERE txt = 'a;b'";
+        assertEquals(sql, DbService.sanitizeReadOnly(sql));
+    }
+
     @Test
     public void resolveMaxRows() {
         assertEquals(DbService.DEFAULT_MAX_ROWS, DbService.resolveMaxRows(0));

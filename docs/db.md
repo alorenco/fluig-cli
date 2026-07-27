@@ -10,10 +10,26 @@ Estes comandos precisam do componente auxiliar **fluigcliHelper 0.6.0 ou
 superior** no servidor. Instale ou atualize o helper com o comando
 `fluigcli server install-helper <name> [--force]`.
 
-Estes comandos precisam de um usuário administrador do tenant. O helper abre a
-conexão em modo somente leitura. O helper aceita apenas consultas `SELECT` ou
-`WITH`. O helper recusa qualquer instrução de escrita (`INSERT`, `UPDATE`,
-`DELETE`, DDL). O helper também recusa mais de uma instrução por consulta.
+Estes comandos precisam de um usuário administrador do tenant. O helper aceita
+apenas consultas `SELECT` ou `WITH`. O helper recusa qualquer instrução de
+escrita (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `INTO`, DDL) **em qualquer
+posição da consulta**. O helper também recusa mais de uma instrução por
+consulta. A verificação ignora literais, comentários e nomes entre colchetes ou
+aspas. Por isso `WHERE acao = 'update'` e uma coluna `[delete]` continuam
+válidos.
+
+::: warning A verificação é um guarda-corpo, não uma fronteira de segurança
+A verificação é textual. Ela protege contra o comando errado, não contra um
+usuário mal-intencionado. A fronteira real é a permissão do usuário do
+datasource no banco de dados.
+
+Não confie no modo somente leitura da conexão JDBC. O helper abre a conexão com
+`setReadOnly(true)`, mas o driver do SQL Server ignora essa marca.
+
+Para garantia real, aponte o `--jndi` para um datasource somente leitura, se o
+servidor publicar um. O comando [`db datasources`](#fluigcli-db-datasources)
+mostra os nomes disponíveis.
+:::
 
 O `db` é SQL cru de diagnóstico. Ele não é o mesmo que o
 [`dataset query`](dataset.md), que executa um dataset cadastrado no Fluig.

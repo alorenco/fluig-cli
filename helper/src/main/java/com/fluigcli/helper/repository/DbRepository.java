@@ -22,8 +22,13 @@ import com.fluigcli.helper.dto.DbResultDto;
 
 /**
  * Acesso JDBC genérico para o db query. Diferente dos outros repositórios, o
- * datasource JNDI é PARÂMETRO (não o /jdbc/AppDS fixo). A conexão é aberta em
- * modo read-only (defesa extra à validação de SQL do DbService).
+ * datasource JNDI é PARÂMETRO (não o /jdbc/AppDS fixo).
+ *
+ * A conexão é aberta com `setReadOnly(true)`, mas ISSO NÃO É GARANTIA: o
+ * método é uma dica ao driver, e o da Microsoft o ignora — medido na
+ * homologação em 2026-07-27 (ROADMAP §2.11-C). Em Oracle e PostgreSQL ele
+ * costuma valer. Quem barra escrita de verdade aqui é a validação textual do
+ * DbService; o setReadOnly fica como camada extra onde o driver respeita.
  */
 public class DbRepository {
     protected final Logger log = LoggerFactory.getLogger(getClass());
