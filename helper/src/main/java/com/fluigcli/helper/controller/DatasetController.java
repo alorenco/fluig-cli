@@ -31,6 +31,12 @@ public class DatasetController extends BaseController {
             throw error(Response.Status.BAD_REQUEST, "id do dataset ausente");
         }
         String datasetId = id.trim();
+
+        // Auditoria da exclusão FÍSICA. Vai antes da chamada: a operação é
+        // irreversível, então o rastro não pode depender de ela terminar bem
+        // (a falha já sai no log.error abaixo). ROADMAP §2.11-D.
+        log.info("Usuário \"{}\" solicitou a exclusão FÍSICA do dataset \"{}\"", usuario(), datasetId);
+
         try {
             long tenantId = securityService.getCurrentTenantId();
             new DatasetAdminRepository().deletePermanently(datasetId, tenantId);

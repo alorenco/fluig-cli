@@ -85,11 +85,31 @@ public class WorkflowController extends BaseController {
             throw new BadRequestException("A versão indicada deve ser menor ou igual a " + maxVersion);
         }
 
+        // Auditoria: esta rota grava CÓDIGO que o motor de processo executa no
+        // servidor. É a operação mais poderosa do helper, e até o §2.11-D era a
+        // que menos deixava rastro.
+        log.info(
+            "Usuário \"{}\" atualizou eventos do processo \"{}\" versão {}: {}",
+            usuario(), processId, version, nomesDosEventos(events)
+        );
+
         try {
             return service.updateEvents(tenantId, processId, version, userCode, events);
         } catch (Exception e) {
             log.error("Erro não identificado ao atualizar eventos do processo \"" + processId + "\"", e);
             throw new InternalServerErrorException("Consulte o log do Fluig para mais informações.");
         }
+    }
+
+    /** Nomes dos eventos para a linha de auditoria (o código não entra no log). */
+    static String nomesDosEventos(List<WorkflowEventDto> events) {
+        StringBuilder sb = new StringBuilder();
+        for (WorkflowEventDto event : events) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(event.getName());
+        }
+        return sb.toString();
     }
 }

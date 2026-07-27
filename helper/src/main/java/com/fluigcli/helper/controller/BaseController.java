@@ -33,10 +33,24 @@ public abstract class BaseController {
     @EJB(lookup = UserService.JNDI_REMOTE_NAME)
     protected UserService userService;
 
+    /**
+     * Login do chamador, resolvido uma vez por requisição no gate. Os
+     * controllers usam isto na auditoria em vez de chamar o EJB de novo — o
+     * recurso é instanciado por requisição, então o valor é sempre do chamador
+     * da vez. Use {@link #usuario()}, que trata o caso não resolvido.
+     */
+    private String loginAtual;
+
+    /** Login do chamador para mensagem de log; nunca nulo. */
+    protected String usuario() {
+        return loginAtual == null ? "(não identificado)" : loginAtual;
+    }
+
     @PostConstruct
     private void assertUserAccess() {
         try {
             String login = userService.getCurrent().getLogin();
+            loginAtual = login;
 
             boolean isAdmin = securityService
                 .listTenantAdmins(securityService.getCurrentTenantId())

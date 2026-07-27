@@ -46,6 +46,13 @@ public class DbController extends BaseController {
                 "Nome de datasource inválido: use um JNDI como /jdbc/AppDS");
         }
 
+        // Auditoria ANTES de executar: consulta pesada que nunca retorna
+        // também tem de deixar rastro de quem pediu (ROADMAP §2.11-D).
+        log.info(
+            "Usuário \"{}\" executou consulta SQL em {}: {}",
+            usuario(), jndi, resumo(request.getSql())
+        );
+
         try {
             return new DbService().query(jndi, request.getSql(), request.getParams(), request.getMaxRows());
         } catch (IllegalArgumentException e) {
@@ -75,6 +82,19 @@ public class DbController extends BaseController {
             throw error(Response.Status.INTERNAL_SERVER_ERROR,
                 "Consulte o log do Fluig para mais informações.");
         }
+    }
+
+    /**
+     * SQL numa linha só e com teto de tamanho, para a linha de auditoria. O
+     * log do servidor é legível por administrador, que é justamente quem já
+     * pode rodar a consulta — ainda assim não vale despejar consulta gigante.
+     */
+    static String resumo(String sql) {
+        if (sql == null) {
+            return "";
+        }
+        String uma = sql.replaceAll("\\s+", " ").trim();
+        return uma.length() <= 500 ? uma : uma.substring(0, 500) + "… (truncado)";
     }
 
     private WebApplicationException error(Response.Status status, String message) {

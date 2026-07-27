@@ -44,11 +44,7 @@ public class WidgetController extends BaseController {
             var service = new WidgetService();
             var inputStream = service.getWidgetFileInputStream(context, filename);
 
-            log.info(
-                "Usuário \"{}\" efetuou download da widget \"{}\"",
-                userService.getCurrent().getLogin(),
-                filename
-            );
+            log.info("Usuário \"{}\" efetuou download da widget \"{}\"", usuario(), filename);
 
             return inputStream;
         } catch (FileNotFoundException e) {
