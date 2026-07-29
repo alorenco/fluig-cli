@@ -148,19 +148,28 @@ func newEventImportCmd(app *App) *cobra.Command {
 // --- event export (local → servidor) ---
 
 func newEventExportCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var (
+		noAudit       bool
+		passwordStdin bool
+	)
 	cmd := &cobra.Command{
 		Use:   "export <file>...",
 		Short: "Envia eventos globais locais para o servidor (local → servidor)",
 		Long: "Envia eventos globais locais para o servidor.\n\n" +
 			"O Fluig salva a lista completa de eventos de uma vez; a CLI busca a lista\n" +
 			"atual do servidor e sobrepõe apenas os eventos informados, então exportar\n" +
-			"um evento NÃO apaga os demais.",
+			"um evento NÃO apaga os demais.\n\n" +
+			"Antes de enviar, a CLI audita os arquivos com as regras do `audit`. Um\n" +
+			"achado de nível ERRO barra o envio daquele arquivo. Use --no-audit para\n" +
+			"pular a checagem.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if len(args) == 0 {
 				return output.Usagef("informe um ou mais arquivos .js de evento")
 			}
+			// Pré-checagem local (§3.2/§3.13), antes de conectar.
+			gate := app.auditBeforePublish(p, args, auditGateOpts{skip: noAudit})
+			gate.report(p)
 			ctx := context.Background()
 			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar eventos globais")
 			if err != nil {
@@ -180,9 +189,19 @@ func newEventExportCmd(app *App) *cobra.Command {
 			}
 
 			var results []itemResult
+			var lastErr error
 			failures := 0
 			for _, file := range args {
 				id := project.ArtifactName(file)
+				if blockErr := gate.blockedError(file); blockErr != nil {
+					failures++
+					lastErr = blockErr
+					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
+					if len(args) > 1 {
+						p.Warnf("evento %q: %s", id, blockErr.Message)
+					}
+					continue
+				}
 				content, rerr := os.ReadFile(file)
 				if rerr != nil {
 					failures++
@@ -191,6 +210,7 @@ func newEventExportCmd(app *App) *cobra.Command {
 						msg = fmt.Sprintf("arquivo %q não encontrado", file)
 					}
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: msg})
+					lastErr = output.NotFoundf("%s", msg)
 					p.Warnf("evento %q: %s", id, msg)
 					continue
 				}
@@ -203,22 +223,31 @@ func newEventExportCmd(app *App) *cobra.Command {
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
 			}
 
-			// Uma única gravação com o conjunto completo mesclado.
-			merged := make([]fluig.GlobalEvent, 0, len(order))
-			for _, id := range order {
-				merged = append(merged, byID[id])
-			}
-			if err := client.SaveGlobalEvents(ctx, merged); err != nil {
-				return mapFluigError(err)
+			// Uma única gravação com o conjunto completo mesclado. Sem nenhum
+			// evento aprovado não há o que gravar: a lista do servidor fica
+			// intacta.
+			if failures < len(args) {
+				merged := make([]fluig.GlobalEvent, 0, len(order))
+				for _, id := range order {
+					merged = append(merged, byID[id])
+				}
+				if err := client.SaveGlobalEvents(ctx, merged); err != nil {
+					return mapFluigError(err)
+				}
 			}
 			for _, r := range results {
 				if r.Success {
 					p.Successf("evento %q %s", r.ID, r.Action)
 				}
 			}
-			return finishBatch(p, nil, map[string]any{"results": results}, failures, len(args))
+			data := map[string]any{"results": results}
+			if gate.ran {
+				data["findings"] = gate.findings
+			}
+			return finishBatch(p, lastErr, data, failures, len(args))
 		},
 	}
+	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit barra o envio)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

@@ -45,6 +45,18 @@ fluigcli mechanism export mechanisms/mec_gestor_area.js
 fluigcli mechanism export mechanisms/mec_novo.js --name "Novo Mecanismo"
 ```
 
+
+### Checagem local antes de publicar
+
+Antes de enviar, o comando audita os arquivos com as regras do
+[`audit`](audit.md). Um achado de nível **ERRO** barra o envio, com exit code 1.
+Os avisos não barram nada. Use `--no-audit` para pular a checagem.
+
+O motivo está em [dataset](dataset.md#checagem-local-antes-de-publicar): o
+servidor recusa script com erro de compilação sem dizer a linha, e o `const` no
+corpo de um laço nem gera erro — ele devolve o valor da primeira volta em todas
+as outras, em silêncio.
+
 ## `fluigcli mechanism delete <id>...`
 
 Este comando exclui mecanismos no servidor. O comando pede confirmação. Use

@@ -101,6 +101,24 @@ fluigcli form export "forms/Formulário de Contato" --version new
 fluigcli form export forms/NovoForm --new --parent-id 15 --dataset-name ds_novoform
 ```
 
+### Checagem local antes de publicar
+
+Antes de enviar, o comando audita a pasta com as regras do [`audit`](audit.md).
+Aqui **só as regras de runtime barram** a publicação:
+
+- `RHINO*` — sintaxe e armadilhas do motor de script;
+- `FL*` — chamada de API que não existe.
+
+As regras `SG*`, de tema visual (cor fixa, recurso externo), **não barram**. Um
+formulário legado tem cor fixa, e não é isso que o `export` vem resolver. Barrar
+por causa disso deixaria formulários reais impublicáveis. Estes achados aparecem
+numa linha de resumo, e o [`audit`](audit.md) mostra a lista completa.
+
+Um achado que barra aborta o envio inteiro, com exit code 1. O envio do
+formulário é atômico: ele cria uma versão nova com todos os arquivos.
+
+Use `--no-audit` para pular a checagem.
+
 ## `fluigcli form records ...` — registros (dados) do formulário
 
 Este subgrupo faz o CRUD dos **registros** (cards) de um formulário. São os

@@ -241,6 +241,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 	var (
 		noRelease     bool
 		processIDFlag string
+		noAudit       bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
@@ -284,6 +285,11 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			byEvent := make(map[string]string, len(events))
 			for _, e := range events {
 				byEvent[e.Name] = e.Contents
+			}
+			// Pré-checagem local (§3.13): a publicação é atômica, então erro de
+			// audit em qualquer script aborta antes de tocar o servidor.
+			if err := app.auditBeforeAtomicPublish(p, scriptPaths(scripts), auditGateOpts{skip: noAudit}); err != nil {
+				return err
 			}
 
 			ctx := context.Background()
@@ -348,6 +354,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noRelease, "no-release", false, "cria a versão nova em edição, sem liberá-la")
+	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit aborta o publish)")
 	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
@@ -515,6 +522,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 		eventsFlag     []string
 		allEvents      bool
 		processIDFlag  string
+		noAudit        bool
 		passwordStdin  bool
 	)
 	cmd := &cobra.Command{
@@ -546,6 +554,11 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 			}
 			events, err := readWorkflowEvents(scripts)
 			if err != nil {
+				return err
+			}
+			// Pré-checagem local (§3.13): o export aplica todos os scripts do
+			// alvo, então erro de audit em qualquer um aborta antes do envio.
+			if err := app.auditBeforeAtomicPublish(p, scriptPaths(scripts), auditGateOpts{skip: noAudit}); err != nil {
 				return err
 			}
 
@@ -596,6 +609,7 @@ func newWorkflowExportCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&processVersion, "process-version", 0, "versão do processo (default: a última do servidor)")
 	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "eventos a atualizar (separados por vírgula), quando o alvo é um processId")
 	cmd.Flags().BoolVar(&allEvents, "all-events", false, "atualiza todos os scripts do processo (workflow/scripts/<processId>.*.js)")
+	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit aborta o export)")
 	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
@@ -800,4 +814,13 @@ func readWorkflowEvents(scripts []project.ProcessScript) ([]fluig.WorkflowEvent,
 		events = append(events, fluig.WorkflowEvent{Name: s.Event, Contents: string(content)})
 	}
 	return events, nil
+}
+
+// scriptPaths extrai os caminhos locais de um conjunto de scripts de processo.
+func scriptPaths(scripts []project.ProcessScript) []string {
+	out := make([]string, 0, len(scripts))
+	for _, s := range scripts {
+		out = append(out, s.Path)
+	}
+	return out
 }

@@ -117,7 +117,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `event new <name>` | local | cria `events/<name>.js` (o nome é o id do evento global; ajuste os parâmetros da função) |
 | `event list` | — | lista os eventos globais |
 | `event import <id>... \| --all` | servidor → local | baixa eventos globais |
-| `event export <file>...` | local → servidor | envia eventos globais |
+| `event export <file>...` | local → servidor | envia eventos globais. **Audita antes**: achado de nível ERRO barra aquele arquivo (exit 1 `AUDIT_FAILED`) e a lista do servidor NÃO é regravada; `--no-audit` pula |
 | `event delete <id>...` | — | exclui eventos globais no servidor |
 
 ## mechanism — mecanismos de atribuição
@@ -127,7 +127,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `mechanism new <name>` | local | cria `mechanisms/<name>.js` com o esqueleto (devolver userCodes, não logins) |
 | `mechanism list` | — | lista os mecanismos customizados |
 | `mechanism import <id>... \| --all` | servidor → local | baixa mecanismos |
-| `mechanism export <file>...` | local → servidor | envia mecanismos |
+| `mechanism export <file>...` | local → servidor | envia mecanismos. **Audita antes** (mesma regra do `dataset export`; `--no-audit` pula) |
 | `mechanism delete <id>...` | — | exclui mecanismos no servidor |
 
 ## form — formulários
@@ -137,7 +137,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `form new <name> [--title t]` | local | cria `forms/<name>/` (HTML com `<form>` + events/ comuns, prontos para o preview do dev) |
 | `form list` | — | lista os formulários |
 | `form import <documentId\|nome>... \| --all` | servidor → local | baixa formulários para pastas locais (com anexos e eventos) |
-| `form export <pasta>` | local → servidor | envia um formulário local (cria nova versão) |
+| `form export <pasta>` | local → servidor | envia um formulário local (cria nova versão). **Audita antes, só regras de RUNTIME**: `RHINO*` e `FL*` abortam o envio (exit 1); as `SG*` (tema visual: cor fixa, CDN) **não barram** — formulário legado tem cor fixa e ficaria impublicável. `--no-audit` pula |
 | `form link --auto` | — | vincula pastas locais aos forms do servidor por nome (grava em .fluigcli/forms.json, por servidor); sem `--auto` é interativo (não use como agente) |
 | `form records list <form> [--fields a,b] [--filter "campo eq 'v'"] [--limit N]` | — | registros (dados) do formulário; `--json` traz todos os campos |
 | `form records show <form> <cardId> [--no-children]` | — | registro completo; as linhas das tabelas filhas vêm por padrão, agrupadas por `tableId` (`--no-children` traz só o pai — num card de 150 linhas a resposta cai de 141 KB para 5 KB) |
@@ -156,9 +156,9 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `workflow import <processId>... \| --all` | baixa os scripts de eventos para workflow/scripts/ (servidor → local; sobrescreve no lugar; nativo) |
 | `workflow import <processId> --stdout [--events X]` | imprime os scripts publicados SEM gravar no repo (read-only) |
 | `workflow import <processId> --version <n>` | baixa os scripts de uma versão específica (não só a corrente) |
-| `workflow export <arquivo\|processId> [--process-id <id>]` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar) |
+| `workflow export <arquivo\|processId> [--process-id <id>]` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar). **Audita antes**: erro de audit em QUALQUER script aborta tudo (exit 1) — a aplicação é atômica; `--no-audit` pula |
 | `workflow diff <arquivo\|processId> [--process-id <id>]` | compara o script local com o publicado (read-only; aceita `--events`/`--all-events`) |
-| `workflow publish <processId> [--no-release] [--process-id <id>]` | deploy nativo: cria versão nova com os scripts locais e a libera |
+| `workflow publish <processId> [--no-release] [--process-id <id>]` | deploy nativo: cria versão nova com os scripts locais e a libera. **Audita antes**: erro de audit em QUALQUER script aborta e nada é publicado (exit 1); `--no-audit` pula |
 
 `--process-id` desacopla o arquivo local (que dá o evento/script) do processId no servidor — use quando o processId publicado difere do prefixo do arquivo (ex.: arquivo `SolicitacaoAdiantamento.*.js`, processId `"Adiantamento ao Fornecedor"`). Um `NOT_FOUND` de processo sugere ids próximos e lembra da flag.
 

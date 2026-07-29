@@ -147,16 +147,24 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 	var (
 		name          string
 		description   string
+		noAudit       bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
 		Use:   "export <file>...",
 		Short: "Envia mecanismos locais para o servidor (local → servidor)",
+		Long: "Envia mecanismos de atribuição locais para o servidor.\n\n" +
+			"Antes de enviar, a CLI audita os arquivos com as regras do `audit`. Um\n" +
+			"achado de nível ERRO barra o envio daquele arquivo. Use --no-audit para\n" +
+			"pular a checagem.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if len(args) == 0 {
 				return output.Usagef("informe um ou mais arquivos .js de mecanismo")
 			}
+			// Pré-checagem local (§3.2/§3.13), antes de conectar.
+			gate := app.auditBeforePublish(p, args, auditGateOpts{skip: noAudit})
+			gate.report(p)
 			ctx := context.Background()
 			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar mecanismos")
 			if err != nil {
@@ -177,6 +185,15 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 			failures := 0
 			for _, file := range args {
 				id := project.ArtifactName(file)
+				if blockErr := gate.blockedError(file); blockErr != nil {
+					failures++
+					lastErr = blockErr
+					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
+					if len(args) > 1 {
+						p.Warnf("mecanismo %q: %s", id, blockErr.Message)
+					}
+					continue
+				}
 				action, werr := app.exportOneMechanism(ctx, client, byID, file, id, name, description)
 				if werr != nil {
 					failures++
@@ -188,11 +205,16 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
 				p.Successf("mecanismo %q %s", id, action)
 			}
-			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(args))
+			data := map[string]any{"results": results}
+			if gate.ran {
+				data["findings"] = gate.findings
+			}
+			return finishBatch(p, lastErr, data, failures, len(args))
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "nome do mecanismo ao criar (default: o id)")
 	cmd.Flags().StringVar(&description, "description", "", "descrição do mecanismo ao criar (default: o nome)")
+	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit barra o envio)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

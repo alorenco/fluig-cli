@@ -48,6 +48,18 @@ fluigcli event export events/meuEvento.js
 fluigcli event export events/*.js
 ```
 
+
+### Checagem local antes de publicar
+
+Antes de enviar, o comando audita os arquivos com as regras do
+[`audit`](audit.md). Um achado de nível **ERRO** barra o envio, com exit code 1.
+Os avisos não barram nada. Use `--no-audit` para pular a checagem.
+
+O motivo está em [dataset](dataset.md#checagem-local-antes-de-publicar): o
+servidor recusa script com erro de compilação sem dizer a linha, e o `const` no
+corpo de um laço nem gera erro — ele devolve o valor da primeira volta em todas
+as outras, em silêncio.
+
 ## `fluigcli event delete <id>...`
 
 Este comando exclui eventos globais no servidor. O comando pede confirmação.

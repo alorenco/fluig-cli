@@ -281,7 +281,7 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 
 			// Pré-checagem local (§3.2), antes de conectar: script reprovado não
 			// chega a gastar login nem escrita no servidor.
-			gate := app.auditBeforePublish(p, args, noAudit)
+			gate := app.auditBeforePublish(p, args, auditGateOpts{skip: noAudit})
 			gate.report(p)
 
 			var results []itemResult

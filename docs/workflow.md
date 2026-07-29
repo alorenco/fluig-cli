@@ -178,6 +178,19 @@ arquivo diferir do processId no servidor vira um conserto direto.
 Fluig Studio). Ele não cria processos. Ele não sobe diagramas `.process`. Para o
 deploy com versão nova e liberação, use `workflow publish` (nativo).
 
+### Checagem local antes de publicar
+
+Antes de enviar, o comando audita os scripts com as regras do
+[`audit`](audit.md). Um achado de nível **ERRO** em **qualquer** script aborta o
+comando, com exit code 1. Nada é enviado ao servidor.
+
+O aborto é total de propósito. O `publish` cria uma versão nova com todos os
+scripts, e o `export` aplica todos os scripts do alvo. Publicar metade deixaria o
+processo num estado que ninguém pediu. É a mesma regra que já valia para script
+de evento inexistente.
+
+Use `--no-audit` para pular a checagem.
+
 ## `fluigcli workflow diff <arquivo|processId> [flags]`
 
 Este comando compara os scripts de eventos locais com o que está publicado no
@@ -214,6 +227,10 @@ Este comando faz o deploy do processo. Ele cria uma versão nova no servidor com
 os scripts locais (`workflow/scripts/<processId>.*.js`) aplicados. Ele libera
 essa versão para uso. O servidor desativa a versão anterior. O comando é nativo
 (REST v2 `process-management`). Ele não depende do componente auxiliar.
+
+O `publish` também audita os scripts antes de enviar. Um achado de nível ERRO
+aborta o comando e nada é publicado. Ver
+[Checagem local antes de publicar](#checagem-local-antes-de-publicar).
 
 ```sh
 fluigcli workflow publish Compras --server homolog

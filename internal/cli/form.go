@@ -261,6 +261,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 		cardDescription string
 		persistenceType string
 		versionMode     string
+		noAudit         bool
 		passwordStdin   bool
 	)
 	cmd := &cobra.Command{
@@ -269,7 +270,12 @@ func newFormExportCmd(app *App) *cobra.Command {
 		Long: "Envia uma pasta de formulário para o servidor.\n\n" +
 			"O formulário-alvo é resolvido por: --document-id > --name > mapeamento\n" +
 			"(.fluigcli/forms.json) > nome da pasta. Após o envio, o vínculo é gravado\n" +
-			"no mapeamento para os próximos exports.",
+			"no mapeamento para os próximos exports.\n\n" +
+			"Antes de enviar, a CLI audita a pasta com as regras do `audit`. Aqui só as\n" +
+			"regras de runtime barram a publicação: RHINO* (sintaxe e armadilhas do\n" +
+			"motor de script) e FL* (API que não existe). As regras SG*, de tema visual,\n" +
+			"não barram — formulário legado tem cor fixa, e não é isso que o export vem\n" +
+			"resolver. Use --no-audit para pular a checagem.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -287,6 +293,14 @@ func newFormExportCmd(app *App) *cobra.Command {
 			}
 			if len(upload.Files) == 0 {
 				return output.Usagef("a pasta %q não tem arquivos para enviar", folder)
+			}
+
+			// Pré-checagem local (§3.13). O envio do formulário é atômico (uma
+			// versão nova com todos os arquivos), então qualquer arquivo reprovado
+			// aborta antes de tocar o servidor.
+			if err := app.auditBeforeAtomicPublish(p, []string{folder},
+				auditGateOpts{skip: noAudit, regras: regrasDeRuntime}); err != nil {
+				return err
 			}
 
 			persist, err := parsePersistence(persistenceType)
@@ -392,6 +406,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 	f.StringVar(&cardDescription, "card-description", "", "campo descritor do card (default: o nome do formulário)")
 	f.StringVar(&persistenceType, "persistence-type", "db", "persistência na criação: db (tabelas por form) ou single (tabela única)")
 	f.StringVar(&versionMode, "version", "new", "no update: keep (mantém a versão) ou new (cria nova)")
+	f.BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de RHINO*/FL* aborta o envio)")
 	f.BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

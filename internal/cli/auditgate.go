@@ -29,9 +29,45 @@ type auditGate struct {
 	// ordem do audit. Vão para o envelope --json.
 	findings []audit.Finding
 	warnings int
+	// naoBloqueantes conta achados de nível ERRO que o recorte de regras deste
+	// comando deixou passar (ver auditGateOpts.regras).
+	naoBloqueantes int
 	// ran informa se a auditoria rodou (false com --no-audit ou se ela falhou).
 	ran bool
+	opts auditGateOpts
 }
+
+// auditGateOpts ajusta a pré-checagem por comando.
+type auditGateOpts struct {
+	// skip desliga a checagem (--no-audit).
+	skip bool
+	// regras limita, por PREFIXO, quais regras podem barrar a publicação. Vazio
+	// = toda regra de nível erro barra.
+	//
+	// Existe para o `form export`: as regras SG* são de tema visual (cor fixa,
+	// recurso externo) e barrar a publicação de um formulário legado por causa
+	// delas seria intromissão — o usuário pediu para publicar o formulário, não
+	// para redesenhá-lo. Já um erro de sintaxe do Rhino (RHINO*) ou uma API que
+	// não existe (FL*) quebram o formulário em runtime.
+	regras []string
+}
+
+// bloqueia informa se a regra pode barrar a publicação neste comando.
+func (o auditGateOpts) bloqueia(rule string) bool {
+	if len(o.regras) == 0 {
+		return true
+	}
+	for _, prefixo := range o.regras {
+		if strings.HasPrefix(rule, prefixo) {
+			return true
+		}
+	}
+	return false
+}
+
+// regrasDeRuntime é o recorte usado no `form export`: só o que quebra em
+// execução barra a publicação.
+var regrasDeRuntime = []string{"RHINO", "FL"}
 
 // compileRelevantRules são as regras que podem, de fato, impedir a COMPILAÇÃO do
 // script no servidor. Só elas entram como causa provável de uma recusa de
@@ -68,12 +104,13 @@ func (g *auditGate) blockedError(file string) *output.Error {
 // veredito por arquivo. Nunca falha o comando por conta própria: problema na
 // própria auditoria vira aviso e a publicação segue (a checagem é uma rede de
 // proteção, não uma dependência nova do publish).
-func (a *App) auditBeforePublish(p *output.Printer, files []string, skip bool) *auditGate {
+func (a *App) auditBeforePublish(p *output.Printer, files []string, opts auditGateOpts) *auditGate {
 	gate := &auditGate{
 		blocked: map[string][]audit.Finding{},
 		byFile:  map[string][]audit.Finding{},
+		opts:    opts,
 	}
-	if skip {
+	if opts.skip {
 		return gate
 	}
 	root, err := a.projectRootForFiles()
@@ -102,14 +139,20 @@ func (a *App) auditBeforePublish(p *output.Printer, files []string, skip bool) *
 	gate.ran = true
 	gate.findings = res.Findings
 
-	// Casa cada achado com o arquivo do lote: o audit reporta o caminho relativo
-	// à raiz, e o usuário pode ter informado relativo ao cwd ou absoluto.
+	// Casa cada achado com o alvo do lote: o audit reporta o caminho relativo à
+	// raiz, e o usuário pode ter informado relativo ao cwd ou absoluto.
 	byRel := map[string]string{} // caminho relativo à raiz → argumento original
 	for _, file := range files {
 		byRel[auditRelPath(root, file)] = file
 	}
 	for _, f := range res.Findings {
 		file, ok := byRel[f.File]
+		if !ok {
+			// Alvo que é PASTA (o `form export` manda a pasta do formulário): o
+			// achado é de um arquivo dentro dela. Sem isto, erro em
+			// forms/X/events/y.js não barraria o envio de forms/X.
+			file, ok = donoDoAchado(byRel, f.File)
+		}
 		if ok {
 			gate.byFile[file] = append(gate.byFile[file], f)
 		}
@@ -117,11 +160,63 @@ func (a *App) auditBeforePublish(p *output.Printer, files []string, skip bool) *
 			gate.warnings++
 			continue
 		}
+		if !opts.bloqueia(f.Rule) {
+			gate.naoBloqueantes++
+			continue
+		}
 		if ok {
 			gate.blocked[file] = append(gate.blocked[file], f)
 		}
 	}
 	return gate
+}
+
+// donoDoAchado encontra o alvo (pasta) que contém o arquivo do achado. Com mais
+// de um candidato, ganha o mais específico — a pasta mais funda.
+func donoDoAchado(byRel map[string]string, rel string) (string, bool) {
+	melhor, dono := "", ""
+	for candidato, original := range byRel {
+		if candidato == "" || candidato == "." {
+			continue
+		}
+		if strings.HasPrefix(rel, candidato+"/") && len(candidato) > len(melhor) {
+			melhor, dono = candidato, original
+		}
+	}
+	return dono, dono != ""
+}
+
+// bloqueados devolve os arquivos reprovados, na ordem em que foram informados.
+func (g *auditGate) bloqueados(files []string) []string {
+	var out []string
+	for _, f := range files {
+		if len(g.blocked[f]) > 0 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// auditBeforeAtomicPublish é a pré-checagem dos comandos que publicam o conjunto
+// de UMA VEZ (workflow publish/export): qualquer arquivo reprovado aborta tudo.
+//
+// Não existe publicação parcial de versão de processo — publicar metade dos
+// eventos deixaria o processo num estado que ninguém pediu. Mesmo espírito da
+// regra que já valia ali: script de evento inexistente interrompe o comando
+// antes de qualquer mudança.
+func (a *App) auditBeforeAtomicPublish(p *output.Printer, files []string, opts auditGateOpts) error {
+	gate := a.auditBeforePublish(p, files, opts)
+	gate.report(p)
+	reprovados := gate.bloqueados(files)
+	if len(reprovados) == 0 {
+		return nil
+	}
+	err := gate.blockedError(reprovados[0])
+	if len(reprovados) > 1 {
+		err = output.AuditFailedf("%s (%d arquivos reprovados; nada foi publicado)",
+			err.Message, len(reprovados))
+	}
+	return err
 }
 
 // auditRelPath devolve o caminho do arquivo relativo à raiz, no formato que o
@@ -148,9 +243,12 @@ func (g *auditGate) report(p *output.Printer) {
 	if !g.ran {
 		return
 	}
+	// A tabela mostra só o que BARRA: um achado de nível erro que este comando
+	// deixa passar viraria uma linha vermelha sem consequência, e o usuário
+	// procuraria um problema que não existe. Esses entram na contagem abaixo.
 	var errs []audit.Finding
 	for _, f := range g.findings {
-		if f.Severity == audit.SeverityError {
+		if f.Severity == audit.SeverityError && g.opts.bloqueia(f.Rule) {
 			errs = append(errs, f)
 		}
 	}
@@ -161,6 +259,10 @@ func (g *auditGate) report(p *output.Printer) {
 	}
 	if g.warnings > 0 {
 		p.Infof("%d aviso(s) da auditoria não barram a publicação — veja com: fluigcli audit", g.warnings)
+	}
+	if g.naoBloqueantes > 0 {
+		p.Infof("%d achado(s) de nível erro não barram ESTE comando (regras de tema visual) — veja com: fluigcli audit",
+			g.naoBloqueantes)
 	}
 }
 
