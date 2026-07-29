@@ -117,32 +117,7 @@ func newAuditCmd(app *App) *cobra.Command {
 			if len(res.Findings) == 0 {
 				p.Successf("nenhuma pendência de style guide (%d arquivos auditados, catálogo %s).", res.Scanned, catalogSource)
 			} else {
-				rows := make([][]string, 0, len(res.Findings))
-				for _, f := range res.Findings {
-					sev := "AVISO"
-					if f.Severity == audit.SeverityError {
-						sev = "ERRO"
-					}
-					msg := f.Message
-					if f.Suggestion != "" {
-						msg += " → " + f.Suggestion
-					}
-					rows = append(rows, []string{sev, f.Rule, fmt.Sprintf("%s:%d", f.File, f.Line), msg})
-				}
-				// Padrão de listagem (ver CLAUDE.md): erro em vermelho, aviso em amarelo.
-				p.Table(output.Table{
-					Headers: []string{"Sev", "Regra", "Local", "Problema"},
-					Rows:    rows,
-					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
-						if col != 0 {
-							return padded
-						}
-						if res.Findings[row].Severity == audit.SeverityError {
-							return output.Red(padded)
-						}
-						return output.Yellow(padded)
-					}),
-				})
+				p.Table(auditFindingsTable(res.Findings))
 				p.Infof("%d erro(s) e %d aviso(s) em %d arquivo(s) auditado(s) (catálogo %s).",
 					errCount, warnCount, res.Scanned, catalogSource)
 			}
@@ -176,6 +151,37 @@ func newAuditCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&failOn, "fail-on", "error", "reprova (exit 1) quando houver achados do nível: error, warning ou none")
 	cmd.Flags().BoolVar(&fix, "fix", false, "aplica as correções determinísticas nos arquivos (CSS legado → flat; hex idêntico a variável → var(...))")
 	return cmd
+}
+
+// auditFindingsTable monta a tabela de achados no modo humano. Compartilhada
+// pelo comando `audit` e pela pré-checagem do `dataset export`.
+func auditFindingsTable(findings []audit.Finding) output.Table {
+	rows := make([][]string, 0, len(findings))
+	for _, f := range findings {
+		sev := "AVISO"
+		if f.Severity == audit.SeverityError {
+			sev = "ERRO"
+		}
+		msg := f.Message
+		if f.Suggestion != "" {
+			msg += " → " + f.Suggestion
+		}
+		rows = append(rows, []string{sev, f.Rule, fmt.Sprintf("%s:%d", f.File, f.Line), msg})
+	}
+	// Padrão de listagem (ver CLAUDE.md): erro em vermelho, aviso em amarelo.
+	return output.Table{
+		Headers: []string{"Sev", "Regra", "Local", "Problema"},
+		Rows:    rows,
+		Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+			if col != 0 {
+				return padded
+			}
+			if findings[row].Severity == audit.SeverityError {
+				return output.Red(padded)
+			}
+			return output.Yellow(padded)
+		}),
+	}
 }
 
 // loadAuditConfig lê as exceções do projeto (problema no arquivo = erro de uso).

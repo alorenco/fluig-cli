@@ -114,6 +114,13 @@ formulário. Use o botão **🎨** da barra (verde/amarelo/vermelho). O comando
 reexecuta a auditoria a cada salvamento. Os achados aparecem na tela, com as
 mesmas sugestões.
 
+## No `dataset export`
+
+O [`dataset export`](dataset.md) roda esta auditoria nos arquivos que vai
+publicar. Um achado de nível `error` barra o envio daquele arquivo, com o mesmo
+`AUDIT_FAILED`. Os avisos não barram nada. A opção `--no-audit` do export pula a
+checagem.
+
 ## Exit code e CI
 
 Por padrão a auditoria **reprova com exit 1** quando há achados de nível `error`

@@ -85,7 +85,7 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `dataset new <name>` | local | cria `datasets/<name>.js` com o esqueleto de dataset customizado (nada vai ao servidor; publique com export --new) |
 | `dataset list [--custom-only] [--search t]` | — | lista os datasets do servidor (id, tipo, descrição, ativo) |
 | `dataset import <id>... \| --all` | servidor → local | baixa datasets para arquivos locais |
-| `dataset export <file>...` | local → servidor | envia datasets locais |
+| `dataset export <file>...` | local → servidor | envia datasets locais. **Audita antes de enviar**: achado de nível ERRO do `audit` barra o arquivo com exit 1 (`AUDIT_FAILED`) e ele NÃO chega ao servidor — motivo: o servidor recusa erro de compilação sem dizer a linha, e o `const` em laço (RHINO003) nem dá erro (roda errado em silêncio). Avisos não barram. `--no-audit` pula a checagem; com a auditoria rodando, o `--json` traz `data.findings[]`. Numa recusa de compilação do servidor, a CLI anexa a causa provável ao erro |
 | `dataset query <id>` | — | consulta os dados de um dataset (`--order` aceita um único campo; sufixo `_DESC`) |
 | `dataset enable\|disable <id>...` | — | reativa/desativa datasets no servidor (sem apagar; disable é reversível) |
 | `dataset history <id> [--version N]` | — | histórico de versões; `--version N` imprime o código JS daquela versão |

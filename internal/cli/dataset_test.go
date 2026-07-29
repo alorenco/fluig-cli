@@ -43,6 +43,10 @@ type fluigDatasetStub struct {
 	helperAbsent  bool     // quando true, o ping do fluigcliHelper responde 404
 	helperVersion string   // versão reportada pelo helper (default "0.7.0")
 	deletedHard   []string // DELETEs em /fluigcliHelper/api/datasets/{id}
+
+	// rejectCompile faz create/editDataset devolverem a recusa de compilação do
+	// Fluig — a mensagem genérica que o §3.2 enriquece com o audit local.
+	rejectCompile bool
 }
 
 func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
@@ -145,11 +149,21 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		// Dataset inexistente: o Fluig responde 500 (não 404) — quirk real.
 		w.WriteHeader(http.StatusInternalServerError)
 	})
+	// Recusa de compilação do Fluig (mensagem real, sem a linha do erro).
+	const compileRejection = `{"message":{"message":"Não foi possível compilar os scripts para customização Model."}}`
 	mux.HandleFunc("/ecm/api/rest/ecm/dataset/createDataset", func(w http.ResponseWriter, r *http.Request) {
+		if s.rejectCompile {
+			io.WriteString(w, compileRejection)
+			return
+		}
 		s.created = true
 		io.WriteString(w, `{"content":"OK"}`)
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/dataset/editDataset", func(w http.ResponseWriter, r *http.Request) {
+		if s.rejectCompile {
+			io.WriteString(w, compileRejection)
+			return
+		}
 		var p struct {
 			DatasetImpl string `json:"datasetImpl"`
 		}
@@ -329,6 +343,203 @@ func TestDatasetExportNewRequiresFlag(t *testing.T) {
 	}
 	if !stub.created {
 		t.Error("createDataset não foi chamado com --new")
+	}
+}
+
+// Scripts de apoio da pré-checagem do export (ROADMAP2 §3.2).
+const (
+	// dsConstEmLaco dispara RHINO003 (erro): o Rhino congela o valor da 1ª volta.
+	dsConstEmLaco = `function createDataset(fields, constraints, sortFields) {
+  var ds = DatasetBuilder.newDataset();
+  for (var i = 0; i < 3; i++) {
+    const linha = i;
+    ds.addRow(new Array(linha));
+  }
+  return ds;
+}
+`
+	// dsSoAviso dispara FL002 (aviso): WK* inexistente devolve null em silêncio.
+	dsSoAviso = `function createDataset(fields, constraints, sortFields) {
+  var x = getValue("WKNaoExiste");
+  return DatasetBuilder.newDataset();
+}
+`
+	dsLimpo = `function createDataset(fields, constraints, sortFields) {
+  return DatasetBuilder.newDataset();
+}
+`
+)
+
+// writeDataset grava um dataset local e devolve o caminho.
+func writeDataset(t *testing.T, proj, name, content string) string {
+	t.Helper()
+	dir := filepath.Join(proj, "datasets")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// Erro de audit barra o envio ANTES de tocar o servidor: era o atrito do relato
+// de 2026-07-29 (o servidor recusava com "não foi possível compilar", sem linha,
+// e o audit local já sabia a resposta).
+func TestDatasetExportBloqueadoPeloAudit(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsConstEmLaco)
+
+	code, stdout := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("exit=%d, esperado %d (audit reprovado)\n%s", code, output.ExitGeneric, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+	}
+	if env.Error == nil || env.Error.Code != output.CodeAuditFailed {
+		t.Fatalf("esperava %s no envelope, veio %+v", output.CodeAuditFailed, env.Error)
+	}
+	if !strings.Contains(env.Error.Message, "RHINO003") {
+		t.Errorf("a mensagem não cita a regra que barrou: %q", env.Error.Message)
+	}
+	if !strings.Contains(env.Error.Message, "--no-audit") {
+		t.Errorf("a mensagem não oferece a saída (--no-audit): %q", env.Error.Message)
+	}
+	if stub.editedImpl != "" {
+		t.Errorf("o dataset foi enviado apesar do erro de audit: %q", stub.editedImpl)
+	}
+}
+
+// --no-audit é a saída consciente: publica sem a checagem.
+func TestDatasetExportNoAuditPublicaMesmoAssim(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsConstEmLaco)
+
+	code, stdout := runMain(t, "dataset", "export", file, "--no-audit", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d com --no-audit\n%s", code, stdout)
+	}
+	if stub.editedImpl == "" {
+		t.Error("o dataset não foi enviado com --no-audit")
+	}
+	// Sem auditoria não há findings no envelope.
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if data, _ := env.Data.(map[string]any); data["findings"] != nil {
+		t.Errorf("--no-audit não devia produzir findings: %v", data["findings"])
+	}
+}
+
+// Aviso não barra: publica, e os findings vão para o envelope.
+func TestDatasetExportAvisoNaoBarra(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsSoAviso)
+
+	code, stdout := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d — aviso não pode barrar a publicação\n%s", code, stdout)
+	}
+	if stub.editedImpl == "" {
+		t.Error("o dataset não foi enviado")
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	findings, _ := data["findings"].([]any)
+	if len(findings) != 1 {
+		t.Errorf("esperava 1 finding (FL002) no envelope, veio %v", data["findings"])
+	}
+}
+
+// Lote: o arquivo reprovado falha e o limpo publica → exit 6, sem perder o bom.
+func TestDatasetExportLoteParcialPorAudit(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	ruim := writeDataset(t, proj, "ds_novo.js", dsConstEmLaco)
+	bom := writeDataset(t, proj, "ds_exemplo.js", dsLimpo)
+
+	code, stdout := runMain(t, "dataset", "export", ruim, bom, "--new", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, esperado %d (falha parcial)\n%s", code, output.ExitPartial, stdout)
+	}
+	if stub.editedImpl != dsLimpo {
+		t.Errorf("o arquivo aprovado não foi publicado: %q", stub.editedImpl)
+	}
+	if stub.created {
+		t.Error("o arquivo reprovado no audit não podia ter sido criado no servidor")
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	if len(results) != 2 {
+		t.Fatalf("esperava 2 results, veio %v", data["results"])
+	}
+}
+
+// Recusa de compilação do servidor é complementada pelo audit local. Achado sem
+// relação com compilação (FL002) NÃO pode virar "causa provável" — dica errada
+// manda o usuário investigar o arquivo errado.
+func TestDatasetExportRecusaDeCompilacaoSemAchadoRelevante(t *testing.T) {
+	stub := &fluigDatasetStub{rejectCompile: true}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsSoAviso)
+
+	code, stdout := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, esperado %d (recusa do servidor)\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil {
+		t.Fatal("envelope sem erro")
+	}
+	if env.Error.Code != output.CodeServerError {
+		t.Errorf("o código do erro do servidor tem de ser preservado, veio %q", env.Error.Code)
+	}
+	if !strings.Contains(env.Error.Message, "Não foi possível compilar") {
+		t.Errorf("a mensagem do servidor foi perdida: %q", env.Error.Message)
+	}
+	if strings.Contains(env.Error.Message, "FL002") {
+		t.Errorf("achado sem relação com compilação virou causa provável: %q", env.Error.Message)
+	}
+	if !strings.Contains(env.Error.Message, "não achou nada que explique") {
+		t.Errorf("faltou dizer que o audit não explica a recusa: %q", env.Error.Message)
+	}
+}
+
+// Quando o achado É de compilação, ele entra como causa provável. Acontece com
+// regra rebaixada para aviso em .fluigcli/audit.json — aí o export não barra, mas
+// o servidor recusa.
+func TestDatasetExportRecusaDeCompilacaoComCausaProvavel(t *testing.T) {
+	stub := &fluigDatasetStub{rejectCompile: true}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsConstEmLaco)
+	// Rebaixa RHINO003 para aviso: o gate deixa passar e o servidor recusa.
+	cfgDir := filepath.Join(proj, ".fluigcli")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "audit.json"),
+		[]byte(`{"severity":{"RHINO003":"warning"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, esperado %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "RHINO003") ||
+		!strings.Contains(env.Error.Message, "causa provável") {
+		t.Errorf("a causa provável de compilação não foi anexada: %+v", env.Error)
 	}
 }
 

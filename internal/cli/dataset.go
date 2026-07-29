@@ -255,31 +255,83 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 	var (
 		description   string
 		markNew       bool
+		noAudit       bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
 		Use:   "export <file>...",
 		Short: "Envia datasets locais para o servidor (local → servidor)",
+		Long: "Envia datasets locais para o servidor. O dataset que já existe é\n" +
+			"atualizado. O que não existe é criado (a criação exige --new ou\n" +
+			"confirmação).\n\n" +
+			"Antes de enviar, a CLI audita os arquivos com as regras do `audit`. Um\n" +
+			"achado de nível ERRO barra o envio daquele arquivo. Motivo: o servidor\n" +
+			"recusa script com erro de compilação sem dizer a linha, e o footgun mais\n" +
+			"comum (const no corpo de um laço) nem dá erro — roda errado em silêncio.\n" +
+			"Os avisos não barram nada. Use --no-audit para pular a checagem.\n\n" +
+			"Em lote, cada arquivo tem seu próprio resultado em results[]. Falha de\n" +
+			"parte dos arquivos termina em exit 6.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if len(args) == 0 {
 				return output.Usagef("informe um ou mais arquivos .js de dataset")
 			}
+
 			ctx := context.Background()
-			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar datasets")
-			if err != nil {
-				return err
-			}
+
+			// Pré-checagem local (§3.2), antes de conectar: script reprovado não
+			// chega a gastar login nem escrita no servidor.
+			gate := app.auditBeforePublish(p, args, noAudit)
+			gate.report(p)
 
 			var results []itemResult
 			var lastErr error
 			failures := 0
+			data := func() map[string]any {
+				d := map[string]any{"results": results}
+				if gate.ran {
+					d["findings"] = gate.findings
+				}
+				return d
+			}
+
+			// Só conecta se sobrou algo para publicar.
+			pending := 0
+			for _, file := range args {
+				if len(gate.blocked[file]) == 0 {
+					pending++
+				}
+			}
+			var client *fluig.Client
+			if pending > 0 {
+				var err error
+				if _, client, err = app.connectWrite(ctx, passwordStdin, "publicar datasets"); err != nil {
+					return err
+				}
+			}
+
 			for _, file := range args {
 				id := project.ArtifactName(file)
+				if blockErr := gate.blockedError(file); blockErr != nil {
+					failures++
+					lastErr = blockErr
+					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
+					// Alvo único: o erro final já sai com este texto — avisar aqui
+					// seria imprimir a mesma frase duas vezes.
+					if len(args) > 1 {
+						p.Warnf("dataset %q: %s", id, blockErr.Message)
+					}
+					continue
+				}
 				action, err := app.exportOneDataset(ctx, client, file, id, description, markNew)
 				if err != nil {
 					failures++
 					lastErr = mapFluigError(err)
+					// O servidor não diz a linha do erro de compilação; o audit
+					// local diz. Anexa a causa provável quando ela existir.
+					if isCompileRejection(lastErr) {
+						lastErr = withExtraMessage(lastErr, compileFailureHint(gate, file))
+					}
 					results = append(results, itemResult{ID: id, Action: action, Success: false, Error: output.AsError(lastErr).Message})
 					p.Warnf("dataset %q: %s", id, output.AsError(lastErr).Message)
 					continue
@@ -287,11 +339,12 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
 				p.Successf("dataset %q %s", id, action)
 			}
-			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(args))
+			return finishBatch(p, lastErr, data(), failures, len(args))
 		},
 	}
 	cmd.Flags().StringVar(&description, "description", "", "descrição ao criar um dataset novo (default: o nome)")
 	cmd.Flags().BoolVar(&markNew, "new", false, "confirma a criação de um dataset que ainda não existe no servidor")
+	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit barra o envio)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

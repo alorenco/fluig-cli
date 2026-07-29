@@ -74,6 +74,38 @@ fluigcli dataset export datasets/ds_clientes.js
 fluigcli dataset export datasets/ds_novo.js --new --description "Cadastro novo"
 ```
 
+### Checagem local antes de publicar
+
+Antes de enviar, o comando audita os arquivos com as regras do
+[`audit`](audit.md). Um achado de nível **ERRO** barra o envio daquele arquivo,
+com exit code 1. Os avisos não barram nada.
+
+Existem dois motivos para esta checagem:
+
+- O servidor recusa script com erro de compilação por uma mensagem genérica:
+  "Não foi possível compilar os scripts para customização Model". Ele **não diz a
+  linha**. O `audit` diz.
+- O footgun mais comum do Rhino não gera erro nenhum. Um `const` declarado no
+  corpo de um laço (RHINO003) compila, roda e devolve o valor da primeira volta
+  em todas as outras. O defeito vai para produção em silêncio.
+
+```sh
+$ fluigcli dataset export datasets/ds_agenda.js --new
+erro: a auditoria local reprovou o script: RHINO003 em datasets/ds_agenda.js:33 —
+`const` declarado no corpo de um laço … → troque por `let`. Corrija e publique de
+novo, ou envie sem checar com --no-audit
+```
+
+Use `--no-audit` para pular a checagem. O envelope `--json` traz os achados em
+`data.findings[]` quando a auditoria roda.
+
+A checagem falha em aberto. Se a auditoria não puder rodar (catálogo ausente,
+`audit.json` inválido), o comando avisa e publica.
+
+Quando o servidor recusa a compilação, a CLI anexa ao erro a causa provável, com
+base nas regras que impedem a compilação. Se nenhuma explicar a recusa, a
+mensagem diz isso — em vez de apontar um achado sem relação.
+
 ## `fluigcli dataset query <id> [flags]`
 
 Este comando consulta os dados de um dataset pela API REST v2
