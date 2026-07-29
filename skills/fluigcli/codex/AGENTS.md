@@ -74,7 +74,7 @@ update|delete — substituto/delegação de tarefas; requer admin), `diff` (loca
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado),
 `deploy` (`--plan release.json` executa um release na ordem: passos `dataset`/
-`event`/`mechanism`/`widget`/`workflow` (publish)/`db`; para no 1º erro e marca o
+`event`/`mechanism`/`form`/`widget`/`workflow` (publish)/`db`; para no 1º erro e marca o
 resto `skipped`, retome com `--from N`; `--dry-run` valida tudo sem escrever —
 inclusive se cada evento local EXISTE no processo; audita todos os scripts antes
 de começar), `audit` (linter do Style

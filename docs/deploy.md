@@ -29,7 +29,8 @@ nova.
     {"event": "events/displayCustomThemes.js"},
     {"mechanism": "mechanisms/mec_gestor_area.js"},
     {"widget": "processos_judiciais", "build": true},
-    {"workflow": "Compras"}
+    {"workflow": "Compras"},
+    {"form": "forms/frm_pedido"}
   ]
 }
 ```
@@ -43,11 +44,35 @@ nova.
 | `dataset` | arquivo `.js` | `new` (cria o dataset), `description` |
 | `event` | arquivo `.js` | — |
 | `mechanism` | arquivo `.js` | `description` |
+| `form` | pasta `forms/<pasta>` | `new`, `formName`, `documentId`, `parentId`, `datasetName`, `cardDescription`, `persistenceType`, `version` |
 | `widget` | código do widget | `build` (roda `npm run build`), `force` |
 | `workflow` | prefixo local dos scripts | `processId`, `noRelease` |
 | `db` | arquivo `.sql` | — (só leitura; o servidor recusa escrita) |
 
 A chave `name` é um rótulo livre. Ela aparece no relatório e ajuda a ler o plano.
+
+### O passo `form`
+
+O passo publica uma pasta de formulário, como o [`form export`](form.md).
+
+```json
+{"form": "forms/frm_pedido"}
+{"form": "forms/frm_pedido", "documentId": 805585, "version": "keep"}
+{"form": "forms/frm_novo", "new": true, "parentId": 15, "datasetName": "ds_pedido"}
+```
+
+- O alvo no servidor é resolvido como no comando: `documentId` > `formName` >
+  mapeamento (`.fluigcli/forms.json`) > nome da pasta.
+- A opção é `formName` porque a chave `name` já é o rótulo livre do passo.
+- **A criação precisa de `"new": true`, mais `parentId` e `datasetName`.** Num
+  plano não existe pergunta: sem a declaração, o passo falha dizendo o que
+  declarar.
+- O vínculo pasta↔`documentId` é **gravado** no `.fluigcli/forms.json`, no bucket
+  do servidor, igual ao comando. O arquivo é versionável, então um release deixa
+  essa alteração para você comitar.
+- A auditoria do formulário usa o recorte de regras do
+  [`form export`](form.md#checagem-local-antes-de-publicar): só `RHINO*` e `FL*`
+  barram. As regras `SG*`, de tema visual, não impedem o release.
 
 ### O passo `workflow`
 
@@ -81,7 +106,9 @@ O plano **nunca** contém senha. A autenticação segue a
    chave desconhecida reprova o plano antes de qualquer conexão.
 2. A CLI audita **todos** os scripts do plano com as regras do
    [`audit`](audit.md). Um achado de nível ERRO em qualquer script aborta o
-   release, e **nada é publicado**. Use `--no-audit` para pular.
+   release, e **nada é publicado**. As pastas de formulário são auditadas numa
+   passada separada, com o recorte de regras do `form export`. Use `--no-audit`
+   para pular as duas.
 3. A CLI autentica. Em servidor marcado como produção, vale a trava de
    confirmação — **uma vez** para o plano todo, não por passo.
 4. Os passos rodam na ordem. A CLI **para no primeiro erro**.
@@ -162,8 +189,6 @@ código dele. Não existe release parcial quando nada foi publicado.
 
 ## Limitações
 
-- Passos de **formulário** ainda não existem. Publique formulário com
-  [`form export`](form.md) enquanto isso.
 - Não há rollback. O Fluig não tem transação entre artefatos. O plano para no
   erro e diz onde parou — a volta é sua, com o Git e o
   [`dataset history`](dataset.md).

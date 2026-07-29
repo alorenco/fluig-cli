@@ -113,6 +113,13 @@ func (a *App) auditBeforePublish(p *output.Printer, files []string, opts auditGa
 	if opts.skip {
 		return gate
 	}
+	// Lista vazia NÃO é "audite tudo": `audit.Run` com alvos vazios cai nas pastas
+	// convencionais e varreria o projeto inteiro. Num plano de deploy só com
+	// passos de formulário isso rendeu 474 avisos de arquivos que o plano nem
+	// toca (medido em 2026-07-29).
+	if len(files) == 0 {
+		return gate
+	}
 	root, err := a.projectRootForFiles()
 	if err != nil {
 		p.Warnf("não consegui localizar a raiz do projeto para auditar (%v). A publicação segue.", err)

@@ -29,6 +29,8 @@ type deployStub struct {
 
 	processoImportado bool
 	processoLiberado  bool
+	formsCriados      int
+	formsAtualizados  int
 
 	// layouts responde o GET de layout por código (colisão do §3.1).
 	layouts map[string]string
@@ -123,6 +125,38 @@ func (s *deployStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{}`)
 	})
 
+	// formulário (SOAP ECMCardIndexService) + userCode
+	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"content":{"login":"u","userCode":"uc-1"}}`)
+	})
+	mux.HandleFunc("/webdesk/ECMCardIndexService", func(w http.ResponseWriter, r *http.Request) {
+		readTD := func(name string) []byte {
+			b, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return b
+		}
+		w.Header().Set("Content-Type", "text/xml")
+		switch r.Header.Get("SOAPAction") {
+		case "getCardIndexesWithoutApprover":
+			w.Write(readTD("soap_listForms.xml"))
+		case "createSimpleCardIndexWithDatasetPersisteType":
+			s.mu.Lock()
+			s.formsCriados++
+			s.mu.Unlock()
+			w.Write(readTD("soap_writeForm.xml"))
+		case "updateSimpleCardIndexWithDatasetAndGeneralInfo":
+			s.mu.Lock()
+			s.formsAtualizados++
+			s.mu.Unlock()
+			w.Write(readTD("soap_writeForm.xml"))
+		default:
+			http.Error(w, "op?", 500)
+		}
+	})
+
 	// processo (publish): tudo pela REST v2 — export/xml, import/xml,
 	// process-versions e release (o SOAP não entra neste caminho).
 	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
@@ -209,6 +243,7 @@ func deployProject(t *testing.T, stubURL string) string {
 	escreve(t, proj, "sql/diag.sql", "select 1 as n;\nselect 2 as n;\n")
 	escreve(t, proj, "workflow/scripts/Compras.beforeTaskSave.js",
 		"function beforeTaskSave(){ /* do plano */ }")
+	escreve(t, proj, "forms/Formulario de Teste/Formulario de Teste.html", "<html>ok</html>")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/webapp/WEB-INF/application.xml", "<application/>")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/resources/application.info", "code=meu_painel")
 	return proj
@@ -672,4 +707,155 @@ func TestDeployAuditaScriptsDeProcesso(t *testing.T) {
 	if stub.processoImportado {
 		t.Error("publicou apesar do erro de audit")
 	}
+}
+
+// --- passo form no plano (§3.14, ciclo 2) ---
+
+// Formulário que já existe no servidor: o passo atualiza.
+func TestDeployPassoFormAtualiza(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"form": "forms/Formulario de Teste"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.formsAtualizados != 1 {
+		t.Errorf("o formulário não foi atualizado (%d)", stub.formsAtualizados)
+	}
+	if stub.formsCriados != 0 {
+		t.Errorf("criou em vez de atualizar (%d)", stub.formsCriados)
+	}
+}
+
+// Sem "new": true, formulário que NÃO existe falha dizendo o que declarar — num
+// plano não existe prompt de confirmação.
+func TestDeployPassoFormSemNewFalha(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "forms/frm_inexistente/frm_inexistente.html", "<html>x</html>")
+	p := plano(t, proj, `{"steps": [{"form": "forms/frm_inexistente"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+	}
+	if !strings.Contains(stdout, "new") {
+		t.Errorf("a mensagem não diz o que declarar: %s", stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.formsCriados != 0 {
+		t.Error("criou o formulário sem a declaração")
+	}
+}
+
+// Criação declarada precisa de parentId e datasetName — a mensagem diz qual falta.
+func TestDeployPassoFormCriacaoExigeCampos(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "forms/frm_novo/frm_novo.html", "<html>x</html>")
+
+	casos := []struct{ nome, passo, quer string }{
+		{"sem parentId", `{"form": "forms/frm_novo", "new": true}`, "parent-id"},
+		{"sem datasetName", `{"form": "forms/frm_novo", "new": true, "parentId": 15}`, "dataset-name"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			p := plano(t, proj, `{"steps": [`+c.passo+`]}`)
+			code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+			if code != output.ExitUsage {
+				t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+			}
+			if !strings.Contains(stdout, c.quer) {
+				t.Errorf("mensagem sem %q: %s", c.quer, stdout)
+			}
+		})
+	}
+}
+
+// Criação completa: o passo cria o formulário.
+func TestDeployPassoFormCria(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "forms/frm_novo/frm_novo.html", "<html>x</html>")
+	p := plano(t, proj, `{"steps": [
+	  {"form": "forms/frm_novo", "new": true, "parentId": 15, "datasetName": "ds_novo_form"}
+	]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.formsCriados != 1 {
+		t.Errorf("o formulário não foi criado (%d)", stub.formsCriados)
+	}
+}
+
+// O dry-run distingue atualização de criação e não escreve nada.
+func TestDeployDryRunFormPreveAcao(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"form": "forms/Formulario de Teste"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--dry-run", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	steps, _ := data["steps"].([]any)
+	primeiro, _ := steps[0].(map[string]any)
+	acao, _ := primeiro["action"].(string)
+	if !strings.Contains(acao, "atualizaria o formulário") || !strings.Contains(acao, "documentId") {
+		t.Errorf("ação prevista inesperada: %q", acao)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.formsAtualizados+stub.formsCriados != 0 {
+		t.Error("--dry-run escreveu o formulário")
+	}
+}
+
+// Recorte de regras do §3.13 vale no plano: SG* (tema visual) NÃO barra o
+// formulário, mas RHINO* barra.
+func TestDeployPassoFormRecorteDeRegras(t *testing.T) {
+	t.Run("SG não barra", func(t *testing.T) {
+		stub := &deployStub{}
+		proj := deployProject(t, stub.server(t).URL)
+		escreve(t, proj, "forms/Formulario de Teste/Formulario de Teste.html",
+			`<html><body><p style="color:#ff0000">legado</p></body></html>`)
+		p := plano(t, proj, `{"steps": [{"form": "forms/Formulario de Teste"}]}`)
+
+		code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+		if code != output.ExitOK {
+			t.Fatalf("exit=%d: cor fixa não pode barrar o passo de formulário; stdout=%s", code, stdout)
+		}
+	})
+
+	t.Run("RHINO barra", func(t *testing.T) {
+		stub := &deployStub{}
+		proj := deployProject(t, stub.server(t).URL)
+		escreve(t, proj, "forms/Formulario de Teste/events/onLoad.js", dsConstEmLaco)
+		p := plano(t, proj, `{"steps": [{"form": "forms/Formulario de Teste"}]}`)
+
+		code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+		if code != output.ExitGeneric {
+			t.Fatalf("exit=%d, quer %d (audit); stdout=%s", code, output.ExitGeneric, stdout)
+		}
+		if !strings.Contains(stdout, "formulário(s) reprovado(s)") {
+			t.Errorf("a mensagem não distingue o gate do formulário: %s", stdout)
+		}
+		stub.mu.Lock()
+		defer stub.mu.Unlock()
+		if stub.formsAtualizados != 0 {
+			t.Error("publicou o formulário apesar do erro de runtime")
+		}
+	})
 }

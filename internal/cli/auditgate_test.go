@@ -195,3 +195,28 @@ func TestAuditGateOptsBloqueia(t *testing.T) {
 		}
 	}
 }
+
+// Alvo vazio não pode virar "audite o projeto inteiro": o `audit.Run` com lista
+// vazia cai nas pastas convencionais. Num plano de deploy só com passos de
+// formulário, o gate de scripts recebia [] e varria tudo — 474 avisos de
+// arquivos que o plano nem toca (medido ao vivo em 2026-07-29).
+func TestAuditGateListaVaziaNaoAuditaProjeto(t *testing.T) {
+	proj := t.TempDir()
+	// Um dataset com erro no projeto, fora de qualquer lote.
+	if err := os.MkdirAll(filepath.Join(proj, "datasets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(proj, "datasets", "ds_ruim.js"), []byte(dsConstEmLaco), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{Project: proj}
+	p := output.NewPrinter(true, "teste")
+
+	gate := app.auditBeforePublish(p, nil, auditGateOpts{})
+	if gate.ran {
+		t.Error("o gate rodou com lista vazia — varreria o projeto inteiro")
+	}
+	if len(gate.findings) != 0 || gate.warnings != 0 {
+		t.Errorf("achados de arquivos fora do lote: %d findings, %d avisos", len(gate.findings), gate.warnings)
+	}
+}

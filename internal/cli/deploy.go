@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
@@ -46,6 +47,8 @@ type deployStep struct {
 	// Workflow é o PREFIXO LOCAL dos scripts (workflow/scripts/<prefixo>.*.js).
 	// O destino no servidor é ProcessID quando ele difere do prefixo.
 	Workflow string `json:"workflow,omitempty"`
+	// Form é a pasta do formulário (forms/<pasta>).
+	Form string `json:"form,omitempty"`
 
 	// Opções por tipo (espelham as flags do comando equivalente).
 	New         bool   `json:"new,omitempty"`         // dataset
@@ -53,6 +56,16 @@ type deployStep struct {
 	Build       bool   `json:"build,omitempty"`       // widget
 	Force       bool   `json:"force,omitempty"`       // widget
 	ProcessID   string `json:"processId,omitempty"`   // workflow (espelha --process-id)
+
+	// Opções do passo form (espelham as flags do `form export`). FormName é
+	// `formName` e não `name` porque `name` já é o rótulo livre do passo.
+	FormName        string `json:"formName,omitempty"`
+	DocumentID      int    `json:"documentId,omitempty"`
+	ParentID        int    `json:"parentId,omitempty"`
+	DatasetName     string `json:"datasetName,omitempty"`
+	CardDescription string `json:"cardDescription,omitempty"`
+	PersistenceType string `json:"persistenceType,omitempty"`
+	Version         string `json:"version,omitempty"` // keep | new
 	// NoRelease espelha o --no-release: por padrão o plano LIBERA a versão nova.
 	// A chave é negativa de propósito — `bool` em JSON tem default false, e
 	// "release": false seria indistinguível de "release" ausente sem ponteiro.
@@ -91,7 +104,7 @@ const (
 func (s deployStep) kindOf() (kind, target string, err error) {
 	pares := []struct{ kind, target string }{
 		{"dataset", s.Dataset}, {"event", s.Event}, {"mechanism", s.Mechanism},
-		{"widget", s.Widget}, {"db", s.DB}, {"workflow", s.Workflow},
+		{"widget", s.Widget}, {"db", s.DB}, {"workflow", s.Workflow}, {"form", s.Form},
 	}
 	for _, p := range pares {
 		if p.target == "" {
@@ -104,7 +117,7 @@ func (s deployStep) kindOf() (kind, target string, err error) {
 	}
 	if kind == "" {
 		return "", "", fmt.Errorf(
-			"passo sem tipo: informe uma das chaves dataset, event, mechanism, widget, workflow ou db")
+			"passo sem tipo: informe uma das chaves dataset, event, mechanism, form, widget, workflow ou db")
 	}
 	return kind, target, nil
 }
@@ -132,7 +145,8 @@ func newDeployCmd(app *App) *cobra.Command {
 			"      {\"dataset\": \"datasets/ds_agenda.js\", \"new\": true},\n" +
 			"      {\"dataset\": \"datasets/ds_processos.js\"},\n" +
 			"      {\"widget\": \"processos_judiciais\", \"build\": true},\n" +
-			"      {\"workflow\": \"Compras\"}\n" +
+			"      {\"workflow\": \"Compras\"},\n" +
+			"      {\"form\": \"forms/frm_pedido\"}\n" +
 			"    ]\n" +
 			"  }\n\n" +
 			"O comando PARA no primeiro erro. Os passos seguintes saem como\n" +
@@ -146,7 +160,10 @@ func newDeployCmd(app *App) *cobra.Command {
 			"locais e a libera (use \"noRelease\": true para não liberar). O alvo é o\n" +
 			"prefixo dos arquivos locais; use \"processId\" quando o processo no\n" +
 			"servidor tiver outro nome.\n\n" +
-			"Passos de formulário ainda não são suportados.",
+			"O passo form publica uma pasta de formulário. A criação exige\n" +
+			"\"new\": true mais \"parentId\" e \"datasetName\" — num plano não há\n" +
+			"pergunta. O vínculo pasta↔documentId é gravado no\n" +
+			".fluigcli/forms.json, como no form export.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -182,12 +199,24 @@ func newDeployCmd(app *App) *cobra.Command {
 			// Pré-checagem local dos scripts do plano INTEIRO, antes de conectar:
 			// um release não deve começar para descobrir no meio que um script não
 			// compila.
-			gate := app.auditBeforePublish(p, scriptTargetsDoPlano(steps, root), auditGateOpts{skip: noAudit})
+			scripts := scriptTargetsDoPlano(steps, root)
+			gate := app.auditBeforePublish(p, scripts, auditGateOpts{skip: noAudit})
 			gate.report(p)
-			if reprovados := gate.bloqueados(scriptTargetsDoPlano(steps, root)); len(reprovados) > 0 {
+			if reprovados := gate.bloqueados(scripts); len(reprovados) > 0 {
 				err := gate.blockedError(reprovados[0])
 				return output.AuditFailedf("%s (%d script(s) reprovado(s); nada foi publicado)",
 					err.Message, len(reprovados))
+			}
+			// Formulário audita com OUTRO recorte de regras (só runtime barra —
+			// §3.13), por isso a segunda chamada.
+			if pastas := formTargetsDoPlano(steps, root); len(pastas) > 0 {
+				fgate := app.auditBeforePublish(p, pastas, auditGateOpts{skip: noAudit, regras: regrasDeRuntime})
+				fgate.report(p)
+				if reprovados := fgate.bloqueados(pastas); len(reprovados) > 0 {
+					err := fgate.blockedError(reprovados[0])
+					return output.AuditFailedf("%s (%d formulário(s) reprovado(s); nada foi publicado)",
+						err.Message, len(reprovados))
+				}
 			}
 
 			ctx := context.Background()
@@ -195,17 +224,19 @@ func newDeployCmd(app *App) *cobra.Command {
 			// seria pior que não perguntar.
 			acao := "executar o plano de deploy " + filepath.Base(planPath)
 			if dryRun {
-				_, client, cerr := app.connect(ctx, passwordStdin)
+				server, client, cerr := app.connect(ctx, passwordStdin)
 				if cerr != nil {
 					return cerr
 				}
-				return runDeployDryRun(ctx, app, p, client, root, planPath, steps, from)
+				return runDeployDryRun(ctx, app, p, server, client, root, planPath, steps, from, noAudit)
 			}
-			_, client, err := app.connectWrite(ctx, passwordStdin, acao)
+			// O *config.Server é necessário: o passo form resolve o vínculo
+			// pasta↔documentId pelo escopo do servidor (FormScopeKey).
+			server, client, err := app.connectWrite(ctx, passwordStdin, acao)
 			if err != nil {
 				return err
 			}
-			return runDeployPlan(ctx, app, p, client, root, planPath, steps, from)
+			return runDeployPlan(ctx, app, p, server, client, root, planPath, steps, from, noAudit)
 		},
 	}
 	cmd.Flags().StringVar(&planPath, "plan", "", "arquivo JSON com o plano de release")
@@ -246,6 +277,47 @@ func scriptsDoPassoWorkflow(root, prefixo string) (map[string]string, []string, 
 		byEvent[e.Name] = e.Contents
 	}
 	return byEvent, scriptPaths(scripts), nil
+}
+
+// formOptsDoPasso monta as opções do `form export` a partir do passo do plano.
+//
+// ConfirmCreate fica nil de propósito: num plano não há prompt. A criação tem de
+// estar declarada com "new": true, senão o passo falha dizendo isso.
+func (s deployStep) formOptsDoPasso(noAudit bool) (formExportOpts, error) {
+	persist, err := parsePersistence(s.PersistenceType)
+	if err != nil {
+		return formExportOpts{}, err
+	}
+	versionOption, err := parseVersionMode(s.Version)
+	if err != nil {
+		return formExportOpts{}, err
+	}
+	return formExportOpts{
+		MarkNew:         s.New,
+		FormName:        s.FormName,
+		DocumentID:      s.DocumentID,
+		ParentID:        s.ParentID,
+		DatasetName:     s.DatasetName,
+		CardDescription: s.CardDescription,
+		Persistence:     persist,
+		VersionOption:   versionOption,
+		// O audit das pastas de formulário roda no gate do plano (regras de
+		// runtime), então aqui ele não repete.
+		NoAudit: true,
+	}, nil
+}
+
+// formTargetsDoPlano lista as pastas de formulário do plano. Elas são auditadas
+// numa chamada SEPARADA de gate, porque o recorte de regras é outro: no
+// formulário só RHINO*/FL* barram (§3.13).
+func formTargetsDoPlano(steps []deployStepResult, root string) []string {
+	var out []string
+	for _, s := range steps {
+		if s.Kind == "form" {
+			out = append(out, resolveDeployPath(root, s.Target))
+		}
+	}
+	return out
 }
 
 // readDeployPlan lê e desserializa o manifesto.
@@ -337,8 +409,8 @@ func renderDeploySteps(p *output.Printer, steps []deployStepResult, titulo strin
 }
 
 // runDeployDryRun valida o plano contra o servidor sem escrever nada.
-func runDeployDryRun(ctx context.Context, app *App, p *output.Printer, client *fluig.Client,
-	root, planPath string, steps []deployStepResult, from int) error {
+func runDeployDryRun(ctx context.Context, app *App, p *output.Printer, server *config.Server,
+	client *fluig.Client, root, planPath string, steps []deployStepResult, from int, noAudit bool) error {
 	renderDeploySteps(p, steps, fmt.Sprintf("Plano %s — %d passo(s), nada será escrito (--dry-run):", planPath, len(steps)))
 
 	var lastErr error
@@ -350,7 +422,7 @@ func runDeployDryRun(ctx context.Context, app *App, p *output.Printer, client *f
 			s.Error = "fora do intervalo (--from)"
 			continue
 		}
-		if err := checkDeployStep(ctx, app, client, root, s); err != nil {
+		if err := checkDeployStep(ctx, app, server, client, root, s); err != nil {
 			failures++
 			lastErr = err
 			s.Status, s.Error = deployFailed, output.AsError(err).Message
@@ -374,7 +446,8 @@ func runDeployDryRun(ctx context.Context, app *App, p *output.Printer, client *f
 }
 
 // checkDeployStep faz a checagem read-only de um passo e preenche a ação prevista.
-func checkDeployStep(ctx context.Context, app *App, client *fluig.Client, root string, s *deployStepResult) error {
+func checkDeployStep(ctx context.Context, app *App, server *config.Server, client *fluig.Client,
+	root string, s *deployStepResult) error {
 	switch s.Kind {
 	case "dataset", "event", "mechanism":
 		path := resolveDeployPath(root, s.Target)
@@ -404,6 +477,47 @@ func checkDeployStep(ctx context.Context, app *App, client *fluig.Client, root s
 			return err
 		}
 		s.Action = "publicaria a widget " + s.Target
+		return nil
+
+	case "form":
+		dir := resolveDeployPath(root, s.Target)
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			return output.NotFoundf("pasta de formulário %q não encontrada", s.Target)
+		}
+		if _, err := s.plan.formOptsDoPasso(true); err != nil {
+			return err
+		}
+		// Resolve o alvo como o export faria (read-only) para dizer se criaria ou
+		// atualizaria, e com que documentId.
+		pub, err := client.ResolveUserCode(ctx)
+		if err != nil {
+			return mapFluigError(err)
+		}
+		fmap, err := project.LoadFormMap(root, server.FormScopeKey())
+		if err != nil {
+			return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
+		}
+		forms, err := client.ListForms(ctx, pub)
+		if err != nil {
+			return mapFluigError(err)
+		}
+		folderKey := filepath.Base(filepath.Clean(dir))
+		existing, found := resolveExportTarget(forms, fmap, folderKey, s.plan.FormName, s.plan.DocumentID)
+		switch {
+		case found && !s.plan.New:
+			s.Action = fmt.Sprintf("atualizaria o formulário %q (documentId %d)",
+				existing.Description, existing.DocumentID)
+		case !s.plan.New:
+			return output.Usagef(
+				"o formulário da pasta %q não existe no servidor: declare \"new\": true no passo, "+
+					"ou aponte o alvo com \"documentId\"/\"formName\"", s.Target)
+		case s.plan.ParentID == 0:
+			return output.Usagef("o passo do formulário %q precisa de \"parentId\" para criar", s.Target)
+		case s.plan.DatasetName == "":
+			return output.Usagef("o passo do formulário %q precisa de \"datasetName\" para criar", s.Target)
+		default:
+			s.Action = "criaria o formulário " + folderKey
+		}
 		return nil
 
 	case "workflow":
@@ -454,8 +568,8 @@ type discardWriter struct{}
 func (discardWriter) Write(b []byte) (int, error) { return len(b), nil }
 
 // runDeployPlan executa os passos na ordem, parando no primeiro erro.
-func runDeployPlan(ctx context.Context, app *App, p *output.Printer, client *fluig.Client,
-	root, planPath string, steps []deployStepResult, from int) error {
+func runDeployPlan(ctx context.Context, app *App, p *output.Printer, server *config.Server,
+	client *fluig.Client, root, planPath string, steps []deployStepResult, from int, noAudit bool) error {
 	renderDeploySteps(p, steps, fmt.Sprintf("Plano %s — %d passo(s):", planPath, len(steps)))
 
 	var lastErr error
@@ -472,7 +586,7 @@ func runDeployPlan(ctx context.Context, app *App, p *output.Printer, client *flu
 			s.Error = "fora do intervalo (--from)"
 			continue
 		}
-		action, err := execDeployStep(ctx, app, p, client, root, s)
+		action, err := execDeployStep(ctx, app, p, server, client, root, s, noAudit)
 		if err != nil {
 			failures++
 			lastErr = err
@@ -509,8 +623,8 @@ func runDeployPlan(ctx context.Context, app *App, p *output.Printer, client *flu
 }
 
 // execDeployStep executa um passo e devolve a ação realizada.
-func execDeployStep(ctx context.Context, app *App, p *output.Printer, client *fluig.Client,
-	root string, s *deployStepResult) (string, error) {
+func execDeployStep(ctx context.Context, app *App, p *output.Printer, server *config.Server,
+	client *fluig.Client, root string, s *deployStepResult, noAudit bool) (string, error) {
 	step := s.plan
 	switch s.Kind {
 	case "dataset":
@@ -552,6 +666,17 @@ func execDeployStep(ctx context.Context, app *App, p *output.Printer, client *fl
 			return "failed", err
 		}
 		return "widget " + s.Target + " enviada", nil
+
+	case "form":
+		opts, err := step.formOptsDoPasso(noAudit)
+		if err != nil {
+			return "failed", err
+		}
+		res, err := app.exportOneForm(ctx, p, server, client, root, resolveDeployPath(root, s.Target), opts)
+		if err != nil {
+			return "failed", err
+		}
+		return fmt.Sprintf("formulário %q %s (documentId %d)", res.Name, res.Action, res.DocumentID), nil
 
 	case "workflow":
 		byEvent, _, err := scriptsDoPassoWorkflow(root, s.Target)

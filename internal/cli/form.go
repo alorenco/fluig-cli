@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 	"github.com/alorenco/fluig-cli/internal/output"
@@ -279,29 +280,7 @@ func newFormExportCmd(app *App) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-
 			folder := args[0]
-			info, err := os.Stat(folder)
-			if err != nil || !info.IsDir() {
-				return output.NotFoundf("pasta de formulário %q não encontrada", folder)
-			}
-			folderKey := filepath.Base(filepath.Clean(folder))
-
-			upload, err := readFormUpload(folder)
-			if err != nil {
-				return err
-			}
-			if len(upload.Files) == 0 {
-				return output.Usagef("a pasta %q não tem arquivos para enviar", folder)
-			}
-
-			// Pré-checagem local (§3.13). O envio do formulário é atômico (uma
-			// versão nova com todos os arquivos), então qualquer arquivo reprovado
-			// aborta antes de tocar o servidor.
-			if err := app.auditBeforeAtomicPublish(p, []string{folder},
-				auditGateOpts{skip: noAudit, regras: regrasDeRuntime}); err != nil {
-				return err
-			}
 
 			persist, err := parsePersistence(persistenceType)
 			if err != nil {
@@ -310,6 +289,20 @@ func newFormExportCmd(app *App) *cobra.Command {
 			versionOption, err := parseVersionMode(versionMode)
 			if err != nil {
 				return err
+			}
+			opts := formExportOpts{
+				MarkNew:         markNew,
+				FormName:        nameFlag,
+				DocumentID:      documentID,
+				ParentID:        parentID,
+				DatasetName:     datasetName,
+				CardDescription: cardDescription,
+				Persistence:     persist,
+				VersionOption:   versionOption,
+				NoAudit:         noAudit,
+				// Só o comando pergunta: num plano de deploy a criação tem de
+				// estar declarada (ver deploy.go).
+				ConfirmCreate: func(formName string) bool { return app.confirmCreate(formName, markNew) },
 			}
 
 			ctx := context.Background()
@@ -321,79 +314,16 @@ func newFormExportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			pub, err := client.ResolveUserCode(ctx)
+			res, err := app.exportOneForm(ctx, p, server, client, root, folder, opts)
 			if err != nil {
-				return mapFluigError(err)
+				return err
 			}
-			fmap, err := project.LoadFormMap(root, server.FormScopeKey())
-			if err != nil {
-				return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
+			acao := "atualizado"
+			if res.Action == "created" {
+				acao = "criado"
 			}
-
-			forms, err := client.ListForms(ctx, pub)
-			if err != nil {
-				return mapFluigError(err)
-			}
-			existing, found := resolveExportTarget(forms, fmap, folderKey, nameFlag, documentID)
-
-			// Nome do formulário no servidor (para escolher o principal e a criação).
-			formName := folderKey
-			if found {
-				formName = existing.Description
-			} else if nameFlag != "" {
-				formName = nameFlag
-			}
-			names := make([]string, 0, len(upload.Files))
-			for _, ff := range upload.Files {
-				names = append(names, ff.Name)
-			}
-			upload.PrincipalFile = fluig.ChoosePrincipalFile(names, folderKey, formName)
-			if upload.PrincipalFile == "" {
-				p.Warnf("nenhum .html/.htm na pasta — o formulário será enviado sem arquivo principal")
-			}
-
-			if found && !markNew {
-				ds := datasetName
-				if ds == "" {
-					ds = existing.DatasetName
-				}
-				res, err := client.UpdateForm(ctx, pub, existing.DocumentID, existing.CardDescription, existing.Description, ds, versionOption, upload)
-				if err != nil {
-					return mapFluigError(err)
-				}
-				docID := documentIDOf(res, existing.DocumentID)
-				fmap.Upsert(project.FormLink{Folder: folderKey, DocumentID: docID, Name: existing.Description, DatasetName: ds})
-				saveFormMap(p, fmap)
-				p.Successf("formulário %q atualizado (documentId %d)", existing.Description, docID)
-				p.Done(map[string]any{"action": "updated", "documentId": docID, "name": existing.Description})
-				return nil
-			}
-
-			// Criação.
-			if !app.confirmCreate(formName, markNew) {
-				return output.Usagef("formulário %q não existe no servidor; use --new para criá-lo, --name/--document-id para apontar um existente, ou rode form link para vincular as pastas locais", folderKey)
-			}
-			if parentID == 0 {
-				return output.Usagef("--parent-id é obrigatório para criar um formulário (pasta do GED onde ele será salvo)")
-			}
-			if datasetName == "" {
-				return output.Usagef("--dataset-name é obrigatório para criar um formulário")
-			}
-			card := cardDescription
-			if card == "" {
-				card = formName
-			}
-			res, err := client.CreateForm(ctx, pub, formName, card, datasetName, parentID, persist, upload)
-			if err != nil {
-				return mapFluigError(err)
-			}
-			docID := documentIDOf(res, 0)
-			if docID != 0 {
-				fmap.Upsert(project.FormLink{Folder: folderKey, DocumentID: docID, Name: formName, DatasetName: datasetName})
-				saveFormMap(p, fmap)
-			}
-			p.Successf("formulário %q criado (documentId %d)", formName, docID)
-			p.Done(map[string]any{"action": "created", "documentId": docID, "name": formName})
+			p.Successf("formulário %q %s (documentId %d)", res.Name, acao, res.DocumentID)
+			p.Done(map[string]any{"action": res.Action, "documentId": res.DocumentID, "name": res.Name})
 			return nil
 		},
 	}
@@ -485,4 +415,136 @@ func parseVersionMode(mode string) (string, error) {
 	default:
 		return "", output.Usagef("--version inválido: %q (use keep ou new)", mode)
 	}
+}
+
+// formExportOpts são as opções do `form export`, na mesma semântica das flags.
+// Existe para o `deploy` (§3.14) chamar a MESMA publicação sem 8 parâmetros
+// posicionais.
+type formExportOpts struct {
+	MarkNew         bool
+	FormName        string // nome no servidor: aponta o alvo / nomeia na criação
+	DocumentID      int
+	ParentID        int
+	DatasetName     string
+	CardDescription string
+	Persistence     int    // já validado por parsePersistence
+	VersionOption   string // já validado por parseVersionMode
+	NoAudit         bool
+
+	// ConfirmCreate decide a criação quando o formulário não existe e MarkNew é
+	// false. nil = não cria (é o caso do plano de deploy, onde não há prompt).
+	ConfirmCreate func(formName string) bool
+}
+
+// formExportResult é o que a publicação de um formulário produziu.
+type formExportResult struct {
+	Action     string // created | updated
+	DocumentID int
+	Name       string
+}
+
+// exportOneForm publica uma pasta de formulário: audita, resolve o alvo, chama
+// UpdateForm ou CreateForm e grava o vínculo pasta↔documentId no
+// .fluigcli/forms.json (bucket do servidor).
+//
+// A gravação do mapa acontece também no `deploy` — decisão do mantenedor
+// (2026-07-29): manter a mesma semântica do comando, em vez de duas regras para a
+// mesma operação. O arquivo é versionável, então um release deixa a árvore com
+// essa alteração para comitar.
+func (a *App) exportOneForm(ctx context.Context, p *output.Printer, server *config.Server,
+	client *fluig.Client, root, folder string, opts formExportOpts) (formExportResult, error) {
+	var out formExportResult
+
+	info, err := os.Stat(folder)
+	if err != nil || !info.IsDir() {
+		return out, output.NotFoundf("pasta de formulário %q não encontrada", folder)
+	}
+	folderKey := filepath.Base(filepath.Clean(folder))
+
+	upload, err := readFormUpload(folder)
+	if err != nil {
+		return out, err
+	}
+	if len(upload.Files) == 0 {
+		return out, output.Usagef("a pasta %q não tem arquivos para enviar", folder)
+	}
+
+	// Pré-checagem local (§3.13). O envio é atômico (uma versão nova com todos os
+	// arquivos), então qualquer arquivo reprovado aborta antes de tocar o
+	// servidor. Só as regras de runtime barram — ver regrasDeRuntime.
+	if err := a.auditBeforeAtomicPublish(p, []string{folder},
+		auditGateOpts{skip: opts.NoAudit, regras: regrasDeRuntime}); err != nil {
+		return out, err
+	}
+
+	pub, err := client.ResolveUserCode(ctx)
+	if err != nil {
+		return out, mapFluigError(err)
+	}
+	fmap, err := project.LoadFormMap(root, server.FormScopeKey())
+	if err != nil {
+		return out, output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
+	}
+	forms, err := client.ListForms(ctx, pub)
+	if err != nil {
+		return out, mapFluigError(err)
+	}
+	existing, found := resolveExportTarget(forms, fmap, folderKey, opts.FormName, opts.DocumentID)
+
+	// Nome do formulário no servidor (escolhe o principal e nomeia na criação).
+	formName := folderKey
+	if found {
+		formName = existing.Description
+	} else if opts.FormName != "" {
+		formName = opts.FormName
+	}
+	names := make([]string, 0, len(upload.Files))
+	for _, ff := range upload.Files {
+		names = append(names, ff.Name)
+	}
+	upload.PrincipalFile = fluig.ChoosePrincipalFile(names, folderKey, formName)
+	if upload.PrincipalFile == "" {
+		p.Warnf("nenhum .html/.htm na pasta — o formulário será enviado sem arquivo principal")
+	}
+
+	if found && !opts.MarkNew {
+		ds := opts.DatasetName
+		if ds == "" {
+			ds = existing.DatasetName
+		}
+		res, err := client.UpdateForm(ctx, pub, existing.DocumentID, existing.CardDescription,
+			existing.Description, ds, opts.VersionOption, upload)
+		if err != nil {
+			return out, mapFluigError(err)
+		}
+		docID := documentIDOf(res, existing.DocumentID)
+		fmap.Upsert(project.FormLink{Folder: folderKey, DocumentID: docID, Name: existing.Description, DatasetName: ds})
+		saveFormMap(p, fmap)
+		return formExportResult{Action: "updated", DocumentID: docID, Name: existing.Description}, nil
+	}
+
+	// Criação.
+	if !opts.MarkNew && (opts.ConfirmCreate == nil || !opts.ConfirmCreate(formName)) {
+		return out, output.Usagef("formulário %q não existe no servidor; use --new para criá-lo, --name/--document-id para apontar um existente, ou rode form link para vincular as pastas locais", folderKey)
+	}
+	if opts.ParentID == 0 {
+		return out, output.Usagef("--parent-id é obrigatório para criar um formulário (pasta do GED onde ele será salvo)")
+	}
+	if opts.DatasetName == "" {
+		return out, output.Usagef("--dataset-name é obrigatório para criar um formulário")
+	}
+	card := opts.CardDescription
+	if card == "" {
+		card = formName
+	}
+	res, err := client.CreateForm(ctx, pub, formName, card, opts.DatasetName, opts.ParentID, opts.Persistence, upload)
+	if err != nil {
+		return out, mapFluigError(err)
+	}
+	docID := documentIDOf(res, 0)
+	if docID != 0 {
+		fmap.Upsert(project.FormLink{Folder: folderKey, DocumentID: docID, Name: formName, DatasetName: opts.DatasetName})
+		saveFormMap(p, fmap)
+	}
+	return formExportResult{Action: "created", DocumentID: docID, Name: formName}, nil
 }
