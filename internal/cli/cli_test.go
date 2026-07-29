@@ -75,6 +75,43 @@ func TestRaiseWriteTimeout(t *testing.T) {
 	}
 }
 
+// Piso de tempo limite da LEITURA PESADA (ROADMAP2 §3.8): consulta de
+// diagnóstico em tabela grande estourava os 30 s do default. A regra é a mesma
+// da escrita — o valor do usuário sempre ganha.
+func TestRaiseReadTimeout(t *testing.T) {
+	cases := []struct {
+		nome   string
+		app    App
+		quer   time.Duration
+		porQue string
+	}{
+		{"default sobe ao piso", App{Timeout: 30 * time.Second}, readTimeoutFloor,
+			"leitura pesada com o default precisa do piso"},
+		{"valor do usuário é respeitado", App{Timeout: 5 * time.Second, timeoutExplicit: true}, 5 * time.Second,
+			"--timeout/env explícito vence, inclusive para baixo"},
+		{"valor maior que o piso não baixa", App{Timeout: 10 * time.Minute}, 10 * time.Minute,
+			"o piso é mínimo, não teto"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			app := tc.app
+			app.raiseReadTimeout()
+			if app.Timeout != tc.quer {
+				t.Errorf("Timeout=%s, quer %s (%s)", app.Timeout, tc.quer, tc.porQue)
+			}
+		})
+	}
+}
+
+// A assimetria entre escrita e leitura era o que surpreendia: os dois pisos têm
+// de ser o mesmo valor.
+func TestPisosDeTimeoutIguais(t *testing.T) {
+	if readTimeoutFloor != writeTimeoutFloor {
+		t.Errorf("piso de leitura (%s) != piso de escrita (%s) — a assimetria é justamente o que confunde",
+			readTimeoutFloor, writeTimeoutFloor)
+	}
+}
+
 func TestVersionJSONEnvelope(t *testing.T) {
 	code, stdout := runMain(t, "version", "--json")
 	if code != output.ExitOK {

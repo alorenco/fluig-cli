@@ -69,6 +69,15 @@ fluigcli db query "select 1" --json
 - `--max-rows` — o teto de linhas. O valor padrão é 500. O valor máximo é
   10000.
 
+O tempo limite deste comando tem **piso de 2 minutos**, não os 30 segundos do
+padrão global. Consulta de diagnóstico em tabela grande passa dos 30 segundos com
+facilidade. A opção `--timeout` sempre vence, inclusive para baixo. Com `-v`, a
+CLI informa no stderr quando eleva o valor.
+
+O tempo limite é do **cliente**. Quando ele estoura, o servidor continua
+executando a consulta. Aumentar o valor deixa a espera mais longa, não mais
+barata.
+
 No terminal, o comando mostra os nomes das colunas no cabeçalho. Ele mostra um
 valor nulo do banco como `(null)`. Quando o resultado chega ao teto de linhas,
 o comando avisa. Neste caso, aumente o valor de `--max-rows`.

@@ -637,6 +637,9 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
+			// Dataset customizado pode fazer JOIN pesado e paginar muito: leitura
+			// pesada, então vale o piso de tempo limite.
+			app.raiseReadTimeout()
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {

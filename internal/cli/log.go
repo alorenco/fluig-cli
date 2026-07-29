@@ -245,6 +245,11 @@ func newLogTailCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if ranged {
+				// Recortar uma janela num server.log grande é leitura pesada: o
+				// servidor varre o arquivo inteiro para achar o intervalo.
+				app.raiseReadTimeout()
+			}
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {

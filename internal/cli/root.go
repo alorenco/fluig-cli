@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -66,14 +67,43 @@ type App struct {
 // continua nos 30 s.
 const writeTimeoutFloor = 2 * time.Minute
 
+// readTimeoutFloor é o piso do tempo limite das LEITURAS PESADAS: consulta SQL
+// de diagnóstico, consulta de dataset, auditoria de usuário e recorte de log por
+// intervalo. Os 30 s do default são curtos aqui — consultas de diagnóstico em
+// tabela de 60 mil linhas (hash de coluna `text`, window function) estouraram
+// várias vezes até o usuário passar `--timeout 3m` (relato de 2026-07-29).
+//
+// É o mesmo valor do piso de escrita, de propósito: a assimetria (escrita com 2m
+// e leitura com 30 s) era o que surpreendia. O default de 30 s continua valendo
+// para o resto — é ele que faz um host errado falhar rápido.
+//
+// ⚠️ Isto NÃO cancela a consulta no servidor. O tempo limite é do cliente; o
+// helper segue executando o SQL depois que a CLI desiste (mesma lição do
+// §2.10-B). Elevar o piso deixa a espera mais longa, não mais barata.
+const readTimeoutFloor = 2 * time.Minute
+
 // raiseWriteTimeout eleva o tempo limite ao piso de escrita. Não mexe em nada
 // se o usuário definiu o valor (--timeout/FLUIGCLI_TIMEOUT) ou se o valor em
 // vigor já é maior.
-func (a *App) raiseWriteTimeout() {
-	if a.timeoutExplicit || a.Timeout >= writeTimeoutFloor {
+func (a *App) raiseWriteTimeout() { a.raiseTimeout(writeTimeoutFloor) }
+
+// raiseReadTimeout eleva o tempo limite ao piso das leituras pesadas, com a
+// mesma regra: o valor do usuário sempre vence.
+func (a *App) raiseReadTimeout() { a.raiseTimeout(readTimeoutFloor) }
+
+func (a *App) raiseTimeout(floor time.Duration) {
+	if a.timeoutExplicit || a.Timeout >= floor {
 		return
 	}
-	a.Timeout = writeTimeoutFloor
+	anterior := a.Timeout
+	a.Timeout = floor
+	// Com --verbose, dizer que a CLI elevou o valor: sem isso, uma espera de
+	// minutos parece travamento. Não vai para o stdout humano nem para o
+	// envelope — é diagnóstico.
+	if a.Verbose {
+		fmt.Fprintf(os.Stderr, "tempo limite elevado de %s para %s (piso desta operação; --timeout sempre vence)\n",
+			anterior, floor)
+	}
 }
 
 // printerFor inicializa o Printer do comando corrente (chamado no início de cada RunE).
@@ -274,7 +304,8 @@ func newRootCmd(app *App) *cobra.Command {
 	pf.BoolVarP(&app.Yes, "yes", "y", false, "assume \"sim\" em confirmações")
 	pf.BoolVar(&app.NonInteractive, "non-interactive", false, "falha se faltarem argumentos, em vez de perguntar (env: FLUIGCLI_NON_INTERACTIVE=1)")
 	pf.BoolVarP(&app.Verbose, "verbose", "v", false, "loga as requisições HTTP no stderr")
-	pf.DurationVar(&app.Timeout, "timeout", 30*time.Second, "timeout por requisição; escrita usa no mínimo 2m sem esta flag (env: FLUIGCLI_TIMEOUT)")
+	pf.DurationVar(&app.Timeout, "timeout", 30*time.Second,
+		"timeout por requisição; escrita e leitura pesada (db query, dataset query, user audit, log com intervalo) usam no mínimo 2m sem esta flag (env: FLUIGCLI_TIMEOUT)")
 	pf.BoolVar(&app.NoSessionCache, "no-session-cache", false, "não reaproveita a sessão entre execuções (env: FLUIGCLI_NO_SESSION_CACHE=1)")
 	// A flag --version é definida aqui (em pt-BR) para o cobra não criar a dele.
 	root.Flags().Bool("version", false, "mostra a versão do fluigcli")

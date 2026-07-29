@@ -104,6 +104,8 @@ func newDbQueryCmd(app *App) *cobra.Command {
 // runDbQueryInline mantém o comportamento (e o envelope) do SQL passado como
 // argumento: um resultado só, direto em data.
 func runDbQueryInline(app *App, p *output.Printer, opts fluig.DbQueryOptions, passwordStdin bool) error {
+	// Consulta de diagnóstico é leitura PESADA: vale o piso de tempo limite.
+	app.raiseReadTimeout()
 	ctx := context.Background()
 	_, client, err := app.connect(ctx, passwordStdin)
 	if err != nil {
@@ -183,6 +185,7 @@ func runDbQueryFile(app *App, p *output.Printer, opts fluig.DbQueryOptions,
 			len(stmts))
 	}
 
+	app.raiseReadTimeout()
 	ctx := context.Background()
 	_, client, err := app.connect(ctx, passwordStdin)
 	if err != nil {
@@ -294,6 +297,7 @@ func newDbGrantsCmd(app *App) *cobra.Command {
 				}
 				chosen = append(chosen, up)
 			}
+			app.raiseReadTimeout()
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {

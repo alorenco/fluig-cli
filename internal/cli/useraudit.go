@@ -58,6 +58,9 @@ func newUserAuditCmd(app *App) *cobra.Command {
 				return err
 			}
 
+			// A auditoria varre datasets do servidor com parada antecipada — em
+			// autor de alto volume, uma página só pode passar de 30 s.
+			app.raiseReadTimeout()
 			ctx := context.Background()
 			server, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {

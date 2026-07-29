@@ -119,6 +119,10 @@ até o fim.
 | `--order campo` | ordenação por **um** campo (sufixo `_DESC` inverte) |
 | `--limit N` | máximo de linhas (0 = sem limite) |
 
+O tempo limite deste comando tem **piso de 2 minutos**, não os 30 segundos do
+padrão global. Um dataset customizado pode fazer JOIN pesado e paginar muito. A
+opção `--timeout` sempre vence.
+
 ```sh
 fluigcli dataset query ds_clientes --fields codigo,nome --constraint ativo=true --limit 50
 fluigcli dataset query colleague --fields login --order colleagueName_DESC --json

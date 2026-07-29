@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alorenco/fluig-cli/internal/output"
 )
@@ -550,5 +551,48 @@ func TestDbDatasourcesTabela(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("saída sem %q:\n%s", want, stdout)
 		}
+	}
+}
+
+// Fiação do piso de leitura (ROADMAP2 §3.8): o `db query` eleva o tempo limite,
+// mas o valor explícito do usuário tem de continuar vencendo — inclusive para
+// baixo. Se o piso fosse aplicado sem checar o --timeout, este teste passaria a
+// esperar 2 minutos em vez de estourar.
+func TestDbQueryRespeitaTimeoutExplicito(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.6.0"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/db/query", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(400 * time.Millisecond) // consulta "pesada"
+		io.WriteString(w, `{"columns":[],"rows":[],"rowCount":0,"truncated":false}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	proj := serverTestProject(t, srv.URL)
+
+	inicio := time.Now()
+	code, stdout := runMain(t, "db", "query", "select 1", "--timeout", "80ms", "--json", "--project", proj)
+	decorrido := time.Since(inicio)
+
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d (tempo limite do cliente); stdout=%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || env.Error.Code != output.CodeTimeout {
+		t.Fatalf("esperava %s, veio %+v", output.CodeTimeout, env.Error)
+	}
+	if decorrido > 10*time.Second {
+		t.Errorf("o comando esperou %s: o piso sobrepôs o --timeout do usuário", decorrido)
 	}
 }
