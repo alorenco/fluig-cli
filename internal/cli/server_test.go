@@ -380,3 +380,65 @@ func TestCompareHelperVersions(t *testing.T) {
 		}
 	}
 }
+
+// Rodar de fora do projeto: a CLI tem de dizer que não achou PROJETO, não que o
+// servidor precisa ser cadastrado (ROADMAP2 §3.4). O servidor existe — está no
+// .fluigcli/servers.json do projeto — e "cadastre de novo" levaria o usuário a
+// criar um segundo .fluigcli/ no diretório em que ele estiver.
+func TestServerNaoEncontradoForaDoProjetoCitaProjeto(t *testing.T) {
+	// Projeto com um servidor, mas SEM passar --project: o cwd do teste não é a
+	// raiz dele, então a descoberta não acha projeto nenhum.
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	s := config.Server{Name: "homologacao", Host: "h.test", Port: 8080, Username: "u", CompanyID: 1}
+	if err := config.NewStore(proj).Add(s, false); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout := runMain(t, "dataset", "list", "--server", "homologacao", "--json")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit = %d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+	}
+	if env.Error == nil {
+		t.Fatal("envelope sem erro")
+	}
+	for _, want := range []string{"Nenhum projeto Fluig foi descoberto", "--project"} {
+		if !strings.Contains(env.Error.Message, want) {
+			t.Errorf("mensagem sem %q: %s", want, env.Error.Message)
+		}
+	}
+
+	// Com --project apontando a raiz, o mesmo comando resolve o servidor (o erro
+	// deixa de ser NOT_FOUND de cadastro e passa a ser de rede/servidor).
+	code, stdout = runMain(t, "dataset", "list", "--server", "homologacao", "--json", "--project", proj)
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error != nil && strings.Contains(env.Error.Message, "não encontrado; cadastre com") {
+		t.Errorf("com --project o servidor devia ter sido encontrado: %s", env.Error.Message)
+	}
+	_ = code
+}
+
+// Sem --server e sem projeto descoberto: a lista vazia também não pode mandar
+// cadastrar como se nada existisse.
+func TestSemServidorEForaDoProjetoCitaProjeto(t *testing.T) {
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	s := config.Server{Name: "homologacao", Host: "h.test", Port: 8080, Username: "u", CompanyID: 1}
+	if err := config.NewStore(proj).Add(s, false); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout := runMain(t, "dataset", "list", "--json")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit = %d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "Nenhum projeto Fluig foi descoberto") {
+		t.Errorf("mensagem não cita a ausência de projeto: %+v", env.Error)
+	}
+}

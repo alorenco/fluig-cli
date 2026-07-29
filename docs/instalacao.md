@@ -85,6 +85,30 @@ seu-projeto/
 └── wcm/widget/<NomeWidget>/src/main/...
 ```
 
+A CLI descobre a raiz do projeto a partir do diretório atual. Ela sobe pelos
+diretórios-pai até achar uma dessas pastas convencionais.
+
+### Rodar de fora do projeto
+
+Os servidores cadastrados no projeto ficam em `.fluigcli/servers.json`. Fora do
+projeto, eles **não estão visíveis** e o comando falha com `NOT_FOUND`:
+
+```sh
+$ cd /tmp && fluigcli dataset list --server homologacao --json
+servidor "homologacao" não encontrado. Nenhum projeto Fluig foi descoberto a
+partir de /tmp, então só os servidores globais estão visíveis …
+```
+
+Você tem duas opções:
+
+- **Aponte a raiz** com `--project <caminho>` ou `FLUIGCLI_PROJECT`. Esta é a
+  opção certa quando o servidor está cadastrado no projeto.
+- **Cadastre um servidor global** com `fluigcli server add --global`. O servidor
+  global fica visível de qualquer diretório.
+
+Não cadastre o servidor de novo num diretório qualquer. Isso cria um segundo
+`.fluigcli/` fora do projeto.
+
 ## Uso por agentes de IA e CI/CD
 
 A CLI é feita para agentes. Use sempre `--json` e `--non-interactive`. Decida

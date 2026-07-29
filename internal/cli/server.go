@@ -286,6 +286,14 @@ func (a *App) resolveServer(nameArg string) (*config.Server, error) {
 		return nil, err
 	}
 	if len(servers) == 0 {
+		// Fora de projeto a lista pode estar vazia só porque os servidores moram
+		// no `.fluigcli/servers.json` de um projeto — mandar cadastrar seria a
+		// pista errada (ROADMAP2 §3.4).
+		if hint := store.NoProjectHint(servers); hint != "" {
+			return nil, output.NotFoundf("%s Rode de dentro do projeto, aponte a raiz com "+
+				"--project <caminho> (ou %s), ou cadastre um servidor global com: "+
+				"fluigcli server add --global", hint, config.EnvProject)
+		}
 		return nil, output.NotFoundf("nenhum servidor cadastrado; adicione um com: fluigcli server add")
 	}
 	if len(servers) == 1 {

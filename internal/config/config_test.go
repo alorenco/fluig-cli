@@ -261,3 +261,66 @@ func TestReadPasswordStdin(t *testing.T) {
 		t.Errorf("pw=%q err=%v", pw, err)
 	}
 }
+
+// Fora de um projeto, a mensagem de servidor inexistente tem de dizer que NÃO
+// há projeto descoberto (ROADMAP2 §3.4). A mensagem antiga mandava cadastrar o
+// servidor de novo, e cadastrar num diretório qualquer criaria um segundo
+// .fluigcli/ — o usuário perdeu minutos com essa pista errada em 2026-07-29.
+func TestGetForaDeProjetoExplicaAusenciaDeProjeto(t *testing.T) {
+	st := newTestStore(t, false)
+	if err := st.Add(Server{Name: "producao", Host: "p.test", Port: 443, SSL: true, Username: "u", CompanyID: 1}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := st.Get("homologacao")
+	if err == nil {
+		t.Fatal("esperava erro para servidor inexistente")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		"Nenhum projeto Fluig foi descoberto",
+		"--project",
+		EnvProject,
+		"visíveis aqui: producao", // ajuda a perceber o engano na hora
+		"--global",                // o caminho certo para cadastrar fora de projeto
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("mensagem sem %q: %s", want, msg)
+		}
+	}
+	// O código do erro não muda (contrato).
+	if output.AsError(err).Code != output.CodeNotFound {
+		t.Errorf("código = %q, quer %q", output.AsError(err).Code, output.CodeNotFound)
+	}
+}
+
+// Dentro de um projeto a mensagem antiga continua — ali "cadastre com server
+// add" é o conselho certo.
+func TestGetEmProjetoMantemMensagemDeCadastro(t *testing.T) {
+	st := newTestStore(t, true)
+
+	_, err := st.Get("homologacao")
+	if err == nil {
+		t.Fatal("esperava erro para servidor inexistente")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "cadastre com: fluigcli server add --name homologacao") {
+		t.Errorf("mensagem inesperada dentro de projeto: %s", msg)
+	}
+	if strings.Contains(msg, "Nenhum projeto Fluig foi descoberto") {
+		t.Errorf("dentro de projeto não pode dizer que não há projeto: %s", msg)
+	}
+}
+
+// Sem nenhum servidor visível, a mensagem diz isso em vez de listar vazio.
+func TestGetForaDeProjetoSemServidores(t *testing.T) {
+	st := newTestStore(t, false)
+
+	_, err := st.Get("homologacao")
+	if err == nil {
+		t.Fatal("esperava erro")
+	}
+	if !strings.Contains(err.Error(), "nenhum cadastrado") {
+		t.Errorf("mensagem sem a indicação de lista vazia: %s", err.Error())
+	}
+}

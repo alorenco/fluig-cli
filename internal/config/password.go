@@ -15,6 +15,10 @@ const EnvPassword = "FLUIGCLI_PASSWORD"
 // local nem no global (útil em CI/não-interativo, onde não há prompt).
 const EnvUsername = "FLUIGCLI_USERNAME"
 
+// EnvProject aponta a raiz do projeto Fluig quando a descoberta automática não
+// serve (rodar de fora do projeto). Espelha a flag --project.
+const EnvProject = "FLUIGCLI_PROJECT"
+
 // Source identifica de onde a senha resolvida veio.
 type Source int
 

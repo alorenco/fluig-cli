@@ -23,7 +23,7 @@ import (
 // Variáveis de ambiente das flags globais.
 const (
 	envServer         = "FLUIGCLI_SERVER"
-	envProject        = "FLUIGCLI_PROJECT"
+	envProject        = config.EnvProject
 	envNonInteractive = "FLUIGCLI_NON_INTERACTIVE"
 	envTimeout        = "FLUIGCLI_TIMEOUT"
 	envNoSessionCache = "FLUIGCLI_NO_SESSION_CACHE"

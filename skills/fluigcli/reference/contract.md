@@ -120,7 +120,7 @@ esac
 | `--json` | — | envelope JSON em stdout (implica não-interativo) |
 | `--non-interactive` | `FLUIGCLI_NON_INTERACTIVE=1` | falha em vez de perguntar |
 | `--server <name>` | `FLUIGCLI_SERVER` | servidor alvo |
-| `--project <dir>` | `FLUIGCLI_PROJECT` | raiz do projeto (default: descoberta automática) |
+| `--project <dir>` | `FLUIGCLI_PROJECT` | raiz do projeto (default: descoberta automática, subindo do cwd até achar uma pasta convencional). ⚠️ Rodando de FORA do projeto (scratchpad, /tmp), os servidores do `.fluigcli/servers.json` ficam invisíveis e o alvo dá `NOT_FOUND` — a mensagem diz que nenhum projeto foi descoberto; a correção é esta flag, não cadastrar o servidor de novo |
 | `--password-stdin` | — | lê a senha do stdin (comandos de auth) |
 | — | `FLUIGCLI_PASSWORD` | senha do servidor selecionado |
 | `--timeout <dur>` | `FLUIGCLI_TIMEOUT` | timeout por requisição (ex.: `30s`, `1m`). Default 30s na leitura e **piso de 2m nas operações de escrita**; o valor informado aqui sempre vence |

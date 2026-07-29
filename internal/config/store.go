@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/alorenco/fluig-cli/internal/output"
 )
@@ -330,8 +331,63 @@ func (st *Store) Get(name string) (*Server, error) {
 			return &servers[i], nil
 		}
 	}
-	return nil, output.NotFoundf(
-		"servidor %q não encontrado; cadastre com: fluigcli server add --name %s ...", name, name)
+	return nil, st.notFoundError(name, servers)
+}
+
+// notFoundError explica por que o servidor não foi achado.
+//
+// Fora de um projeto, só os servidores GLOBAIS estão visíveis, e o alvo pode
+// estar cadastrado no `.fluigcli/servers.json` de um projeto. Mandar "cadastre
+// com server add" nesse caso é a pista errada: o servidor existe, e cadastrar de
+// novo num diretório qualquer criaria um segundo `.fluigcli/` (atrito relatado em
+// 2026-07-29 — ROADMAP2 §3.4).
+func (st *Store) notFoundError(name string, visible []Server) error {
+	if st.ProjectDir != "" {
+		return output.NotFoundf(
+			"servidor %q não encontrado; cadastre com: fluigcli server add --name %s ...", name, name)
+	}
+
+	msg := fmt.Sprintf("servidor %q não encontrado. %s", name, st.NoProjectHint(visible))
+	msg += fmt.Sprintf(" Se %q está cadastrado num projeto, aponte a raiz com --project <caminho> "+
+		"(ou %s); para cadastrar no global, use: fluigcli server add --global --name %s ...",
+		name, EnvProject, name)
+	return output.NotFoundf("%s", msg)
+}
+
+// NoProjectHint explica que a descoberta automática do projeto não achou raiz
+// nenhuma a partir do diretório atual, e quais servidores sobraram visíveis.
+// Devolve "" quando há projeto (aí a ausência não explica nada).
+//
+// Existe para os comandos não repetirem a explicação: a mesma confusão acontece
+// com --server (ver notFoundError) e sem --server, quando a lista fica vazia
+// porque os servidores estão no projeto.
+func (st *Store) NoProjectHint(visible []Server) string {
+	if st.ProjectDir != "" {
+		return ""
+	}
+	origem := "o diretório atual"
+	if cwd, err := os.Getwd(); err == nil {
+		origem = cwd
+	}
+	hint := fmt.Sprintf("Nenhum projeto Fluig foi descoberto a partir de %s, "+
+		"então só os servidores globais estão visíveis", origem)
+	if nomes := serverNames(visible); nomes != "" {
+		hint += " (" + nomes + ")"
+	}
+	return hint + "."
+}
+
+// serverNames lista os nomes visíveis para o usuário reconhecer o engano na
+// hora. Vazio quando não há nenhum.
+func serverNames(servers []Server) string {
+	if len(servers) == 0 {
+		return "nenhum cadastrado"
+	}
+	names := make([]string, 0, len(servers))
+	for _, s := range servers {
+		names = append(names, s.Name)
+	}
+	return "visíveis aqui: " + strings.Join(names, ", ")
 }
 
 // Add grava o servidor. No projeto (padrão), os fatos de conexão vão para o
