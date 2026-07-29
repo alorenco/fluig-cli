@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -96,6 +98,261 @@ func TestDbQueryRecusaEscrita(t *testing.T) {
 	}
 	if env.OK || env.Error == nil || !strings.Contains(env.Error.Message, "leitura") {
 		t.Errorf("erro inesperado no envelope: %+v", env.Error)
+	}
+}
+
+// --- db query --file (ROADMAP2 §3.7) ---
+
+// dbFileStub registra os SQLs recebidos, uma requisição por instrução, e falha a
+// instrução que contiver "quebra".
+func dbFileStub(t *testing.T, seen *[]string) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "pong")
+	})
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.6.0"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/db/query", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			SQL string `json:"sql"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &req)
+		*seen = append(*seen, req.SQL)
+		if strings.Contains(req.SQL, "quebra") {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, "Invalid object name 'quebra'")
+			return
+		}
+		io.WriteString(w, `{"columns":[{"name":"n","type":"int"}],"rows":[["1"]],"rowCount":1,"truncated":false}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// scriptSQL grava um script no projeto e devolve o caminho.
+func scriptSQL(t *testing.T, proj, name, content string) string {
+	t.Helper()
+	path := filepath.Join(proj, name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// O script vai instrução por instrução, na ordem, uma requisição para cada. O
+// `;` dentro de literal e o comentário não podem separar nada (era a gambiarra
+// em Python que o usuário teve de escrever).
+func TestDbQueryFileExecutaEmSequencia(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", `-- diagnóstico
+select 1 as n;
+select 'a;b' as texto; -- ; aqui não separa
+GO
+select 3 as n
+`)
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if len(seen) != 3 {
+		t.Fatalf("esperava 3 requisições (uma por instrução), veio %d: %v", len(seen), seen)
+	}
+	if seen[1] != "select 'a;b' as texto" {
+		t.Errorf("a segunda instrução foi cortada no literal: %q", seen[1])
+	}
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("json inválido: %v", err)
+	}
+	data, _ := env.Data.(map[string]any)
+	stmts, _ := data["statements"].([]any)
+	if len(stmts) != 3 {
+		t.Fatalf("esperava 3 statements no envelope, veio %v", data["statements"])
+	}
+	first, _ := stmts[0].(map[string]any)
+	if first["index"].(float64) != 1 || first["success"] != true {
+		t.Errorf("primeiro statement inesperado: %v", first)
+	}
+	if first["line"].(float64) != 2 {
+		t.Errorf("linha do primeiro statement = %v, quer 2", first["line"])
+	}
+}
+
+// Uma instrução falha e as outras seguem: exit 6 com o detalhe por item.
+func TestDbQueryFileFalhaParcial(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select 1 as n;\nselect * from quebra;\nselect 3 as n;\n")
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--json", "--project", proj)
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitPartial, stdout)
+	}
+	if len(seen) != 3 {
+		t.Errorf("a falha interrompeu o script: %v", seen)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	stmts, _ := data["statements"].([]any)
+	segundo, _ := stmts[1].(map[string]any)
+	if segundo["success"] != false || segundo["error"] == nil {
+		t.Errorf("o item que falhou não trouxe o motivo: %v", segundo)
+	}
+	terceiro, _ := stmts[2].(map[string]any)
+	if terceiro["success"] != true {
+		t.Errorf("a instrução seguinte à falha não rodou: %v", terceiro)
+	}
+}
+
+// Script com uma instrução só é alvo único: o erro dela é o erro do comando
+// (exit 5), não uma "falha parcial" de um item.
+func TestDbQueryFileInstrucaoUnicaQueFalha(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select * from quebra;\n")
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--json", "--project", proj)
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d (alvo único); stdout=%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "quebra") {
+		t.Errorf("erro do banco não chegou ao envelope: %+v", env.Error)
+	}
+}
+
+// --list não executa nada: é o que dá confiança no splitter antes de rodar.
+func TestDbQueryFileList(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select 1 as n;\nselect 2 as n;\n")
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--list", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if len(seen) != 0 {
+		t.Errorf("--list executou SQL no servidor: %v", seen)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["executed"] != false {
+		t.Errorf("executed devia ser false com --list: %v", data["executed"])
+	}
+	stmts, _ := data["statements"].([]any)
+	if len(stmts) != 2 {
+		t.Errorf("esperava 2 instruções listadas: %v", data["statements"])
+	}
+}
+
+// --statement N roda só a escolhida, preservando o índice do arquivo.
+func TestDbQueryFileStatement(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select 1 as n;\nselect 2 as n;\nselect 3 as n;\n")
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--statement", "2", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if len(seen) != 1 || seen[0] != "select 2 as n" {
+		t.Fatalf("--statement 2 executou o SQL errado: %v", seen)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	stmts, _ := data["statements"].([]any)
+	item, _ := stmts[0].(map[string]any)
+	if item["index"].(float64) != 2 {
+		t.Errorf("o índice devia ser o do arquivo (2), veio %v", item["index"])
+	}
+}
+
+// Erros de uso: nada é enviado ao servidor.
+func TestDbQueryFileUsoIncorreto(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select 1;\nselect 2;\n")
+	soComentario := scriptSQL(t, proj, "vazio.sql", "-- só comentário\n/* nada */\n")
+
+	casos := []struct {
+		nome string
+		args []string
+		quer string
+	}{
+		{"sem sql e sem file", []string{"db", "query"}, "--file"},
+		{"sql e file juntos", []string{"db", "query", "select 1", "--file", script}, "não os dois"},
+		{"statement sem file", []string{"db", "query", "select 1", "--statement", "2"}, "--statement só faz sentido"},
+		{"list sem file", []string{"db", "query", "select 1", "--list"}, "--list só faz sentido"},
+		{"statement fora do intervalo", []string{"db", "query", "--file", script, "--statement", "9"}, "não existe"},
+		{"arquivo sem instrução", []string{"db", "query", "--file", soComentario}, "nenhuma instrução SQL"},
+		{"param ambíguo com várias instruções", []string{"db", "query", "--file", script, "--param", "x"}, "ambíguo"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			args := append(c.args, "--json", "--project", proj)
+			code, stdout := runMain(t, args...)
+			if code != output.ExitUsage {
+				t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+			}
+			if !strings.Contains(stdout, c.quer) {
+				t.Errorf("mensagem sem %q: %s", c.quer, stdout)
+			}
+		})
+	}
+	if len(seen) != 0 {
+		t.Errorf("erro de uso não podia ter chamado o servidor: %v", seen)
+	}
+}
+
+// Arquivo inexistente: NOT_FOUND, não erro genérico.
+func TestDbQueryFileInexistente(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+
+	code, stdout := runMain(t, "db", "query", "--file", filepath.Join(proj, "nao_existe.sql"),
+		"--json", "--project", proj)
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
+	}
+}
+
+// --param com --statement é permitido: aí não há ambiguidade.
+func TestDbQueryFileParamComStatement(t *testing.T) {
+	var seen []string
+	stub := dbFileStub(t, &seen)
+	proj := serverTestProject(t, stub.URL)
+	script := scriptSQL(t, proj, "diag.sql", "select 1;\nselect ? as n;\n")
+
+	code, stdout := runMain(t, "db", "query", "--file", script, "--statement", "2",
+		"--param", "x", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if len(seen) != 1 {
+		t.Errorf("esperava 1 requisição: %v", seen)
 	}
 }
 

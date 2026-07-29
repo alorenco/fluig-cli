@@ -43,7 +43,9 @@ Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
 `dataset` (new|list|import|export|query|enable|disable|history|restore|delete — `delete` = hard-delete via helper;
 o `export` AUDITA antes de enviar: erro de audit barra o arquivo com exit 1 e ele
 não chega ao servidor — corrija pelo achado ou envie com `--no-audit`),
-`db` (query|grants|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper),
+`db` (query|grants|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper;
+`query --file script.sql` roda o script instrução por instrução — `--list` só lista,
+`--statement N` roda uma, falha parcial = exit 6 com `data.statements[]`),
 `event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros;
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai),

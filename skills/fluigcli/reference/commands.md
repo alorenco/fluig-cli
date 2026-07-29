@@ -102,6 +102,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 |---|---|
 | `db datasources` | lista os datasources JNDI disponíveis (padrão `/jdbc/AppDS`) |
 | `db query "<sql>" [--jndi X] [--param v]... [--max-rows N]` | executa o SELECT e mostra colunas+linhas; `?` recebe os `--param` na ordem |
+| `db query --file <script.sql> [--list] [--statement N]` | roda um script `.sql` instrução por instrução (o servidor aceita uma por chamada). Separa por `;` e por `GO` sozinho na linha, ignorando literais, `[colchetes]`, aspas e comentários. `--list` só lista (nº, linha, início) e **não executa**; `--statement N` roda só a N-ésima (1-based, igual ao `--list`). `--param` com `--file` exige `--statement` (os `?` são posicionais por instrução — exit 2 sem ele). `--json`: `data.statements[]` com `{index,line,sql,success,error?,columns,rows,rowCount}`; instrução que falha **não interrompe** o script → **exit 6**. O SQL inline mantém o `data` antigo |
 | `db grants <table>... [--perm SELECT,INSERT,UPDATE,DELETE] [--jndi X]` | preflight: checa se o login do datasource tem as permissões nas tabelas (SQL Server, via `HAS_PERMS_BY_NAME`) |
 
 - Use para conferir permissão (`select has_perms_by_name('dbo.T','OBJECT','INSERT')`), login do datasource (`select suser_sname()`), ou testar um SQL antes do dataset.

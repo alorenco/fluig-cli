@@ -82,6 +82,64 @@ Quando a consulta tem um erro de SQL, o servidor devolve a mensagem do banco. A
 CLI mostra esta mensagem e termina com o código 5. Quando a consulta não é de
 leitura, o servidor recusa com a mesma via.
 
+### Rodar um script `.sql` com `--file`
+
+A opção `--file` lê um script e executa as instruções **em sequência**, uma por
+requisição. O servidor aceita uma instrução por chamada, por isso a CLI separa o
+script antes de enviar.
+
+```sh
+fluigcli db query --file diagnostico.sql --list          # só lista o que reconheceu
+fluigcli db query --file diagnostico.sql                 # executa tudo, em ordem
+fluigcli db query --file diagnostico.sql --statement 2   # executa só a 2ª
+```
+
+A CLI separa as instruções por `;` e por `GO` sozinho na linha. A varredura
+ignora:
+
+- literais (`'a;b'`, com `''` como escape);
+- identificadores entre colchetes (`[coluna;estranha]`) e entre aspas;
+- comentários de linha (`--`) e de bloco (`/* */`, inclusive aninhados).
+
+Por isso um `;` dentro de um texto ou de um comentário não separa nada. Uma
+instrução que só tem comentário é descartada.
+
+A CLI também remove o comentário que vem **antes** do SQL de cada instrução. O
+servidor decide se a consulta é de leitura pela primeira palavra do texto que
+recebe, e ele não pula comentário. Sem essa limpeza, um `-- nota` acima de um
+`select` faria o servidor recusar a consulta. Os comentários no meio e no fim da
+instrução seguem intactos, e o campo `sql` do `--json` mostra exatamente o que
+foi enviado.
+
+Comece por `--list`. Ele mostra o número, a linha no arquivo e o início de cada
+instrução, e **não executa nada**. Assim você confere a separação antes de rodar.
+
+- `--statement N` — executa só a N-ésima instrução. A numeração começa em 1 e é
+  a mesma que o `--list` mostra. Com `--list` junto, o comando lista só essa
+  instrução — útil para conferir o texto dela antes de rodar.
+- `--param` com `--file` exige `--statement`. Os `?` são posicionais por
+  instrução. Aplicar a mesma lista a várias instruções ligaria os valores ao SQL
+  errado, em silêncio. Por isso a CLI recusa com o código 2.
+
+Cada instrução vira um item de `data.statements[]` no `--json`, com `index`,
+`line`, `sql`, `success` e o resultado (`columns`, `rows`, `rowCount`). A
+instrução que falha traz `error` e **não interrompe** o script. Neste caso o
+comando termina com o código 6. Com `--list`, o envelope traz
+`executed: false`.
+
+Um script (ou um `--statement`) com uma instrução só é alvo único. Aí o erro
+dela é o erro do comando, com o código dele — normalmente 5. Não existe falha
+parcial quando só há um item.
+
+O SQL passado como argumento mantém o formato antigo de `data`
+(`{columns[], rows[], rowCount, truncated}`). O `statements[]` só aparece com
+`--file`.
+
+::: warning A regra de leitura continua no servidor
+O `--file` não relaxa nada. Cada instrução passa pela mesma validação do helper.
+Um script com `UPDATE` falha naquela instrução, e as demais seguem.
+:::
+
 ## `fluigcli db grants`
 
 Este comando confere as permissões do login do datasource nas tabelas que você
@@ -137,5 +195,5 @@ termina com o código 6. Neste caso, o envelope sai com `ok: false`.
 | `2` | uso incorreto (falta o SQL/tabela, flag ou `--perm` inválido) |
 | `4` | o datasource não existe |
 | `5` | o servidor recusou a consulta (erro de SQL ou consulta que não é de leitura) |
-| `6` | `db grants` — falta uma permissão ou um objeto não existe |
+| `6` | `db grants` — falta uma permissão ou um objeto não existe · `db query --file` — parte das instruções falhou |
 | `7` | fluigcliHelper ausente ou **desatualizado** (< 0.6.0, sem as rotas de db). Atualize com `server install-helper <name> --force`. |
