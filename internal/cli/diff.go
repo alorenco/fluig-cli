@@ -87,8 +87,13 @@ func newDiffCmd(app *App) *cobra.Command {
 			"atual do servidor.\n\n" +
 			"Sem argumentos, varre as pastas datasets/, events/, mechanisms/, forms/ e\n" +
 			"workflow/scripts/ do projeto e também aponta artefatos que só existem no\n" +
-			"servidor. Com caminhos, compara apenas os arquivos (ou pastas de\n" +
-			"formulário) informados. Diferenças só de quebra de linha (CRLF/LF) não\n" +
+			"servidor.\n\n" +
+			"Com caminhos, compara o que foi informado. O caminho pode ser um arquivo,\n" +
+			"uma pasta de formulário ou uma PASTA (ex.: datasets/), varrida\n" +
+			"recursivamente. A pasta de uma convenção inteira (datasets/, events/,\n" +
+			"mechanisms/, forms/, workflow/scripts/) também aponta os artefatos daquele\n" +
+			"tipo que só existem no servidor; a raiz do projeto equivale a rodar sem\n" +
+			"argumentos. Diferenças só de quebra de linha (CRLF/LF) não\n" +
 			"contam. Em formulários, anexos binários são comparados byte a byte (sem\n" +
 			"diff textual); em scripts de processo, a comparação usa o export nativo\n" +
 			"do processo (não requer o componente auxiliar).\n\n" +
@@ -104,18 +109,31 @@ func newDiffCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sweep := len(args) == 0
+			// swept marca os tipos cuja pasta de convenção foi varrida INTEIRA —
+			// só nesses o comando aponta artefato que existe apenas no servidor.
+			// Sem argumentos, varre todos.
+			swept := map[string]bool{}
 			var targets diffTargets
-			if sweep {
+			if len(args) == 0 {
 				if targets, err = collectDiffTargets(root); err != nil {
 					return err
+				}
+				for _, t := range allDiffTypes {
+					swept[t] = true
 				}
 			} else {
 				targets.wf = map[string][]project.ProcessScript{}
 				for _, arg := range args {
-					if err := classifyArtifactPath(&targets, root, arg); err != nil {
+					if err := classifyArtifactPath(&targets, root, arg, swept); err != nil {
 						return err
 					}
+				}
+				if len(targets.scripts) == 0 && len(targets.forms) == 0 && len(targets.wf) == 0 {
+					return output.Usagef(
+						"nenhum artefato comparável nos caminhos informados (esperado .js em %s/, %s/, %s/, "+
+							"pasta de formulário em %s/ ou script em %s/)",
+						project.DatasetsDirName, project.EventsDirName, project.MechanismsDirName,
+						project.FormsDirName, filepath.ToSlash(project.WorkflowScriptsDir))
 				}
 			}
 
@@ -131,7 +149,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				needType[t.typ] = true
 			}
 			events := map[string]string{}
-			if sweep || needType["event"] {
+			if swept["event"] || needType["event"] {
 				list, err := client.ListGlobalEvents(ctx)
 				if err != nil {
 					return mapFluigError(err)
@@ -141,7 +159,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				}
 			}
 			mechs := map[string]string{}
-			if sweep || needType["mechanism"] {
+			if swept["mechanism"] || needType["mechanism"] {
 				list, err := client.ListMechanisms(ctx)
 				if err != nil {
 					return mapFluigError(err)
@@ -151,8 +169,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				}
 			}
 			serverDatasets := map[string]bool{}
-			var serverProcesses []fluig.ProcessSummary
-			if sweep {
+			if swept["dataset"] {
 				list, err := client.ListDatasets(ctx)
 				if err != nil {
 					return mapFluigError(err)
@@ -162,9 +179,12 @@ func newDiffCmd(app *App) *cobra.Command {
 						serverDatasets[d.ID] = true
 					}
 				}
-				// Processos do servidor (REST v2) — para apontar os que não têm
-				// script local. A comparação script a script continua vindo do
-				// export nativo em diffProcessScripts.
+			}
+			// Processos do servidor (REST v2) — para apontar os que não têm script
+			// local. A comparação script a script continua vindo do export nativo
+			// em diffProcessScripts.
+			var serverProcesses []fluig.ProcessSummary
+			if swept["workflow"] {
 				if serverProcesses, err = client.ListProcesses(ctx); err != nil {
 					return mapFluigError(err)
 				}
@@ -225,8 +245,8 @@ func newDiffCmd(app *App) *cobra.Command {
 			}
 
 			// Formulários: pastas locais vs. anexos + eventos do servidor.
-			if sweep || len(targets.forms) > 0 {
-				formEntries, err := diffForms(ctx, client, root, server.FormScopeKey(), targets.forms, sweep)
+			if swept["form"] || len(targets.forms) > 0 {
+				formEntries, err := diffForms(ctx, client, root, server.FormScopeKey(), targets.forms, swept["form"])
 				if err != nil {
 					return err
 				}
@@ -245,7 +265,7 @@ func newDiffCmd(app *App) *cobra.Command {
 			}
 			sort.Strings(pids)
 			for _, pid := range pids {
-				wfEntries, err := diffProcessScripts(ctx, client, p, root, pid, targets.wf[pid], sweep)
+				wfEntries, err := diffProcessScripts(ctx, client, p, root, pid, targets.wf[pid], swept["workflow"])
 				if err != nil {
 					// Um processo quebrado no servidor não derruba a varredura: ele
 					// vira um artefato com status error e o resto segue.
@@ -262,12 +282,12 @@ func newDiffCmd(app *App) *cobra.Command {
 				}
 			}
 			for id := range events {
-				if sweep && !localSeen["event"][id] {
+				if swept["event"] && !localSeen["event"][id] {
 					entries = append(entries, diffEntry{Type: "event", ID: id, Status: diffOnlyServer})
 				}
 			}
 			for id := range mechs {
-				if sweep && !localSeen["mechanism"][id] {
+				if swept["mechanism"] && !localSeen["mechanism"][id] {
 					entries = append(entries, diffEntry{Type: "mechanism", ID: id, Status: diffOnlyServer})
 				}
 			}
@@ -390,45 +410,52 @@ func onlyServerMessage(e diffEntry) string {
 	}
 }
 
-// collectDiffTargets varre as pastas convencionais: .js de datasets/, events/ e
-// mechanisms/, pastas de forms/ e scripts de workflow/scripts/.
-func collectDiffTargets(root string) (diffTargets, error) {
-	targets := diffTargets{wf: map[string][]project.ProcessScript{}}
-	for _, d := range diffDirs {
-		base := filepath.Join(root, d.dir)
-		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				if os.IsNotExist(err) {
-					return fs.SkipAll
-				}
-				return err
+// allDiffTypes são os tipos de artefato que o diff cobre. Usado para marcar a
+// varredura completa (sem argumentos).
+var allDiffTypes = []string{"dataset", "event", "mechanism", "form", "workflow"}
+
+// collectScriptsIn varre um diretório em busca de .js de um tipo de artefato de
+// arquivo único (dataset/event/mechanism). Diretório ausente não é erro.
+func collectScriptsIn(targets *diffTargets, typ, dir string) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fs.SkipAll
 			}
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
-				targets.scripts = append(targets.scripts, diffTarget{d.typ, project.ArtifactName(path), path})
-			}
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".js") {
+			targets.scripts = append(targets.scripts, diffTarget{typ, project.ArtifactName(path), path})
+		}
+		return nil
+	})
+	if err != nil && !os.IsNotExist(err) {
+		return output.Genericf("falha ao varrer %s: %v", dir, err)
+	}
+	return nil
+}
+
+// collectFormFolders acumula cada subpasta de forms/ como um formulário.
+func collectFormFolders(targets *diffTargets, formsBase string) error {
+	dirEntries, err := os.ReadDir(formsBase)
+	if err != nil {
+		if os.IsNotExist(err) {
 			return nil
-		})
-		if err != nil && !os.IsNotExist(err) {
-			return targets, output.Genericf("falha ao varrer %s: %v", base, err)
+		}
+		return output.Genericf("falha ao varrer %s: %v", formsBase, err)
+	}
+	for _, e := range dirEntries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+			targets.forms = append(targets.forms, formDiffTarget{
+				folder: e.Name(), dir: filepath.Join(formsBase, e.Name()),
+			})
 		}
 	}
+	return nil
+}
 
-	// forms/: cada subpasta é um formulário.
-	formsBase := filepath.Join(root, project.FormsDirName)
-	if dirEntries, err := os.ReadDir(formsBase); err == nil {
-		for _, e := range dirEntries {
-			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-				targets.forms = append(targets.forms, formDiffTarget{
-					folder: e.Name(), dir: filepath.Join(formsBase, e.Name()),
-				})
-			}
-		}
-	} else if !os.IsNotExist(err) {
-		return targets, output.Genericf("falha ao varrer %s: %v", formsBase, err)
-	}
-
-	// workflow/scripts/: <Processo>.<evento>.js, agrupados por processo.
-	wfBase := filepath.Join(root, project.WorkflowScriptsDir)
+// collectWorkflowScripts acumula os scripts de workflow/scripts/, por processo.
+func collectWorkflowScripts(targets *diffTargets, wfBase string) error {
 	err := filepath.WalkDir(wfBase, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -445,14 +472,37 @@ func collectDiffTargets(root string) (diffTargets, error) {
 		return nil
 	})
 	if err != nil && !os.IsNotExist(err) {
-		return targets, output.Genericf("falha ao varrer %s: %v", wfBase, err)
+		return output.Genericf("falha ao varrer %s: %v", wfBase, err)
+	}
+	return nil
+}
+
+// collectDiffTargets varre as pastas convencionais: .js de datasets/, events/ e
+// mechanisms/, pastas de forms/ e scripts de workflow/scripts/.
+func collectDiffTargets(root string) (diffTargets, error) {
+	targets := diffTargets{wf: map[string][]project.ProcessScript{}}
+	for _, d := range diffDirs {
+		if err := collectScriptsIn(&targets, d.typ, filepath.Join(root, d.dir)); err != nil {
+			return targets, err
+		}
+	}
+
+	// forms/: cada subpasta é um formulário.
+	if err := collectFormFolders(&targets, filepath.Join(root, project.FormsDirName)); err != nil {
+		return targets, err
+	}
+	// workflow/scripts/: <Processo>.<evento>.js, agrupados por processo.
+	if err := collectWorkflowScripts(&targets, filepath.Join(root, project.WorkflowScriptsDir)); err != nil {
+		return targets, err
 	}
 	return targets, nil
 }
 
 // classifyArtifactPath deduz o tipo do artefato pela pasta da convenção em que
-// o caminho está e o acumula em targets.
-func classifyArtifactPath(targets *diffTargets, root, arg string) error {
+// o caminho está e o acumula em targets. Diretório é varrido recursivamente; a
+// pasta de uma convenção inteira (ou a raiz do projeto) marca o tipo em swept,
+// para o comando também apontar o que só existe no servidor (ROADMAP2 §3.6).
+func classifyArtifactPath(targets *diffTargets, root, arg string, swept map[string]bool) error {
 	abs, err := filepath.Abs(arg)
 	if err != nil {
 		return output.Usagef("caminho inválido %q: %v", arg, err)
@@ -461,9 +511,43 @@ func classifyArtifactPath(targets *diffTargets, root, arg string) error {
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return output.Usagef("%s está fora do projeto (%s)", arg, root)
 	}
-	segs := strings.Split(filepath.ToSlash(rel), "/")
+	isDir := false
+	if info, err := os.Stat(abs); err == nil {
+		isDir = info.IsDir()
+	}
+	slashRel := filepath.ToSlash(rel)
+
+	// A própria raiz do projeto: equivale a rodar sem argumentos.
+	if isDir && (slashRel == "." || slashRel == "") {
+		full, err := collectDiffTargets(root)
+		if err != nil {
+			return err
+		}
+		targets.scripts = append(targets.scripts, full.scripts...)
+		targets.forms = append(targets.forms, full.forms...)
+		for pid, scripts := range full.wf {
+			targets.wf[pid] = append(targets.wf[pid], scripts...)
+		}
+		for _, t := range allDiffTypes {
+			swept[t] = true
+		}
+		return nil
+	}
+
+	segs := strings.Split(slashRel, "/")
 	for _, d := range diffDirs {
 		if segs[0] == d.dir {
+			if isDir {
+				if err := collectScriptsIn(targets, d.typ, abs); err != nil {
+					return err
+				}
+				// Só a pasta da convenção inteira habilita o only-server: numa
+				// subpasta, apontar todo o servidor seria ruído.
+				if len(segs) == 1 {
+					swept[d.typ] = true
+				}
+				return nil
+			}
 			if !strings.HasSuffix(abs, ".js") {
 				return output.Usagef("%s não é um artefato .js", arg)
 			}
@@ -475,7 +559,12 @@ func classifyArtifactPath(targets *diffTargets, root, arg string) error {
 	// forms/<pasta>[/arquivo | /events/evento.js]
 	if segs[0] == project.FormsDirName {
 		if len(segs) < 2 {
-			return output.Usagef("informe a pasta do formulário: %s/<pasta>", project.FormsDirName)
+			// forms/ inteiro: todos os formulários locais + only-server.
+			if err := collectFormFolders(targets, abs); err != nil {
+				return err
+			}
+			swept["form"] = true
+			return nil
 		}
 		folder := segs[1]
 		dir := filepath.Join(root, project.FormsDirName, folder)
@@ -493,8 +582,24 @@ func classifyArtifactPath(targets *diffTargets, root, arg string) error {
 		return nil
 	}
 
+	// workflow/ (pai) ou workflow/scripts/ inteiro. O pai vale porque a pasta que
+	// o usuário vê no projeto é `workflow/`, e dentro dela só `scripts/` tem
+	// artefato comparável.
+	wfSlash := filepath.ToSlash(project.WorkflowScriptsDir)
+	if isDir && (slashRel == wfSlash || slashRel == strings.SplitN(wfSlash, "/", 2)[0]) {
+		abs = filepath.Join(root, project.WorkflowScriptsDir)
+		if err := collectWorkflowScripts(targets, abs); err != nil {
+			return err
+		}
+		swept["workflow"] = true
+		return nil
+	}
+
 	// workflow/scripts/<Processo>.<evento>.js
-	if filepath.ToSlash(rel) != "" && strings.HasPrefix(filepath.ToSlash(rel), filepath.ToSlash(project.WorkflowScriptsDir)+"/") {
+	if slashRel != "" && strings.HasPrefix(slashRel, filepath.ToSlash(project.WorkflowScriptsDir)+"/") {
+		if isDir {
+			return collectWorkflowScripts(targets, abs)
+		}
 		if !strings.HasSuffix(abs, ".js") {
 			return output.Usagef("%s não é um script .js de processo", arg)
 		}

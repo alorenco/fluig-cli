@@ -7,6 +7,7 @@ quer mesmo publicar. O `diff` mostra *o que* seria publicado.
 ```sh
 fluigcli diff                                # varre datasets/, events/, mechanisms/, forms/ e workflow/scripts/
 fluigcli diff datasets/ds_clientes.js        # compara só um arquivo
+fluigcli diff datasets/                      # compara a pasta inteira (recursivo)
 fluigcli diff forms/MinhaPasta               # compara um formulário inteiro (anexos + eventos)
 fluigcli diff forms/MinhaPasta/events/x.js   # compara um único arquivo do formulário
 fluigcli diff workflow/scripts/Compras.beforeTaskSave.js   # um script de processo
@@ -34,6 +35,27 @@ fluigcli diff --server producao              # contra um servidor específico
   processo. Para formulários, o comando compara a pasta `forms/<pasta>` arquivo
   a arquivo, incluindo a pasta `events/`. Para scripts de processo, ele usa
   `workflow/scripts/<Processo>.<evento>.js`.
+
+### Caminhos aceitos
+
+O caminho pode ser um arquivo, uma pasta de formulário ou uma **pasta**. A pasta
+é varrida recursivamente.
+
+| caminho | efeito |
+|---|---|
+| `datasets/ds_x.js` | um arquivo |
+| `datasets/` | todos os `.js` da pasta, recursivo, **mais** os datasets que só existem no servidor |
+| `datasets/sub/` | só os `.js` da subpasta. O comando não aponta `only-server` aqui |
+| `forms/` | todos os formulários locais, mais os que só existem no servidor |
+| `forms/MinhaPasta` | um formulário (anexos + eventos) |
+| `workflow/` ou `workflow/scripts/` | todos os scripts de processo, mais os processos sem script local |
+| `.` (a raiz do projeto) | igual a rodar sem argumentos |
+
+A pasta de uma convenção inteira liga o `only-server` **daquele tipo**. Numa
+subpasta o comando não faz isso. Apontar o servidor inteiro a partir de uma
+subpasta seria ruído.
+
+Uma pasta sem nenhum artefato comparável termina em erro de uso (exit 2).
 
 ### Formulários
 

@@ -630,3 +630,178 @@ func TestDiffArtefatoQuebradoModoHumano(t *testing.T) {
 		}
 	}
 }
+
+// diffCounts roda o diff e devolve os counts do envelope.
+func diffCounts(t *testing.T, proj string, args ...string) (int, map[string]float64, []map[string]any) {
+	t.Helper()
+	full := append([]string{"diff"}, args...)
+	full = append(full, "--json", "--project", proj)
+	code, stdout := runMain(t, full...)
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+	}
+	data, _ := env.Data.(map[string]any)
+	rawCounts, _ := data["counts"].(map[string]any)
+	counts := map[string]float64{}
+	for k, v := range rawCounts {
+		if f, ok := v.(float64); ok {
+			counts[k] = f
+		}
+	}
+	var artifacts []map[string]any
+	if list, ok := data["artifacts"].([]any); ok {
+		for _, raw := range list {
+			if a, ok := raw.(map[string]any); ok {
+				artifacts = append(artifacts, a)
+			}
+		}
+	}
+	return code, counts, artifacts
+}
+
+// §3.6: `diff datasets/` era USAGE_ERROR ("não é um artefato .js"), embora o
+// comando sem argumentos varra a mesma pasta. Agora a pasta é varrida.
+func TestDiffAceitaDiretorioDeConvencao(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+
+	code, counts, artifacts := diffCounts(t, proj, filepath.Join(proj, "datasets"))
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d, quer 0; counts=%v", code, counts)
+	}
+	if len(artifacts) == 0 {
+		t.Fatal("nenhum artefato comparado com a pasta datasets/")
+	}
+	for _, a := range artifacts {
+		if a["type"] != "dataset" {
+			t.Errorf("a pasta datasets/ trouxe artefato de outro tipo: %v", a)
+		}
+	}
+	if counts[diffEqual] == 0 {
+		t.Errorf("o dataset local não foi comparado: %v", counts)
+	}
+}
+
+// A pasta da convenção INTEIRA também aponta o que só existe no servidor —
+// é a diferença entre `diff events/` e `diff events/sub/`.
+func TestDiffPastaDeConvencaoApontaOnlyServer(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+
+	_, counts, artifacts := diffCounts(t, proj, filepath.Join(proj, "events"))
+	if counts[diffOnlyServer] == 0 {
+		t.Fatalf("esperava only-server com a pasta events/ inteira: %v", counts)
+	}
+	achou := false
+	for _, a := range artifacts {
+		if a["status"] == diffOnlyServer && a["id"] == "displayCustomThemes" {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Errorf("o evento que só existe no servidor não foi apontado: %v", artifacts)
+	}
+}
+
+// Subpasta não habilita only-server: apontar o servidor inteiro seria ruído.
+func TestDiffSubpastaNaoApontaOnlyServer(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+	sub := filepath.Join(proj, "events", "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "beforeConvertViewToPDF.js"),
+		[]byte("function beforeConvertViewToPDF(){ /* codigo A */ }"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, counts, artifacts := diffCounts(t, proj, sub)
+	if code != output.ExitOK {
+		t.Fatalf("exit = %d; counts=%v", code, counts)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("esperava 1 artefato da subpasta, veio %d: %v", len(artifacts), artifacts)
+	}
+	if counts[diffOnlyServer] != 0 {
+		t.Errorf("subpasta não devia apontar only-server (seria ruído): %v", counts)
+	}
+}
+
+// forms/ inteiro e workflow/ (o pai de workflow/scripts/) também são aceitos.
+func TestDiffAceitaPastasFormsEWorkflow(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+
+	_, _, formArtifacts := diffCounts(t, proj, filepath.Join(proj, "forms"))
+	if len(formArtifacts) == 0 {
+		t.Fatal("nenhum artefato com a pasta forms/")
+	}
+	for _, a := range formArtifacts {
+		if a["type"] != "form" {
+			t.Errorf("forms/ trouxe outro tipo: %v", a)
+		}
+	}
+
+	_, _, wfArtifacts := diffCounts(t, proj, filepath.Join(proj, "workflow"))
+	if len(wfArtifacts) == 0 {
+		t.Fatal("nenhum artefato com a pasta workflow/")
+	}
+	for _, a := range wfArtifacts {
+		if a["type"] != "workflow" {
+			t.Errorf("workflow/ trouxe outro tipo: %v", a)
+		}
+	}
+}
+
+// A raiz do projeto equivale a rodar sem argumentos.
+func TestDiffRaizEquivaleAVarredura(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+
+	_, semArgs, _ := diffCounts(t, proj)
+	_, comRaiz, _ := diffCounts(t, proj, proj)
+	for _, status := range []string{diffEqual, diffModified, diffOnlyLocal, diffOnlyServer} {
+		if semArgs[status] != comRaiz[status] {
+			t.Errorf("status %q: sem args = %v, com a raiz = %v", status, semArgs[status], comRaiz[status])
+		}
+	}
+}
+
+// Vários diretórios de uma vez: cada tipo entra e nada se atropela.
+func TestDiffVariosDiretorios(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+
+	_, _, artifacts := diffCounts(t, proj,
+		filepath.Join(proj, "datasets"), filepath.Join(proj, "mechanisms"))
+	tipos := map[string]bool{}
+	for _, a := range artifacts {
+		tipos[a["type"].(string)] = true
+	}
+	if !tipos["dataset"] || !tipos["mechanism"] {
+		t.Errorf("esperava dataset e mechanism, veio %v", tipos)
+	}
+	if tipos["form"] || tipos["workflow"] || tipos["event"] {
+		t.Errorf("tipo não pedido apareceu: %v", tipos)
+	}
+}
+
+// Pasta sem nenhum artefato: erro de uso claro, não silêncio.
+func TestDiffDiretorioVazio(t *testing.T) {
+	stub := diffServerStub(t)
+	proj := diffProject(t, stub.URL)
+	vazio := filepath.Join(proj, "datasets", "vazio")
+	if err := os.MkdirAll(vazio, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout := runMain(t, "diff", vazio, "--json", "--project", proj)
+	if code != output.ExitUsage {
+		t.Fatalf("exit = %d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+	}
+	if !strings.Contains(stdout, "nenhum artefato comparável") {
+		t.Errorf("mensagem pouco clara: %s", stdout)
+	}
+}
