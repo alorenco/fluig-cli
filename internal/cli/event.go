@@ -252,6 +252,44 @@ func newEventExportCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// exportOneEvent publica UM evento global, preservando os demais.
+//
+// O Fluig salva a lista completa de eventos de uma vez, então cada chamada lê a
+// lista atual, sobrepõe só o evento informado e regrava. Para um alvo único isso
+// é o mínimo necessário; o `event export` em lote faz uma gravação só para o
+// conjunto (ver newEventExportCmd) e é o caminho preferido quando há vários.
+func (a *App) exportOneEvent(ctx context.Context, client *fluig.Client, file string) (string, error) {
+	id := project.ArtifactName(file)
+	content, err := os.ReadFile(file)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "failed", output.NotFoundf("arquivo %q não encontrado", file)
+		}
+		return "failed", err
+	}
+	existing, err := client.ListGlobalEvents(ctx)
+	if err != nil {
+		return "failed", mapFluigError(err)
+	}
+	action := "created"
+	merged := make([]fluig.GlobalEvent, 0, len(existing)+1)
+	for _, e := range existing {
+		if e.ID == id {
+			action = "updated"
+			merged = append(merged, fluig.GlobalEvent{ID: id, Code: string(content)})
+			continue
+		}
+		merged = append(merged, e)
+	}
+	if action == "created" {
+		merged = append(merged, fluig.GlobalEvent{ID: id, Code: string(content)})
+	}
+	if err := client.SaveGlobalEvents(ctx, merged); err != nil {
+		return "failed", mapFluigError(err)
+	}
+	return "evento " + id + " " + action, nil
+}
+
 // --- event delete ---
 
 func newEventDeleteCmd(app *App) *cobra.Command {

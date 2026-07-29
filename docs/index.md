@@ -59,6 +59,7 @@ em pt-BR.
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
+| [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
 | [audit](./audit) | auditar forms/widgets contra o Style Guide 2.0 |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |

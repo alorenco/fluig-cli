@@ -18,6 +18,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
+| executar um release inteiro na ordem (SQL + datasets + widget), auditável | `deploy --plan release.json` |
 | conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
 | consultar os dados de um dataset | `dataset query` |
 | desligar (reversível) ou remover de vez (permanente) um dataset | `dataset disable` · `dataset delete` |
@@ -91,6 +92,23 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `dataset history <id> [--version N]` | — | histórico de versões; `--version N` imprime o código JS daquela versão |
 | `dataset restore <id> <version>` | — | restaura o código de uma versão do histórico (cria versão nova; exige `--yes` em modo não-interativo) |
 | `dataset delete <id>` | — | remove um dataset de vez (físico, permanente; alvo único; `--yes` em não-interativo). **Requer o fluigcliHelper ≥ 0.7.0** (sem ele: exit 7). Para só desligar de forma reversível, use `disable` |
+
+## deploy — release por manifesto
+
+| comando | efeito |
+|---|---|
+| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `widget` (`build`, `force`) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
+| `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget e contagem de instruções de cada `.sql` |
+
+- Audita **todos** os scripts do plano ANTES de conectar: erro de audit aborta o
+  release inteiro (exit 1 `AUDIT_FAILED`) e nada é publicado. `--no-audit` pula.
+- A trava de produção é pedida **uma vez** para o plano todo (`--yes` em
+  não-interativo).
+- `--json`: `data.steps[]` com `{index,name,kind,target,status,action,error}` —
+  `status` é `ok|failed|skipped|validated`. Falha no meio = **exit 6**; falha no
+  primeiro passo = o erro daquele passo.
+- Passos de formulário e de processo ainda NÃO existem: use `form export` e
+  `workflow publish`.
 
 ## db — SQL de diagnóstico (requer fluigcliHelper ≥ 0.6.0)
 

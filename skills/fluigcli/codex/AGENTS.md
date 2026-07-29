@@ -72,7 +72,11 @@ novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
 + users|add-user|remove-user; requerem admin), `replacement` (list|show|create|
 update|delete — substituto/delegação de tarefas; requer admin), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
-vira `status:"error"` no item e exit 6, o resto segue comparado), `audit` (linter do Style
+vira `status:"error"` no item e exit 6, o resto segue comparado),
+`deploy` (`--plan release.json` executa um release na ordem: passos `dataset`/
+`event`/`mechanism`/`widget`/`db`; para no 1º erro e marca o resto `skipped`,
+retome com `--from N`; `--dry-run` valida tudo sem escrever; audita todos os
+scripts antes de começar), `audit` (linter do Style
 Guide 2.0 em forms/widgets; exit 1 = reprovado, corrija pelas `suggestion`
 dos `data.findings[]` e repita). Os `new`/`new-script` são
 scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o

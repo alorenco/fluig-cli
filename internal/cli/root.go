@@ -326,6 +326,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newWidgetCmd(app),
 		newDiffCmd(app),
 		newAuditCmd(app),
+		newDeployCmd(app),
 		newWatchCmd(app),
 		newDevCmd(app),
 		newDbCmd(app),

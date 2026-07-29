@@ -298,60 +298,20 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 				return err
 			}
 			name := args[0]
-			widgetDir := project.WidgetDir(root, name)
-			if info, err := os.Stat(widgetDir); err != nil || !info.IsDir() {
-				return output.NotFoundf("widget %q não encontrado em %s", name, project.WidgetsDir)
-			}
-
-			// Widget SPA (vue/react): --build compila antes de empacotar;
-			// sem --build, bundle desatualizado vira aviso (o WAR levaria o
-			// js velho e a mudança "não apareceria").
-			switch {
-			case build && !project.IsSPAWidgetDir(widgetDir):
-				return output.Usagef("--build exige um widget com package.json (template vue/react); %q não tem", name)
-			case build:
-				if err := runNpmBuild(p, widgetDir); err != nil {
-					return err
-				}
-			case project.IsSPAWidgetDir(widgetDir):
-				if reason := project.StaleBundle(project.SPAWidget{Code: name, Dir: widgetDir}); reason != "" {
-					p.Warnf("widget %q: %s — ou publique com widget export --build", name, reason)
-				}
-			}
-
-			refs, err := project.CollectWidgetWARFiles(widgetDir)
-			if err != nil {
-				return err
-			}
-			if len(refs) == 0 {
-				return output.Usagef("nada para empacotar em %s (esperado src/main/...)", widgetDir)
-			}
-			warFiles := make([]fluig.WARFile, 0, len(refs))
-			for _, ref := range refs {
-				content, err := os.ReadFile(ref.LocalPath)
-				if err != nil {
-					return err
-				}
-				warFiles = append(warFiles, fluig.WARFile{Name: ref.WARPath, Content: content})
-			}
-			war, err := fluig.BuildWAR(warFiles)
-			if err != nil {
-				return err
-			}
 
 			ctx := context.Background()
 			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar a widget")
 			if err != nil {
 				return err
 			}
-			if err := checkLayoutCollision(ctx, p, client, name, force); err != nil {
+			// A montagem e o envio ficam em exportOneWidget, compartilhado com o
+			// `deploy` (§3.11) — duas cópias divergiriam, e uma delas perderia a
+			// guarda de colisão com layout.
+			if err := app.exportOneWidget(ctx, p, client, root, name, build, force); err != nil {
 				return err
 			}
-			if err := client.UploadWidgetWAR(ctx, name+".war", war); err != nil {
-				return mapFluigError(err)
-			}
-			p.Successf("widget %q enviado (%d arquivos, %d KB). A instalação é assíncrona no servidor.", name, len(warFiles), len(war)/1024)
-			p.Done(map[string]any{"widget": name, "files": len(warFiles)})
+			p.Successf("widget %q enviado. A instalação é assíncrona no servidor.", name)
+			p.Done(map[string]any{"widget": name})
 			return nil
 		},
 	}
@@ -413,6 +373,56 @@ func runNpmBuild(p *output.Printer, dir string) error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return output.Usagef("npm run build falhou (%v) — nada foi enviado ao servidor", err)
+	}
+	return nil
+}
+
+// exportOneWidget empacota e publica uma widget: é o corpo do `widget export`,
+// extraído para o `deploy` (§3.11) reaproveitar a mesma lógica — incluindo a
+// guarda de colisão com layout (§3.1), que nunca pode ficar de fora.
+func (a *App) exportOneWidget(ctx context.Context, p *output.Printer, client *fluig.Client,
+	root, name string, build, force bool) error {
+	widgetDir := project.WidgetDir(root, name)
+	if info, err := os.Stat(widgetDir); err != nil || !info.IsDir() {
+		return output.NotFoundf("widget %q não encontrado em %s", name, project.WidgetsDir)
+	}
+	switch {
+	case build && !project.IsSPAWidgetDir(widgetDir):
+		return output.Usagef("--build exige um widget com package.json (template vue/react); %q não tem", name)
+	case build:
+		if err := runNpmBuild(p, widgetDir); err != nil {
+			return err
+		}
+	case project.IsSPAWidgetDir(widgetDir):
+		if reason := project.StaleBundle(project.SPAWidget{Code: name, Dir: widgetDir}); reason != "" {
+			p.Warnf("widget %q: %s — ou publique com widget export --build", name, reason)
+		}
+	}
+
+	refs, err := project.CollectWidgetWARFiles(widgetDir)
+	if err != nil {
+		return err
+	}
+	if len(refs) == 0 {
+		return output.Usagef("nada para empacotar em %s (esperado src/main/...)", widgetDir)
+	}
+	warFiles := make([]fluig.WARFile, 0, len(refs))
+	for _, ref := range refs {
+		content, err := os.ReadFile(ref.LocalPath)
+		if err != nil {
+			return err
+		}
+		warFiles = append(warFiles, fluig.WARFile{Name: ref.WARPath, Content: content})
+	}
+	war, err := fluig.BuildWAR(warFiles)
+	if err != nil {
+		return err
+	}
+	if err := checkLayoutCollision(ctx, p, client, name, force); err != nil {
+		return err
+	}
+	if err := client.UploadWidgetWAR(ctx, name+".war", war); err != nil {
+		return mapFluigError(err)
 	}
 	return nil
 }

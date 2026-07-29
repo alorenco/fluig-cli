@@ -21,6 +21,7 @@ uso por agentes de IA.
 - [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)
 - [diff](diff.md) — compara artefatos locais com o servidor antes de publicar
+- [deploy](deploy.md) — executa um plano de release (manifesto JSON) na ordem
 - [audit](audit.md) — audita formulários e widgets contra o Fluig Style Guide 2.0
 - [watch](watch.md) — publica ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload. Serve widgets sem deploy e dá preview de formulários com simulação de processo (só dev/hml)
