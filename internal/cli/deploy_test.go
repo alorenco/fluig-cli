@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -25,6 +26,9 @@ type deployStub struct {
 	mecanismosSalvos int
 	widgetsEnviados  []string
 	sqlExecutado     []string
+
+	processoImportado bool
+	processoLiberado  bool
 
 	// layouts responde o GET de layout por código (colisão do §3.1).
 	layouts map[string]string
@@ -119,6 +123,45 @@ func (s *deployStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{}`)
 	})
 
+	// processo (publish): tudo pela REST v2 — export/xml, import/xml,
+	// process-versions e release (o SOAP não entra neste caminho).
+	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case strings.HasSuffix(path, "/export/xml"):
+			if !strings.Contains(path, "Compras") {
+				http.Error(w, `{"code":"NotFound","message":"processo inexistente"}`, http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "application/xml;charset=UTF-8")
+			b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_process_export.xml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.Write(b)
+		case strings.HasSuffix(path, "/import/xml"):
+			s.mu.Lock()
+			s.processoImportado = true
+			s.mu.Unlock()
+			io.WriteString(w, `{"processId":"Compras","versions":null}`)
+		case strings.HasSuffix(path, "/process-versions/latest/release"):
+			s.mu.Lock()
+			s.processoLiberado = true
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		case strings.HasSuffix(path, "/process-versions"):
+			s.mu.Lock()
+			v := 3
+			if s.processoImportado {
+				v = 4
+			}
+			s.mu.Unlock()
+			io.WriteString(w, `{"items":[{"version":`+strconv.Itoa(v)+`,"active":true}],"hasNext":false}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
 	// db (helper)
 	mux.HandleFunc("/fluigcliHelper/api/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "pong")
@@ -164,6 +207,8 @@ func deployProject(t *testing.T, stubURL string) string {
 	escreve(t, proj, "events/meuEvento.js", "function meuEvento(){}")
 	escreve(t, proj, "mechanisms/mec_novo.js", "function getUsers(){ return []; }")
 	escreve(t, proj, "sql/diag.sql", "select 1 as n;\nselect 2 as n;\n")
+	escreve(t, proj, "workflow/scripts/Compras.beforeTaskSave.js",
+		"function beforeTaskSave(){ /* do plano */ }")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/webapp/WEB-INF/application.xml", "<application/>")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/resources/application.info", "code=meu_painel")
 	return proj
@@ -467,5 +512,164 @@ func TestDeployUsaServidorDoPlano(t *testing.T) {
 	}
 	if !strings.Contains(stdout, `"server":"homolog"`) {
 		t.Errorf("o envelope não registrou o servidor do plano: %s", stdout)
+	}
+}
+
+// --- passo workflow no plano (§3.14) ---
+
+// O passo publica uma versão nova e libera, reaproveitando a MESMA sequência do
+// `workflow publish`.
+func TestDeployPassoWorkflowPublica(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"workflow": "Compras"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if !stub.processoImportado {
+		t.Error("o processo não foi importado")
+	}
+	if !stub.processoLiberado {
+		t.Error("a versão nova não foi liberada (o default do plano é liberar)")
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	steps, _ := data["steps"].([]any)
+	primeiro, _ := steps[0].(map[string]any)
+	if !strings.Contains(primeiro["action"].(string), "criada e liberada") {
+		t.Errorf("ação inesperada: %v", primeiro["action"])
+	}
+}
+
+// "noRelease": true cria a versão em edição, sem liberar. A chave é negativa
+// porque bool em JSON tem default false.
+func TestDeployPassoWorkflowNoRelease(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"workflow": "Compras", "noRelease": true}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if !stub.processoImportado {
+		t.Error("o processo não foi importado")
+	}
+	if stub.processoLiberado {
+		t.Error("a versão foi liberada apesar de noRelease")
+	}
+}
+
+// O maior ganho do item: o --dry-run detecta evento local que NÃO existe no
+// processo, SEM publicar nada. Hoje esse erro só aparece no meio do publish.
+func TestDeployDryRunAcusaEventoInexistente(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "workflow/scripts/Compras.eventoQueNaoExiste.js", "function eventoQueNaoExiste(){}")
+	p := plano(t, proj, `{"steps": [{"workflow": "Compras"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--dry-run", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+	}
+	if !strings.Contains(stdout, "eventoQueNaoExiste") || !strings.Contains(stdout, "não existem no processo") {
+		t.Errorf("o dry-run não acusou o evento inexistente: %s", stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.processoImportado {
+		t.Error("--dry-run importou o processo")
+	}
+}
+
+// O dry-run do caminho feliz diz quantos eventos a versão levaria, sem publicar.
+func TestDeployDryRunWorkflowPrevêEventos(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"workflow": "Compras"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--dry-run", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	steps, _ := data["steps"].([]any)
+	primeiro, _ := steps[0].(map[string]any)
+	acao, _ := primeiro["action"].(string)
+	if !strings.Contains(acao, "criaria uma versão nova") || !strings.Contains(acao, "beforeTaskSave") {
+		t.Errorf("ação prevista inesperada: %q", acao)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.processoImportado {
+		t.Error("--dry-run importou o processo")
+	}
+}
+
+// "processId" aponta outro processo no servidor (o prefixo local continua
+// identificando os arquivos).
+func TestDeployPassoWorkflowProcessIDDiferente(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "workflow/scripts/LocalPrefixo.beforeTaskSave.js", "function beforeTaskSave(){}")
+	p := plano(t, proj, `{"steps": [{"workflow": "LocalPrefixo", "processId": "Compras"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if !stub.processoImportado {
+		t.Error("o processo do processId não foi importado")
+	}
+}
+
+// Sem script local para o prefixo: NOT_FOUND, e nada é publicado.
+func TestDeployPassoWorkflowSemScripts(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"workflow": "NaoTemScript"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d; stdout=%s", code, output.ExitNotFound, stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.processoImportado {
+		t.Error("importou apesar de não haver script local")
+	}
+}
+
+// Os scripts do processo também passam pelo audit do plano, antes de conectar.
+func TestDeployAuditaScriptsDeProcesso(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	escreve(t, proj, "workflow/scripts/Compras.beforeTaskSave.js", dsConstEmLaco)
+	p := plano(t, proj, `{"steps": [{"workflow": "Compras"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("exit=%d, quer %d (audit); stdout=%s", code, output.ExitGeneric, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || env.Error.Code != output.CodeAuditFailed {
+		t.Errorf("esperava %s, veio %+v", output.CodeAuditFailed, env.Error)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.processoImportado {
+		t.Error("publicou apesar do erro de audit")
 	}
 }

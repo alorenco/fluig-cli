@@ -43,13 +43,25 @@ type deployStep struct {
 	Mechanism string `json:"mechanism,omitempty"`
 	Widget    string `json:"widget,omitempty"`
 	DB        string `json:"db,omitempty"`
+	// Workflow é o PREFIXO LOCAL dos scripts (workflow/scripts/<prefixo>.*.js).
+	// O destino no servidor é ProcessID quando ele difere do prefixo.
+	Workflow string `json:"workflow,omitempty"`
 
 	// Opções por tipo (espelham as flags do comando equivalente).
 	New         bool   `json:"new,omitempty"`         // dataset
 	Description string `json:"description,omitempty"` // dataset, mechanism
 	Build       bool   `json:"build,omitempty"`       // widget
 	Force       bool   `json:"force,omitempty"`       // widget
+	ProcessID   string `json:"processId,omitempty"`   // workflow (espelha --process-id)
+	// NoRelease espelha o --no-release: por padrão o plano LIBERA a versão nova.
+	// A chave é negativa de propósito — `bool` em JSON tem default false, e
+	// "release": false seria indistinguível de "release" ausente sem ponteiro.
+	NoRelease bool `json:"noRelease,omitempty"` // workflow
 }
+
+// O `workflow export` (atualização cirúrgica na versão corrente) NÃO entra no
+// plano por decisão do mantenedor (2026-07-29): ele não versiona, é ferramenta de
+// desenvolvimento e exige o fluigcliHelper. Release é `publish`.
 
 // deployStepResult é o resultado de um passo (contrato --json).
 type deployStepResult struct {
@@ -79,7 +91,7 @@ const (
 func (s deployStep) kindOf() (kind, target string, err error) {
 	pares := []struct{ kind, target string }{
 		{"dataset", s.Dataset}, {"event", s.Event}, {"mechanism", s.Mechanism},
-		{"widget", s.Widget}, {"db", s.DB},
+		{"widget", s.Widget}, {"db", s.DB}, {"workflow", s.Workflow},
 	}
 	for _, p := range pares {
 		if p.target == "" {
@@ -91,7 +103,8 @@ func (s deployStep) kindOf() (kind, target string, err error) {
 		kind, target = p.kind, p.target
 	}
 	if kind == "" {
-		return "", "", fmt.Errorf("passo sem tipo: informe uma das chaves dataset, event, mechanism, widget ou db")
+		return "", "", fmt.Errorf(
+			"passo sem tipo: informe uma das chaves dataset, event, mechanism, widget, workflow ou db")
 	}
 	return kind, target, nil
 }
@@ -118,7 +131,8 @@ func newDeployCmd(app *App) *cobra.Command {
 			"      {\"name\": \"diagnóstico\", \"db\": \"sql/001_check.sql\"},\n" +
 			"      {\"dataset\": \"datasets/ds_agenda.js\", \"new\": true},\n" +
 			"      {\"dataset\": \"datasets/ds_processos.js\"},\n" +
-			"      {\"widget\": \"processos_judiciais\", \"build\": true}\n" +
+			"      {\"widget\": \"processos_judiciais\", \"build\": true},\n" +
+			"      {\"workflow\": \"Compras\"}\n" +
 			"    ]\n" +
 			"  }\n\n" +
 			"O comando PARA no primeiro erro. Os passos seguintes saem como\n" +
@@ -128,7 +142,11 @@ func newDeployCmd(app *App) *cobra.Command {
 			"presentes, auditoria dos scripts, colisão de código da widget e as\n" +
 			"instruções de cada script SQL.\n\n" +
 			"O plano NUNCA contém senha. A autenticação segue a precedência normal.\n" +
-			"Passos de formulário e de processo ainda não são suportados.",
+			"O passo workflow publica uma versão NOVA do processo com os scripts\n" +
+			"locais e a libera (use \"noRelease\": true para não liberar). O alvo é o\n" +
+			"prefixo dos arquivos locais; use \"processId\" quando o processo no\n" +
+			"servidor tiver outro nome.\n\n" +
+			"Passos de formulário ainda não são suportados.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -198,6 +216,38 @@ func newDeployCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// workflowTarget devolve o processId de destino do passo e se ele foi DERIVADO do
+// prefixo local (sem "processId" no plano) — a mensagem de processo inexistente
+// só sugere o `processId` nesse caso.
+func (s deployStep) workflowTarget() (pid string, derived bool) {
+	if s.ProcessID != "" {
+		return s.ProcessID, false
+	}
+	return s.Workflow, true
+}
+
+// scriptsDoPassoWorkflow lê os scripts locais do passo e devolve o mapa
+// evento→código, mais os caminhos (para o audit).
+func scriptsDoPassoWorkflow(root, prefixo string) (map[string]string, []string, error) {
+	scripts, err := project.FindProcessScripts(root, prefixo)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(scripts) == 0 {
+		return nil, nil, output.NotFoundf("nenhum script local do processo %q (esperado %s/%s.<evento>.js)",
+			prefixo, project.WorkflowScriptsDir, prefixo)
+	}
+	events, err := readWorkflowEvents(scripts)
+	if err != nil {
+		return nil, nil, err
+	}
+	byEvent := make(map[string]string, len(events))
+	for _, e := range events {
+		byEvent[e.Name] = e.Contents
+	}
+	return byEvent, scriptPaths(scripts), nil
+}
+
 // readDeployPlan lê e desserializa o manifesto.
 func readDeployPlan(path string) (*deployPlan, error) {
 	raw, err := os.ReadFile(path)
@@ -244,6 +294,13 @@ func scriptTargetsDoPlano(steps []deployStepResult, root string) []string {
 		switch s.Kind {
 		case "dataset", "event", "mechanism":
 			out = append(out, resolveDeployPath(root, s.Target))
+		case "workflow":
+			// Os scripts do processo também são auditados. Erro de leitura aqui
+			// não interrompe a auditoria: o passo falha na execução com a
+			// mensagem própria.
+			if _, paths, err := scriptsDoPassoWorkflow(root, s.Target); err == nil {
+				out = append(out, paths...)
+			}
 		}
 	}
 	return out
@@ -347,6 +404,27 @@ func checkDeployStep(ctx context.Context, app *App, client *fluig.Client, root s
 			return err
 		}
 		s.Action = "publicaria a widget " + s.Target
+		return nil
+
+	case "workflow":
+		byEvent, _, err := scriptsDoPassoWorkflow(root, s.Target)
+		if err != nil {
+			return err
+		}
+		pid, derived := s.plan.workflowTarget()
+		// prepareProcessXML é read-only: aqui ele acusa evento local que NÃO
+		// existe no processo, antes de qualquer publicação. Esse erro, hoje, só
+		// aparece no meio do publish — com a versão já em jogo.
+		_, updated, err := prepareProcessXML(ctx, client, pid, byEvent, derived)
+		if err != nil {
+			return err
+		}
+		acao := fmt.Sprintf("criaria uma versão nova de %q com %d evento(s): %s",
+			pid, len(updated), strings.Join(updated, ", "))
+		if s.plan.NoRelease {
+			acao += " (sem liberar)"
+		}
+		s.Action = acao
 		return nil
 
 	case "db":
@@ -474,6 +552,23 @@ func execDeployStep(ctx context.Context, app *App, p *output.Printer, client *fl
 			return "failed", err
 		}
 		return "widget " + s.Target + " enviada", nil
+
+	case "workflow":
+		byEvent, _, err := scriptsDoPassoWorkflow(root, s.Target)
+		if err != nil {
+			return "failed", err
+		}
+		pid, derived := step.workflowTarget()
+		res, err := publishOneWorkflow(ctx, client, pid, byEvent, step.NoRelease, derived)
+		if err != nil {
+			return "failed", err
+		}
+		estado := "criada e liberada"
+		if !res.Released {
+			estado = "criada em edição"
+		}
+		return fmt.Sprintf("versão %d do processo %q %s (%d evento(s))",
+			res.Version, pid, estado, len(res.Events)), nil
 
 	case "db":
 		path := resolveDeployPath(root, s.Target)

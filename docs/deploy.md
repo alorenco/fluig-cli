@@ -28,7 +28,8 @@ nova.
     {"dataset": "datasets/ds_jud_processos.js"},
     {"event": "events/displayCustomThemes.js"},
     {"mechanism": "mechanisms/mec_gestor_area.js"},
-    {"widget": "processos_judiciais", "build": true}
+    {"widget": "processos_judiciais", "build": true},
+    {"workflow": "Compras"}
   ]
 }
 ```
@@ -43,9 +44,30 @@ nova.
 | `event` | arquivo `.js` | — |
 | `mechanism` | arquivo `.js` | `description` |
 | `widget` | código do widget | `build` (roda `npm run build`), `force` |
+| `workflow` | prefixo local dos scripts | `processId`, `noRelease` |
 | `db` | arquivo `.sql` | — (só leitura; o servidor recusa escrita) |
 
 A chave `name` é um rótulo livre. Ela aparece no relatório e ajuda a ler o plano.
+
+### O passo `workflow`
+
+O passo publica uma versão **nova** do processo com os scripts locais e a libera.
+É o mesmo que o [`workflow publish`](workflow.md).
+
+```json
+{"workflow": "Compras"}
+{"workflow": "SolicitacaoAdiantamento", "processId": "Adiantamento ao Fornecedor"}
+{"workflow": "Compras", "noRelease": true}
+```
+
+- O alvo é o **prefixo dos arquivos locais** (`workflow/scripts/<prefixo>.*.js`).
+- `processId` aponta o processo no servidor quando o nome dele difere do prefixo.
+- `noRelease` cria a versão em edição, sem liberar. A chave é negativa porque o
+  valor padrão do plano é **liberar**, como no comando.
+
+O `workflow export` (atualização cirúrgica na versão corrente) **não** existe como
+passo. Ele não versiona, é ferramenta de desenvolvimento e depende do componente
+auxiliar. Release é `publish`.
 
 Os caminhos são relativos à raiz do projeto. Uma chave escrita errado (por
 exemplo `datasets` no lugar de `dataset`) é **erro**, não silêncio.
@@ -85,7 +107,16 @@ O `--dry-run` valida o plano **sem escrever nada**:
   servidor);
 - o código do widget não colide com um layout (a guarda de
   [`widget export`](widget.md#guarda-de-colisão-com-layout));
-- cada script `.sql` tem instruções reconhecíveis, com a contagem.
+- cada script `.sql` tem instruções reconhecíveis, com a contagem;
+- **cada evento local existe no processo**. O `--dry-run` baixa o XML do processo
+  e aplica os scripts em memória, sem importar nada. Um evento que não existe no
+  processo aparece aqui, e não no meio da publicação:
+
+  ```
+  aviso: passo 1 (workflow Adiantamento ao Fornecedor): evento(s) eventoInventado
+  não existem no processo "Adiantamento ao Fornecedor" — o publish não cria
+  eventos; crie-os no Fluig Studio (nada foi alterado)
+  ```
 
 Rode o `--dry-run` antes de qualquer release em produção. Ele responde "este
 plano vai funcionar?" sem correr o risco.
@@ -131,9 +162,8 @@ código dele. Não existe release parcial quando nada foi publicado.
 
 ## Limitações
 
-- Passos de **formulário** e de **processo** ainda não existem. Publique esses
-  artefatos com [`form export`](form.md) e
-  [`workflow publish`](workflow.md) enquanto isso.
+- Passos de **formulário** ainda não existem. Publique formulário com
+  [`form export`](form.md) enquanto isso.
 - Não há rollback. O Fluig não tem transação entre artefatos. O plano para no
   erro e diz onde parou — a volta é sua, com o Git e o
   [`dataset history`](dataset.md).

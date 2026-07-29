@@ -298,57 +298,27 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 				return err
 			}
 
-			xmlData, err := client.ExportProcessXML(ctx, pid)
+			res, err := publishOneWorkflow(ctx, client, pid, byEvent, noRelease, processIDFlag == "")
 			if err != nil {
-				if errors.Is(err, fluig.ErrNotFound) {
-					return processNotFound(ctx, client, pid, processIDFlag == "")
-				}
-				return mapFluigError(err)
-			}
-			newXML, updated, missing := fluig.ApplyProcessEventScripts(xmlData, byEvent)
-			if len(missing) > 0 {
-				return output.NotFoundf(
-					"evento(s) %s não existem no processo %q — o publish não cria eventos; crie-os no Fluig Studio (nada foi alterado)",
-					strings.Join(missing, ", "), pid)
+				return err
 			}
 
-			before, err := client.ProcessVersions(ctx, pid)
-			if err != nil {
-				return mapFluigError(err)
-			}
-			if err := client.ImportProcessXML(ctx, pid, newXML); err != nil {
-				return mapFluigError(err)
-			}
-			after, err := client.ProcessVersions(ctx, pid)
-			if err != nil {
-				return mapFluigError(err)
-			}
-			prevVersion, newVersion := fluig.LatestProcessVersion(before), fluig.LatestProcessVersion(after)
-
-			released := false
-			if !noRelease {
-				if err := client.ReleaseLatestProcessVersion(ctx, pid); err != nil {
-					return output.ServerErrorf(
-						"a versão %d do processo %q foi criada, mas não pôde ser liberada: %v — corrija o processo no Fluig Studio (ou use --no-release)",
-						newVersion, pid, err).WithCause(err)
-				}
-				released = true
-			}
-
-			for _, ev := range updated {
+			for _, ev := range res.Events {
 				p.Successf("evento %q aplicado", ev)
 			}
-			if released {
-				p.Successf("versão %d do processo %q criada e liberada (a v%d foi desativada)", newVersion, pid, prevVersion)
+			if res.Released {
+				p.Successf("versão %d do processo %q criada e liberada (a v%d foi desativada)",
+					res.Version, pid, res.PreviousVersion)
 			} else {
-				p.Successf("versão %d do processo %q criada em edição (libere com o publish sem --no-release ou no Fluig Studio)", newVersion, pid)
+				p.Successf("versão %d do processo %q criada em edição (libere com o publish sem --no-release ou no Fluig Studio)",
+					res.Version, pid)
 			}
 			p.Done(map[string]any{
 				"processId":       pid,
-				"previousVersion": prevVersion,
-				"version":         newVersion,
-				"released":        released,
-				"events":          updated,
+				"previousVersion": res.PreviousVersion,
+				"version":         res.Version,
+				"released":        res.Released,
+				"events":          res.Events,
 			})
 			return nil
 		},
@@ -823,4 +793,79 @@ func scriptPaths(scripts []project.ProcessScript) []string {
 		out = append(out, s.Path)
 	}
 	return out
+}
+
+// publishResult é o resultado de uma publicação de processo.
+type publishResult struct {
+	PreviousVersion int      `json:"previousVersion"`
+	Version         int      `json:"version"`
+	Released        bool     `json:"released"`
+	Events          []string `json:"events"`
+}
+
+// publishOneWorkflow cria uma versão nova do processo com os scripts informados e
+// a libera (salvo noRelease). É o corpo do `workflow publish`, extraído para o
+// `deploy` (§3.14) reaproveitar a MESMA sequência — inclusive a recusa quando um
+// evento local não existe no processo, que precisa acontecer antes do import.
+//
+// derived diz se o processId veio do arquivo/argumento local (e não de
+// --process-id): só nesse caso a mensagem de "processo não encontrado" sugere a
+// flag.
+func publishOneWorkflow(ctx context.Context, client *fluig.Client, pid string,
+	byEvent map[string]string, noRelease, derived bool) (publishResult, error) {
+	var res publishResult
+
+	newXML, updated, err := prepareProcessXML(ctx, client, pid, byEvent, derived)
+	if err != nil {
+		return res, err
+	}
+	res.Events = updated
+
+	before, err := client.ProcessVersions(ctx, pid)
+	if err != nil {
+		return res, mapFluigError(err)
+	}
+	if err := client.ImportProcessXML(ctx, pid, newXML); err != nil {
+		return res, mapFluigError(err)
+	}
+	after, err := client.ProcessVersions(ctx, pid)
+	if err != nil {
+		return res, mapFluigError(err)
+	}
+	res.PreviousVersion = fluig.LatestProcessVersion(before)
+	res.Version = fluig.LatestProcessVersion(after)
+
+	if !noRelease {
+		if err := client.ReleaseLatestProcessVersion(ctx, pid); err != nil {
+			return res, output.ServerErrorf(
+				"a versão %d do processo %q foi criada, mas não pôde ser liberada: %v — corrija o processo no Fluig Studio (ou use --no-release)",
+				res.Version, pid, err).WithCause(err)
+		}
+		res.Released = true
+	}
+	return res, nil
+}
+
+// prepareProcessXML baixa o XML do processo e aplica os scripts locais, SEM
+// escrever no servidor. Devolve o XML novo e os eventos aplicados.
+//
+// É read-only de propósito: o `deploy --dry-run` usa esta função para descobrir
+// que um evento local NÃO existe no processo antes de qualquer publicação. Hoje
+// esse erro só aparece no meio do publish, com a versão já em jogo.
+func prepareProcessXML(ctx context.Context, client *fluig.Client, pid string,
+	byEvent map[string]string, derived bool) (newXML []byte, updated []string, err error) {
+	xmlData, err := client.ExportProcessXML(ctx, pid)
+	if err != nil {
+		if errors.Is(err, fluig.ErrNotFound) {
+			return nil, nil, processNotFound(ctx, client, pid, derived)
+		}
+		return nil, nil, mapFluigError(err)
+	}
+	newXML, updated, missing := fluig.ApplyProcessEventScripts(xmlData, byEvent)
+	if len(missing) > 0 {
+		return nil, nil, output.NotFoundf(
+			"evento(s) %s não existem no processo %q — o publish não cria eventos; crie-os no Fluig Studio (nada foi alterado)",
+			strings.Join(missing, ", "), pid)
+	}
+	return newXML, updated, nil
 }

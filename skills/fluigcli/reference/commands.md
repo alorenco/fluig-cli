@@ -97,8 +97,8 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 
 | comando | efeito |
 |---|---|
-| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `widget` (`build`, `force`) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
-| `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget e contagem de instruções de cada `.sql` |
+| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `widget` (`build`, `force`), `workflow` (publica versão nova; `processId` aponta outro processo no servidor, `noRelease` não libera) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
+| `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget, contagem de instruções de cada `.sql` e **se cada evento local existe no processo** (read-only — pega o erro que hoje só aparece no meio do publish) |
 
 - Audita **todos** os scripts do plano ANTES de conectar: erro de audit aborta o
   release inteiro (exit 1 `AUDIT_FAILED`) e nada é publicado. `--no-audit` pula.
@@ -107,8 +107,8 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 - `--json`: `data.steps[]` com `{index,name,kind,target,status,action,error}` —
   `status` é `ok|failed|skipped|validated`. Falha no meio = **exit 6**; falha no
   primeiro passo = o erro daquele passo.
-- Passos de formulário e de processo ainda NÃO existem: use `form export` e
-  `workflow publish`.
+- Passo de formulário ainda NÃO existe: use `form export`. O `workflow export`
+  (cirúrgico) não entra no plano por decisão do mantenedor — release é `publish`.
 
 ## db — SQL de diagnóstico (requer fluigcliHelper ≥ 0.6.0)
 
