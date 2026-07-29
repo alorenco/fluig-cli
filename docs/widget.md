@@ -150,3 +150,31 @@ Empacotamento (local → WAR):
 | `src/main/webapp/WEB-INF/**` | `WEB-INF/**` |
 | `src/main/resources/**` | `WEB-INF/classes/**` |
 | `src/main/webapp/resources/**` | `resources/**` |
+
+### Guarda de colisão com layout
+
+Antes de publicar, a CLI verifica se o código do widget já existe no servidor
+como **layout**. O deploy nativo do WCM identifica o destino só pelo nome do
+arquivo (`<código>.war`). Por isso um widget com o código de um layout
+**sobrescreve o WAR do layout**. Isso já derrubou um servidor de produção.
+
+Neste caso o comando recusa a publicação com exit code 2:
+
+```sh
+$ fluigcli widget export processos_judiciais --server producao
+ERRO: o código "processos_judiciais" já existe no servidor como LAYOUT
+("Processos Judiciais"). Publicar o widget sobrescreveria o WAR do layout, e
+isso pode derrubar o servidor. Renomeie o widget ou publique com --force.
+```
+
+Escolha uma das duas saídas:
+
+- **Renomeie o widget.** É a opção correta quando o código coincidiu por acaso.
+- **Use `--force`.** Escolha esta opção só quando quiser substituir o artefato
+  de propósito.
+
+A verificação falha em aberto. Se o servidor não responder a consulta, o comando
+avisa e publica. A guarda protege contra um erro conhecido. Ela não impede a
+publicação por indisponibilidade.
+
+A CLI não publica layouts. Por isso a verificação existe em um sentido só.

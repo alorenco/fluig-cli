@@ -143,6 +143,105 @@ func (c *Client) ListWidgetsNative(ctx context.Context) ([]Widget, error) {
 	}
 }
 
+// Layout é um layout WCM (page-management). A CLI não gerencia layouts; este
+// tipo existe para o preflight de colisão de código do `widget export` — ver
+// FindLayout.
+type Layout struct {
+	Code     string `json:"code"`
+	Title    string `json:"title"`
+	Internal bool   `json:"internal"`
+}
+
+// layoutsPath é a coleção de layouts do page-management.
+const layoutsPath = "/page-management/api/v2/layouts"
+
+// FindLayout busca um layout pelo código. Layout inexistente → ErrNotFound.
+//
+// ⚠️ Por que isto existe: o upload de WAR do WCM
+// (`/portal/api/rest/wcmservice/rest/product/uploadfile`, ver UploadWidgetWAR)
+// identifica o destino SÓ pelo nome do arquivo (`<código>.war`) e não distingue
+// o tipo do artefato. Publicar uma widget com o código de um layout existente
+// sobrescreve o WAR do layout — incidente real relatado em 2026-07-29, que
+// derrubou o servidor com loop de JMS.
+//
+// Estratégia: `GET /v2/layouts/{code}`, que na homologação responde **404 com
+// corpo vazio** para código inexistente (medido em 2026-07-29). Como outros GETs
+// do Fluig respondem 500 no lugar de 404 (ver o quirk do loadDataset em
+// dataset.go), qualquer outro não-2xx cai para a listagem completa e compara o
+// código lá. O fallback é rede de segurança: indisponibilidade NÃO pode virar
+// "não existe", senão o widget sobrescreve o layout em silêncio.
+//
+// ⚠️ `responsiveLayout` vem booleano na listagem e **null** no GET por código —
+// por isso o tipo Layout não o carrega.
+func (c *Client) FindLayout(ctx context.Context, code string) (*Layout, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url(layoutsPath+"/") + url.PathEscape(code)
+	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case status == http.StatusNotFound:
+		return nil, fmt.Errorf("%w: layout %q", ErrNotFound, code)
+	case status >= 200 && status < 300:
+		var layout Layout
+		if err := json.Unmarshal(body, &layout); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de page-management/layouts/%s: %w", code, err)
+		}
+		// Corpo vazio/sem código também significa "não existe".
+		if layout.Code == "" {
+			return nil, fmt.Errorf("%w: layout %q", ErrNotFound, code)
+		}
+		return &layout, nil
+	}
+
+	layouts, listErr := c.ListLayouts(ctx)
+	if listErr != nil {
+		// Nenhum dos dois caminhos respondeu: devolve o erro do GET direto, que
+		// é o mais específico.
+		return nil, &HTTPError{StatusCode: status, URL: "page-management/layouts/" + code, Body: truncate(string(body), 512)}
+	}
+	for i := range layouts {
+		if strings.EqualFold(layouts[i].Code, code) {
+			return &layouts[i], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: layout %q", ErrNotFound, code)
+}
+
+// ListLayouts lista os layouts do servidor (`GET /v2/layouts`, paginado).
+func (c *Client) ListLayouts(ctx context.Context) ([]Layout, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	var out []Layout
+	for page := 1; ; page++ {
+		endpoint := c.url(layoutsPath) +
+			"?page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: "page-management/layouts", Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Items   []Layout `json:"items"`
+			HasNext bool     `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de page-management/layouts: %w", err)
+		}
+		out = append(out, parsed.Items...)
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return out, nil
+		}
+	}
+}
+
 // widgetUploadPath é o endpoint nativo de upload de widget/WAR.
 const widgetUploadPath = "/portal/api/rest/wcmservice/rest/product/uploadfile"
 

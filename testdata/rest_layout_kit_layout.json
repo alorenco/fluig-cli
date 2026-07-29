@@ -1,0 +1,9 @@
+{
+ "id": 329,
+ "code": "kit_layout",
+ "title": "Portal",
+ "description": "Quanto mais espaço, melhor. O conteúdo de sua intranet ou de seus portais ganha mais destaque, pois este layout não exibe menu lateral",
+ "icon": "icon.png",
+ "responsiveLayout": null,
+ "internal": false
+}

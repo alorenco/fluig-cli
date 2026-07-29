@@ -46,7 +46,9 @@ Grupos: `server` (add|list|use|update|remove|test|status|logout|install-helper),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros;
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai),
 `workflow` (new-script|list|version|versions|import|export|publish|diff — `--process-id` desacopla arquivo do processId do servidor),
-`widget` (new|list|import|export),
+`widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
+existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
+renomeie o widget ou publique com `--force`),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
 `task` (list — fila de tarefas; sem flags = as suas em aberto),
 `log` (files|tail|download — server.log do servidor via helper; `--grep` repetível

@@ -1,0 +1,41 @@
+{
+ "items": [
+  {
+   "id": 24,
+   "code": "layoutdefaultpublic",
+   "title": "Público",
+   "description": "Valoriza conteúdos amplos e permite um melhor detalhamento das informações, se necessário.",
+   "icon": "icon.png",
+   "responsiveLayout": true,
+   "internal": true
+  },
+  {
+   "id": 257,
+   "code": "layoutfixedslot",
+   "title": "Constante",
+   "description": "Para que informações importantes não sejam esquecidas, este layout conta com uma barra de slots fixas: conforme a navegação, os widgets da barra lateral sempre estarão visíveis.",
+   "icon": "icon.png",
+   "responsiveLayout": false,
+   "internal": true
+  },
+  {
+   "id": 329,
+   "code": "kit_layout",
+   "title": "Portal",
+   "description": "Quanto mais espaço, melhor. O conteúdo de sua intranet ou de seus portais ganha mais destaque, pois este layout não exibe menu lateral",
+   "icon": "icon.png",
+   "responsiveLayout": false,
+   "internal": false
+  },
+  {
+   "id": 385,
+   "code": "processos_judiciais",
+   "title": "Processos Judiciais",
+   "description": "Layout para utilizar na widget referente a processos Judiciais",
+   "icon": "icon.png",
+   "responsiveLayout": true,
+   "internal": false
+  }
+ ],
+ "hasNext": false
+}

@@ -146,6 +146,18 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 > outros campos vêm com sufixo `___<rowId>`. Uma linha da fixture carrega
 > campos de outra tabela filha (parcelas/anexo) — caso real, não erro.
 
+## layouts — guarda de colisão do widget export (ROADMAP2 §3.1, 2026-07-29)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_layouts.json` | `GET /page-management/api/v2/layouts?page=1&pageSize=100` | ✅ gravada da homologação em 2026-07-29; reduzida de 15 para 4 layouts (2 internos da plataforma + 2 customizados), estrutura e textos do produto preservados |
+| `rest_layout_kit_layout.json` | `GET /page-management/api/v2/layouts/{code}` | ✅ gravada da homologação em 2026-07-29 |
+
+> Descobertas: a listagem devolve `responsiveLayout` **booleano** e o GET por
+> código devolve **`null`** no mesmo campo. Código inexistente responde **404
+> com corpo vazio** (não o 500 que o `loadDataset` dá) — o `FindLayout` mantém o
+> fallback pela listagem só como rede de segurança.
+
 ---
 
 > `TestIntegrationFormListAndDownload` (`-tags=integration`) exercita list +

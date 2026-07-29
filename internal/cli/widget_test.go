@@ -26,6 +26,14 @@ type widgetStub struct {
 	uploadedWAR   []byte
 	uploadedName  string
 	helperMissing bool // fluigcliHelper ausente → widget list cai no nativo
+	// layouts responde o GET de layout por código (código → título). Simula a
+	// colisão widget × layout do `widget export`.
+	layouts map[string]string
+	// layoutGetBroken faz o GET por código responder 500 (quirk do Fluig), o que
+	// força o fallback pela listagem em FindLayout.
+	layoutGetBroken bool
+	// layoutListBroken derruba também a listagem: o preflight fica sem resposta.
+	layoutListBroken bool
 }
 
 func (s *widgetStub) widgetZip(t *testing.T) []byte {
@@ -75,6 +83,34 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 			`{"code":"meu_widget","title":"Meu Widget","description":"d","internal":false},`+
 			`{"code":"outro_widget","title":"Outro Widget","description":"d2","internal":false}`+
 			`],"hasNext":false}`)
+	})
+	// Layouts (preflight de colisão do widget export). A rota com "/" cobre o
+	// GET por código; a rota exata cobre a listagem paginada.
+	mux.HandleFunc("/page-management/api/v2/layouts/", func(w http.ResponseWriter, r *http.Request) {
+		if s.layoutGetBroken {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"message":"erro interno"}`)
+			return
+		}
+		code := strings.TrimPrefix(r.URL.Path, "/page-management/api/v2/layouts/")
+		title, ok := s.layouts[code]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `{"id":1,"code":"`+code+`","title":"`+title+`","internal":false}`)
+	})
+	mux.HandleFunc("/page-management/api/v2/layouts", func(w http.ResponseWriter, r *http.Request) {
+		if s.layoutListBroken {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"message":"erro interno"}`)
+			return
+		}
+		items := make([]string, 0, len(s.layouts))
+		for code, title := range s.layouts {
+			items = append(items, `{"id":1,"code":"`+code+`","title":"`+title+`","internal":false}`)
+		}
+		io.WriteString(w, `{"items":[`+strings.Join(items, ",")+`],"hasNext":false}`)
 	})
 	mux.HandleFunc("/fluigcliHelper/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
 		if s.helperMissing {
@@ -184,6 +220,118 @@ func TestWidgetExportPacks(t *testing.T) {
 	}
 	if _, ok := entries["WEB-INF/application.xml"]; !ok {
 		t.Errorf("WEB-INF/application.xml ausente")
+	}
+}
+
+// widgetExportProject monta um projeto com o widget mínimo publicável.
+func widgetExportProject(t *testing.T, stub *widgetStub, name string) string {
+	t.Helper()
+	proj := widgetProject(t, stub.server(t).URL)
+	base := filepath.Join(proj, "wcm", "widget", name)
+	write := func(rel string, content []byte) {
+		p := filepath.Join(base, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("src/main/webapp/WEB-INF/application.xml", []byte("<application/>"))
+	write("src/main/resources/application.info", []byte("info"))
+	return proj
+}
+
+// Guarda do incidente de 2026-07-29 (ROADMAP2 §3.1): publicar um widget cujo
+// código já é de um LAYOUT sobrescreveria o WAR do layout. O comando recusa e
+// nada é enviado.
+func TestWidgetExportRecusaColisaoComLayout(t *testing.T) {
+	stub := &widgetStub{layouts: map[string]string{"processos_judiciais": "Processos Judiciais"}}
+	proj := widgetExportProject(t, stub, "processos_judiciais")
+
+	code, out := runMain(t, "widget", "export", "processos_judiciais", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, esperado %d (uso); saída: %s", code, output.ExitUsage, out)
+	}
+	if !strings.Contains(out, "LAYOUT") || !strings.Contains(out, "Processos Judiciais") {
+		t.Errorf("mensagem não explica a colisão nem cita o layout: %s", out)
+	}
+	if !strings.Contains(out, "--force") {
+		t.Errorf("mensagem não oferece a saída (--force): %s", out)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "" {
+		t.Errorf("o WAR foi enviado mesmo com a colisão detectada (%q)", stub.uploadedName)
+	}
+}
+
+// --force é a saída consciente: publica mesmo com a colisão.
+func TestWidgetExportForcePublicaApesarDaColisao(t *testing.T) {
+	stub := &widgetStub{layouts: map[string]string{"processos_judiciais": "Processos Judiciais"}}
+	proj := widgetExportProject(t, stub, "processos_judiciais")
+
+	code, out := runMain(t, "widget", "export", "processos_judiciais", "--force", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d com --force; saída: %s", code, out)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "processos_judiciais.war" {
+		t.Errorf("nome do WAR = %q", stub.uploadedName)
+	}
+}
+
+// Código livre de layout: publica sem atrito (a guarda não pode virar pedágio).
+func TestWidgetExportSemColisaoPublica(t *testing.T) {
+	stub := &widgetStub{layouts: map[string]string{"outro_layout": "Outro Layout"}}
+	proj := widgetExportProject(t, stub, "meu_widget")
+
+	code, out := runMain(t, "widget", "export", "meu_widget", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d sem colisão; saída: %s", code, out)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "meu_widget.war" {
+		t.Errorf("nome do WAR = %q", stub.uploadedName)
+	}
+}
+
+// GET de layout por código respondendo 500 (quirk conhecido do Fluig): o
+// fallback pela listagem ainda enxerga a colisão.
+func TestWidgetExportColisaoPelaListagemQuandoGetFalha(t *testing.T) {
+	stub := &widgetStub{
+		layouts:         map[string]string{"processos_judiciais": "Processos Judiciais"},
+		layoutGetBroken: true,
+	}
+	proj := widgetExportProject(t, stub, "processos_judiciais")
+
+	code, out := runMain(t, "widget", "export", "processos_judiciais", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, esperado %d (uso) via fallback da listagem; saída: %s", code, output.ExitUsage, out)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "" {
+		t.Errorf("o WAR foi enviado mesmo com a colisão detectada (%q)", stub.uploadedName)
+	}
+}
+
+// Preflight sem resposta nos dois caminhos: falha em aberto (avisa e publica).
+// A guarda é rede de proteção, não dependência nova do publish.
+func TestWidgetExportPreflightIndisponivelPublica(t *testing.T) {
+	stub := &widgetStub{layoutGetBroken: true, layoutListBroken: true}
+	proj := widgetExportProject(t, stub, "meu_widget")
+
+	code, out := runMain(t, "widget", "export", "meu_widget", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d com preflight indisponível; saída: %s", code, out)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if stub.uploadedName != "meu_widget.war" {
+		t.Errorf("nome do WAR = %q", stub.uploadedName)
 	}
 }
 

@@ -276,12 +276,21 @@ func (a *App) importOneWidget(ctx context.Context, client *fluig.Client, root st
 func newWidgetExportCmd(app *App) *cobra.Command {
 	var (
 		build         bool
+		force         bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
 		Use:   "export <NomeWidget>",
 		Short: "Empacota e publica um widget no servidor (deploy nativo)",
-		Args:  cobra.ExactArgs(1),
+		Long: "Empacota a pasta local do widget em um WAR e publica no servidor pelo\n" +
+			"deploy nativo do WCM. A instalação é assíncrona no servidor.\n\n" +
+			"Antes de publicar, a CLI checa se o código do widget já existe no\n" +
+			"servidor como LAYOUT. O deploy nativo identifica o destino só pelo nome\n" +
+			"do arquivo (<código>.war), por isso publicar um widget com o código de um\n" +
+			"layout sobrescreve o WAR do layout. Neste caso o comando recusa a\n" +
+			"publicação. Use --force para prosseguir de propósito.\n\n" +
+			"A CLI não publica layouts. Por isso a checagem existe em um sentido só.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			root, err := app.projectRootForFiles()
@@ -335,6 +344,9 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := checkLayoutCollision(ctx, p, client, name, force); err != nil {
+				return err
+			}
 			if err := client.UploadWidgetWAR(ctx, name+".war", war); err != nil {
 				return mapFluigError(err)
 			}
@@ -344,8 +356,41 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&build, "build", false, "roda `npm run build` no widget (template vue/react) antes de empacotar")
+	cmd.Flags().BoolVar(&force, "force", false, "publica mesmo que o código já exista como layout no servidor (sobrescreve o WAR do layout)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// checkLayoutCollision recusa a publicação de um widget cujo código já existe no
+// servidor como LAYOUT. Motivo: o deploy nativo do WCM identifica o destino só
+// pelo nome do arquivo (`<código>.war`), então o upload SOBRESCREVE o WAR do
+// layout. Incidente real de 2026-07-29: o layout sobrescrito derrubou o servidor
+// com loop de JMS e só voltou por republicação manual.
+//
+// A checagem falha em aberto: se o servidor não responder a consulta, o comando
+// avisa e segue. Ela é uma rede de proteção contra um erro conhecido, não uma
+// dependência nova do publish.
+func checkLayoutCollision(ctx context.Context, p *output.Printer, client *fluig.Client, code string, force bool) error {
+	layout, err := client.FindLayout(ctx, code)
+	switch {
+	case errors.Is(err, fluig.ErrNotFound):
+		return nil
+	case err != nil:
+		p.Warnf("não consegui checar se %q já existe como layout no servidor (%v). A publicação segue.", code, err)
+		return nil
+	}
+
+	title := layout.Title
+	if title == "" {
+		title = layout.Code
+	}
+	if force {
+		p.Warnf("o código %q já existe como layout (%q) — --force informado, o WAR do layout será sobrescrito.", code, title)
+		return nil
+	}
+	return output.Usagef(
+		"o código %q já existe no servidor como LAYOUT (%q). Publicar o widget sobrescreveria o WAR do layout, "+
+			"e isso pode derrubar o servidor. Renomeie o widget ou publique com --force.", code, title)
 }
 
 // npmBuildCommand monta o comando do build (variável para os testes trocarem).

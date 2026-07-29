@@ -283,7 +283,7 @@ inexistente → exit 4. Com `--json`, o tail devolve
 | `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic\|vue\|react`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir; templates vue/react = SPA Vue 3/React 19 + Vite, build com `npm run build` antes do export; `--template vue --vuetify` = variante Vuetify 3 via npm, para converter widgets Vuetify antigas) |
 | `widget list` | — | lista os widgets do servidor (componente auxiliar; sem ele usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
-| `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar) |
+| `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar). **Recusa com exit 2 quando o código já existe no servidor como LAYOUT** (o deploy nativo identifica o destino só pelo nome do `.war`, então o upload sobrescreveria o WAR do layout e pode derrubar o servidor): renomeie o widget ou publique com `--force`. A checagem falha em aberto — servidor sem resposta = aviso e publicação |
 
 ## diff — conferir antes de publicar
 
