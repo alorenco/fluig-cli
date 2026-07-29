@@ -646,10 +646,9 @@ func newWorkflowDiffCmd(app *App) *cobra.Command {
 				return err
 			}
 			counts := renderDiffEntries(p, entries)
-			p.Infof("%d igual(is), %d diferente(s), %d só local(is)",
-				counts[diffEqual], counts[diffModified], counts[diffOnlyLocal])
-			p.Done(map[string]any{"artifacts": entries, "counts": counts})
-			return nil
+			return finishDiffReport(p, entries, counts, nil,
+				fmt.Sprintf("%d igual(is), %d diferente(s), %d só local(is)",
+					counts[diffEqual], counts[diffModified], counts[diffOnlyLocal]))
 		},
 	}
 	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "eventos a comparar (separados por vírgula), quando o alvo é um processId")

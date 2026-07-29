@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -25,6 +26,11 @@ const (
 	diffModified   = "modified"
 	diffOnlyLocal  = "only-local"
 	diffOnlyServer = "only-server"
+	// diffError marca artefato que NÃO foi possível comparar (ROADMAP2 §3.3).
+	// A varredura continua: um artefato inconsistente no servidor (formulário
+	// órfão, documento que a versão não acha) não pode inutilizar o comando de
+	// pré-deploy do projeto inteiro.
+	diffError = "error"
 )
 
 // diffEntry é o resultado do diff de um artefato.
@@ -33,7 +39,16 @@ type diffEntry struct {
 	ID     string `json:"id"`
 	Path   string `json:"path,omitempty"` // relativo à raiz do projeto
 	Status string `json:"status"`
-	Diff   string `json:"diff,omitempty"` // diff unificado (só em modified de texto)
+	Diff   string `json:"diff,omitempty"`  // diff unificado (só em modified de texto)
+	Error  string `json:"error,omitempty"` // motivo, só em status error
+}
+
+// errorEntry monta a entrada de um artefato que não pôde ser comparado.
+func errorEntry(typ, id, path string, err error) diffEntry {
+	return diffEntry{
+		Type: typ, ID: id, Path: path,
+		Status: diffError, Error: output.AsError(err).Message,
+	}
 }
 
 // diffTarget é um artefato de arquivo único a comparar (dataset/event/mechanism).
@@ -76,7 +91,11 @@ func newDiffCmd(app *App) *cobra.Command {
 			"formulário) informados. Diferenças só de quebra de linha (CRLF/LF) não\n" +
 			"contam. Em formulários, anexos binários são comparados byte a byte (sem\n" +
 			"diff textual); em scripts de processo, a comparação usa o export nativo\n" +
-			"do processo (não requer o componente auxiliar).",
+			"do processo (não requer o componente auxiliar).\n\n" +
+			"Artefato que o servidor não entrega (documento órfão, versão sem o\n" +
+			"arquivo) não interrompe a varredura. Ele sai com status \"error\" e o\n" +
+			"motivo, e o comando termina em exit 6. Quando nenhum artefato pôde ser\n" +
+			"comparado, o comando devolve o erro do servidor.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			ctx := context.Background()
@@ -153,11 +172,23 @@ func newDiffCmd(app *App) *cobra.Command {
 
 			localSeen := map[string]map[string]bool{"dataset": {}, "event": {}, "mechanism": {}}
 			var entries []diffEntry
+			// firstErr guarda a primeira falha de artefato: quando NADA pôde ser
+			// comparado, o comando devolve esse erro (com o exit code dele) em vez
+			// de um "sucesso parcial" vazio.
+			var firstErr error
+			fail := func(typ, id, path string, err error) {
+				if firstErr == nil {
+					firstErr = err
+				}
+				entries = append(entries, errorEntry(typ, id, path, err))
+			}
 			for _, t := range targets.scripts {
 				localSeen[t.typ][t.id] = true
 				raw, err := os.ReadFile(t.path)
 				if err != nil {
-					return output.Usagef("não consegui ler %s: %v", t.path, err)
+					fail(t.typ, t.id, relTo(root, t.path),
+						output.Usagef("não consegui ler %s: %v", t.path, err))
+					continue
 				}
 				local := normalizeEOL(string(raw))
 
@@ -168,7 +199,8 @@ func newDiffCmd(app *App) *cobra.Command {
 					switch {
 					case errors.Is(err, fluig.ErrNotFound):
 					case err != nil:
-						return mapFluigError(err)
+						fail(t.typ, t.id, relTo(root, t.path), mapFluigError(err))
+						continue
 					default:
 						remote, found = ds.Impl, true
 					}
@@ -198,6 +230,11 @@ func newDiffCmd(app *App) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				for _, e := range formEntries {
+					if e.Status == diffError && firstErr == nil {
+						firstErr = output.ServerErrorf("%s", e.Error)
+					}
+				}
 				entries = append(entries, formEntries...)
 			}
 
@@ -210,7 +247,10 @@ func newDiffCmd(app *App) *cobra.Command {
 			for _, pid := range pids {
 				wfEntries, err := diffProcessScripts(ctx, client, p, root, pid, targets.wf[pid], sweep)
 				if err != nil {
-					return err
+					// Um processo quebrado no servidor não derruba a varredura: ele
+					// vira um artefato com status error e o resto segue.
+					fail("workflow", pid, "", err)
+					continue
 				}
 				entries = append(entries, wfEntries...)
 			}
@@ -247,14 +287,54 @@ func newDiffCmd(app *App) *cobra.Command {
 			})
 
 			counts := renderDiffEntries(p, entries)
-			p.Infof("%d igual(is), %d diferente(s), %d só local(is), %d só no servidor",
-				counts[diffEqual], counts[diffModified], counts[diffOnlyLocal], counts[diffOnlyServer])
-			p.Done(map[string]any{"artifacts": entries, "counts": counts})
-			return nil
+			return finishDiffReport(p, entries, counts, firstErr,
+				fmt.Sprintf("%d igual(is), %d diferente(s), %d só local(is), %d só no servidor",
+					counts[diffEqual], counts[diffModified], counts[diffOnlyLocal], counts[diffOnlyServer]))
 		},
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// finishDiffReport imprime o resumo e fecha o comando de diff. Compartilhado
+// pelo `diff` e pelo `workflow diff` para os dois não divergirem no tratamento
+// de artefato com falha (ROADMAP2 §3.3):
+//
+//   - nenhuma falha → exit 0;
+//   - parte dos artefatos comparada → exit 6 (PARTIAL_FAILURE), com todos os
+//     artefatos no data;
+//   - NADA comparado → o erro real, com o exit code dele. Não há sucesso
+//     nenhum para chamar de parcial, e um exit 6 esconderia a causa.
+//
+// firstErr é a primeira falha tipada; quando o chamador não a tem, a mensagem do
+// artefato serve de fallback (aí o código é o genérico).
+func finishDiffReport(p *output.Printer, entries []diffEntry, counts map[string]int, firstErr error, resumo string) error {
+	if counts[diffError] > 0 {
+		resumo += fmt.Sprintf(", %d com falha", counts[diffError])
+	}
+	p.Infof("%s", resumo)
+
+	data := map[string]any{"artifacts": entries, "counts": counts}
+	if counts[diffError] == 0 {
+		p.Done(data)
+		return nil
+	}
+	if firstErr == nil {
+		for _, e := range entries {
+			if e.Status == diffError {
+				firstErr = output.Genericf("%s", e.Error)
+				break
+			}
+		}
+	}
+	if counts[diffError] == len(entries) {
+		e := output.AsError(firstErr)
+		p.FailData(data, e.Code, e.Message)
+		return firstErr
+	}
+	p.Partial(data)
+	return output.Partialf("%d de %d artefato(s) não puderam ser comparados",
+		counts[diffError], len(entries))
 }
 
 // renderDiffEntries imprime as entradas de diff no modo humano e devolve as
@@ -275,6 +355,15 @@ func renderDiffEntries(p *output.Printer, entries []diffEntry) map[string]int {
 			p.Successf("── %s %s só existe localmente (%s) — o export criaria no servidor", e.Type, e.ID, e.Path)
 		case diffOnlyServer:
 			p.Successf("%s", onlyServerMessage(e))
+		case diffError:
+			// Fica no mesmo fluxo das demais linhas do relatório (stdout no modo
+			// humano), em vermelho quando há cor — mandar só esta para o stderr
+			// partiria o relatório em dois.
+			linha := fmt.Sprintf("── %s %s não pôde ser comparado: %s", e.Type, e.ID, e.Error)
+			if output.ColorEnabled() {
+				linha = output.Red(linha)
+			}
+			p.Successf("%s", linha)
 		}
 	}
 	return counts
@@ -452,7 +541,10 @@ func diffForms(ctx context.Context, client *fluig.Client, root, formScope string
 		matched[f.DocumentID] = true
 		formEntries, err := diffOneForm(ctx, client, root, t, f, userCode)
 		if err != nil {
-			return nil, err
+			// Formulário inconsistente no servidor (o caso que motivou o §3.3: um
+			// anexo que a versão do documento não acha) não derruba a varredura.
+			entries = append(entries, errorEntry("form", t.folder, relTo(root, t.dir), err))
+			continue
 		}
 		entries = append(entries, formEntries...)
 	}
@@ -520,13 +612,20 @@ func diffOneForm(ctx context.Context, client *fluig.Client, root string, t formD
 			entries = append(entries, entry)
 			continue
 		}
+		// Anexo que o servidor não entrega (documento órfão, versão sem o arquivo)
+		// vira um artefato com falha — os outros arquivos da pasta seguem
+		// comparados. Era o caso do relato: `frmServiceAuth.html na versão 2000
+		// … não foi encontrado` matava o diff do projeto inteiro.
 		remote, err := client.DownloadFormFile(ctx, f.DocumentID, userCode, f.Version, name)
 		if err != nil {
-			return nil, mapFluigError(err)
+			entries = append(entries, errorEntry("form", entry.ID, entry.Path, mapFluigError(err)))
+			continue
 		}
 		local, err := os.ReadFile(path)
 		if err != nil {
-			return nil, output.Usagef("não consegui ler %s: %v", path, err)
+			entries = append(entries, errorEntry("form", entry.ID, entry.Path,
+				output.Usagef("não consegui ler %s: %v", path, err)))
+			continue
 		}
 		fillContentDiff(&entry, "servidor:"+name, "local:"+entry.Path, remote.Content, local)
 		entries = append(entries, entry)
@@ -548,7 +647,9 @@ func diffOneForm(ctx context.Context, client *fluig.Client, root string, t formD
 		remote, found := serverEvents[id]
 		local, err := os.ReadFile(path)
 		if err != nil {
-			return nil, output.Usagef("não consegui ler %s: %v", path, err)
+			entries = append(entries, errorEntry("form", entry.ID, entry.Path,
+				output.Usagef("não consegui ler %s: %v", path, err)))
+			continue
 		}
 		switch {
 		case !found:

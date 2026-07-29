@@ -21,6 +21,7 @@ fluigcli diff --server producao              # contra um servidor específico
 | `modified` | O conteúdo difere. O comando mostra o diff unificado. |
 | `only-local` | O artefato existe no local, mas não no servidor. O export criaria o artefato. |
 | `only-server` | O artefato existe no servidor, mas não no local. Importe o artefato com `<tipo> import <id>`. |
+| `error` | O comando não conseguiu comparar o artefato. O campo `error` traz o motivo. |
 
 - Sem argumentos, o comando compara os arquivos locais. Ele também aponta os
   artefatos que só existem no servidor. Esses artefatos são datasets
@@ -74,8 +75,32 @@ fluigcli diff --server producao              # contra um servidor específico
 }
 ```
 
+## Artefato que o servidor não entrega
+
+Uma instância real tem artefato inconsistente. Um exemplo comum é o formulário
+cujo anexo o servidor não acha na versão publicada. O servidor responde assim:
+
+```
+O documento frmServiceAuth.html na versão 2000 e com código (Id) 1144279 não foi
+encontrado.
+```
+
+O diff **não para** por causa disso. O artefato sai com status `error` e o motivo,
+e a varredura continua nos demais. O comando termina em **exit 6**
+(`PARTIAL_FAILURE`), com todos os artefatos em `data.artifacts`.
+
+Quando **nenhum** artefato pôde ser comparado, o comando devolve o erro do
+servidor, com o exit code dele. Neste caso não existe resultado parcial, e um
+exit 6 esconderia a causa.
+
+As listagens do servidor continuam sendo falha fatal. Sem a lista de datasets,
+formulários ou processos não existe comparação nenhuma.
+
+## Exit code
+
 O exit code é `0` sempre que o comando conclui a comparação. Uma diferença é um
-dado, não um erro. Veja um fluxo típico para agentes e CI:
+dado, não um erro. O exit `6` indica que parte dos artefatos não pôde ser
+comparada. Veja um fluxo típico para agentes e CI:
 
 ```sh
 fluigcli diff --json | jq '.data.counts'     # há algo a publicar?

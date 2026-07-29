@@ -289,7 +289,7 @@ inexistente → exit 4. Com `--json`, o tail devolve
 
 | comando | efeito |
 |---|---|
-| `diff` | compara datasets, eventos, mecanismos, formulários e scripts de processo locais com o servidor; aponta `only-server` |
+| `diff` | compara datasets, eventos, mecanismos, formulários e scripts de processo locais com o servidor; aponta `only-server`. Artefato que o servidor não entrega (documento órfão) **não interrompe a varredura**: sai com `status:"error"` + `error` e o comando termina em **exit 6**; se NADA pôde ser comparado, devolve o erro do servidor. As listagens de topo seguem fatais |
 | `diff <path>...` | compara só os arquivos (ou pastas de formulário) informados |
 
 Read-only (não dispara a trava de produção). No `--json`, cada artefato vem com

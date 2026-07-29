@@ -66,7 +66,8 @@ o tempo acabou antes),
 novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
 + users|add-user|remove-user; requerem admin), `replacement` (list|show|create|
 update|delete — substituto/delegação de tarefas; requer admin), `diff` (local
-vs. servidor, read-only — use antes de um export), `audit` (linter do Style
+vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
+vira `status:"error"` no item e exit 6, o resto segue comparado), `audit` (linter do Style
 Guide 2.0 em forms/widgets; exit 1 = reprovado, corrija pelas `suggestion`
 dos `data.findings[]` e repita). Os `new`/`new-script` são
 scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o

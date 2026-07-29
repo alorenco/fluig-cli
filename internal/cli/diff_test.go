@@ -102,7 +102,33 @@ func processZipBase64(t *testing.T, xmlContent string) string {
 // (DEFAULT), eventos beforeConvertViewToPDF e displayCustomThemes, mecanismo
 // mec_gestor_area, formulário 42 (anexos + evento onNotify) e o processo
 // Compras (export nativo).
+// diffStubOpts liga as falhas de servidor que o §3.3 tem de tolerar por
+// artefato, sem derrubar a varredura inteira.
+type diffStubOpts struct {
+	// brokenFormFile faz o download do anexo do formulário 42 falhar com a
+	// mensagem real do Fluig (documento órfão na versão).
+	brokenFormFile bool
+	// brokenProcess faz o export do processo Compras falhar com soap:Fault.
+	brokenProcess bool
+}
+
+// diffFormFileFault é a recusa real relatada em 2026-07-29 — um anexo que a
+// versão do documento não acha, num formulário que nem era do usuário.
+const diffFormFileFault = `<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <soap:Fault>
+      <faultcode>soap:Server</faultcode>
+      <faultstring>O documento frmServiceAuth.html na versão 2000 e com código (Id) 1144279 não foi encontrado.</faultstring>
+    </soap:Fault>
+  </soap:Body>
+</soap:Envelope>`
+
 func diffServerStub(t *testing.T) *httptest.Server {
+	return diffServerStubOpts(t, diffStubOpts{})
+}
+
+func diffServerStubOpts(t *testing.T, opts diffStubOpts) *httptest.Server {
 	t.Helper()
 	readTD := func(name string) []byte {
 		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
@@ -150,6 +176,10 @@ func diffServerStub(t *testing.T) *httptest.Server {
 		case "getAttachmentsList":
 			_, _ = w.Write(readTD("soap_attachmentsList.xml"))
 		case "getCardIndexContent":
+			if opts.brokenFormFile {
+				io.WriteString(w, diffFormFileFault)
+				return
+			}
 			_, _ = w.Write(readTD("soap_cardContent.xml")) // "conteudo" em base64
 		case "getCustomizationEvents":
 			_, _ = w.Write(readTD("soap_customEvents.xml"))
@@ -165,6 +195,10 @@ func diffServerStub(t *testing.T) *httptest.Server {
 			return
 		}
 		if strings.Contains(string(body), ">Compras<") {
+			if opts.brokenProcess {
+				_, _ = w.Write(readTD("soap_fault.xml"))
+				return
+			}
 			io.WriteString(w, wfExportEnvelope(processZipBase64(t, comprasProcessXML)))
 			return
 		}
@@ -460,6 +494,136 @@ func TestDiffVarreduraModoHumano(t *testing.T) {
 		"── workflow Compras.validateForm só existe no servidor — crie workflow/scripts/Compras.validateForm.js",
 		"── workflow SoServidor (processo) não tem scripts locais — se ele tiver eventos, versione-os em workflow/scripts/SoServidor.<evento>.js",
 		"4 igual(is), 3 diferente(s), 5 só local(is), 5 só no servidor",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("saída humana sem %q:\n%s", want, stdout)
+		}
+	}
+}
+
+// Guarda do §3.3: um artefato quebrado no servidor (anexo que a versão do
+// documento não acha — nem é do usuário) NÃO pode inutilizar o diff do projeto
+// inteiro. Ele vira status "error" e a varredura segue, terminando em exit 6.
+func TestDiffVarreduraToleraArtefatoQuebrado(t *testing.T) {
+	stub := diffServerStubOpts(t, diffStubOpts{brokenFormFile: true})
+	proj := diffProject(t, stub.URL)
+
+	code, stdout := runMain(t, "diff", "--json", "--project", proj)
+	if code != output.ExitPartial {
+		t.Fatalf("exit = %d, quer %d (falha parcial); stdout=%s", code, output.ExitPartial, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+	}
+	if env.Error == nil || env.Error.Code != output.CodePartial {
+		t.Fatalf("esperava %s, veio %+v", output.CodePartial, env.Error)
+	}
+	data, _ := env.Data.(map[string]any)
+	counts, _ := data["counts"].(map[string]any)
+	if counts["error"] == nil || counts["error"].(float64) != 1 {
+		t.Errorf("esperava 1 artefato com falha em counts, veio %v", counts)
+	}
+	// O resto do projeto continua comparado: sem isso o comando não serve para
+	// pré-deploy, que é a razão de existir dele.
+	if counts[diffEqual] == nil || counts[diffEqual].(float64) == 0 {
+		t.Errorf("nenhum artefato foi comparado apesar da falha isolada: %v", counts)
+	}
+	if counts[diffModified] == nil || counts[diffModified].(float64) == 0 {
+		t.Errorf("as diferenças reais foram perdidas: %v", counts)
+	}
+
+	// A falha é do arquivo do formulário, e os OUTROS arquivos da mesma pasta
+	// seguem comparados (a captura é por artefato, não por formulário).
+	artifacts, _ := data["artifacts"].([]any)
+	var erro map[string]any
+	outrosDoForm := 0
+	for _, raw := range artifacts {
+		a, _ := raw.(map[string]any)
+		id, _ := a["id"].(string)
+		if a["status"] == diffError {
+			erro = a
+			continue
+		}
+		if strings.HasPrefix(id, "meu_form/") {
+			outrosDoForm++
+		}
+	}
+	if erro == nil {
+		t.Fatalf("nenhum artefato com status error: %v", artifacts)
+	}
+	if msg, _ := erro["error"].(string); !strings.Contains(msg, "não foi encontrado") {
+		t.Errorf("o motivo do servidor não chegou ao artefato: %q", msg)
+	}
+	if outrosDoForm == 0 {
+		t.Error("os outros arquivos do formulário deixaram de ser comparados")
+	}
+}
+
+// Processo quebrado no servidor: mesma regra, o resto da varredura segue.
+func TestDiffVarreduraToleraProcessoQuebrado(t *testing.T) {
+	stub := diffServerStubOpts(t, diffStubOpts{brokenProcess: true})
+	proj := diffProject(t, stub.URL)
+
+	code, stdout := runMain(t, "diff", "--json", "--project", proj)
+	if code != output.ExitPartial {
+		t.Fatalf("exit = %d, quer %d; stdout=%s", code, output.ExitPartial, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	artifacts, _ := data["artifacts"].([]any)
+	achou := false
+	for _, raw := range artifacts {
+		a, _ := raw.(map[string]any)
+		if a["status"] == diffError && a["type"] == "workflow" && a["id"] == "Compras" {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Errorf("o processo quebrado não virou artefato com status error: %v", artifacts)
+	}
+	counts, _ := data["counts"].(map[string]any)
+	if counts[diffEqual] == nil || counts[diffEqual].(float64) == 0 {
+		t.Errorf("o resto do projeto deixou de ser comparado: %v", counts)
+	}
+}
+
+// Alvo único que falha: não há "parcial" nenhum, então o comando devolve o erro
+// real (exit 5), com o código do servidor — não o PARTIAL_FAILURE.
+func TestDiffAlvoUnicoQuebradoDevolveErroDoServidor(t *testing.T) {
+	stub := diffServerStubOpts(t, diffStubOpts{brokenFormFile: true})
+	proj := diffProject(t, stub.URL)
+
+	code, stdout := runMain(t, "diff", filepath.Join(proj, "forms", "meu_form", "Formulario de Teste.html"),
+		"--json", "--project", proj)
+	if code != output.ExitServer {
+		t.Fatalf("exit = %d, quer %d (erro do servidor); stdout=%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || env.Error.Code != output.CodeServerError {
+		t.Fatalf("esperava %s, veio %+v", output.CodeServerError, env.Error)
+	}
+	// Mesmo no caminho de erro, o data traz o artefato com o motivo.
+	data, _ := env.Data.(map[string]any)
+	if data == nil || data["artifacts"] == nil {
+		t.Errorf("o envelope de falha perdeu os artifacts: %v", data)
+	}
+}
+
+// Modo humano: a falha aparece no relatório e no resumo.
+func TestDiffArtefatoQuebradoModoHumano(t *testing.T) {
+	stub := diffServerStubOpts(t, diffStubOpts{brokenFormFile: true})
+	proj := diffProject(t, stub.URL)
+
+	code, stdout := runMain(t, "diff", "--project", proj)
+	if code != output.ExitPartial {
+		t.Fatalf("exit = %d, quer %d; stdout=%s", code, output.ExitPartial, stdout)
+	}
+	for _, want := range []string{
+		"não pôde ser comparado: operação rejeitada pelo servidor Fluig",
+		", 1 com falha",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("saída humana sem %q:\n%s", want, stdout)
