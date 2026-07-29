@@ -12,13 +12,23 @@ import (
 
 // sessionOnlyProject cadastra o servidor do stub num projeto SEM nenhuma
 // fonte de senha (sem env var, sem keyring).
+//
+// ⚠️ O usuário é único por teste de propósito. O cookie jar do cliente é
+// compartilhado no binário de teste (`sessionJars`, chaveado por
+// `host:porta|usuário`), e o httptest reaproveita porta de servidor já fechado.
+// Com usuário fixo, um teste que autenticou antes deixa cookie válido na MESMA
+// chave, e o teste seguinte passa a autenticar sem senha — o
+// TestComandoSemSessaoESemSenhaFalha quebrou assim no CI em 2026-07-29, e passava
+// na máquina local por sorte de porta. Outros testes do repo já usam este padrão
+// (`u-ev-`, `u-mec-`, `u-h-`…).
 func sessionOnlyProject(t *testing.T, stubURL string) (proj string, server config.Server) {
 	t.Helper()
 	u := mustParseHostPort(t, stubURL)
 	proj = t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	server = config.Server{ID: "sess-srv", Name: "homolog", Host: u.host, Port: u.port, SSL: false, Username: "u", CompanyID: 1}
+	server = config.Server{ID: "sess-srv", Name: "homolog", Host: u.host, Port: u.port, SSL: false,
+		Username: "u-sess-" + t.Name(), CompanyID: 1}
 	if err := config.NewStore(proj).Add(server, false); err != nil {
 		t.Fatal(err)
 	}
