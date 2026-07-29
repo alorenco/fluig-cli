@@ -442,3 +442,141 @@ func TestSemServidorEForaDoProjetoCitaProjeto(t *testing.T) {
 		t.Errorf("mensagem não cita a ausência de projeto: %+v", env.Error)
 	}
 }
+
+// --- server logout: aviso quando não sobra credencial (ROADMAP2 §3.10) ---
+
+// logoutApp monta um App de teste com keyring em memória e um Printer com
+// buffers, para inspecionar o aviso.
+func logoutApp(t *testing.T, kr config.Keyring, servers ...config.Server) (*App, *strings.Builder) {
+	t.Helper()
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	store := config.NewStore(proj)
+	for _, s := range servers {
+		if err := store.Add(s, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app := &App{Project: proj, Keyring: kr, NonInteractive: true}
+	var stderr strings.Builder
+	p := output.NewPrinter(false, "server logout")
+	p.Stdout = &strings.Builder{}
+	p.Stderr = &stderr
+	app.printer = p
+	return app, &stderr
+}
+
+// srvLogout monta um servidor de teste. O host acompanha o nome porque a chave
+// do keyring é baseURL|usuário: dois cadastros com a mesma URL e o mesmo usuário
+// compartilham a MESMA credencial.
+func srvLogout(name string) config.Server {
+	return config.Server{Name: name, Host: name + ".test", Port: 8080, Username: "u-" + name, CompanyID: 1}
+}
+
+// Sem senha em nenhuma fonte: avisa (e não bloqueia — automação existente não
+// pode quebrar por causa disto).
+func TestLogoutAvisaSemSenha(t *testing.T) {
+	t.Setenv(config.EnvPassword, "")
+	s := srvLogout("homolog")
+	app, stderr := logoutApp(t, &memKeyring{m: map[string]string{}}, s)
+
+	if err := app.guardLogoutSemSenha(app.printer, &s); err != nil {
+		t.Fatalf("não pode bloquear em modo não-interativo: %v", err)
+	}
+	msg := stderr.String()
+	for _, want := range []string{"não há senha disponível", "homolog", config.EnvPassword} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("aviso sem %q: %q", want, msg)
+		}
+	}
+}
+
+// Senha no keyring: nada a avisar — a próxima execução se autentica sozinha.
+func TestLogoutSilenciosoComSenhaNoKeyring(t *testing.T) {
+	t.Setenv(config.EnvPassword, "")
+	s := srvLogout("homolog")
+	kr := &memKeyring{m: map[string]string{s.KeyringKey(): "segredo"}}
+	app, stderr := logoutApp(t, kr, s)
+
+	if err := app.guardLogoutSemSenha(app.printer, &s); err != nil {
+		t.Fatal(err)
+	}
+	if stderr.String() != "" {
+		t.Errorf("não devia avisar com senha no keyring: %q", stderr.String())
+	}
+}
+
+// Senha na env var: também dispensa o aviso (é o caso de CI).
+func TestLogoutSilenciosoComEnvVar(t *testing.T) {
+	s := srvLogout("homolog")
+	app, stderr := logoutApp(t, &memKeyring{m: map[string]string{}}, s)
+	t.Setenv(config.EnvPassword, "segredo")
+
+	if err := app.guardLogoutSemSenha(app.printer, &s); err != nil {
+		t.Fatal(err)
+	}
+	if stderr.String() != "" {
+		t.Errorf("não devia avisar com %s definida: %q", config.EnvPassword, stderr.String())
+	}
+}
+
+// Keyring indisponível (Linux headless, o caso deste servidor de dev): conta
+// como "sem senha".
+func TestLogoutAvisaComKeyringIndisponivel(t *testing.T) {
+	t.Setenv(config.EnvPassword, "")
+	s := srvLogout("homolog")
+	app, stderr := logoutApp(t, unavailableKeyring{}, s)
+
+	if err := app.guardLogoutSemSenha(app.printer, &s); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), "não há senha disponível") {
+		t.Errorf("keyring indisponível devia gerar aviso: %q", stderr.String())
+	}
+}
+
+// --all avisa uma vez, no plural, com a contagem.
+func TestLogoutAllAvisaNoPlural(t *testing.T) {
+	t.Setenv(config.EnvPassword, "")
+	a, b := srvLogout("homolog"), srvLogout("producao")
+	kr := &memKeyring{m: map[string]string{a.KeyringKey(): "segredo"}}
+	app, stderr := logoutApp(t, kr, a, b)
+
+	if err := app.guardLogoutSemSenha(app.printer, nil); err != nil {
+		t.Fatal(err)
+	}
+	msg := stderr.String()
+	// homolog tem senha no keyring; producao não. O aviso sai uma vez, no plural,
+	// sem varrer servidor por servidor.
+	if !strings.Contains(msg, "1 servidor(es) ficam sem senha") {
+		t.Errorf("aviso plural ausente: %q", msg)
+	}
+	if strings.Count(msg, "aviso:") != 1 {
+		t.Errorf("o --all devia avisar UMA vez, veio: %q", msg)
+	}
+}
+
+// O comando segue funcionando: a sessão é descartada e o exit é 0.
+func TestLogoutLimpaSessaoMesmoSemSenha(t *testing.T) {
+	t.Setenv(config.EnvPassword, "")
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := config.NewStore(proj).Add(srvLogout("homolog"), false); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout := runMain(t, "server", "logout", "homolog", "--json", "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d, quer 0; stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, `"cleared":"homolog"`) {
+		t.Errorf("envelope inesperado: %s", stdout)
+	}
+}
+
+// unavailableKeyring simula o keyring ausente (servidor headless sem D-Bus).
+type unavailableKeyring struct{}
+
+func (unavailableKeyring) Get(string) (string, error) { return "", config.ErrKeyringNotFound }
+func (unavailableKeyring) Set(string, string) error   { return config.ErrKeyringNotFound }
+func (unavailableKeyring) Delete(string) error        { return config.ErrKeyringNotFound }
+func (unavailableKeyring) Available() bool            { return false }

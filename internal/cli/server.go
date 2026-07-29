@@ -46,7 +46,13 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logout [<name>]",
 		Short: "Descarta a sessão em cache de um servidor (ou de todos com --all)",
-		Args:  cobra.MaximumNArgs(1),
+		Long: "Descarta a sessão em cache. O próximo comando autentica de novo.\n\n" +
+			"A sessão é a credencial reaproveitada entre execuções. Quando não há senha\n" +
+			"disponível sem intervenção (keyring vazio ou ausente, sem\n" +
+			"FLUIGCLI_PASSWORD), o logout deixa a próxima execução dependendo de\n" +
+			"alguém digitar a senha. Neste caso o comando pede confirmação no modo\n" +
+			"interativo (--yes pula) e apenas avisa no modo não-interativo.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			cache, err := config.NewDiskSessionCache()
@@ -54,6 +60,9 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 				return output.Genericf("cache de sessão indisponível: %v", err)
 			}
 			if all {
+				if err := app.guardLogoutSemSenha(p, nil); err != nil {
+					return err
+				}
 				if err := cache.Clear(""); err != nil {
 					return output.Genericf("falha ao limpar as sessões: %v", err)
 				}
@@ -74,6 +83,9 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 			if err != nil {
 				return output.Usagef("%s", err.Error())
 			}
+			if err := app.guardLogoutSemSenha(p, server); err != nil {
+				return err
+			}
 			if err := cache.Clear(key); err != nil {
 				return output.Genericf("falha ao limpar a sessão: %v", err)
 			}
@@ -84,6 +96,71 @@ func newServerLogoutCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "descarta as sessões de todos os servidores")
 	return cmd
+}
+
+// guardLogoutSemSenha avisa (ou pede confirmação) quando o logout vai deixar a
+// próxima execução sem credencial nenhuma para reautenticar sozinha.
+//
+// Motivo (ROADMAP2 §3.10): um agente rodou `server logout` para testar e, sem
+// senha no keyring, ficou sem conseguir autenticar — precisou de um humano
+// refazendo o login em outro terminal. A sessão em cache era a única credencial.
+//
+// server nil = modo --all (avisa uma vez, no plural).
+//
+// Em modo NÃO-interativo isto só avisa: bloquear quebraria automação que hoje
+// funciona, e o logout é operação legítima.
+func (a *App) guardLogoutSemSenha(p *output.Printer, server *config.Server) error {
+	var aviso string
+	if server != nil {
+		if a.temSenhaReaproveitavel(server) {
+			return nil
+		}
+		aviso = fmt.Sprintf("não há senha disponível para %q (nem no keyring, nem em %s); "+
+			"depois do logout será preciso informá-la de novo", server.Name, config.EnvPassword)
+	} else {
+		semSenha, err := a.serversSemSenha()
+		if err != nil || semSenha == 0 {
+			return nil
+		}
+		aviso = fmt.Sprintf("%d servidor(es) ficam sem senha disponível (nem no keyring, nem em %s); "+
+			"depois do logout será preciso informá-la de novo", semSenha, config.EnvPassword)
+	}
+
+	if !a.Interactive() {
+		p.Warnf("%s", aviso)
+		return nil
+	}
+	return a.confirm(aviso + ". Continuar?")
+}
+
+// temSenhaReaproveitavel informa se existe senha para o servidor sem depender de
+// alguém digitar: env var ou keyring. Espelha os degraus não-interativos de
+// config.PasswordSource.Resolve.
+func (a *App) temSenhaReaproveitavel(server *config.Server) bool {
+	if os.Getenv(config.EnvPassword) != "" {
+		return true
+	}
+	key := server.KeyringKey()
+	if a.Keyring == nil || key == "" || !a.Keyring.Available() {
+		return false
+	}
+	pw, err := a.Keyring.Get(key)
+	return err == nil && pw != ""
+}
+
+// serversSemSenha conta os servidores cadastrados sem senha reaproveitável.
+func (a *App) serversSemSenha() (int, error) {
+	servers, err := a.Store().List()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for i := range servers {
+		if !a.temSenhaReaproveitavel(&servers[i]) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func newServerInstallHelperCmd(app *App) *cobra.Command {

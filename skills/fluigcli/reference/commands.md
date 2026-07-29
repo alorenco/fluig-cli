@@ -46,7 +46,7 @@ Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
 | `server update <name>` | altera o cadastro (ex.: `--env prod`) preservando a senha no keyring |
 | `server remove <name>` | remove o servidor (e a senha do keyring) |
 | `server test [<name>]` | login + ping + dados do usuário; reporta o componente auxiliar e a VERSÃO dele (`helperVersion`) mais a do WAR do binário (`cliHelperWAR`), avisando quando divergem |
-| `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`) |
+| `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`). ⚠️ Quando NÃO há senha reaproveitável (keyring vazio/ausente e sem `FLUIGCLI_PASSWORD`), o logout deixa a próxima execução dependendo de alguém digitar a senha: o comando **avisa** no stderr (não-interativo) ou pede confirmação (interativo, `--yes` pula). Não use em agente sem ter a senha em env var |
 | `server status [<name>]` | saúde do servidor: versão, helper (instalado/versão), uptime, memória, banco e monitores (requer admin) |
 | `server install-helper [<name>]` | instala/atualiza o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export`, `widget import` e do grupo `log`; o `widget list` tem fallback nativo). **Compara versões antes de publicar**: servidor mais antigo = atualiza · iguais = não reenvia (use `--force` para reparar) · servidor MAIS NOVO = recusa com exit 2 mesmo com `--force` (rebaixaria o servidor; só com `--allow-downgrade`). `--json` traz `version` e `embeddedVersion` |
 

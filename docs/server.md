@@ -208,6 +208,26 @@ Este comando descarta a sessão em cache de um servidor. Use `--all` para todos.
 Use este comando para forçar novo login ou limpar credenciais de sessão
 gravadas.
 
+::: warning O logout pode deixar a automação sem credencial
+A sessão em cache é a credencial reaproveitada entre execuções. Quando não há
+senha disponível **sem intervenção** — keyring vazio ou ausente, e sem
+`FLUIGCLI_PASSWORD` — o próximo comando depende de alguém digitar a senha.
+
+Neste caso o comando avisa:
+
+```
+aviso: não há senha disponível para "homolog" (nem no keyring, nem em
+FLUIGCLI_PASSWORD); depois do logout será preciso informá-la de novo
+```
+
+No modo interativo, o comando pede confirmação. A opção `--yes` pula a pergunta.
+No modo não-interativo, o comando **apenas avisa e prossegue**: bloquear
+quebraria automação que já funciona, e o logout é uma operação legítima.
+
+Com `--all`, o aviso sai uma vez, no plural, com a contagem de servidores
+afetados.
+:::
+
 ### `fluigcli server install-helper [<name>]`
 
 Este comando instala o componente auxiliar `fluigcliHelper`. O WAR vai embutido
