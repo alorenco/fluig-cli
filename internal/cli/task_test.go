@@ -40,6 +40,15 @@ func (s *taskStub) server(t *testing.T) *httptest.Server {
 		}
 		w.Write(b)
 	})
+	// Rota legada da central de tarefas: as tarefas paradas num pool (--group).
+	mux.HandleFunc("/ecm/api/rest/ecm/centralTasks/getTasks/pool/", func(w http.ResponseWriter, r *http.Request) {
+		s.query = r.URL.Query()
+		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_central_tasks_pool.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(b)
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -115,5 +124,91 @@ func TestTaskListFiltros(t *testing.T) {
 	code, _ = runMain(t, "task", "list", "--status", "pendente", "--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitUsage {
 		t.Errorf("status inválido: exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+// --group lista as tarefas paradas no pool do grupo pela rota legada da
+// central de tarefas, com o pool como responsável na tabela.
+func TestTaskListGroup(t *testing.T) {
+	stub := &taskStub{}
+	proj := taskProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "task", "list", "--group", "TI", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.query.Get("taskId") != "Pool:Group:TI" {
+		t.Errorf("o pool não foi repassado no taskId: %v", stub.query)
+	}
+	for _, want := range []string{"219876", "contratos_troca_contribuinte", "Corrigir Integração",
+		"Para o Grupo TI", "João Silva (jsilva)", "NOT_COMPLETED", "ON_TIME"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+
+	// Contrato --json: data.tasks com o pool no assignee.
+	code, stdout = runMain(t, "task", "list", "--group", "TI", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	tasks, _ := data["tasks"].([]any)
+	if len(tasks) != 3 {
+		t.Fatalf("esperava 3 tarefas, veio %d", len(tasks))
+	}
+	first, _ := tasks[0].(map[string]any)
+	assignee, _ := first["assignee"].(map[string]any)
+	if first["requestId"].(float64) != 219876 || assignee["code"] != "Pool:Group:TI" {
+		t.Errorf("task[0] inesperada: %+v", first)
+	}
+
+	// --process recorta no cliente (a rota legada não filtra por processo).
+	code, stdout = runMain(t, "task", "list", "--group", "TI", "--process", "outro_processo",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	env = output.Envelope{}
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ = env.Data.(map[string]any)
+	if tasks, _ := data["tasks"].([]any); len(tasks) != 0 {
+		t.Errorf("--process deveria zerar o recorte, veio %d tarefas", len(tasks))
+	}
+}
+
+// --group não combina com filtros que a rota de pool não tem.
+func TestTaskListGroupConflitos(t *testing.T) {
+	stub := &taskStub{}
+	proj := taskProject(t, stub.server(t).URL)
+	for _, extra := range [][]string{
+		{"--assignee", "user2"},
+		{"--everyone"},
+		{"--requester", "user2"},
+		{"--sla", "expired"},
+		{"--status", "completed"},
+	} {
+		args := append([]string{"task", "list", "--group", "TI"}, extra...)
+		args = append(args, "--json", "--project", proj, "--server", "homolog")
+		code, _ := runMain(t, args...)
+		if code != output.ExitUsage {
+			t.Errorf("--group com %v: exit=%d, quer %d", extra, code, output.ExitUsage)
+		}
+	}
+}
+
+// Um código de pool no --assignee passa direto para a busca v2 (sem resolver
+// como login) — o caminho avançado para pool de papel, com --process junto.
+func TestTaskListAssigneePool(t *testing.T) {
+	stub := &taskStub{}
+	proj := taskProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "task", "list", "--assignee", "Pool:Role:financeiro",
+		"--process", "compras_requisicao_abastecimento", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.query.Get("assignee") != "Pool:Role:financeiro" {
+		t.Errorf("o código de pool deveria passar direto no assignee: %v", stub.query)
 	}
 }

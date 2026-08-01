@@ -26,6 +26,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | checar (preflight) se o login do banco pode escrever nas tabelas | `db grants` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
+| ver as tarefas paradas num grupo (pool) | `task list --group <código>` |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
@@ -196,7 +197,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 
 | comando | efeito |
 |---|---|
-| `task list [--assignee login \| --everyone] [--status s\|all] [--process id] [--requester login] [--sla s] [--limit N]` | sem flags = SUAS tarefas em aberto; status default not_completed |
+| `task list [--assignee login \| --everyone \| --group código] [--status s\|all] [--process id] [--requester login] [--sla s] [--limit N]` | sem flags = SUAS tarefas em aberto; status default not_completed. `--group TI` = paradas no pool do grupo (sem responsável; não combina com os filtros de status/sla/requester). Pool de papel: `--assignee Pool:Role:x` + `--process` (sem --process, órfãs de processo apagado dão erro do servidor) |
 
 ## user — usuários da plataforma (administração; requer admin)
 

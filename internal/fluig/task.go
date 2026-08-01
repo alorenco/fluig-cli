@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -55,10 +56,18 @@ func (c *Client) ListTasks(ctx context.Context, f TaskFilter) ([]TaskSummary, er
 		return nil, err
 	}
 	// Assignee/Requester são logins — a API filtra por userCode (ver
-	// resolveUserFilter; login direto responde vazio em silêncio).
-	assigneeCode, err := c.resolveUserFilter(ctx, f.Assignee)
-	if err != nil {
-		return nil, err
+	// resolveUserFilter; login direto responde vazio em silêncio). Um código
+	// de pool ("Pool:Group:X"/"Pool:Role:X") passa direto: o servidor filtra
+	// pelo pool (validado ao vivo em 2026-08-01). ⚠️ Sem ProcessID junto, a
+	// busca por pool pode alcançar tarefas órfãs de processo apagado e cair
+	// com NullPointerException — o caminho robusto é ListPoolTasks.
+	assigneeCode := f.Assignee
+	if !strings.HasPrefix(f.Assignee, "Pool:") {
+		var err error
+		assigneeCode, err = c.resolveUserFilter(ctx, f.Assignee)
+		if err != nil {
+			return nil, err
+		}
 	}
 	requesterCode, err := c.resolveUserFilter(ctx, f.Requester)
 	if err != nil {

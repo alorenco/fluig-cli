@@ -57,7 +57,8 @@ o aborto é total: publicação atômica) e `form export` (só `RHINO*`/`FL*` ba
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
 `request` (list|show|start|move|assignees|attachments — solicitações de workflow),
-`task` (list — fila de tarefas; sem flags = as suas em aberto),
+`task` (list — fila de tarefas; sem flags = as suas em aberto; `--group TI` =
+paradas no pool do grupo),
 `log` (files|tail|download — server.log do servidor via helper; `--grep` repetível
 = OU, filtrado no servidor (2+ padrões exigem helper ≥ 0.8.0); `tail --since 30m`
 ou `--since 18:19 --until 18:30` recorta uma janela de tempo na hora do SERVIDOR
