@@ -26,6 +26,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 		assignee      string
 		everyone      bool
 		group         string
+		role          string
 		status        string
 		process       string
 		requester     string
@@ -38,7 +39,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 		Short: "Lista tarefas de workflow (nativo, REST v2)",
 		Long: "Sem flags, lista as SUAS tarefas em aberto (\"o que está comigo?\").\n" +
 			"Use --assignee para ver a fila de outro usuário, --everyone para todos,\n" +
-			"--group para as tarefas paradas no pool de um grupo,\n" +
+			"--group ou --role para as tarefas paradas no pool de um grupo ou papel,\n" +
 			"e --status para outros estados (completed, transferred... ou all).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,8 +59,17 @@ func newTaskListCmd(app *App) *cobra.Command {
 			if everyone && assignee != "" {
 				return output.Usagef("use --assignee ou --everyone, não os dois")
 			}
-			if group != "" && (assignee != "" || everyone || requester != "" || sla != "" || cmd.Flags().Changed("status")) {
-				return output.Usagef("--group não combina com --assignee, --everyone, --requester, --sla nem --status: o pool só tem tarefas em aberto, sem responsável")
+			if group != "" && role != "" {
+				return output.Usagef("use --group ou --role, não os dois")
+			}
+			poolCode := ""
+			if group != "" {
+				poolCode = "Pool:Group:" + group
+			} else if role != "" {
+				poolCode = "Pool:Role:" + role
+			}
+			if poolCode != "" && (assignee != "" || everyone || requester != "" || sla != "" || cmd.Flags().Changed("status")) {
+				return output.Usagef("--group/--role não combina com --assignee, --everyone, --requester, --sla nem --status: o pool só tem tarefas em aberto, sem responsável")
 			}
 			ctx := context.Background()
 			server, client, err := app.connect(ctx, passwordStdin)
@@ -68,14 +78,14 @@ func newTaskListCmd(app *App) *cobra.Command {
 			}
 			var tasks []fluig.TaskSummary
 			who := assignee
-			if group != "" {
+			if poolCode != "" {
 				// A rota de pool não filtra por processo — com --process o
 				// recorte é local, então o limite só entra depois dele.
 				fetchLimit := limit
 				if process != "" {
 					fetchLimit = 0
 				}
-				tasks, err = client.ListPoolTasks(ctx, "Pool:Group:"+group, fetchLimit)
+				tasks, err = client.ListPoolTasks(ctx, poolCode, fetchLimit)
 				if err == nil && process != "" {
 					kept := tasks[:0]
 					for _, tk := range tasks {
@@ -107,6 +117,8 @@ func newTaskListCmd(app *App) *cobra.Command {
 			if len(tasks) == 0 {
 				if group != "" {
 					p.Infof("Nenhuma tarefa parada no pool do grupo %q. 🎉", group)
+				} else if role != "" {
+					p.Infof("Nenhuma tarefa parada no pool do papel %q. 🎉", role)
 				} else if who != "" && st == "NOT_COMPLETED" {
 					p.Infof("Nenhuma tarefa em aberto para %q. 🎉", who)
 				} else {
@@ -140,6 +152,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável (default: você)")
 	cmd.Flags().BoolVar(&everyone, "everyone", false, "tarefas de todos os usuários (sem filtro de responsável)")
 	cmd.Flags().StringVar(&group, "group", "", "tarefas paradas no pool de um grupo (código do grupo, ex.: TI)")
+	cmd.Flags().StringVar(&role, "role", "", "tarefas paradas no pool de um papel (código do papel, ex.: controladoria)")
 	cmd.Flags().StringVar(&status, "status", "not_completed", "status: not_completed, pending_consensus, completed, transferred, canceled ou all")
 	cmd.Flags().StringVar(&process, "process", "", "filtra pelo processo (processId)")
 	cmd.Flags().StringVar(&requester, "requester", "", "filtra pelo login do solicitante")

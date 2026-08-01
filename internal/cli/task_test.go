@@ -178,22 +178,50 @@ func TestTaskListGroup(t *testing.T) {
 	}
 }
 
-// --group não combina com filtros que a rota de pool não tem.
+// --role lista o pool de um papel pela mesma rota legada (taskId=Pool:Role:x).
+func TestTaskListRole(t *testing.T) {
+	stub := &taskStub{}
+	proj := taskProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "task", "list", "--role", "controladoria",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.query.Get("taskId") != "Pool:Role:controladoria" {
+		t.Errorf("o pool do papel não foi repassado no taskId: %v", stub.query)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	tasks, _ := data["tasks"].([]any)
+	if len(tasks) != 3 {
+		t.Fatalf("esperava 3 tarefas, veio %d", len(tasks))
+	}
+	first, _ := tasks[0].(map[string]any)
+	assignee, _ := first["assignee"].(map[string]any)
+	if assignee["code"] != "Pool:Role:controladoria" {
+		t.Errorf("assignee deveria ser o pool do papel: %+v", assignee)
+	}
+}
+
+// --group/--role não combinam entre si nem com filtros que a rota de pool não tem.
 func TestTaskListGroupConflitos(t *testing.T) {
 	stub := &taskStub{}
 	proj := taskProject(t, stub.server(t).URL)
-	for _, extra := range [][]string{
-		{"--assignee", "user2"},
-		{"--everyone"},
-		{"--requester", "user2"},
-		{"--sla", "expired"},
-		{"--status", "completed"},
+	for _, flags := range [][]string{
+		{"--group", "TI", "--assignee", "user2"},
+		{"--group", "TI", "--everyone"},
+		{"--group", "TI", "--requester", "user2"},
+		{"--group", "TI", "--sla", "expired"},
+		{"--group", "TI", "--status", "completed"},
+		{"--group", "TI", "--role", "controladoria"},
+		{"--role", "controladoria", "--everyone"},
 	} {
-		args := append([]string{"task", "list", "--group", "TI"}, extra...)
+		args := append([]string{"task", "list"}, flags...)
 		args = append(args, "--json", "--project", proj, "--server", "homolog")
 		code, _ := runMain(t, args...)
 		if code != output.ExitUsage {
-			t.Errorf("--group com %v: exit=%d, quer %d", extra, code, output.ExitUsage)
+			t.Errorf("%v: exit=%d, quer %d", flags, code, output.ExitUsage)
 		}
 	}
 }
