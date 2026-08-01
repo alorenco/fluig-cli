@@ -3,6 +3,11 @@
 Este grupo lê a fila de tarefas. Ele lê as suas tarefas, as de outro usuário ou
 as de todos. Ele é nativo. Ele usa a REST v2 `process-management`.
 
+| Comando | O que faz |
+|---|---|
+| `task list` | lista tarefas (as suas, de outro usuário, de todos ou de um pool) |
+| `task summary` | resumo da central de tarefas: contadores e pools visíveis |
+
 ## `fluigcli task list [flags]`
 
 Sem flags, este comando responde "**o que está comigo?**". Ele mostra as suas
@@ -59,3 +64,29 @@ Informe também o `--process`: sem ele, a busca por pool pode alcançar tarefas
 > ficaram fora. Essas rotas penduram a requisição no Fluig testado (Voyager
 > 2.0.0) e chegaram a derrubar o servidor de homologação. A CLI vai reavaliá-las
 > em versões futuras da plataforma.
+
+## `fluigcli task summary [flags]`
+
+Este comando mostra o resumo da central de tarefas — a mesma visão do painel do
+portal. Ele responde "**quanto tem em cada fila?**".
+
+```sh
+fluigcli task summary                 # o seu resumo
+fluigcli task summary --user jsilva   # o resumo de outro usuário
+fluigcli task summary --json          # para agentes/CI
+```
+
+| Flag | Uso |
+|---|---|
+| `--user <login>` | usuário do resumo (default: **você**) |
+
+A tabela traz uma linha por categoria: tarefas a concluir, tarefas em pool
+(grupo e papel), minhas solicitações e tarefas sob gerência. Cada pool aparece
+como uma linha filha, com o código e a contagem. Use o código com `task list
+--group` ou `--role` para abrir o pool.
+
+O resumo usa a consulta da central de tarefas do portal. Os contadores da REST
+v2 seguem fora (veja o aviso acima). O Fluig monta o resumo quando o usuário
+abre a central no portal. Por isso a consulta de um usuário que nunca abriu a
+central responde vazio. Isso não é erro: a CLI mostra uma mensagem e aponta o
+`task list --assignee` como alternativa.

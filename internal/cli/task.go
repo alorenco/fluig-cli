@@ -16,6 +16,74 @@ func newTaskCmd(app *App) *cobra.Command {
 		Short: "Tarefas de workflow: a sua fila e a dos outros usuários",
 	}
 	cmd.AddCommand(newTaskListCmd(app))
+	cmd.AddCommand(newTaskSummaryCmd(app))
+	return cmd
+}
+
+// --- task summary ---
+
+func newTaskSummaryCmd(app *App) *cobra.Command {
+	var (
+		user          string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "summary",
+		Short: "Resumo da central de tarefas: contadores e pools visíveis",
+		Long: "Mostra o resumo da central de tarefas: tarefas a concluir, solicitações,\n" +
+			"tarefas sob gerência e os pools de grupo/papel que o usuário enxerga, com\n" +
+			"a contagem de cada um. Use --user para ver o resumo de outro usuário.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			ctx := context.Background()
+			server, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			summary, err := client.TaskCentralSummary(ctx, user)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			who := user
+			if who == "" {
+				who = server.Username
+			}
+			if len(summary) == 0 {
+				p.Infof("A central de tarefas não tem resumo para %q. O Fluig monta o resumo quando o usuário abre a central no portal. Para ver a fila dele, use: fluigcli task list --assignee %s", who, who)
+			} else {
+				rows := make([][]string, 0, len(summary))
+				poolRows := map[int]bool{}
+				for _, cat := range summary {
+					if cat.Type == "root" {
+						continue // "Resumo de Tarefas" — cabeçalho da tela, sempre 0
+					}
+					rows = append(rows, []string{cat.Description, "", strconv.Itoa(cat.Total)})
+					for _, child := range cat.Children {
+						poolRows[len(rows)] = true
+						rows = append(rows, []string{"  └ " + child.Description, child.Pool, strconv.Itoa(child.Total)})
+					}
+				}
+				p.Table(output.Table{
+					Headers: []string{"Categoria", "Pool", "Tarefas"},
+					Rows:    rows,
+					Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+						if col == 1 && poolRows[row] {
+							return output.Green(padded)
+						}
+						return padded
+					}),
+				})
+				if len(poolRows) > 0 {
+					p.Infof("Abra um pool com: fluigcli task list --group <código> ou --role <código> (a parte final da coluna Pool)")
+				}
+			}
+			p.Done(map[string]any{"summary": summary})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&user, "user", "", "login do usuário (default: você)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
 

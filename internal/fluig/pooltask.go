@@ -19,6 +19,86 @@ import (
 // órfãos; por isso o `task list --group` também usa.
 const restCentralTasksPoolPath = "/ecm/api/rest/ecm/centralTasks/getTasks/pool/"
 
+// TaskCentralCategory é uma categoria do resumo da central de tarefas
+// (fillTypeTasks): tarefas a concluir, pools de grupo/papel (cada pool vira um
+// filho, com o código em Pool), minhas solicitações e tarefas sob gerência.
+type TaskCentralCategory struct {
+	Type        string                `json:"type"`
+	Pool        string                `json:"pool,omitempty"` // código do pool ("Pool:Group:TI") nos filhos
+	Description string                `json:"description"`
+	Total       int                   `json:"total"`
+	Known       int                   `json:"known"`
+	Unknown     int                   `json:"unknown"`
+	Children    []TaskCentralCategory `json:"children,omitempty"`
+}
+
+const restCentralTasksSummaryPath = "/ecm/api/rest/ecm/centralTasks/fillTypeTasks"
+
+// centralCategoryWire é o shape da API; a conversão renomeia taskId/totalTask.
+type centralCategoryWire struct {
+	Type         string                `json:"type"`
+	TaskID       string                `json:"taskId"`
+	Description  string                `json:"description"`
+	TotalTask    int                   `json:"totalTask"`
+	TotalKnown   int                   `json:"totalKnown"`
+	TotalUnknown int                   `json:"totalUnknown"`
+	Children     []centralCategoryWire `json:"children"`
+}
+
+func centralCategories(wire []centralCategoryWire) []TaskCentralCategory {
+	if len(wire) == 0 {
+		return nil
+	}
+	out := make([]TaskCentralCategory, 0, len(wire))
+	for _, w := range wire {
+		out = append(out, TaskCentralCategory{
+			Type:        w.Type,
+			Pool:        w.TaskID,
+			Description: w.Description,
+			Total:       w.TotalTask,
+			Known:       w.TotalKnown,
+			Unknown:     w.TotalUnknown,
+			Children:    centralCategories(w.Children),
+		})
+	}
+	return out
+}
+
+// TaskCentralSummary devolve o resumo da central de tarefas de um usuário: os
+// contadores por categoria e os pools que ele enxerga, com a contagem de cada
+// um. login vazio = o usuário autenticado. ⚠️ O servidor responde uma lista
+// vazia para usuários que nunca abriram a central no portal (comportamento
+// observado na homologação em 2026-08-01) — não é erro.
+func (c *Client) TaskCentralSummary(ctx context.Context, login string) ([]TaskCentralCategory, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	var code string
+	var err error
+	if login == "" {
+		code, err = c.ResolveUserCode(ctx)
+	} else {
+		code, err = c.resolveUserFilter(ctx, login)
+	}
+	if err != nil {
+		return nil, err
+	}
+	params := url.Values{}
+	params.Set("taskUserId", code)
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restCentralTasksSummaryPath)+"?"+params.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if status < 200 || status >= 300 {
+		return nil, restRequestError("centralTasks/fillTypeTasks", status, body)
+	}
+	var wire []centralCategoryWire
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return nil, fmt.Errorf("resposta inesperada de centralTasks/fillTypeTasks: %w", err)
+	}
+	return centralCategories(wire), nil
+}
+
 // ListPoolTasks lista as tarefas em aberto paradas num pool — tarefas que
 // nenhum usuário assumiu. O poolCode é o código completo do pool, como
 // "Pool:Group:TI" ou "Pool:Role:financeiro". A rota só devolve tarefas em

@@ -17,7 +17,8 @@ import (
 
 // taskStub simula GET /v2/tasks com a fixture real sanitizada da homolog.
 type taskStub struct {
-	query url.Values
+	query        url.Values
+	summaryEmpty bool // fillTypeTasks responde [] (usuário sem central)
 }
 
 func (s *taskStub) server(t *testing.T) *httptest.Server {
@@ -35,6 +36,19 @@ func (s *taskStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/process-management/api/v2/tasks", func(w http.ResponseWriter, r *http.Request) {
 		s.query = r.URL.Query()
 		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_tasks.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(b)
+	})
+	// Rota legada da central de tarefas: o resumo por categoria (task summary).
+	mux.HandleFunc("/ecm/api/rest/ecm/centralTasks/fillTypeTasks", func(w http.ResponseWriter, r *http.Request) {
+		s.query = r.URL.Query()
+		if s.summaryEmpty {
+			io.WriteString(w, `[]`)
+			return
+		}
+		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_central_tasks_filltype.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,5 +252,61 @@ func TestTaskListAssigneePool(t *testing.T) {
 	}
 	if stub.query.Get("assignee") != "Pool:Role:financeiro" {
 		t.Errorf("o código de pool deveria passar direto no assignee: %v", stub.query)
+	}
+}
+
+// task summary: tabela com as categorias e os pools (com código), pulando a
+// linha root; --user resolve o login; resumo vazio vira mensagem, não erro.
+func TestTaskSummary(t *testing.T) {
+	stub := &taskStub{}
+	proj := taskProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "task", "summary", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.query.Get("taskUserId") != "uc-user1" {
+		t.Errorf("default deveria ser o usuário do servidor: %v", stub.query)
+	}
+	for _, want := range []string{"Categoria", "Pool", "Tarefas",
+		"Tarefas a concluir", "Tarefas em pool: Papel", "└ Departamento Pessoal",
+		"Pool:Role:departamento_pessoal", "Tarefas sob minha gerência", "2195"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("tabela sem %q:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "Resumo de Tarefas") {
+		t.Errorf("a linha root não deveria aparecer:\n%s", stdout)
+	}
+
+	// Contrato --json: data.summary com a árvore completa (root incluído).
+	code, stdout = runMain(t, "task", "summary", "--user", "user2", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if stub.query.Get("taskUserId") != "uc-user2" {
+		t.Errorf("--user deveria resolver o login: %v", stub.query)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	summary, _ := data["summary"].([]any)
+	if len(summary) != 5 {
+		t.Fatalf("esperava 5 categorias, veio %d", len(summary))
+	}
+	poolrole, _ := summary[2].(map[string]any)
+	children, _ := poolrole["children"].([]any)
+	if poolrole["type"] != "poolrole" || len(children) != 2 {
+		t.Errorf("poolrole inesperado: %+v", poolrole)
+	}
+	child, _ := children[1].(map[string]any)
+	if child["pool"] != "Pool:Role:controladoria" || child["total"].(float64) != 10 {
+		t.Errorf("pool filho inesperado: %+v", child)
+	}
+
+	// Resumo vazio: mensagem amigável e envelope ok (exit 0).
+	stub.summaryEmpty = true
+	code, stdout = runMain(t, "task", "summary", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("resumo vazio deveria ser exit 0: exit=%d stdout=%s", code, stdout)
 	}
 }

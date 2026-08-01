@@ -1,0 +1,87 @@
+[
+  {
+    "type": "root",
+    "taskId": null,
+    "description": "Resumo de Tarefas",
+    "state": null,
+    "customURL": null,
+    "totalTask": 0,
+    "totalKnown": 0,
+    "totalUnknown": 0,
+    "customized": false,
+    "children": null
+  },
+  {
+    "type": "open",
+    "taskId": null,
+    "description": "Tarefas a concluir",
+    "state": "process",
+    "customURL": null,
+    "totalTask": 7,
+    "totalKnown": 0,
+    "totalUnknown": 0,
+    "customized": false,
+    "children": null
+  },
+  {
+    "type": "poolrole",
+    "taskId": null,
+    "description": "Tarefas em pool: Papel",
+    "state": null,
+    "customURL": null,
+    "totalTask": 19,
+    "totalKnown": 0,
+    "totalUnknown": 0,
+    "customized": false,
+    "children": [
+      {
+        "type": "pool",
+        "taskId": "Pool:Role:departamento_pessoal",
+        "description": "Departamento Pessoal",
+        "state": "process",
+        "customURL": null,
+        "totalTask": 9,
+        "totalKnown": 0,
+        "totalUnknown": 0,
+        "customized": false,
+        "children": null
+      },
+      {
+        "type": "pool",
+        "taskId": "Pool:Role:controladoria",
+        "description": "controladoria",
+        "state": "process",
+        "customURL": null,
+        "totalTask": 10,
+        "totalKnown": 0,
+        "totalUnknown": 0,
+        "customized": false,
+        "children": null
+      }
+    ]
+  },
+  {
+    "type": "requests",
+    "taskId": null,
+    "description": "Minhas solicitações",
+    "state": "process",
+    "customURL": null,
+    "totalTask": 0,
+    "totalKnown": 0,
+    "totalUnknown": 0,
+    "customized": false,
+    "children": null
+  },
+  {
+    "type": "manager",
+    "taskId": null,
+    "description": "Tarefas sob minha gerência",
+    "state": "process",
+    "customURL": null,
+    "totalTask": 2195,
+    "totalKnown": 2195,
+    "totalUnknown": 0,
+    "customized": false,
+    "children": null
+  }
+]

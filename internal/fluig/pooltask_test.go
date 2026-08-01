@@ -18,9 +18,11 @@ import (
 // pages, gera as páginas com o comportamento medido ao vivo: rows+1 itens
 // quando há próxima página, e o último item repetido como primeiro da seguinte.
 type poolTaskStub struct {
-	pages     [][]string // itens JSON por página (já com o "espião" incluído)
-	userCodes []string   // userCode visto no caminho a cada chamada
-	queries   []url.Values
+	pages        [][]string // itens JSON por página (já com o "espião" incluído)
+	userCodes    []string   // userCode visto no caminho a cada chamada
+	queries      []url.Values
+	summaryEmpty bool       // fillTypeTasks responde [] (usuário sem central)
+	summaryQuery url.Values // query vista no fillTypeTasks
 }
 
 func (s *poolTaskStub) server(t *testing.T) *httptest.Server {
@@ -32,7 +34,19 @@ func (s *poolTaskStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `{"content":{"login":"`+r.URL.Query().Get("login")+`","userCode":"uc-pool-test"}}`)
+		io.WriteString(w, `{"content":{"login":"`+r.URL.Query().Get("login")+`","userCode":"uc-`+r.URL.Query().Get("login")+`"}}`)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/centralTasks/fillTypeTasks", func(w http.ResponseWriter, r *http.Request) {
+		s.summaryQuery = r.URL.Query()
+		if s.summaryEmpty {
+			io.WriteString(w, `[]`)
+			return
+		}
+		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_central_tasks_filltype.json"))
+		if err != nil {
+			t.Error(err)
+		}
+		w.Write(b)
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/centralTasks/getTasks/pool/", func(w http.ResponseWriter, r *http.Request) {
 		s.userCodes = append(s.userCodes, strings.TrimPrefix(r.URL.Path, "/ecm/api/rest/ecm/centralTasks/getTasks/pool/"))
@@ -83,7 +97,7 @@ func TestListPoolTasks(t *testing.T) {
 	if len(tasks) != 3 {
 		t.Fatalf("esperava 3 tarefas, veio %d", len(tasks))
 	}
-	if len(stub.userCodes) != 1 || stub.userCodes[0] != "uc-pool-test" {
+	if len(stub.userCodes) != 1 || stub.userCodes[0] != "uc-u-ds-"+t.Name() {
 		t.Errorf("caminho deveria levar o userCode resolvido: %v", stub.userCodes)
 	}
 	q := stub.queries[0]
@@ -148,5 +162,51 @@ func TestListPoolTasksPaginacao(t *testing.T) {
 	}
 	if len(tasks) != 150 {
 		t.Fatalf("limite não aplicado: veio %d", len(tasks))
+	}
+}
+
+// Fixture real do fillTypeTasks: categorias com os pools como filhos, campos
+// renomeados (taskId→Pool, totalTask→Total). Sem --user, resolve o próprio
+// userCode; lista vazia não é erro.
+func TestTaskCentralSummary(t *testing.T) {
+	stub := &poolTaskStub{}
+	c := datasetClient(t, stub.server(t).URL)
+
+	cats, err := c.TaskCentralSummary(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stub.summaryQuery.Get("taskUserId") != "uc-u-ds-"+t.Name() {
+		t.Errorf("taskUserId deveria ser o userCode resolvido: %v", stub.summaryQuery)
+	}
+	if len(cats) != 5 {
+		t.Fatalf("esperava 5 categorias, veio %d", len(cats))
+	}
+	if cats[0].Type != "root" || cats[1].Type != "open" || cats[1].Total != 7 {
+		t.Errorf("categorias inesperadas: %+v", cats[:2])
+	}
+	pool := cats[2]
+	if pool.Type != "poolrole" || pool.Total != 19 || len(pool.Children) != 2 {
+		t.Fatalf("poolrole inesperado: %+v", pool)
+	}
+	child := pool.Children[0]
+	if child.Pool != "Pool:Role:departamento_pessoal" || child.Description != "Departamento Pessoal" || child.Total != 9 {
+		t.Errorf("pool filho inesperado: %+v", child)
+	}
+	if cats[4].Type != "manager" || cats[4].Total != 2195 || cats[4].Known != 2195 {
+		t.Errorf("manager inesperado: %+v", cats[4])
+	}
+
+	stub2 := &poolTaskStub{summaryEmpty: true}
+	c2 := datasetClient(t, stub2.server(t).URL)
+	cats, err = c2.TaskCentralSummary(context.Background(), "jsilva")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cats) != 0 {
+		t.Errorf("esperava resumo vazio, veio %d categorias", len(cats))
+	}
+	if stub2.summaryQuery.Get("taskUserId") != "uc-jsilva" {
+		t.Errorf("--user deveria resolver o login para userCode: %v", stub2.summaryQuery)
 	}
 }
