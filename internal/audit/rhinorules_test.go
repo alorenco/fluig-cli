@@ -88,12 +88,12 @@ if (acao === 'UPSERT') {}`
 func TestRhinoB1SoServerSide(t *testing.T) {
 	src := []byte(`if (c.getFieldName() === 'x') {}`)
 
-	server := scanJS("datasets/ds_x.js", src)
+	server := scanJS("", "datasets/ds_x.js", src)
 	if n := countRule(server, RuleJavaStrictEq); n != 1 {
 		t.Errorf("dataset (server-side): got %d RHINO001, quer 1", n)
 	}
 
-	client := scanJS("wcm/widget/w/src/main/webapp/resources/js/app.js", src)
+	client := scanJS("", "wcm/widget/w/src/main/webapp/resources/js/app.js", src)
 	if n := countRule(client, RuleJavaStrictEq); n != 0 {
 		t.Errorf("widget (client-side): got %d RHINO001, quer 0", n)
 	}
@@ -237,12 +237,12 @@ func TestRhinoB2ConstEmLaco(t *testing.T) {
 func TestRhinoB2SoServerSide(t *testing.T) {
 	src := []byte(`for (var i = 0; i < 2; i++) { const x = i; }`)
 
-	server := scanJS("datasets/ds_x.js", src)
+	server := scanJS("", "datasets/ds_x.js", src)
 	if n := countRule(server, RuleConstInLoop); n != 1 {
 		t.Errorf("dataset (server-side): got %d RHINO003, quer 1", n)
 	}
 
-	client := scanJS("wcm/widget/w/src/main/webapp/resources/js/app.js", src)
+	client := scanJS("", "wcm/widget/w/src/main/webapp/resources/js/app.js", src)
 	if n := countRule(client, RuleConstInLoop); n != 0 {
 		t.Errorf("widget (client-side): got %d RHINO003, quer 0", n)
 	}
@@ -253,12 +253,12 @@ func TestRhinoB2SoServerSide(t *testing.T) {
 func TestRhinoB3SoServerSide(t *testing.T) {
 	src := []byte(`class Foo {} import x from 'y';`)
 
-	server := scanJS("datasets/ds_x.js", src)
+	server := scanJS("", "datasets/ds_x.js", src)
 	if n := countRule(server, RuleRhinoES6); n != 2 {
 		t.Errorf("dataset (server-side): got %d RHINO002, quer 2", n)
 	}
 
-	client := scanJS("wcm/widget/w/src/main/webapp/resources/js/app.js", src)
+	client := scanJS("", "wcm/widget/w/src/main/webapp/resources/js/app.js", src)
 	if n := countRule(client, RuleRhinoES6); n != 0 {
 		t.Errorf("widget (client-side): got %d RHINO002, quer 0", n)
 	}

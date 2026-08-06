@@ -234,7 +234,7 @@ func TestNativeDialog(t *testing.T) {
 FLUIGC.message.alert({message:'ok'})
 window.confirm('vai?')
 var prompta = naoprompt(1)`)
-	fs := scanJS("w.js", js)
+	fs := scanJS("", "w.js", js)
 	if len(fs) != 2 {
 		t.Fatalf("SG007=%d, quero 2 (alert + window.confirm): %+v", len(fs), fs)
 	}
@@ -356,7 +356,7 @@ func TestRuleTitlesCompletas(t *testing.T) {
 		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog,
 		RuleUnknownHAPI, RuleUnknownWKVar, RuleUnknownFormAPI, RuleUnknownAPI,
 		RuleJavaStrictEq, RuleRhinoES6, RuleConstInLoop,
-		RuleActivityUnknown, RuleActivityMissing} {
+		RuleBareHAPICall, RuleActivityUnknown, RuleActivityMissing} {
 		if RuleTitles[rule] == "" {
 			t.Errorf("regra %s sem título em RuleTitles", rule)
 		}

@@ -102,7 +102,7 @@ func importantFindings(rel, css string, cat *Catalog) []Finding {
 // só valem no client-side; as FL* de API valem nos dois lados (a chamada se
 // auto-escopa pelo objeto usado) e form.* só nos eventos de formulário, onde
 // `form` é garantidamente o FormController (Rhino).
-func scanJS(rel string, content []byte) []Finding {
+func scanJS(root, rel string, content []byte) []Finding {
 	serverSide := isServerSideJS(rel)
 	formEvent := isFormEventJS(rel)
 	var out []Finding
@@ -119,6 +119,10 @@ func scanJS(rel string, content []byte) []Finding {
 	if serverSide {
 		// Footguns do Rhino (RHINO*) — só no JS que roda no servidor.
 		out = append(out, rhinoFindings(rel, content)...)
+	}
+	if isProcessScriptJS(rel) {
+		// FL005 — método do hAPI chamado como global (só script de processo).
+		out = append(out, processGlobalFindings(root, rel, content)...)
 	}
 	return out
 }

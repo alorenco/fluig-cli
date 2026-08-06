@@ -41,6 +41,8 @@ func newAuditCmd(app *App) *cobra.Command {
 			"  FL002 (aviso)  variável WK* desconhecida em getValue() — devolve null em silêncio\n" +
 			"  FL003 (aviso)  método form.* que não existe no FormController (eventos de form)\n" +
 			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n" +
+			"  FL005 (erro)   método do hAPI chamado como função global em script de\n" +
+			"                   processo (getCardValue sem o hAPI.) — falha em runtime\n" +
 			"  RHINO001 (aviso) === / !== entre retorno java.lang.String (getFieldName…) e\n" +
 			"                   literal — no Rhino do Fluig é sempre false; use == ou String(...)\n" +
 			"  RHINO002 (erro)  sintaxe ES6+ (class, import/export, async/await, parâmetro\n" +

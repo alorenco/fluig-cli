@@ -40,6 +40,8 @@ const (
 	RuleRhinoES6     = "RHINO002" // sintaxe ES6+ não suportada pelo Rhino do Fluig (SyntaxError no deploy)
 	RuleConstInLoop  = "RHINO003" // const declarado no corpo de laço — o Rhino congela o valor da 1ª iteração
 
+	RuleBareHAPICall = "FL005" // método do hAPI chamado como função global em script de processo
+
 	RuleActivityUnknown = "WF001" // activity-N do formulário sem etapa de sequence N no processo
 	RuleActivityMissing = "WF002" // atividade humana do processo sem seção activity-N no formulário
 )
@@ -64,6 +66,8 @@ var RuleTitles = map[string]string{
 	RuleJavaStrictEq: "=== / !== entre retorno java.lang.String (getFieldName, getString…) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
 	RuleRhinoES6:     "Sintaxe ES6+ (class, import/export, async/await, parâmetro default, spread, propriedade computada) — o Rhino do Fluig não aceita; dá SyntaxError no deploy",
 	RuleConstInLoop:  "const declarado no corpo de um laço (for/while/do) — o Rhino do Fluig congela o valor da 1ª iteração, sem erro; use let",
+
+	RuleBareHAPICall: "Método do hAPI chamado como função global (getCardValue(...) sem o hAPI.) em script de processo — falha em runtime",
 
 	RuleActivityUnknown: "Seção activity-N do formulário sem etapa de sequence N no processo — a seção nunca renderiza (audit --process)",
 	RuleActivityMissing: "Atividade humana do processo sem seção activity-N no formulário (audit --process)",
@@ -293,7 +297,7 @@ func auditFile(root, p string, cat *Catalog, cfg Config, spaCache map[string]boo
 	case isCSS:
 		res.Findings = append(res.Findings, scanCSS(rel, content, cat)...)
 	case isJS:
-		res.Findings = append(res.Findings, scanJS(rel, content)...)
+		res.Findings = append(res.Findings, scanJS(root, rel, content)...)
 	default:
 		res.Findings = append(res.Findings, scanMarkup(rel, content, cat)...)
 	}

@@ -326,7 +326,7 @@ export nativo do processo — não requerem o componente auxiliar.
 
 | comando | efeito |
 |---|---|
-| `audit [<path>...]` | linter das pastas convencionais (forms/, wcm/widget/, datasets/, events/, mechanisms/, workflow/scripts/): tema fixo do Fluig 2.0 (SG*), chamadas de API inexistentes (FL*, sobre o fluig.d.ts) e footguns do Rhino (RHINO*, só JS server-side) e, com `--process <id>`, o cruzamento formulário×processo (WF*: seção `activity-N` sem etapa de sequence N = ERRO — a seção nunca renderiza e a validação daquela etapa nunca roda; atividade humana sem seção = aviso; `activity-0` = abertura, sempre válido; requer o form vinculado no forms.json); `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
+| `audit [<path>...]` | linter das pastas convencionais (forms/, wcm/widget/, datasets/, events/, mechanisms/, workflow/scripts/): tema fixo do Fluig 2.0 (SG*), chamadas de API inexistentes (FL*, sobre o fluig.d.ts; FL005 = método do hAPI chamado como global em script de processo — ERRO, falha em runtime) e footguns do Rhino (RHINO*, só JS server-side) e, com `--process <id>`, o cruzamento formulário×processo (WF*: seção `activity-N` sem etapa de sequence N = ERRO — a seção nunca renderiza e a validação daquela etapa nunca roda; atividade humana sem seção = aviso; `activity-0` = abertura, sempre válido; requer o form vinculado no forms.json); `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
 
 Regras: SG001 CSS legado (aviso, `--fix` troca p/ flat) · SG002 recurso
 externo/CDN (erro) · SG003 cor fixa hex/rgb (erro; hex com valor idêntico a
