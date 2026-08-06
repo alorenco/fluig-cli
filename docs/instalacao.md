@@ -86,7 +86,13 @@ seu-projeto/
 ```
 
 A CLI descobre a raiz do projeto a partir do diretório atual. Ela sobe pelos
-diretórios-pai até achar uma dessas pastas convencionais.
+diretórios-pai até a raiz do sistema de arquivos. Você pode rodar os comandos de
+dentro de `forms/<Nome>/`, `datasets/` ou de qualquer subpasta do projeto.
+
+A busca tem duas passadas. Na primeira, a CLI procura a pasta `.fluigcli/`. Esta
+é a marca definitiva da raiz, e ela vence sempre. Na segunda, a CLI procura as
+pastas convencionais da lista acima. A segunda passada atende o projeto recém-
+clonado, que ainda não tem `.fluigcli/`.
 
 ### Rodar de fora do projeto
 
