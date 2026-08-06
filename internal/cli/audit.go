@@ -3,11 +3,15 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/alorenco/fluig-cli/internal/audit"
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 func newAuditCmd(app *App) *cobra.Command {
@@ -15,6 +19,7 @@ func newAuditCmd(app *App) *cobra.Command {
 		syncCatalog bool
 		failOn      string
 		fix         bool
+		processID   string
 	)
 	cmd := &cobra.Command{
 		Use:   "audit [<path>...]",
@@ -42,7 +47,14 @@ func newAuditCmd(app *App) *cobra.Command {
 			"                   default, spread, propriedade computada) — o Rhino do Fluig\n" +
 			"                   (Voyager 2) não aceita; dá SyntaxError no deploy\n" +
 			"  RHINO003 (erro)  const declarado no corpo de um laço (for/while/do) — o Rhino\n" +
-			"                   congela o valor da 1ª iteração, sem erro; use let\n\n" +
+			"                   congela o valor da 1ª iteração, sem erro; use let\n" +
+			"  WF001 (erro)   [--process] seção activity-N do formulário sem etapa de\n" +
+			"                   sequence N no processo — a seção nunca renderiza\n" +
+			"  WF002 (aviso)  [--process] atividade humana sem seção activity-N no HTML\n\n" +
+			"--process <id> liga as regras WF*: a CLI baixa o processo do servidor alvo\n" +
+			"(read-only), acha o formulário vinculado a ele no forms.json e cruza as\n" +
+			"classes activity-N do HTML com as sequences reais. activity-0 é sempre\n" +
+			"válido (formulário de abertura, WKNumState = 0).\n\n" +
 			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
 			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
 			"relatório para correção manual.\n\n" +
@@ -89,6 +101,13 @@ func newAuditCmd(app *App) *cobra.Command {
 			res, err := audit.Run(root, args, cat, cfg)
 			if err != nil {
 				return err
+			}
+			if processID != "" {
+				wf, err := runProcessCheck(app, p, root, processID, cfg)
+				if err != nil {
+					return err
+				}
+				res.Findings = append(res.Findings, wf...)
 			}
 			fixed := 0
 			if fix {
@@ -148,9 +167,88 @@ func newAuditCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&syncCatalog, "sync", false, "atualiza o catálogo (classes/variáveis) do style guide do servidor alvo antes de auditar")
+	cmd.Flags().StringVar(&processID, "process", "", "cruza o formulário do processo com as etapas reais dele (regras WF*; consulta o servidor, read-only)")
 	cmd.Flags().StringVar(&failOn, "fail-on", "error", "reprova (exit 1) quando houver achados do nível: error, warning ou none")
 	cmd.Flags().BoolVar(&fix, "fix", false, "aplica as correções determinísticas nos arquivos (CSS legado → flat; hex idêntico a variável → var(...))")
 	return cmd
+}
+
+// runProcessCheck roda as regras WF* (audit --process): baixa o processo,
+// resolve o formulário vinculado a ele no projeto e cruza as classes
+// activity-N do HTML com as etapas reais. Só leitura no servidor.
+func runProcessCheck(app *App, p *output.Printer, root, processID string, cfg audit.Config) ([]audit.Finding, error) {
+	ctx := context.Background()
+	server, client, err := app.connect(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := client.ProcessDetail(ctx, processID, 0)
+	if err != nil {
+		return nil, mapFluigError(err)
+	}
+	if detail.FormID == 0 {
+		p.Infof("o processo %q (versão %d) não tem formulário vinculado — regras WF* sem o que cruzar.", processID, detail.Version)
+		return nil, nil
+	}
+
+	fmap, err := project.LoadFormMap(root, server.FormScopeKey())
+	if err != nil {
+		return nil, err
+	}
+	link, ok := fmap.ByDocumentID(detail.FormID)
+	if !ok {
+		return nil, output.NotFoundf(
+			"o formulário %d (do processo %q) não está vinculado a nenhuma pasta local no forms.json; "+
+				"baixe-o com: fluigcli form import %d — ou vincule uma pasta existente com: fluigcli form link",
+			detail.FormID, processID, detail.FormID)
+	}
+	dir := project.FormDir(root, link.Folder)
+	htmlPath, err := mainFormHTML(dir)
+	if err != nil {
+		return nil, err
+	}
+	content, err := os.ReadFile(htmlPath)
+	if err != nil {
+		return nil, err
+	}
+	rel, rerr := filepath.Rel(root, htmlPath)
+	if rerr != nil {
+		rel = htmlPath
+	}
+
+	states := make([]audit.ProcessActivity, 0, len(detail.States))
+	for _, st := range detail.States {
+		states = append(states, audit.ProcessActivity{Sequence: st.Sequence, Name: st.Name, Kind: st.Kind})
+	}
+	p.Infof("cruzando %s com o processo %q (versão %d, %d etapas).", filepath.ToSlash(rel), processID, detail.Version, len(states))
+	findings := audit.CheckFormActivities(filepath.ToSlash(rel), content, processID, states)
+	return audit.ApplySeverity(findings, cfg), nil
+}
+
+// mainFormHTML acha o HTML principal do formulário: o único .html no topo da
+// pasta (a mesma regra do form export).
+func mainFormHTML(dir string) (string, error) {
+	fc, err := project.ReadFormFolder(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", output.NotFoundf("pasta do formulário %q não existe no projeto", dir)
+		}
+		return "", err
+	}
+	var htmls []string
+	for _, f := range fc.Files {
+		if ext := strings.ToLower(filepath.Ext(f)); ext == ".html" || ext == ".htm" {
+			htmls = append(htmls, f)
+		}
+	}
+	switch len(htmls) {
+	case 1:
+		return htmls[0], nil
+	case 0:
+		return "", output.NotFoundf("a pasta %q não tem arquivo .html", dir)
+	default:
+		return "", output.Usagef("a pasta %q tem %d arquivos .html — o formulário deve ter um único HTML principal", dir, len(htmls))
+	}
 }
 
 // auditFindingsTable monta a tabela de achados no modo humano. Compartilhada

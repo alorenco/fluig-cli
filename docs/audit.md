@@ -1,6 +1,6 @@
 # fluigcli audit — Style Guide e APIs de script
 
-O comando `audit` é o linter estático do projeto Fluig. Ele tem três famílias
+O comando `audit` é o linter estático do projeto Fluig. Ele tem quatro famílias
 de regras:
 
 - **SG*** — conformidade com o **Fluig Style Guide 2.0**. Estas regras varrem
@@ -17,8 +17,11 @@ de regras:
   rodam só no JS que executa no servidor (`datasets/`, `events/`, `mechanisms/`,
   `workflow/scripts/` e os eventos de formulário). Elas pegam padrões que a
   análise estática detecta bem e que quebram sem erro claro em produção.
+- **WF*** — cruzamento do **formulário com o processo** ao qual ele está
+  vinculado. Estas regras só rodam com `--process <id>`, porque precisam das
+  etapas reais do processo. A CLI as baixa do servidor alvo (só leitura).
 
-O comando não envia nada ao servidor. Os arquivos só mudam com `--fix`.
+O comando não altera nada no servidor. Os arquivos locais só mudam com `--fix`.
 
 ```sh
 fluigcli audit                       # projeto inteiro (todas as pastas convencionais)
@@ -26,6 +29,7 @@ fluigcli audit forms/MeuFormulario   # só um formulário
 fluigcli audit --fix                 # aplica as correções determinísticas
 fluigcli audit --sync                # atualiza o catálogo do servidor antes
 fluigcli audit --fail-on none --json # só relatório (CI/agentes leem o data)
+fluigcli audit --process meu_processo  # + regras WF*: activity-N × etapas reais
 ```
 
 ## Regras
@@ -46,6 +50,8 @@ fluigcli audit --fail-on none --json # só relatório (CI/agentes leem o data)
 | `RHINO001` | aviso | `===`/`!==` entre um `java.lang.String` (retorno de `getFieldName`, `getInitialValue`, `getString`, `getColleagueName`…) e um literal de texto — no Rhino do Fluig isso é **sempre `false`** (`!==` sempre `true`), sem erro. Rastreia também a variável que recebe esse retorno (`var campo = c.getFieldName()...; if (campo === 'x')`). `String(...)` e concatenação com `+` coagem para string JS e não são apontados. Só no JS server-side. | converter com `String(x.getFieldName()) === 'y'` ou usar igualdade solta (`==`) |
 | `RHINO002` | erro | sintaxe **ES6+** que o Rhino do Fluig (Voyager 2) **não aceita** e dá **`SyntaxError` no deploy**: `class`, `import`/`export`, `async`/`await`, parâmetro com valor default (`function f(x = 1)`), spread em array/chamada (`[...a, 3]`) e propriedade computada (`{ [k]: v }`). Recursos suportados **não** são apontados: template literal, `let`/`const`, arrow, `for...of`, destructuring, rest param (`function f(...args)`), `Map`/`Set`, `Array.includes/find`, `String.padStart`. Só no JS server-side. | usar o equivalente ES5 (ex.: default → `if (y == null) y = 10;`; computada → `obj[k] = v;`; spread → `.concat`/`.apply`) |
 | `RHINO003` | erro | `const` declarado **no corpo de um laço** (`for`/`while`/`do`). No Rhino do Fluig o `const` **não reinicializa** a cada iteração — ele **congela o valor da 1ª volta**, em silêncio (bug de dados invisível). Um `const` numa **função aninhada** no laço não é apontado (a função cria escopo novo por chamada). O `const` no cabeçalho de `for (const x of …)` também não é apontado. Só no JS server-side. | trocar por `let` (ou mover para fora do laço se o valor não muda) |
+| `WF001` | erro | **[requer `--process`]** seção `activity-N` do formulário sem etapa de sequence `N` no processo — a seção **nunca renderiza** e a validação daquela etapa nunca roda. `activity-0` é sempre válido (formulário de abertura, `WKNumState = 0`) | a sugestão lista as etapas reais do processo (sequence + nome) |
+| `WF002` | aviso | **[requer `--process`]** atividade **humana** do processo sem seção `activity-N` no HTML. Só é emitido quando o formulário usa a convenção `activity-*` | adicionar a seção — ou ignorar, se a etapa deve mostrar o formulário igual às demais |
 
 As regras FL* usam a referência `fluig.d.ts` embutida. Esta referência é um fork
 do [fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)
@@ -61,7 +67,31 @@ propriedade shorthand `{ valor }` (parece bloco ou destructuring). O segundo é 
 spread solitário `[...a]` (igual ao rest de destructuring `[...a] = x`). Nestes
 dois casos a análise textual não separa o padrão que quebra do que é suportado.
 
-## `--fix` (correções determinísticas)
+## `--process` (regras WF*)
+
+Muitos formulários de processo mostram uma seção por etapa. A convenção: cada
+seção carrega a classe `activity-N`, com `N` = sequence da etapa (o
+`WKNumState`), e o JS do formulário mostra `$(".activity-" + WKNumState)`.
+
+Os números `N` vêm do diagrama BPMN e **ninguém os decora**. Quando eles não
+casam com o processo, o defeito é invisível: o formulário não renderiza a
+seção, a validação daquela etapa nunca roda, e nenhum outro comando acusa — o
+`diff` passa (local == servidor) e o `request start` não executa os eventos do
+formulário. Este foi um defeito real que custou horas em um projeto.
+
+O `audit --process <id>` fecha esse buraco:
+
+1. A CLI baixa o processo do servidor alvo (só leitura) e lê as etapas reais.
+2. Ela acha o formulário vinculado ao processo pelo `forms.json` do projeto.
+   Sem o vínculo, a mensagem diz como criar (`form import` ou `form link`).
+3. Ela cruza as classes `activity-N` do HTML com as sequences (`WF001`/`WF002`).
+
+```sh
+fluigcli audit --process contratos_notificacao_vegetacao --json
+```
+
+`activity-0` é sempre válido: é o formulário de **abertura** (antes do primeiro
+envio, `WKNumState` vale `0`). A checagem usa a **versão corrente** do processo.
 
 O `--fix` aplica **apenas** o que não tem ambiguidade. Ele corrige o SG001
 (caminho legado → flat). Ele corrige também os SG003 de **hex com valor idêntico**

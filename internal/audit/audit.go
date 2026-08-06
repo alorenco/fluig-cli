@@ -39,6 +39,9 @@ const (
 	RuleJavaStrictEq = "RHINO001" // === / !== entre retorno java.lang.String e literal de texto
 	RuleRhinoES6     = "RHINO002" // sintaxe ES6+ não suportada pelo Rhino do Fluig (SyntaxError no deploy)
 	RuleConstInLoop  = "RHINO003" // const declarado no corpo de laço — o Rhino congela o valor da 1ª iteração
+
+	RuleActivityUnknown = "WF001" // activity-N do formulário sem etapa de sequence N no processo
+	RuleActivityMissing = "WF002" // atividade humana do processo sem seção activity-N no formulário
 )
 
 // RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
@@ -61,6 +64,9 @@ var RuleTitles = map[string]string{
 	RuleJavaStrictEq: "=== / !== entre retorno java.lang.String (getFieldName, getString…) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
 	RuleRhinoES6:     "Sintaxe ES6+ (class, import/export, async/await, parâmetro default, spread, propriedade computada) — o Rhino do Fluig não aceita; dá SyntaxError no deploy",
 	RuleConstInLoop:  "const declarado no corpo de um laço (for/while/do) — o Rhino do Fluig congela o valor da 1ª iteração, sem erro; use let",
+
+	RuleActivityUnknown: "Seção activity-N do formulário sem etapa de sequence N no processo — a seção nunca renderiza (audit --process)",
+	RuleActivityMissing: "Atividade humana do processo sem seção activity-N no formulário (audit --process)",
 }
 
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o
@@ -172,7 +178,7 @@ func Run(root string, targets []string, cat *Catalog, cfg Config) (*Result, erro
 			return nil, walkErr
 		}
 	}
-	res.Findings = applySeverity(res.Findings, cfg)
+	res.Findings = ApplySeverity(res.Findings, cfg)
 	sort.Slice(res.Findings, func(i, j int) bool {
 		if res.Findings[i].File != res.Findings[j].File {
 			return res.Findings[i].File < res.Findings[j].File
@@ -182,8 +188,10 @@ func Run(root string, targets []string, cat *Catalog, cfg Config) (*Result, erro
 	return res, nil
 }
 
-// applySeverity aplica os overrides de severidade do projeto ("off" descarta).
-func applySeverity(findings []Finding, cfg Config) []Finding {
+// ApplySeverity aplica os overrides de severidade do projeto ("off" descarta).
+// Exportado porque o `audit --process` gera achados fora do Run e precisa dos
+// mesmos overrides.
+func ApplySeverity(findings []Finding, cfg Config) []Finding {
 	if len(cfg.Severity) == 0 {
 		return findings
 	}
