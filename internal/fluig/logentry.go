@@ -24,13 +24,22 @@ type LogEntry struct {
 
 // logHeaderRe casa o cabeçalho do WildFly. O nível pode vir com padding
 // (`%-5p` gera "INFO " e "WARN "), o logger vem em colchetes e a thread em
-// parênteses — a thread pode ter parênteses dentro (ex.: "Thread-2039
-// (ActiveMQ-client-global-threads)"), por isso o grupo é guloso até o último
-// ")" seguido de espaço.
+// parênteses.
+//
+// ⚠️ O grupo da thread aceita UM nível de parênteses aninhados e para no
+// primeiro ")" desbalanceado. Os dois casos reais exigem isso:
+//   - a thread pode ter parênteses dentro (ex.: "Thread-2039
+//     (ActiveMQ-client-global-threads)") — um grupo `[^)]*` a cortaria;
+//   - a mensagem quase sempre tem parênteses em pt-BR ("anexo(s) movido(s)",
+//     "(Linha: 3)") — um grupo guloso `(.*)` engolia a mensagem até o último
+//     ")" e o começo do texto sumia em silêncio (corrigido em 2026-08-06).
+//
+// Limitação conhecida: mensagem que COMEÇA com "(" numa entrada sem thread é
+// lida como thread. O formato do WildFly não separa os dois de outra forma.
 var logHeaderRe = regexp.MustCompile(
 	`^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})[,.](\d{3})\s+([A-Z]+)\s*` +
 		`(?:\[([^\]]*)\]\s*)?` +
-		`(?:\((.*)\)\s?)?` +
+		`(?:\(((?:[^()]|\([^()]*\))*)\)\s?)?` +
 		`(.*)$`)
 
 // logEntryStartRe reconhece o início de uma entrada (a linha com data). É o

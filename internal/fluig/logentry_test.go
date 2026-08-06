@@ -91,6 +91,39 @@ func TestParseLogEntryVariacoes(t *testing.T) {
 			"\tat java.base/java.lang.Thread.run(Thread.java:829)",
 			LogEntry{Raw: "\tat java.base/java.lang.Thread.run(Thread.java:829)"},
 		},
+		// Regressão (2026-08-06): a mensagem em pt-BR quase sempre tem
+		// parênteses. O parser antigo era guloso e devolvia só o pedaço depois
+		// do último ")" — o começo do texto sumia sem aviso.
+		{
+			"mensagem com parênteses no meio",
+			"2026-08-04 09:12:33,120 INFO  [ScriptingLog] (default task-10) FLUIGCLI-TESTE-A: linha com parenteses (1 item) e numero 999111",
+			LogEntry{Timestamp: "2026-08-04T09:12:33.120", Level: "INFO", Logger: "ScriptingLog", Thread: "default task-10",
+				Message: "FLUIGCLI-TESTE-A: linha com parenteses (1 item) e numero 999111"},
+		},
+		{
+			"mensagem com parênteses, colchetes e dois-pontos",
+			"2026-08-04 09:12:33,121 ERROR [ScriptingLog] (default task-10) Notificação [999111]: 1 anexo(s) movido(s) para a pasta 999222",
+			LogEntry{Timestamp: "2026-08-04T09:12:33.121", Level: "ERROR", Logger: "ScriptingLog", Thread: "default task-10",
+				Message: "Notificação [999111]: 1 anexo(s) movido(s) para a pasta 999222"},
+		},
+		{
+			"mensagem terminada em parêntese (padrão dos datasets do Fluig)",
+			"2026-08-04 09:12:33,122 ERROR [ScriptingLog] (default task-10) Erro ao mover: (Linha: 42)",
+			LogEntry{Timestamp: "2026-08-04T09:12:33.122", Level: "ERROR", Logger: "ScriptingLog", Thread: "default task-10",
+				Message: "Erro ao mover: (Linha: 42)"},
+		},
+		{
+			"thread aninhada E mensagem com parênteses na mesma entrada",
+			"2026-08-04 09:12:33,123 WARN  [a.B] (Thread-2039 (ActiveMQ-client-global-threads)) falhou o envio (tentativa 2)",
+			LogEntry{Timestamp: "2026-08-04T09:12:33.123", Level: "WARN", Logger: "a.B",
+				Thread: "Thread-2039 (ActiveMQ-client-global-threads)", Message: "falhou o envio (tentativa 2)"},
+		},
+		{
+			"acentuação atravessa intacta (não é problema de encoding)",
+			"2026-08-04 09:12:33,124 INFO  [ScriptingLog] (default task-10) acentuacao isolada -> ção ã õ é ú",
+			LogEntry{Timestamp: "2026-08-04T09:12:33.124", Level: "INFO", Logger: "ScriptingLog", Thread: "default task-10",
+				Message: "acentuacao isolada -> ção ã õ é ú"},
+		},
 		{
 			"vazio não quebra",
 			"", LogEntry{},
