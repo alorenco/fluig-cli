@@ -125,6 +125,31 @@ fluigcli request start compras_requisicao_abastecimento \
   --fields-file requisicao.json --field quantidade=20 --attach h.png --target-state 5
 ```
 
+### Linhas de tabela-filha (`campo___N`)
+
+O JSON continua **plano** quando o formulário tem tabela-filha. Escreva o nome
+do campo com o sufixo `___<linha>` (**três** underscores). O índice da linha
+começa em `1`. Esta é a convenção do próprio Fluig. A API usa o mesmo sufixo
+quando você **lê** o card (ver [form](form.md)).
+
+```json
+{
+  "numeroNotificacaoAuto": "TESTE-001",
+  "anxNotificacaoFileId___1": "1247035",
+  "anxNotificacaoNome___1": "Notificação nº TESTE-001.pdf",
+  "anxNotificacaoFileId___2": "1247099",
+  "anxNotificacaoNome___2": "Anexo 2.pdf"
+}
+```
+
+Cada índice cria uma linha. O exemplo acima cria duas linhas na tabela. Você não
+informa o nome da tabela: o Fluig descobre a tabela pelo nome do campo.
+
+Confira o resultado com `form records show <form> <cardId>`. As linhas saem
+agrupadas por `tableId`, com o `rowId` que casa com o índice que você enviou.
+
+Este é o caminho para testar um processo que exige anexo em tabela-filha.
+
 O `request move` aceita as mesmas flags (`--fields-file`/`--field`). Use-as
 para atualizar campos do formulário no movimento.
 

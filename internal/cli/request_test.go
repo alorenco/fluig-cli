@@ -359,6 +359,40 @@ func TestRequestStart(t *testing.T) {
 	}
 }
 
+// Linha de tabela-filha: a convenção do Fluig é o sufixo `___<rowId>` no nome
+// do campo, a mesma que a API usa na LEITURA do card (ver FLUIG-APIS.md). A CLI
+// não pode transformar nem rejeitar essas chaves — ela repassa como vieram.
+// Este teste tranca isso: um "sanitizador" de nome de campo no --fields-file
+// quebraria silenciosamente todo teste de processo com anexo (ROADMAP3 §4.8).
+func TestRequestStartTabelaFilha(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	arq := filepath.Join(t.TempDir(), "campos.json")
+	os.WriteFile(arq, []byte(`{
+		"numeroNotificacaoAuto": "TESTE-001",
+		"anxNotificacaoFileId___1": "1247035",
+		"anxNotificacaoNome___1": "Notificação nº TESTE-001.pdf",
+		"anxNotificacaoFileId___2": "1247036"
+	}`), 0o644)
+
+	code, stdout := runMain(t, "request", "start", "compras_requisicao_abastecimento",
+		"--fields-file", arq, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	ff, _ := stub.startBody["formFields"].(map[string]any)
+	for campo, quer := range map[string]string{
+		"numeroNotificacaoAuto":    "TESTE-001",
+		"anxNotificacaoFileId___1": "1247035",
+		"anxNotificacaoNome___1":   "Notificação nº TESTE-001.pdf",
+		"anxNotificacaoFileId___2": "1247036",
+	} {
+		if ff[campo] != quer {
+			t.Errorf("campo %q chegou como %v, quer %q", campo, ff[campo], quer)
+		}
+	}
+}
+
 // start com HTTP 412: lista os possíveis responsáveis e pede --assignee (exit 2).
 func TestRequestStartPrecisaResponsavel(t *testing.T) {
 	stub := &requestStub{needsAssignee: true}

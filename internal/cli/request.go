@@ -386,7 +386,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário: campo=valor (pode repetir; sobrepõe o --fields-file)")
-	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"} (arquivo ou "-" para stdin)`)
+	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"}; linha de tabela-filha usa o sufixo campo___N (arquivo ou "-" para stdin)`)
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "arquivo para anexar à solicitação (pode repetir)")
 	cmd.Flags().StringVar(&comment, "comment", "", "comentário do movimento")
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
@@ -463,7 +463,7 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringArrayVar(&fields, "field", nil, "campo do formulário a atualizar: campo=valor (pode repetir; sobrepõe o --fields-file)")
-	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"} (arquivo ou "-" para stdin)`)
+	cmd.Flags().StringVar(&fieldsFile, "fields-file", "", `campos do formulário em JSON plano {"campo":"valor"}; linha de tabela-filha usa o sufixo campo___N (arquivo ou "-" para stdin)`)
 	cmd.Flags().StringVar(&comment, "comment", "", "comentário do movimento")
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável pela próxima atividade")
