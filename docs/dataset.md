@@ -143,6 +143,26 @@ fluigcli dataset query ds_clientes --fields codigo,nome --constraint ativo=true 
 fluigcli dataset query colleague --fields login --order colleagueName_DESC --json
 ```
 
+### Resultado vazio que volta como 1 linha em branco
+
+A API do Fluig **materializa uma linha em branco** quando o dataset não devolve
+linha nenhuma. Você recebe `count: 1` com todos os campos vazios, e não `count:
+0`. O defeito é da plataforma. Ele não vale para todos os datasets: o `document`
+e os datasets customizados fazem isso, mas o `colleague` devolve a lista vazia
+correta.
+
+A CLI **não descarta** a linha, porque um dataset pode devolver uma linha toda
+vazia de propósito. Ela avisa no stderr e marca o envelope com
+`"emptyRowSuspect": true`. Os campos `count` e `rows` não mudam.
+
+```json
+{"columns":["contrato","idSolicitacao"],"count":1,"emptyRowSuspect":true,
+ "rows":[{"contrato":"","idSolicitacao":""}]}
+```
+
+Em um agente ou script, trate `emptyRowSuspect` como "resultado vazio". A linha
+fantasma aparece **sozinha**. Com resultado real, o servidor não a acrescenta.
+
 Dataset inexistente → exit **4**. Consulta com campo ou ordenação inválidos →
 exit **4**.
 

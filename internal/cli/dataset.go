@@ -697,7 +697,18 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 				p.Successf("%s", strings.Join(cells, "\t"))
 				jsonRows = append(jsonRows, obj)
 			}
-			p.Done(map[string]any{"columns": res.Columns, "rows": jsonRows, "count": len(jsonRows)})
+
+			// A REST materializa uma linha vazia quando o dataset não devolve
+			// linha nenhuma. A CLI não descarta a linha (pode ser legítima),
+			// mas diz que desconfia — sem isso o resultado é indistinguível de
+			// um acerto.
+			data := map[string]any{"columns": res.Columns, "rows": jsonRows, "count": len(jsonRows)}
+			if res.OnlyEmptyRow() {
+				data["emptyRowSuspect"] = true
+				p.Warnf("1 linha com todos os campos vazios — provável resultado VAZIO. " +
+					"A API do Fluig materializa uma linha em branco quando o dataset não devolve nenhuma")
+			}
+			p.Done(data)
 			return nil
 		},
 	}

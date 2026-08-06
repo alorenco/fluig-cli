@@ -288,6 +288,35 @@ type DatasetResult struct {
 	MissingFields []string
 }
 
+// OnlyEmptyRow informa que o resultado é UMA linha com todos os campos vazios.
+//
+// ⚠️ Validado ao vivo na homologação (2026-08-06): a REST v2
+// `dataset-handle/search` **materializa uma linha vazia** quando o dataset não
+// devolve linha nenhuma. Confirmado na resposta crua, sem passar pela CLI:
+//   - dataset customizado com `return DatasetBuilder.newDataset()` (zero
+//     addRow) → `values:[{"campo":"", …}]`;
+//   - o dataset NATIVO `document` sem casamento → o mesmo, com as 74 colunas
+//     vazias;
+//   - mas o nativo `colleague` sem casamento → `values:[]`, correto.
+//
+// Ou seja, o defeito é da plataforma e não vale para todos os datasets. A
+// linha fantasma só aparece SOZINHA: com resultado real ela não é acrescentada
+// (conferido com 10 linhas de `document`).
+//
+// É heurística: um dataset pode legitimamente devolver uma linha toda vazia.
+// Por isso quem chama AVISA, e nunca descarta a linha.
+func (r *DatasetResult) OnlyEmptyRow() bool {
+	if len(r.Rows) != 1 {
+		return false
+	}
+	for _, v := range r.Rows[0] {
+		if v != nil && *v != "" {
+			return false
+		}
+	}
+	return true
+}
+
 // datasetHandleMaxPage é o teto por requisição do dataset-handle/search — o
 // servidor aplica 300 quando limit não é enviado, mas aceita valores maiores.
 const datasetHandleMaxPage = 500

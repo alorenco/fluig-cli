@@ -135,6 +135,14 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, `{"columns":null,"values":null}`)
 			return
 		}
+		// Resposta REAL da homologação para dataset que não devolveu linha
+		// nenhuma: a API materializa uma linha com os campos vazios
+		// (ROADMAP3 §4.9, capturado na resposta crua em 2026-08-06).
+		if r.URL.Query().Get("datasetId") == "ds_sem_linhas" {
+			io.WriteString(w, `{"columns":["idSolicitacao","tipoOcorrencia","dataRecebimento","contrato"],`+
+				`"values":[{"tipoOcorrencia":"","contrato":"","idSolicitacao":"","dataRecebimento":""}]}`)
+			return
+		}
 		w.Write(readTD("rest_dataset_handle.json"))
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/dataset/loadDataset", func(w http.ResponseWriter, r *http.Request) {
@@ -628,6 +636,51 @@ func TestDatasetQueryFieldsInexistenteAvisa(t *testing.T) {
 	var env output.Envelope
 	if err := json.Unmarshal([]byte(stdout), &env); err != nil || !env.OK {
 		t.Errorf("stdout deveria ser só o envelope: %v / %s", err, stdout)
+	}
+}
+
+// Dataset que não devolveu linha nenhuma volta como 1 linha em branco (a API
+// materializa). A CLI avisa e marca no envelope, mas NÃO descarta a linha:
+// um dataset pode legitimamente devolver uma linha toda vazia (ROADMAP3 §4.9).
+func TestDatasetQueryLinhaVaziaSuspeita(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout, stderr := runMainStderr(t, "dataset", "query", "ds_sem_linhas",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["emptyRowSuspect"] != true {
+		t.Errorf("envelope sem emptyRowSuspect: %+v", data)
+	}
+	if data["count"].(float64) != 1 {
+		t.Errorf("count não pode mudar (contrato): %v", data["count"])
+	}
+	if rows, _ := data["rows"].([]any); len(rows) != 1 {
+		t.Errorf("a linha não pode ser descartada: %v", rows)
+	}
+	if !strings.Contains(stderr, "provável resultado VAZIO") {
+		t.Errorf("stderr sem o aviso: %q", stderr)
+	}
+}
+
+// Resultado normal não pode ser marcado como suspeito.
+func TestDatasetQuerySemFalsoPositivoDeLinhaVazia(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout, _ := runMainStderr(t, "dataset", "query", "colleague",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if _, tem := data["emptyRowSuspect"]; tem {
+		t.Errorf("resultado com linhas reais não pode trazer emptyRowSuspect: %+v", data)
 	}
 }
 

@@ -407,6 +407,38 @@ func TestQueryDatasetRecorteDeCampos(t *testing.T) {
 	}
 }
 
+// A REST materializa uma linha vazia quando o dataset não devolve linha
+// nenhuma (ROADMAP3 §4.9, reproduzido ao vivo na resposta crua). A CLI precisa
+// reconhecer o caso sem descartar a linha.
+func TestDatasetResultOnlyEmptyRow(t *testing.T) {
+	str := func(s string) *string { return &s }
+	casos := []struct {
+		nome string
+		res  DatasetResult
+		quer bool
+	}{
+		{"linha única toda vazia é suspeita",
+			DatasetResult{Columns: []string{"a", "b"}, Rows: []map[string]*string{{"a": str(""), "b": str("")}}}, true},
+		{"campo nulo conta como vazio",
+			DatasetResult{Columns: []string{"a", "b"}, Rows: []map[string]*string{{"a": nil, "b": str("")}}}, true},
+		{"linha única com um valor NÃO é suspeita",
+			DatasetResult{Columns: []string{"a", "b"}, Rows: []map[string]*string{{"a": str("x"), "b": str("")}}}, false},
+		// Com resultado real o servidor não acrescenta a linha fantasma
+		// (conferido ao vivo com 10 linhas do dataset `document`).
+		{"duas linhas nunca são suspeitas",
+			DatasetResult{Columns: []string{"a"}, Rows: []map[string]*string{{"a": str("")}, {"a": str("")}}}, false},
+		{"resultado vazio de verdade não é suspeito",
+			DatasetResult{Columns: []string{"a"}}, false},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			if got := tc.res.OnlyEmptyRow(); got != tc.quer {
+				t.Errorf("OnlyEmptyRow() = %v, quer %v", got, tc.quer)
+			}
+		})
+	}
+}
+
 // Dataset inexistente (ou consulta inválida): 200 com nulls → ErrNotFound.
 func TestQueryDatasetNotFound(t *testing.T) {
 	stub := &datasetStub{}
