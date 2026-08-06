@@ -222,6 +222,15 @@ func mapFluigError(err error) error {
 	if errors.Is(err, fluig.ErrAuthFailed) {
 		return output.AuthFailedf("%s", err.Error()).WithCause(err)
 	}
+	// 404 do move já diagnosticado: código próprio em vez de "não encontrado".
+	var blocked *fluig.MoveBlockedError
+	if errors.As(err, &blocked) {
+		code := output.CodeNoHumanTask
+		if blocked.Kind == fluig.MoveBlockedPool {
+			code = output.CodePoolTaskNotAssigned
+		}
+		return output.BlockedTaskf(code, "%s", err.Error()).WithCause(err)
+	}
 	if errors.Is(err, fluig.ErrNotFound) {
 		return output.NotFoundf("%s", err.Error()).WithCause(err)
 	}

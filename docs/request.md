@@ -184,6 +184,30 @@ fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
 outro usuário responde **404**. Neste caso, o servidor a esconde. Este é o
 comportamento real.
 
+### Quando o 404 não quer dizer "não existe"
+
+O servidor responde **404** no `move` em três situações diferentes. A CLI
+consulta as tarefas da solicitação e devolve um código próprio para cada uma.
+O exit code é **4** nos três casos.
+
+| Código no envelope | Significado | O que fazer |
+|---|---|---|
+| `POOL_TASK_NOT_ASSIGNED` | a tarefa está num pool e ninguém a assumiu | assuma a tarefa no portal |
+| `NO_HUMAN_TASK` | a etapa corrente é automática (service task) | aguarde o servidor ou veja o log do evento |
+| `NOT_FOUND` | a solicitação não existe, ou a tarefa é de outro usuário | confira o número |
+
+A mensagem traz a etapa e o nome do pool:
+
+```json
+{"code":"POOL_TASK_NOT_ASSIGNED",
+ "message":"a tarefa corrente da solicitação 230702 (etapa 21, \"Acompanhar Retornos\")
+            está no pool Sucesso do Cliente (Pool:Role:sucesso_cliente) e ninguém a assumiu;
+            assuma a tarefa no portal antes de movimentar"}
+```
+
+A consulta extra roda **só** quando o move falha. O caminho de sucesso não
+muda.
+
 ### Quando a CLI pede `--movement`
 
 A etapa corrente pode ter mais de uma tarefa no **mesmo movimento**. Um exemplo

@@ -39,6 +39,13 @@ const (
 	// desistiu de esperar. Quem automatiza deve VERIFICAR o estado antes de
 	// repetir — repetir às cegas duplica a escrita.
 	CodeTimeout = "TIMEOUT"
+	// CodePoolTaskNotAssigned e CodeNoHumanTask desambiguam o 404 do
+	// `request move`. O exit segue o 4 (a tarefa SUA realmente não existe), mas
+	// o código diz o que está segurando: pool sem dono ou atividade automática.
+	// Antes os dois saíam como NOT_FOUND "solicitação N não encontrada", com a
+	// solicitação aberta e visível — o que manda depurar o lado errado.
+	CodePoolTaskNotAssigned = "POOL_TASK_NOT_ASSIGNED"
+	CodeNoHumanTask         = "NO_HUMAN_TASK"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -83,6 +90,12 @@ func AuthFailedf(format string, args ...any) *Error {
 
 func NotFoundf(format string, args ...any) *Error {
 	return newError(CodeNotFound, ExitNotFound, format, args...)
+}
+
+// BlockedTaskf reporta um 404 do move já explicado (pool sem dono ou atividade
+// automática): código próprio, exit 4 como antes.
+func BlockedTaskf(code, format string, args ...any) *Error {
+	return newError(code, ExitNotFound, format, args...)
 }
 
 func ServerErrorf(format string, args ...any) *Error {

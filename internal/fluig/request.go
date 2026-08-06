@@ -3,6 +3,7 @@ package fluig
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -438,7 +439,15 @@ func (c *Client) MoveRequestTo(ctx context.Context, id int, o RequestMoveOptions
 	if o.MovementSequence > 0 {
 		payload["movementSequence"] = o.MovementSequence
 	}
-	return c.postMove(ctx, "v2/requests/{id}/move", endpoint, payload, fmt.Sprintf("solicitação %d", id))
+	res, err := c.postMove(ctx, "v2/requests/{id}/move", endpoint, payload, fmt.Sprintf("solicitação %d", id))
+	// 404 aqui é ambíguo: pode ser solicitação inexistente OU tarefa que não é
+	// sua (pool sem dono, atividade automática). Só no erro vale o GET extra.
+	if errors.Is(err, ErrNotFound) {
+		if blocked := c.diagnoseMoveNotFound(ctx, id); blocked != nil {
+			return nil, blocked
+		}
+	}
+	return res, err
 }
 
 // movePayload monta o corpo do start/move só com os campos preenchidos.
@@ -682,6 +691,88 @@ func (c *Client) PossibleAssignees(ctx context.Context, id, targetState int) ([]
 	}
 	return parsed.Items, nil
 }
+
+// Prefixos do campo `assignee.code` das tarefas em aberto. Validados ao vivo
+// na homologação (2026-08-06): o `login` vem VAZIO nos dois casos abaixo, e é
+// o `code` que diz o que está segurando a solicitação.
+const (
+	assigneePoolPrefix = "Pool:"       // "Pool:Role:sucesso_cliente", "Pool:Group:TI"
+	assigneeAutoCode   = "System:Auto" // atividade automática (service task)
+)
+
+// MoveBlockedError explica por que a movimentação não achou tarefa SUA para
+// concluir, quando a solicitação existe e está acessível.
+//
+// ⚠️ O servidor responde 404 no `/move` tanto para solicitação inexistente
+// quanto para "não há tarefa atribuída a você". Sem esta distinção, o usuário
+// recebia "solicitação N não encontrada" com a solicitação aberta e visível —
+// o que manda depurar permissão e cache de papel, e não a posse da tarefa
+// (ROADMAP3 §4.4).
+type MoveBlockedError struct {
+	RequestID int
+	Kind      MoveBlockedKind
+	Sequence  int    // sequence da etapa que está segurando
+	StateName string // nome da etapa
+	PoolName  string // nome legível do pool (Kind == MoveBlockedPool)
+	PoolCode  string // "Pool:Role:x" / "Pool:Group:x"
+}
+
+// MoveBlockedKind é o motivo do bloqueio.
+type MoveBlockedKind int
+
+const (
+	// MoveBlockedPool: a tarefa está num pool e ninguém a assumiu.
+	MoveBlockedPool MoveBlockedKind = iota + 1
+	// MoveBlockedAutomatic: a etapa corrente é automática (service task) —
+	// não existe tarefa humana para concluir.
+	MoveBlockedAutomatic
+)
+
+func (e *MoveBlockedError) Error() string {
+	switch e.Kind {
+	case MoveBlockedPool:
+		pool := e.PoolName
+		if e.PoolCode != "" {
+			pool = fmt.Sprintf("%s (%s)", e.PoolName, e.PoolCode)
+		}
+		return fmt.Sprintf("a tarefa corrente da solicitação %d (etapa %d, %q) está no pool %s "+
+			"e ninguém a assumiu; assuma a tarefa no portal antes de movimentar",
+			e.RequestID, e.Sequence, e.StateName, pool)
+	case MoveBlockedAutomatic:
+		return fmt.Sprintf("a solicitação %d está em atividade automática (etapa %d, %q); "+
+			"não há tarefa humana para concluir. Aguarde o servidor ou verifique o log do evento",
+			e.RequestID, e.Sequence, e.StateName)
+	}
+	return fmt.Sprintf("a solicitação %d não tem tarefa atribuída a você", e.RequestID)
+}
+
+// diagnoseMoveNotFound investiga o 404 do `/move`. Devolve nil quando não
+// consegue explicar — aí o NOT_FOUND original vale (solicitação inexistente
+// de verdade). Roda SÓ no caminho de erro, então o GET extra não pesa.
+func (c *Client) diagnoseMoveNotFound(ctx context.Context, id int) *MoveBlockedError {
+	tasks, err := c.RequestTasks(ctx, id)
+	if err != nil {
+		return nil // inclusive ErrNotFound: a solicitação não existe mesmo
+	}
+	for _, t := range tasks {
+		if t.Status != taskStatusOpen || t.Assignee == nil {
+			continue
+		}
+		switch {
+		case t.Assignee.Code == assigneeAutoCode:
+			return &MoveBlockedError{RequestID: id, Kind: MoveBlockedAutomatic,
+				Sequence: t.Sequence, StateName: t.StateName}
+		case strings.HasPrefix(t.Assignee.Code, assigneePoolPrefix) && t.Assignee.Login == "":
+			return &MoveBlockedError{RequestID: id, Kind: MoveBlockedPool,
+				Sequence: t.Sequence, StateName: t.StateName,
+				PoolName: t.Assignee.Name, PoolCode: t.Assignee.Code}
+		}
+	}
+	return nil
+}
+
+// taskStatusOpen é o status de tarefa ainda não concluída.
+const taskStatusOpen = "NOT_COMPLETED"
 
 // RequestTasks devolve as tarefas (movimentações) de uma solicitação, na ordem
 // do servidor (histórico completo, incluindo as concluídas).

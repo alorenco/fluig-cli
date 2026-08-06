@@ -100,10 +100,29 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			time.Sleep(s.writeDelay)
 		}
 		if strings.HasSuffix(r.URL.Path, "/move") {
+			// O servidor responde 404 no /move tanto para solicitação
+			// inexistente quanto para "a tarefa não é sua" (pool sem dono,
+			// atividade automática). 1965xx abaixo cobrem os três casos.
+			if strings.HasPrefix(r.URL.Path, "/process-management/api/v2/requests/1965") &&
+				strings.Contains("|196530|196531|196532|", strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,
+					"/process-management/api/v2/requests/"), "/move")) {
+				http.Error(w, `{"code":"BPMWorkflowProcessNotFoundException","message":"Solicitação não encontrada."}`,
+					http.StatusNotFound)
+				return
+			}
 			json.NewDecoder(r.Body).Decode(&s.moveBody)
 			io.WriteString(w, moveResponse)
 			return
 		}
+		// Tarefas em aberto dos três casos de 404 no move. Shapes REAIS da
+		// homologação (2026-08-06): no pool e na atividade automática o
+		// `login` vem VAZIO e quem identifica é o `code`.
+		const tarefaPool = `{"items":[{"processInstanceId":196530,"movementSequence":4,"status":"NOT_COMPLETED",` +
+			`"slaStatus":"ON_TIME","assignee":{"code":"Pool:Role:sucesso_cliente","name":"Sucesso do Cliente","login":""},` +
+			`"state":{"sequence":21,"stateName":"Acompanhar Retornos"}}],"hasNext":false}`
+		const tarefaAuto = `{"items":[{"processInstanceId":196531,"movementSequence":1,"status":"NOT_COMPLETED",` +
+			`"slaStatus":"ON_TIME","assignee":{"code":"System:Auto","name":"","login":""},` +
+			`"state":{"sequence":7,"stateName":"Mover Documentos"}}],"hasNext":false}`
 		// Etapa corrente com o MESMO movimento duas vezes (tarefa do pool + a do
 		// usuário que assumiu) — o caso real de produção que gerava duas opções
 		// idênticas. Não é ambiguidade.
@@ -135,6 +154,12 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, tarefasParalelo)
 		case "/process-management/api/v2/requests/196529":
 			io.WriteString(w, semTarefa)
+		case "/process-management/api/v2/requests/196530/tasks":
+			io.WriteString(w, tarefaPool)
+		case "/process-management/api/v2/requests/196531/tasks":
+			io.WriteString(w, tarefaAuto)
+		// 196532 cai no default (404 também nas tarefas) = solicitação
+		// inexistente de verdade.
 		case "/process-management/api/v2/requests/196540/attachments":
 			w.Write(readTD("rest_request_attachments.json"))
 		case "/process-management/api/v2/requests/196540/attachments/2/download":
@@ -390,6 +415,46 @@ func TestRequestStartTabelaFilha(t *testing.T) {
 		if ff[campo] != quer {
 			t.Errorf("campo %q chegou como %v, quer %q", campo, ff[campo], quer)
 		}
+	}
+}
+
+// O 404 do move é ambíguo no servidor. A CLI desambigua com um GET de tarefas
+// (só no caminho de erro) e devolve um código próprio no lugar do NOT_FOUND
+// genérico, que mandava depurar permissão e cache de papel (ROADMAP3 §4.4).
+func TestRequestMove404Desambiguado(t *testing.T) {
+	casos := []struct {
+		nome    string
+		id      string
+		code    string
+		trechos []string
+	}{
+		{"pool sem dono", "196530", output.CodePoolTaskNotAssigned,
+			[]string{"pool", "Sucesso do Cliente", "Pool:Role:sucesso_cliente", "Acompanhar Retornos", "21"}},
+		{"atividade automática", "196531", output.CodeNoHumanTask,
+			[]string{"atividade automática", "Mover Documentos", "7", "não há tarefa humana"}},
+		{"solicitação inexistente continua NOT_FOUND", "196532", output.CodeNotFound, nil},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			stub := &requestStub{}
+			proj := requestProject(t, stub.server(t).URL)
+			code, stdout := runMain(t, "request", "move", tc.id, "--movement", "4",
+				"--json", "--project", proj, "--server", "homolog")
+			// O exit NÃO muda: a tarefa que seria SUA realmente não existe.
+			if code != output.ExitNotFound {
+				t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+			}
+			var env output.Envelope
+			json.Unmarshal([]byte(stdout), &env)
+			if env.Error == nil || env.Error.Code != tc.code {
+				t.Fatalf("código do erro = %+v, quer %s", env.Error, tc.code)
+			}
+			for _, want := range tc.trechos {
+				if !strings.Contains(env.Error.Message, want) {
+					t.Errorf("mensagem sem %q: %s", want, env.Error.Message)
+				}
+			}
+		})
 	}
 }
 
