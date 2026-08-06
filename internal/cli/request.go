@@ -311,8 +311,15 @@ func newRequestStartCmd(app *App) *cobra.Command {
 		Use:   "start <processId>",
 		Short: "Inicia uma solicitação do processo (nativo)",
 		Long: "Inicia (abre e envia) uma solicitação do processo, preenchendo o\n" +
-			"formulário com os --field dados. Os eventos do processo rodam no servidor\n" +
-			"normalmente (validateForm pode rejeitar — a mensagem é repassada).\n\n" +
+			"formulário com os --field dados.\n\n" +
+			"Os eventos do PROCESSO rodam no servidor normalmente. Um throw de evento\n" +
+			"vira exit 5 com a mensagem do servidor.\n\n" +
+			"⚠️ Os eventos do FORMULÁRIO não rodam: displayFields e validateForm ficam\n" +
+			"de fora, porque a CLI grava o card pela API REST. O card recebe só os\n" +
+			"valores que você enviou. Uma solicitação com campos obrigatórios vazios é\n" +
+			"aceita sem crítica. Por isso não use este comando para testar a validação\n" +
+			"do formulário — use o navegador (fluigcli dev). O beforeSendValidate é\n" +
+			"client-side e também não roda.\n\n" +
 			"Com --attach, os arquivos vão como anexos da solicitação — necessário nos\n" +
 			"processos que exigem anexo no início (a REST v2 não tem upload de anexo;\n" +
 			"nesse modo a CLI usa o SOAP startProcess, que exige --target-state).",
@@ -406,7 +413,9 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 		Short: "Movimenta uma solicitação para a próxima etapa (nativo, REST v2)",
 		Long: "Conclui a tarefa corrente da solicitação e a envia adiante. Sem\n" +
 			"--movement, a CLI descobre a tarefa em aberto sozinha (obrigatório\n" +
-			"informar quando houver mais de uma, ex.: atividades paralelas).",
+			"informar quando houver mais de uma, ex.: atividades paralelas).\n\n" +
+			"⚠️ Como no request start, os eventos do FORMULÁRIO não rodam\n" +
+			"(displayFields, validateForm). Os eventos do processo rodam.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)

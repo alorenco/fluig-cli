@@ -54,9 +54,25 @@ Solicitação inexistente → exit **4**.
 ## `fluigcli request start <processId> [flags]`
 
 Este comando inicia uma solicitação. Ele abre e envia a solicitação. Ele
-preenche o formulário com os `--field`. Os eventos do processo e do formulário
-rodam no servidor normalmente. Um `throw` de validação volta como mensagem de
-erro (exit 5).
+preenche o formulário com os `--field`. Os eventos do **processo** rodam no
+servidor normalmente. Um `throw` de evento volta como mensagem de erro
+(exit 5).
+
+### ⚠️ Os eventos do formulário não rodam
+
+A CLI grava o card pela API REST. Neste caminho, o servidor **não executa os
+eventos do formulário**. O `displayFields` e o `validateForm` ficam de fora. O
+`beforeSendValidate` é client-side e também não roda. Os eventos do processo,
+esses sim, rodam.
+
+O card recebe só os valores que você enviou. **Uma solicitação com os campos
+obrigatórios vazios é aceita sem crítica.** Por isso, não use este comando para
+testar a validação do formulário. O teste passa e você conclui, errado, que a
+validação está correta. Para exercitar a validação, use o navegador ou o
+`fluigcli dev`.
+
+O mesmo vale para o `request move` e para o `form records create` e
+`form records update` (ver [form](form.md)).
 
 | Flag | Uso |
 |---|---|
@@ -130,6 +146,9 @@ Este comando conclui a tarefa corrente e envia a solicitação adiante. Sem
 `--movement`, a CLI descobre a tarefa em aberto sozinha. Flags:
 `--target-state`, `--assignee`, `--comment`, `--field` (atualiza campos do
 formulário no movimento) e `--movement`.
+
+⚠️ Como no `request start`, os eventos do formulário não rodam neste caminho.
+Os eventos do processo rodam.
 
 ```sh
 fluigcli request move 196542 --target-state 5 --comment "enviado via CLI"
