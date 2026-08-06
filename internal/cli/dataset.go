@@ -670,6 +670,14 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 
+			// Campo pedido que o dataset não devolveu: avisa e segue com o que
+			// veio. Erro seria pior — dataset customizado varia as colunas
+			// conforme a constraint.
+			if len(res.MissingFields) > 0 {
+				p.Warnf("o dataset não devolveu estes campos de --fields: %s. Confira o nome. Para ver os campos disponíveis, consulte sem --fields",
+					strings.Join(res.MissingFields, ", "))
+			}
+
 			// Impressão humana: cabeçalho + linhas separadas por tab.
 			if len(res.Columns) > 0 {
 				p.Successf("%s", strings.Join(res.Columns, "\t"))
@@ -693,7 +701,7 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringSliceVar(&fields, "fields", nil, "campos a retornar (separados por vírgula)")
+	cmd.Flags().StringSliceVar(&fields, "fields", nil, "campos a retornar, na ordem pedida (separados por vírgula; a CLI recorta o resultado)")
 	cmd.Flags().StringArrayVar(&constraints, "constraint", nil, "filtro campo=valor (pode repetir)")
 	cmd.Flags().StringSliceVar(&order, "order", nil, "campo de ordenação (um só; sufixo _DESC inverte)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "número máximo de linhas (0 = sem limite)")

@@ -20,32 +20,51 @@ import (
 // runMain executa a CLI com args e captura stdout (o envelope JSON do contrato).
 func runMain(t *testing.T, args ...string) (int, string) {
 	t.Helper()
+	code, stdout, _ := runMainStderr(t, args...)
+	return code, stdout
+}
+
+// runMainStderr é o runMain que também devolve o stderr. Use quando o teste
+// precisa conferir aviso ou mensagem humana — em modo JSON tudo que não é o
+// envelope vai para lá (regra 4 do CLAUDE.md).
+func runMainStderr(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
 	// Não escreve o cache de sessão em disco durante os testes (evita tocar o
 	// ~/.cache real); o cache é testado nos pacotes fluig/config.
 	t.Setenv(envNoSessionCache, "1")
-	oldArgs, oldStdout := os.Args, os.Stdout
-	defer func() { os.Args, os.Stdout = oldArgs, oldStdout }()
+	oldArgs, oldStdout, oldStderr := os.Args, os.Stdout, os.Stderr
+	defer func() { os.Args, os.Stdout, os.Stderr = oldArgs, oldStdout, oldStderr }()
 
-	r, w, err := os.Pipe()
+	outR, outW, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Stdout = w
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = outW, errW
 	os.Args = append([]string{"fluigcli"}, args...)
 
-	// Drena o pipe concorrentemente: o buffer do pipe é limitado (pequeno no
+	// Drena os pipes concorrentemente: o buffer do pipe é limitado (pequeno no
 	// Windows) e ler só depois de Main() retornar trava a escrita em saídas
 	// maiores que o buffer (ex.: TestSkillShow, que imprime a skill inteira).
-	outCh := make(chan string, 1)
-	go func() {
-		out, _ := io.ReadAll(r)
-		outCh <- string(out)
-	}()
+	outCh, errCh := make(chan string, 1), make(chan string, 1)
+	for _, d := range []struct {
+		r  *os.File
+		ch chan string
+	}{{outR, outCh}, {errR, errCh}} {
+		go func() {
+			b, _ := io.ReadAll(d.r)
+			d.ch <- string(b)
+		}()
+	}
 
 	code := Main("test", "abc123", "2026-01-01")
 
-	w.Close()
-	return code, <-outCh
+	outW.Close()
+	errW.Close()
+	return code, <-outCh, <-errCh
 }
 
 // Piso de tempo limite da escrita (ROADMAP §2.10-B): os 30 s do default são

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -322,11 +323,23 @@ func TestQueryDataset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Columns) != 3 || len(res.Rows) != 3 {
+	// A fixture é real e traz 3 colunas para 2 campos pedidos — o servidor
+	// repassa `field` ao dataset, que pode ignorá-lo. A CLI recorta no cliente
+	// (2026-08-06), então sobram as 2 colunas pedidas, na ordem pedida.
+	if len(res.Columns) != 2 || len(res.Rows) != 3 {
 		t.Fatalf("resultado inesperado: %d colunas, %d linhas", len(res.Columns), len(res.Rows))
+	}
+	if res.Columns[0] != "colleagueName" || res.Columns[1] != "login" {
+		t.Errorf("colunas fora do recorte/ordem pedidos: %v", res.Columns)
 	}
 	if v := res.Rows[0]["login"]; v == nil || *v != "ana.andrade" {
 		t.Errorf("linha[0].login inesperado: %v", v)
+	}
+	if _, ok := res.Rows[0]["active"]; ok {
+		t.Errorf("coluna não pedida sobrou na linha: %v", res.Rows[0])
+	}
+	if len(res.MissingFields) != 0 {
+		t.Errorf("nenhum campo pedido está ausente, mas veio %v", res.MissingFields)
 	}
 	if len(stub.handleSeen) != 1 {
 		t.Fatalf("esperava 1 requisição, houve %d", len(stub.handleSeen))
@@ -341,6 +354,56 @@ func TestQueryDataset(t *testing.T) {
 		if !strings.Contains(qs, want) {
 			t.Errorf("query string sem %q:\n%s", want, qs)
 		}
+	}
+}
+
+// O recorte por --fields acontece no cliente, porque dataset customizado que
+// monta as próprias colunas ignora o parâmetro `field` (ROADMAP3 §4.10).
+func TestQueryDatasetRecorteDeCampos(t *testing.T) {
+	casos := []struct {
+		nome    string
+		fields  []string
+		colunas []string
+		ausente []string
+	}{
+		{"ordem pedida vence a do servidor", []string{"login", "colleagueName"},
+			[]string{"login", "colleagueName"}, nil},
+		{"um campo só", []string{"login"}, []string{"login"}, nil},
+		{"caixa diferente casa e preserva o nome real", []string{"LOGIN"},
+			[]string{"login"}, nil},
+		{"campo repetido não duplica a coluna", []string{"login", "login"},
+			[]string{"login"}, nil},
+		{"campo inexistente é reportado, o resto é recortado", []string{"login", "naoExiste"},
+			[]string{"login"}, []string{"naoExiste"}},
+		// Recortar para nada esconderia o dado de quem só errou o nome.
+		{"nenhum campo existe: devolve tudo e reporta", []string{"nadaA", "nadaB"},
+			[]string{"colleagueName", "login", "active"}, []string{"nadaA", "nadaB"}},
+		{"sem --fields nada é recortado", nil,
+			[]string{"colleagueName", "login", "active"}, nil},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			stub := &datasetStub{}
+			c := datasetClient(t, stub.server(t).URL)
+			res, err := c.QueryDataset(context.Background(), "colleague", DatasetQuery{Fields: tc.fields})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(res.Columns, ",") != strings.Join(tc.colunas, ",") {
+				t.Errorf("colunas = %v, quer %v", res.Columns, tc.colunas)
+			}
+			if strings.Join(res.MissingFields, ",") != strings.Join(tc.ausente, ",") {
+				t.Errorf("MissingFields = %v, quer %v", res.MissingFields, tc.ausente)
+			}
+			// A linha nunca pode guardar coluna fora do recorte.
+			for _, row := range res.Rows {
+				for k := range row {
+					if !slices.Contains(res.Columns, k) {
+						t.Errorf("linha tem a coluna %q, fora de %v", k, res.Columns)
+					}
+				}
+			}
+		})
 	}
 }
 

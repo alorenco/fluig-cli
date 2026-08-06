@@ -114,7 +114,7 @@ até o fim.
 
 | Flag | Descrição |
 |---|---|
-| `--fields a,b` | campos a retornar (sem a flag, todos) |
+| `--fields a,b` | campos a retornar, na ordem pedida (sem a flag, todos) |
 | `--constraint campo=valor` | filtro de igualdade (pode repetir) |
 | `--order campo` | ordenação por **um** campo (sufixo `_DESC` inverte) |
 | `--limit N` | máximo de linhas (0 = sem limite) |
@@ -122,6 +122,21 @@ até o fim.
 O tempo limite deste comando tem **piso de 2 minutos**, não os 30 segundos do
 padrão global. Um dataset customizado pode fazer JOIN pesado e paginar muito. A
 opção `--timeout` sempre vence.
+
+### Como o `--fields` funciona
+
+A CLI envia os campos ao servidor e **recorta o resultado no cliente**. O
+recorte no cliente é necessário. O servidor repassa a lista ao dataset, mas um
+**dataset customizado monta as próprias colunas e ignora o pedido**. Sem o
+recorte, você pede 2 campos e recebe as 23 colunas do dataset.
+
+As colunas saem na ordem que você pediu. A comparação com o nome da coluna
+ignora a caixa, e a saída mostra o nome real da coluna.
+
+Um campo que o dataset não devolve gera um **aviso** no stderr, não um erro. Um
+dataset customizado muda as colunas conforme a constraint. Quando **nenhum**
+campo pedido existe, a CLI devolve o resultado inteiro e avisa. Assim você
+enxerga o dado quando errou só o nome da coluna.
 
 ```sh
 fluigcli dataset query ds_clientes --fields codigo,nome --constraint ativo=true --limit 50

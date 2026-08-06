@@ -586,6 +586,51 @@ func TestDatasetQueryJSON(t *testing.T) {
 	}
 }
 
+// --fields recorta o resultado no cliente: dataset customizado ignora o
+// parâmetro `field` e devolve as colunas todas (ROADMAP3 §4.10). O envelope só
+// pode trazer o que foi pedido.
+func TestDatasetQueryFieldsRecorta(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "query", "colleague", "--fields", "login",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	cols, _ := data["columns"].([]any)
+	if len(cols) != 1 || cols[0] != "login" {
+		t.Fatalf("columns = %v, quer só [login]", cols)
+	}
+	rows, _ := data["rows"].([]any)
+	first, _ := rows[0].(map[string]any)
+	if len(first) != 1 || first["login"] != "ana.andrade" {
+		t.Errorf("linha[0] deveria ter só o login: %+v", first)
+	}
+}
+
+// Campo pedido que o dataset não devolve vira aviso no stderr, não erro: o
+// dataset customizado varia as colunas conforme a constraint.
+func TestDatasetQueryFieldsInexistenteAvisa(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout, stderr := runMainStderr(t, "dataset", "query", "colleague", "--fields", "login,naoExiste",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("campo inexistente não pode falhar a consulta: exit=%d %s", code, stdout)
+	}
+	if !strings.Contains(stderr, "naoExiste") {
+		t.Errorf("stderr sem o aviso do campo ausente: %q", stderr)
+	}
+	// Contrato do --json: o stdout continua sendo só o envelope.
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil || !env.OK {
+		t.Errorf("stdout deveria ser só o envelope: %v / %s", err, stdout)
+	}
+}
+
 // Dataset inexistente na consulta → exit 4.
 func TestDatasetQueryNotFound(t *testing.T) {
 	stub := &fluigDatasetStub{}

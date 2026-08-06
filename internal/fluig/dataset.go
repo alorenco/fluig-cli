@@ -283,6 +283,9 @@ type DatasetQuery struct {
 type DatasetResult struct {
 	Columns []string
 	Rows    []map[string]*string
+	// MissingFields são os campos pedidos em DatasetQuery.Fields que o dataset
+	// não devolveu. Vazio quando a consulta não pediu campos.
+	MissingFields []string
 }
 
 // datasetHandleMaxPage é o teto por requisição do dataset-handle/search — o
@@ -301,6 +304,7 @@ func (c *Client) QueryDataset(ctx context.Context, name string, q DatasetQuery) 
 	}
 	res := &DatasetResult{}
 	offset, remaining := q.Offset, q.Limit
+paging:
 	for {
 		pageLimit := datasetHandleMaxPage
 		if remaining > 0 && remaining < pageLimit {
@@ -368,13 +372,69 @@ func (c *Client) QueryDataset(ctx context.Context, name string, q DatasetQuery) 
 		if remaining > 0 {
 			remaining -= pageCount
 			if remaining <= 0 {
-				return res, nil
+				break paging
 			}
 		}
 		if pageCount < pageLimit {
-			return res, nil
+			break paging
 		}
 		offset += pageCount
+	}
+	projectFields(res, q.Fields)
+	return res, nil
+}
+
+// projectFields recorta o resultado para os campos pedidos, na ordem pedida.
+//
+// ⚠️ O recorte é NECESSÁRIO no cliente: o `field` do dataset-handle/search é
+// repassado ao dataset, e **dataset customizado que monta as próprias colunas
+// simplesmente ignora o argumento** (validado no uso real: 2 campos pedidos, 23
+// colunas devolvidas). Datasets nativos honram o parâmetro e aqui o recorte não
+// tem efeito. Por isso a CLI continua enviando os campos ao servidor: quem
+// honra, filtra lá e trafega menos.
+//
+// Campo pedido que não existe no resultado entra em MissingFields. Quando NENHUM
+// campo pedido existe, o resultado fica inteiro: devolver tabela vazia
+// esconderia o dado de quem só errou o nome da coluna.
+func projectFields(res *DatasetResult, fields []string) {
+	if len(fields) == 0 || len(res.Columns) == 0 {
+		return
+	}
+	// O nome da coluna vem do dataset e a caixa varia entre datasets do
+	// produto (`numvenda` × `numVenda`), então o casamento tolera a caixa mas
+	// preserva o nome real da coluna na saída.
+	realName := make(map[string]string, len(res.Columns))
+	for _, col := range res.Columns {
+		realName[strings.ToLower(col)] = col
+	}
+	cols := make([]string, 0, len(fields))
+	keep := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		col, ok := realName[strings.ToLower(f)]
+		if !ok {
+			res.MissingFields = append(res.MissingFields, f)
+			continue
+		}
+		if keep[col] {
+			continue // campo repetido no pedido
+		}
+		keep[col] = true
+		cols = append(cols, col)
+	}
+	if len(cols) == 0 {
+		return
+	}
+	res.Columns = cols
+	for _, row := range res.Rows {
+		for k := range row {
+			if !keep[k] {
+				delete(row, k)
+			}
+		}
 	}
 }
 
