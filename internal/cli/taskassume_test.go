@@ -80,3 +80,62 @@ func TestTaskAssumeNumeroInvalido(t *testing.T) {
 		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
+
+// --- request cancel (ROADMAP3 §4.6) — SOAP cancelInstance, mesma semântica
+// de result do takeProcessTask ("OK" = sucesso). ---
+
+func TestRequestCancel(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "cancel", "196533", "--comment", "teste encerrado",
+		"--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"<processInstanceId>196533</processInstanceId>",
+		"<userId>uc</userId>", "<cancelText>teste encerrado</cancelText>"} {
+		if !strings.Contains(stub.soapTaskBody, want) {
+			t.Errorf("envelope sem %s:\n%s", want, stub.soapTaskBody)
+		}
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	first, _ := results[0].(map[string]any)
+	// A confirmação relê o status — CANCELED prova o efeito, não o "OK".
+	if first["success"] != true || first["status"] != "CANCELED" {
+		t.Errorf("resultado inesperado: %+v", first)
+	}
+}
+
+// Sem --yes em modo não-interativo, NADA é cancelado (exit 2).
+func TestRequestCancelExigeYes(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "request", "cancel", "196533", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if strings.Contains(stub.soapTaskBody, "cancelInstance") {
+		t.Error("o envelope não poderia ter sido enviado sem confirmação")
+	}
+}
+
+// Lote com um item recusado → exit 6 com results[] por item.
+func TestRequestCancelParcial(t *testing.T) {
+	stub := &requestStub{takeRejects: true} // o stub recusa todos
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "cancel", "196533", "196534",
+		"--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitPartial, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	if len(results) != 2 {
+		t.Fatalf("results deveria ter os 2 itens (sucesso E falha): %+v", results)
+	}
+}

@@ -29,6 +29,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver as tarefas paradas num grupo ou papel (pool) | `task list --group <código>` / `--role <código>` |
 | ver os contadores da central de tarefas (e descobrir os pools) | `task summary` |
 | assumir uma tarefa de pool para poder movimentá-la | `task assume <número>` |
+| descartar solicitações de teste (criar → verificar → descartar) | `request cancel <número>...` |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
@@ -192,6 +193,7 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `request show <número>` | detalhe da solicitação + histórico de movimentação (`--json` traz request e tasks) |
 | `request start <processId> [--fields-file arq.json\|-] [--field k=v]... [--attach arq] [--target-state N] [--assignee login] [--comment s] [--no-send]` | inicia solicitação; --fields-file = objeto JSON plano (use `-` para stdin — o modo natural para agentes; --field sobrepõe); **linha de tabela-filha = sufixo `campo___N`** (3 underscores, N começa em 1) no mesmo JSON plano — é assim que se testa processo com anexo em tabela; com --attach usa SOAP (a REST não sobe anexo) e requer --target-state; throw de evento vira exit 5 com a mensagem. ⚠️ Os eventos do FORMULÁRIO (displayFields/validateForm) NÃO rodam — o card é gravado pela REST e uma solicitação com os obrigatórios vazios é ACEITA sem crítica; não sirva de teste de validação de formulário |
 | `request move <número> [--target-state N] [--fields-file arq.json\|-] [--field k=v]... [--comment s] [--movement N]` | conclui a tarefa corrente (descoberta sozinha) e envia adiante; tarefa de outro usuário = 404. ⚠️ O 404 é AMBÍGUO no servidor e a CLI desambigua (exit 4 nos 3 casos): `POOL_TASK_NOT_ASSIGNED` = tarefa em pool que ninguém assumiu (a mensagem traz o pool) · `NO_HUMAN_TASK` = etapa automática em curso · `NOT_FOUND` = não existe mesmo. Várias tarefas no MESMO movimento (pool + usuário) NÃO são ambiguidade — segue direto. Só movimentos DIFERENTES (paralelas) pedem `--movement`: exit 2 com `data.options[]` = `{movement, stateName, assignee, status, slaStatus}` para escolher sem ler texto. ⚠️ Eventos do FORMULÁRIO não rodam (igual ao start) |
+| `request cancel <número>... [--comment s] [--yes]` | cancela solicitações (PERMANENTE, status CANCELED; exige `--yes` em não-interativo). ⚠️ Só o SOLICITANTE ou o gestor do processo cancela — admin não basta (regra da plataforma; recusa = exit 5 com a mensagem). A CLI confirma relendo o status (`data.results[].status == "CANCELED"`); lote com falha parcial = exit 6 |
 | `request assignees <número> [--target-state N]` | possíveis responsáveis da próxima atividade |
 | `request attachments <número> [--download] [--seq N] [--dir pasta]` | lista/baixa os anexos (o "(formulário)" da lista não é baixado; --seq inexistente = exit 4) |
 

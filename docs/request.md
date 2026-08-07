@@ -261,6 +261,36 @@ vezes.
 fluigcli request move 196542 --movement 15 --timeout 5m
 ```
 
+## `fluigcli request cancel <número>... [flags]`
+
+Este comando cancela solicitações. Ele fecha o ciclo de teste "criar →
+verificar → descartar" sem sair da CLI.
+
+```sh
+NOVA=$(echo '{}' | fluigcli request start meu_processo --fields-file - --json | jq .data.result.requestId)
+fluigcli request show $NOVA --json          # verificar
+fluigcli request cancel $NOVA --comment "solicitação de teste" --yes
+```
+
+O cancelamento é **permanente**: o status vira `CANCELED` e não há reabertura.
+Por isso o comando pede confirmação. Em modo não-interativo, ele exige `--yes`.
+O `--comment` vai para o histórico da solicitação.
+
+**Quem pode cancelar: o solicitante ou o gestor do processo.** Ser admin não
+basta — a regra é da plataforma. A recusa volta como exit 5, com a mensagem do
+servidor. A CLI confirma o efeito: ela relê a solicitação e valida o status
+`CANCELED` (o resultado sai em `data.results[].status`).
+
+Em lote, cada número tem o próprio resultado em `data.results[]`. Falha parcial
+vira exit **6**.
+
+Recusas comuns (exit 5, com a mensagem do servidor):
+
+- você não é o solicitante nem o gestor do processo;
+- a solicitação já está cancelada ou finalizada ("A solicitação é invalida ou
+  está inativa");
+- a solicitação não existe.
+
 ## `fluigcli request assignees <número> [--target-state N]`
 
 Este comando lista quem pode assumir a próxima atividade. O diagrama pode ter

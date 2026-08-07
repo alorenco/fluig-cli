@@ -59,18 +59,22 @@ materializa; o envelope marca `emptyRowSuspect:true`, trate como zero linhas),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
-`request` (list|show|start|move|assignees|attachments — solicitações de workflow.
+`request` (list|show|start|move|cancel|assignees|attachments — solicitações de workflow.
+`cancel` descarta solicitação de teste (PERMANENTE; exige `--yes`; só o SOLICITANTE
+ou gestor do processo — admin não basta).
 ⚠️ `start`/`move` NÃO executam os eventos do FORMULÁRIO (displayFields/
 validateForm): card com obrigatórios vazios é ACEITO — não sirva de teste de
 validação (falso positivo garantido; os eventos de PROCESSO rodam). Linha de
 tabela-filha no `--fields-file`: sufixo `campo___N` no MESMO JSON plano.
 404 no `move` é desambiguado por `error.code`: `POOL_TASK_NOT_ASSIGNED` =
-tarefa em pool sem dono (a solicitação EXISTE; não é permissão — assuma no
-portal) · `NO_HUMAN_TASK` = atividade automática em curso · `NOT_FOUND` = não
-existe mesmo),
-`task` (list|summary — fila de tarefas; sem flags = as suas em aberto; `--group TI`/
+tarefa em pool sem dono (a solicitação EXISTE; não é permissão — use
+`task assume <número>`) · `NO_HUMAN_TASK` = atividade automática em curso ·
+`NOT_FOUND` = não existe mesmo),
+`task` (list|summary|assume — fila de tarefas; sem flags = as suas em aberto; `--group TI`/
 `--role controladoria` = paradas no pool do grupo/papel; summary = contadores da
-central + pools visíveis),
+central + pools visíveis; `assume <número>` assume PARA VOCÊ a tarefa de pool —
+destrava o `request move` após POOL_TASK_NOT_ASSIGNED; requer pertencer ao
+papel/grupo; ⚠️ SEM devolução ao pool — não existe API; assuma com critério),
 `log` (files|tail|download — server.log do servidor via helper; `--grep` repetível
 = OU, filtrado no servidor (2+ padrões exigem helper ≥ 0.8.0); `tail --since 30m`
 ou `--since 18:19 --until 18:30` recorta uma janela de tempo na hora do SERVIDOR

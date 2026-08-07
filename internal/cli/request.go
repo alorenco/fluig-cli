@@ -31,6 +31,7 @@ func newRequestCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newRequestMoveCmd(app))
 	cmd.AddCommand(newRequestAssigneesCmd(app))
 	cmd.AddCommand(newRequestAttachmentsCmd(app))
+	cmd.AddCommand(newRequestCancelCmd(app))
 	return cmd
 }
 
@@ -842,6 +843,87 @@ func newRequestShowCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- request cancel ---
+
+func newRequestCancelCmd(app *App) *cobra.Command {
+	var (
+		comment       string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "cancel <número>...",
+		Short: "Cancela solicitações (SOAP, com confirmação)",
+		Long: "Cancela solicitações de workflow — o descarte do ciclo de teste\n" +
+			"\"criar → verificar → descartar\" sem sair da CLI.\n\n" +
+			"O cancelamento é PERMANENTE (status CANCELED; não há reabertura). Por\n" +
+			"isso o comando pede confirmação; em modo não-interativo, exige --yes.\n" +
+			"O --comment vai para o histórico da solicitação.\n\n" +
+			"Quem pode cancelar segue a regra da plataforma (solicitante, gestor do\n" +
+			"processo ou admin) — recusa vira exit 5 com a mensagem do servidor.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			ids := make([]int, 0, len(args))
+			for _, raw := range args {
+				id, err := strconv.Atoi(raw)
+				if err != nil || id <= 0 {
+					return output.Usagef("número de solicitação inválido %q", raw)
+				}
+				ids = append(ids, id)
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "cancelar solicitações")
+			if err != nil {
+				return err
+			}
+			plural := ""
+			if len(ids) > 1 {
+				plural = "ões"
+			}
+			if err := app.confirm(fmt.Sprintf("Cancelar %d solicitaç%s de forma PERMANENTE?",
+				len(ids), map[bool]string{true: plural, false: "ão"}[len(ids) > 1])); err != nil {
+				return err
+			}
+
+			results := make([]map[string]any, 0, len(ids))
+			failures := 0
+			var single error
+			text := comment
+			if text == "" {
+				text = "Cancelada via fluigcli"
+			}
+			for _, id := range ids {
+				item := map[string]any{"id": id, "action": "canceled", "success": true}
+				err := client.CancelRequest(ctx, id, text)
+				// Confirmação: o "OK" do SOAP não prova o estado — relê o status.
+				if err == nil {
+					if r, gerr := client.GetRequest(ctx, id); gerr == nil {
+						item["status"] = r.Status
+						if r.Status != "CANCELED" {
+							err = fmt.Errorf("o servidor aceitou o cancelamento, mas o status é %q", r.Status)
+						}
+					}
+				}
+				if err != nil {
+					item["action"], item["success"] = "failed", false
+					item["error"] = output.AsError(app.mapErr(err)).Message
+					failures++
+					single = app.mapErr(err)
+					p.Warnf("solicitação %d: %s", id, item["error"])
+				} else {
+					p.Successf("solicitação %d cancelada.", id)
+				}
+				results = append(results, item)
+			}
+			data := map[string]any{"results": results, "comment": text}
+			return finishBatch(p, single, data, failures, len(ids))
+		},
+	}
+	cmd.Flags().StringVar(&comment, "comment", "", "motivo do cancelamento (vai para o histórico)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

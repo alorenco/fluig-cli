@@ -191,6 +191,26 @@ func BuildTakeProcessTask(companyID int, username, password, userID string, inst
 	})
 }
 
+// wfCancelReq cancela uma solicitação (cancelInstance). userId = userCode do
+// usuário autenticado; cancelText = motivo (vai para o histórico).
+type wfCancelReq struct {
+	XMLName           xml.Name `xml:"ws:cancelInstance"`
+	Username          string   `xml:"username"`
+	Password          string   `xml:"password"`
+	CompanyID         int      `xml:"companyId"`
+	ProcessInstanceID int      `xml:"processInstanceId"`
+	UserID            string   `xml:"userId"`
+	CancelText        string   `xml:"cancelText"`
+}
+
+// BuildCancelInstance monta o envelope do cancelInstance.
+func BuildCancelInstance(companyID int, username, password, userID string, instanceID int, cancelText string) ([]byte, error) {
+	return marshalEnvelope(NSWorkflow, wfCancelReq{
+		Username: username, Password: password, CompanyID: companyID,
+		ProcessInstanceID: instanceID, UserID: userID, CancelText: cancelText,
+	})
+}
+
 // ParseStringResult devolve o `result` de uma resposta padrão {op}Response —
 // o shape comum de takeProcessTask, releaseProcess e cancelInstance. O path
 // depende da operação, então a decodificação é genérica.

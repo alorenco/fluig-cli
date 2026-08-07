@@ -493,6 +493,29 @@ func (c *Client) postMove(ctx context.Context, op, endpoint string, payload map[
 	}
 }
 
+// CancelRequest cancela uma solicitação (SOAP
+// ECMWorkflowEngineService.cancelInstance — fora dos swaggers; sessão como
+// credencial, senha em branco). cancelText é o motivo, gravado no histórico.
+// Sucesso = result "OK" (mesma semântica do takeProcessTask).
+func (c *Client) CancelRequest(ctx context.Context, id int, cancelText string) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	userCode, err := c.ResolveUserCode(ctx)
+	if err != nil {
+		return err
+	}
+	reqBody, err := soap.BuildCancelInstance(c.opts.CompanyID, c.opts.Username, "", userCode, id, cancelText)
+	if err != nil {
+		return err
+	}
+	respBody, err := c.postSOAP(ctx, soapWorkflowPath, "cancelInstance", reqBody)
+	if err != nil {
+		return err
+	}
+	return stringResultToErr(respBody, "cancelInstance", id)
+}
+
 // ProcessAttachment é um anexo listado de uma solicitação. O próprio
 // FORMULÁRIO aparece na lista como um "anexo" com MainForm=true e sem
 // documentName (validado na homologação em 2026-07-14) — os arquivos reais

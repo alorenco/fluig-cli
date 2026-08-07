@@ -156,6 +156,9 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, tarefasParalelo)
 		case "/process-management/api/v2/requests/196529":
 			io.WriteString(w, semTarefa)
+		case "/process-management/api/v2/requests/196533":
+			// pós-cancelamento: a releitura confirma CANCELED.
+			io.WriteString(w, `{"processInstanceId":196533,"processId":"contratos_taxa_limpeza","status":"CANCELED","currentMovements":[]}`)
 		case "/process-management/api/v2/requests/196530/tasks":
 			io.WriteString(w, tarefaPool)
 		case "/process-management/api/v2/requests/196531/tasks":
@@ -184,7 +187,7 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/webdesk/ECMWorkflowEngineService", func(w http.ResponseWriter, r *http.Request) {
 		// takeProcessTask: result "OK" = sucesso; texto = recusa de negócio
 		// (shape validado ao vivo na homologação, 2026-08-07).
-		if op := r.Header.Get("SOAPAction"); op == "takeProcessTask" {
+		if op := r.Header.Get("SOAPAction"); op == "takeProcessTask" || op == "cancelInstance" {
 			b, _ := io.ReadAll(r.Body)
 			s.soapTaskBody = string(b)
 			result := "OK"
