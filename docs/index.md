@@ -56,7 +56,7 @@ em pt-BR.
 | [event](./event) | eventos globais |
 | [mechanism](./mechanism) | mecanismos de atribuição |
 | [form](./form) | formulários e registros (CRUD de cards) |
-| [workflow](./workflow) | scripts de eventos de processo, publish nativo |
+| [workflow](./workflow) | scripts de eventos de processo, publish nativo, conversão de versão das solicitações |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |

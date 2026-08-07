@@ -319,6 +319,57 @@ Regras e limitações:
 - O diagrama e as demais configurações da versão nova vêm do estado atual do
   servidor. O publish exporta a última versão, troca só os scripts e reimporta.
 
+## `fluigcli workflow convert <processId> [flags]`
+
+Este comando converte solicitações abertas de uma versão do processo para
+outra. É o mesmo recurso do wizard "Converter processos" do portal. O comando
+exige papel de administrador no servidor.
+
+O comando tem três níveis. Cada nível pede mais flags:
+
+```sh
+# 1. descubra as versões com tarefas abertas
+fluigcli workflow convert Compras
+
+# 2. veja o plano: o de-para de etapas e as solicitações abertas (nada muda)
+fluigcli workflow convert Compras --from 20 --to 29
+
+# 3. converta: todas as solicitações, ou só as escolhidas
+fluigcli workflow convert Compras --from 20 --to 29 --all
+fluigcli workflow convert Compras --from 20 --to 29 --instance 151158 --instance 151338
+```
+
+| Flag | Uso |
+|---|---|
+| `--from N` | versão de origem das solicitações |
+| `--to N` | versão de destino |
+| `--all` | converte todas as solicitações abertas da origem |
+| `--instance N` | converte uma solicitação (repetível) |
+| `--map A=B` | liga a etapa A da origem à etapa B do destino (ex.: `--map 66=29,72=13`) |
+
+Como o de-para funciona:
+
+- O padrão é identidade: cada etapa da origem vai para a etapa de mesmo número
+  no destino.
+- Uma etapa da origem pode não existir no destino. Neste caso, informe o
+  destino com `--map`.
+- O `--map` só é obrigatório para etapa **com tarefa aberta**. Etapa órfã sem
+  ninguém parado nela não bloqueia a conversão.
+- O comando valida o de-para antes da primeira conversão. Etapa aberta sem
+  destino interrompe o comando com a lista do que falta mapear.
+
+Regras e comportamento:
+
+- A conversão pede confirmação. Pule com `--yes` em automação.
+- O comando confirma cada conversão pela versão da solicitação no servidor. O
+  resultado sai um por solicitação (`results[]` no `--json`). Falha parcial
+  termina com exit 6.
+- A conversão consolida tarefas duplicadas: uma solicitação com duas tarefas
+  abertas na mesma etapa fica com uma tarefa após a conversão (comportamento
+  do servidor, observado na homologação).
+- A plataforma não expõe esse recurso nas APIs documentadas. O comando usa a
+  mesma API interna do wizard do portal.
+
 ## `fluigcli server install-helper [<name>]`
 
 Este comando instala o `fluigcliHelper` no servidor. O WAR vai embutido no

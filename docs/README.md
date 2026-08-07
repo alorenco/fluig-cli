@@ -10,7 +10,7 @@ uso por agentes de IA.
 - [event](event.md) — eventos globais
 - [mechanism](mechanism.md) — mecanismos de atribuição
 - [form](form.md) — formulários
-- [workflow](workflow.md) — scripts de eventos de processo
+- [workflow](workflow.md) — scripts de eventos de processo, publish nativo e **conversão de versão** das solicitações abertas
 - [widget](widget.md) — widgets
 - [request](request.md) — solicitações de workflow. Consulta, inicia, movimenta, **cancela** e trata anexos
 - [task](task.md) — tarefas de workflow. A sua fila, a dos outros, os pools — e **assumir tarefa de pool**

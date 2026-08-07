@@ -158,6 +158,20 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 > com corpo vazio** (não o 500 que o `loadDataset` dá) — o `FindLayout` mantém o
 > fallback pela listagem só como rede de segurança.
 
+## processconvert — workflow convert (ROADMAP2 §3.15, 2026-08-07)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_processconvert_versions.json` | `GET /ecm/api/rest/ecm/processconvert/getAllProcessVersions?processId=Compras` | ✅ gravada da homologação em 2026-08-07; reduzida de 27 para 3 versões (1, 20 e 29), userCode e nomes sanitizados |
+| `rest_processconvert_state_counts.json` | `GET .../processconvert/getOpenProcessStateVersions?processId=Compras&version=20&states=[…]` | ✅ gravada da homologação em 2026-08-07 (5 tarefas na etapa 13 + 36 na 17 = 41, bate com o total da versão) |
+| `rest_processconvert_instances.json` | `GET .../processconvert/getInstancesToConvert?processId=Compras&version=20&rows=15&page=1` | ✅ gravada da homologação em 2026-08-07, nomes sanitizados; envelope jqGrid (`totalrecords` é string e conta SOLICITAÇÕES, não tarefas) |
+| `rest_processconvert_convert_ok.json` / `_error.json` | `POST .../processconvert/convertProcess` | ✅ gravadas da homologação em 2026-08-07 (conversão real da instância 151158, v20→v29 e reversão) |
+
+> Descobertas: o convertProcess responde **sempre HTTP 200** — sucesso e erro
+> só se distinguem pelo texto localizado de `conversionLog`; por isso o comando
+> confirma pelo `processVersion` da solicitação (REST v2). Sessão sem papel de
+> admin não vira 401: o portal responde 200 com HTML de redirect.
+
 ---
 
 > `TestIntegrationFormListAndDownload` (`-tags=integration`) exercita list +

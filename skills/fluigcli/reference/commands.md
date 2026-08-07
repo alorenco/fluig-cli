@@ -25,6 +25,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
 | checar (preflight) se o login do banco pode escrever nas tabelas | `db grants` |
 | consultar / iniciar / movimentar solicitações | `request` |
+| migrar solicitações abertas para outra versão do processo | `workflow convert` |
 | ver a fila de tarefas (a minha ou de outros) | `task list` |
 | ver as tarefas paradas num grupo ou papel (pool) | `task list --group <código>` / `--role <código>` |
 | ver os contadores da central de tarefas (e descobrir os pools) | `task summary` |
@@ -185,6 +186,9 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `workflow export <arquivo\|processId> [--process-id <id>]` | atualiza scripts na versão corrente, sem criar versão (via componente auxiliar). **Audita antes**: erro de audit em QUALQUER script aborta tudo (exit 1) — a aplicação é atômica; `--no-audit` pula |
 | `workflow diff <arquivo\|processId> [--process-id <id>]` | compara o script local com o publicado (read-only; aceita `--events`/`--all-events`) |
 | `workflow publish <processId> [--no-release] [--process-id <id>]` | deploy nativo: cria versão nova com os scripts locais e a libera. **Audita antes**: erro de audit em QUALQUER script aborta e nada é publicado (exit 1); `--no-audit` pula |
+| `workflow convert <processId>` | lista as versões do processo com as tarefas abertas de cada uma (requer admin) |
+| `workflow convert <processId> --from <v> --to <v>` | plano da conversão: de-para de etapas (identidade + `--map`) e solicitações abertas — read-only |
+| `workflow convert <processId> --from <v> --to <v> --all\|--instance <id> [--map A=B]` | converte solicitações abertas para outra versão (confirma; `--yes` pula). `--map` só é obrigatório para etapa ABERTA sem correspondente no destino; pré-checagem trava antes do 1º POST; sucesso verificado pela versão da solicitação; `results[]` + exit 6 parcial |
 
 `--process-id` desacopla o arquivo local (que dá o evento/script) do processId no servidor — use quando o processId publicado difere do prefixo do arquivo (ex.: arquivo `SolicitacaoAdiantamento.*.js`, processId `"Adiantamento ao Fornecedor"`). Um `NOT_FOUND` de processo sugere ids próximos e lembra da flag.
 

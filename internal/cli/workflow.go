@@ -61,6 +61,7 @@ func newWorkflowCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newWorkflowExportCmd(app))
 	cmd.AddCommand(newWorkflowDiffCmd(app))
 	cmd.AddCommand(newWorkflowPublishCmd(app))
+	cmd.AddCommand(newWorkflowConvertCmd(app))
 	return cmd
 }
 

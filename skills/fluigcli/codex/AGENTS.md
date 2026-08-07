@@ -55,7 +55,7 @@ materializa; o envelope marca `emptyRowSuspect:true`, trate como zero linhas),
 `event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros;
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai),
-`workflow` (new-script|list|version|versions|import|export|publish|diff — `--process-id` desacopla arquivo do processId do servidor),
+`workflow` (new-script|list|version|versions|import|export|publish|diff|convert — `--process-id` desacopla arquivo do processId do servidor; `convert` migra solicitações abertas entre versões, requer admin),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),

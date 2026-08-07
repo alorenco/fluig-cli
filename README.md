@@ -127,7 +127,7 @@ fluigcli diff --json | jq '.data.counts'
 | `event` | `new` `list` `import` `export` `delete` | [docs/event.md](docs/event.md) |
 | `mechanism` | `new` `list` `import` `export` `delete` | [docs/mechanism.md](docs/mechanism.md) |
 | `form` | `new` `list` `import` `export` `link` `records` | [docs/form.md](docs/form.md) |
-| `workflow` | `new-script` `list` `version` `versions` `import` `export` `publish` `diff` | [docs/workflow.md](docs/workflow.md) |
+| `workflow` | `new-script` `list` `version` `versions` `import` `export` `publish` `diff` `convert` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `deploy` | `deploy --plan <arquivo.json>`. Executa um plano de release na ordem (com `--dry-run` e `--from`) | [docs/deploy.md](docs/deploy.md) |
