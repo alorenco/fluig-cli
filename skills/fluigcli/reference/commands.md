@@ -32,6 +32,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | descartar solicitações de teste (criar → verificar → descartar) | `request cancel <número>...` |
 | reexecutar uma service task após corrigir o script | `task assume` + `request move --target-state <seqDaServiceTask>` (fluxo de erro do processo; ver docs/workflow.md) |
 | conferir a árvore que um processo criou no GED | `document list <id> --recursive` · `document find --name "x*" --under <id>` |
+| descobrir em que pasta um documento está / movê-lo | `document show <id>` · `document move <id> --folder <destino>` |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
@@ -329,7 +330,11 @@ Read-only (não dispara a trava de produção). No `--json`, cada artefato vem c
 Use antes de um `export` para saber o que mudaria. Em formulários, um arquivo
 `only-server` seria **removido** por um `form export` da pasta; anexos binários
 são comparados byte a byte (sem diff textual). Scripts de processo usam o
-export nativo do processo — não requerem o componente auxiliar.
+export nativo do processo — não requerem o componente auxiliar. ⚠️ Encoding:
+o banco do Fluig grava scripts em CP-1252 e converte para `?` o que não cabe
+(`→`, emoji); o diff compara o lado LOCAL com essa MESMA perda, então um `→`
+local não fica `modified` para sempre — quem avisa da perda é a FL007 do
+`audit`, no export.
 
 ## audit — Style Guide 2.0 e APIs de script
 
@@ -346,12 +351,24 @@ SG007 alert/confirm/prompt nativos (aviso — use FLUIGC) · FL001 método
 `hAPI.*` inexistente · FL002 variável `WK*` desconhecida em `getValue()`
 (devolve null em silêncio!) · FL003 método `form.*` inexistente (eventos de
 formulário) · FL004 membro inexistente em FLUIGC/DatasetFactory/docAPI/
-WCMAPI/etc. As FL* são avisos com o nome mais próximo em `suggestion` —
+WCMAPI/etc. As FL001–FL004 são avisos com o nome mais próximo em `suggestion` —
 typo se corrige no código; API real que falte na referência
-([`fluig.d.ts`](fluig.d.ts)) é caso de completar o arquivo. RHINO001
+([`fluig.d.ts`](fluig.d.ts)) é caso de completar o arquivo. FL005 (**erro**, só
+script de processo): método do hAPI chamado como função GLOBAL
+(`getCardValue("x")` sem o `hAPI.`) — em runtime a service task falha e a
+solicitação desvia para a tarefa de erro; helper seu com o mesmo nome declarado
+em qualquer script do MESMO processo não acusa. FL006 (aviso, só client-side):
+`getDataset(...).values` encadeado direto — chamada que falha (sessão expirada)
+devolve undefined e o form quebra com TypeError; guarde e verifique
+(`if (ds && ds.values)`). FL007 (aviso, só server-side): caractere fora do
+**CP-1252** (`→`, `✓`, emoji) — o banco do Fluig o grava como `?`
+permanentemente; acentos e tipográficos (`—`, `…`, aspas curvas) sobrevivem e
+não são apontados. RHINO001
 (aviso, só JS server-side): `===`/`!==` entre um `java.lang.String`
-(retorno de `getFieldName`/`getInitialValue`/`getString`/`getColleagueName`…,
-inclusive via variável — `var campo = c.getFieldName()...; campo === 'x'`) e um
+(retorno de `getFieldName`/`getInitialValue`/`getString`/`getColleagueName`…, o
+`getValue("WK…")` GLOBAL com literal, inclusive via variável — `var campo =
+c.getFieldName()...; campo === 'x'` — e até via helper local que compara o
+PARÂMETRO, tipo `isEmpty(v){ return v === ''; }` chamado com fonte java) e um
 literal de texto — no Rhino do Fluig é SEMPRE `false` (o `!==` sempre `true`),
 sem erro; corrija com `String(x.getFieldName()) === 'y'` ou `==` (`String(...)`
 e concatenação com `+` já são reconhecidos como seguros). RHINO002 (**erro**, só
@@ -365,7 +382,15 @@ template literal, `let`/`const`, arrow, `for...of`, destructuring, rest param,
 server-side): `const` declarado no corpo de um laço (`for`/`while`/`do`) — o Rhino
 não reinicializa a cada iteração, **congela o valor da 1ª volta** em silêncio
 (bug de dados invisível); troque por `let`. Não aponta `const` em função aninhada
-no laço nem no cabeçalho de `for (const x of …)`. No `--json`
+no laço nem no cabeçalho de `for (const x of …)`. RHINO004 (aviso, só JS
+server-side): `dataset.values[i]` acessado por NOME de coluna
+(`values[0]["status"]` ou `values[0].status`) — no servidor a linha é
+`Object[]` Java e quebra em runtime; use `getValue(i, "coluna")` (índice
+numérico `values[0][0]` e `.length` funcionam e não são apontados; no
+client-side o padrão por nome funciona). WF001 (**erro**) e WF002 (aviso), só
+com `--process <id>`: cruzamento das seções `activity-N` do formulário com as
+etapas REAIS do processo — seção sem etapa nunca renderiza (WF001); atividade
+humana sem seção é aviso (WF002); `activity-0` = abertura, sempre válido. No `--json`
 reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **rode
 `audit --fix`, corrija o restante pelas sugestões e repita até exit 0**.
 Config em `.fluigcli/audit.json`: `{"ignore":[globs],
@@ -475,6 +500,15 @@ fluigcli form import "Solicitação de Compras" --json --server homolog
 ```sh
 echo '{"descricao":"Teclado novo","quantidade":"1"}' | \
   fluigcli request start compras_solicitacao --fields-file - --json ; echo "exit=$?"
+```
+
+**Testar um processo ponta a ponta (criar → assumir → movimentar → descartar)**
+```sh
+NOVA=$(echo '{"campo":"valor"}' | fluigcli request start meu_processo --fields-file - --json | jq .data.result.requestId)
+fluigcli request show $NOVA --json                        # onde parou?
+fluigcli task assume $NOVA --json                         # tarefa de pool → sua (requer pertencer ao pool)
+fluigcli request move $NOVA --target-state 24 --json      # conclui e envia adiante
+fluigcli request cancel $NOVA --comment "teste" --yes --json   # descarta (só o solicitante/gestor)
 ```
 
 **Atualizar o script de um evento de processo**

@@ -96,9 +96,11 @@ vira `status:"error"` no item e exit 6, o resto segue comparado),
 `event`/`mechanism`/`form`/`widget`/`workflow` (publish)/`db`; para no 1º erro e marca o
 resto `skipped`, retome com `--from N`; `--dry-run` valida tudo sem escrever —
 inclusive se cada evento local EXISTE no processo; audita todos os scripts antes
-de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs inexistentes (FL*;
-FL005 = método do hAPI chamado como global em script de processo, ERRO) e
-footguns do Rhino (RHINO*); com `--process <id>` cruza as seções `activity-N`
+de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
+FL005 = método do hAPI chamado como global em script de processo, ERRO;
+FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
+fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;
+RHINO004 = values[i] por nome de coluna no server-side, aviso); com `--process <id>` cruza as seções `activity-N`
 do formulário com as etapas REAIS do processo (WF001 = seção que nunca
 renderiza, ERRO) — rode-o antes de testar um processo com formulário por
 etapa; exit 1 = reprovado, corrija pelas `suggestion`
