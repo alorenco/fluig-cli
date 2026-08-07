@@ -279,3 +279,55 @@ func (c *Client) DeleteGEDDocument(ctx context.Context, id int) error {
 	}
 	return nil
 }
+
+// GEDTreeEntry é um item da varredura recursiva: o documento + o caminho
+// legível relativo à pasta inicial (ex.: "Contratos/2026/arquivo.pdf").
+type GEDTreeEntry struct {
+	GEDDocument
+	Path  string `json:"path"`
+	Depth int    `json:"depth"` // 1 = conteúdo direto da pasta inicial
+}
+
+// WalkGEDTree varre uma pasta do GED em largura (BFS), descendo até maxDepth
+// níveis (1 = só o conteúdo direto). maxRequests limita o número de listagens
+// (cada pasta visitada = 1 requisição); ao atingir o teto a varredura PARA e
+// devolve truncated=true — quem chama avisa (sem teto silencioso). A ordem do
+// resultado é a da travessia (nível a nível, na ordem do servidor).
+func (c *Client) WalkGEDTree(ctx context.Context, folderID, maxDepth, maxRequests int) ([]GEDTreeEntry, bool, error) {
+	type frame struct {
+		id    int
+		path  string
+		depth int
+	}
+	queue := []frame{{id: folderID, path: "", depth: 1}}
+	var out []GEDTreeEntry
+	requests := 0
+	for len(queue) > 0 {
+		f := queue[0]
+		queue = queue[1:]
+		if requests >= maxRequests {
+			return out, true, nil
+		}
+		requests++
+		docs, err := c.ListGEDDocuments(ctx, f.id)
+		if err != nil {
+			// A raiz inacessível é erro de verdade; uma SUBpasta que falha
+			// (ex.: sem permissão) vira só um buraco na árvore — segue o jogo.
+			if f.depth == 1 {
+				return nil, false, err
+			}
+			continue
+		}
+		for _, d := range docs {
+			p := d.Description
+			if f.path != "" {
+				p = f.path + "/" + d.Description
+			}
+			out = append(out, GEDTreeEntry{GEDDocument: d, Path: p, Depth: f.depth})
+			if d.Type == "folder" && f.depth < maxDepth {
+				queue = append(queue, frame{id: int(d.ID), path: p, depth: f.depth + 1})
+			}
+		}
+	}
+	return out, false, nil
+}

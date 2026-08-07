@@ -58,6 +58,15 @@ func (s *documentStub) server(t *testing.T) *httptest.Server {
 				return
 			}
 			w.Write(readTD("rest_ged_documents.json"))
+		// Árvore sintética para o --recursive/find: 100 → {pasta 101, arq A} e
+		// 101 → {Notificação nº 7.pdf}. Shape mínimo do invdata real.
+		case strings.HasSuffix(r.URL.Path, "/100/documents"):
+			io.WriteString(w, `{"totalpages":1,"currpage":1,"invdata":[
+				{"documentId":101,"documentType":"1","documentDescription":"Contratos","version":1000,"parentDocumentId":100,"publisherName":"João Silva"},
+				{"documentId":102,"documentType":"2","documentDescription":"leia-me.txt","version":1000,"parentDocumentId":100,"publisherName":"João Silva","size":0.001}]}`)
+		case strings.HasSuffix(r.URL.Path, "/101/documents"):
+			io.WriteString(w, `{"totalpages":1,"currpage":1,"invdata":[
+				{"documentId":103,"documentType":"2","documentDescription":"Notificação nº 7.pdf","version":2000,"parentDocumentId":101,"publisherName":"João Silva","size":0.2}]}`)
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/44"):
 			b, _ := io.ReadAll(r.Body)
 			s.mkdirBody = string(b)
@@ -246,5 +255,98 @@ func TestDocumentMkdirDelete(t *testing.T) {
 	code, _ = runMain(t, "document", "delete", "1", "--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitUsage {
 		t.Errorf("sem confirmação: exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+// --- document list --recursive / document find (ROADMAP3 §4.15) ---
+
+func TestDocumentListRecursive(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "list", "100", "--recursive",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	items, _ := data["items"].([]any)
+	if len(items) != 3 {
+		t.Fatalf("esperava 3 itens (pasta + 2 arquivos), veio %d\n%s", len(items), stdout)
+	}
+	// O caminho do arquivo aninhado inclui a pasta pai.
+	achou := false
+	for _, raw := range items {
+		it, _ := raw.(map[string]any)
+		if it["path"] == "Contratos/Notificação nº 7.pdf" {
+			achou = true
+			if it["depth"].(float64) != 2 {
+				t.Errorf("depth do aninhado: %+v", it)
+			}
+		}
+	}
+	if !achou {
+		t.Errorf("caminho aninhado ausente: %s", stdout)
+	}
+	if data["truncated"] != false {
+		t.Errorf("varredura pequena não pode truncar: %+v", data)
+	}
+}
+
+func TestDocumentListRecursiveDepth1(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "list", "100", "--recursive", "--depth", "1",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if items, _ := data["items"].([]any); len(items) != 2 {
+		t.Errorf("--depth 1 = só o conteúdo direto (2 itens): %s", stdout)
+	}
+}
+
+func TestDocumentListRecursiveExigeFolder(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, _ := runMain(t, "document", "list", "--recursive", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+func TestDocumentFind(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "find", "--name", "notificação nº*", "--under", "100",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	items, _ := data["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("o glob (case-insensitive) deveria achar só o PDF: %s", stdout)
+	}
+	it, _ := items[0].(map[string]any)
+	if it["id"].(float64) != 103 || it["path"] != "Contratos/Notificação nº 7.pdf" {
+		t.Errorf("item inesperado: %+v", it)
+	}
+}
+
+func TestDocumentFindSemFlags(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	if code, _ := runMain(t, "document", "find", "--name", "x*", "--json", "--project", proj, "--server", "homolog"); code != output.ExitUsage {
+		t.Errorf("sem --under: exit=%d, quer %d", code, output.ExitUsage)
+	}
+	if code, _ := runMain(t, "document", "find", "--under", "100", "--json", "--project", proj, "--server", "homolog"); code != output.ExitUsage {
+		t.Errorf("sem --name: exit=%d, quer %d", code, output.ExitUsage)
 	}
 }

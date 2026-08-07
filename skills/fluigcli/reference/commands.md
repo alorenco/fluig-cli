@@ -31,6 +31,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | assumir uma tarefa de pool para poder movimentá-la | `task assume <número>` |
 | descartar solicitações de teste (criar → verificar → descartar) | `request cancel <número>...` |
 | reexecutar uma service task após corrigir o script | `task assume` + `request move --target-state <seqDaServiceTask>` (fluxo de erro do processo; ver docs/workflow.md) |
+| conferir a árvore que um processo criou no GED | `document list <id> --recursive` · `document find --name "x*" --under <id>` |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
@@ -281,7 +282,8 @@ as flags, e inclui as vigências expiradas).
 
 | comando | efeito |
 |---|---|
-| `document list [<folderId>]` | sem arg = pastas raiz; com id = conteúdo (pastas/arquivos/artigos) |
+| `document list [<folderId>] [--recursive] [--depth N]` | sem arg = pastas raiz; com id = conteúdo (pastas/arquivos/artigos). `--recursive` desce a árvore (default 10 níveis) mostrando o CAMINHO de cada item — a verificação pós-deploy "foi para a pasta certa?" em 1 chamada; teto de 300 pastas com AVISO quando trunca |
+| `document find --name "glob" --under <folderId> [--depth N]` | procura por NOME na árvore (glob `*`/`?`, case-insensitive); resultado com caminho completo |
 | `document download <id>... [--dir pasta]` | baixa pelo id (nome vem dos metadados; byte a byte) |
 | `document upload <file>... --folder <id>` | publica na pasta (upload + publish em uma etapa) |
 | `document mkdir <parentId> <nome>` | cria pasta |

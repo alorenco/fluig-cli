@@ -83,7 +83,9 @@ e exige helper ≥ 0.5.0; o `--json` traz `records[]` já decomposto em
 `tail --follow --ndjson --until-match "txt" --for 2m` é o MONITOR de agente —
 uma entrada JSON por linha, começa agora, exit 0 se apareceu e **exit 4** se
 o tempo acabou antes),
-`document` (list|download|upload|mkdir|delete — GED),
+`document` (list|find|download|upload|mkdir|delete — GED; `list <id> --recursive`
+desce a árvore com o caminho de cada item; `find --name "glob" --under <id>` acha
+por nome, case-insensitive),
 `user` (list|show|create|update|activate|deactivate — requer admin; senha do
 novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
 + users|add-user|remove-user; requerem admin), `replacement` (list|show|create|

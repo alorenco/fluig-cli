@@ -53,3 +53,37 @@ exclusão definitiva. Ele pede confirmação. Informe `--yes` para pular.
 ```sh
 fluigcli document delete 1111280 --yes
 ```
+
+## `fluigcli document list <folderId> --recursive [flags]`
+
+Este modo desce a árvore inteira a partir da pasta. Ele mostra o **caminho** de
+cada item. Use-o na verificação pós-deploy: "o processo criou o documento na
+pasta certa?" vira uma chamada.
+
+```sh
+fluigcli document list 605650 --recursive --depth 3
+```
+
+| Flag | Uso |
+|---|---|
+| `--depth N` | profundidade máxima (default 10; `1` = só o conteúdo direto) |
+
+A varredura faz uma requisição por pasta visitada, com teto de **300 pastas**.
+Ao atingir o teto, a CLI **avisa** e marca `"truncated": true` no envelope — o
+resultado está incompleto. Reduza com `--depth` ou parta de uma pasta mais
+específica. Subpasta sem permissão vira um buraco na árvore, sem erro.
+
+## `fluigcli document find --name <padrão> --under <folderId> [flags]`
+
+Este comando procura itens por **nome** na árvore de uma pasta. O padrão é um
+glob (`*` e `?`), sem diferenciar maiúsculas. O resultado traz o caminho
+completo de cada item.
+
+```sh
+fluigcli document find --name "Notificação nº*" --under 605650
+fluigcli document find --name "*.pdf" --under 25255 --depth 2
+```
+
+O `--under` é obrigatório: ele delimita a busca (descubra as raízes com
+`document list` sem argumento). Os limites do `--recursive` valem aqui também
+(`--depth`, teto de 300 pastas com aviso).

@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
 )
@@ -19,6 +22,7 @@ func newDocumentCmd(app *App) *cobra.Command {
 		Short: "GED: navegar, baixar e publicar documentos",
 	}
 	cmd.AddCommand(newDocumentListCmd(app))
+	cmd.AddCommand(newDocumentFindCmd(app))
 	cmd.AddCommand(newDocumentDownloadCmd(app))
 	cmd.AddCommand(newDocumentUploadCmd(app))
 	cmd.AddCommand(newDocumentMkdirCmd(app))
@@ -43,16 +47,26 @@ func gedTypeLabel(t string) string {
 // --- document list ---
 
 func newDocumentListCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var (
+		recursive     bool
+		depth         int
+		passwordStdin bool
+	)
 	cmd := &cobra.Command{
 		Use:   "list [<folderId>]",
 		Short: "Lista as pastas raiz do GED ou o conteúdo de uma pasta",
 		Long: "Sem argumento, lista as pastas raiz do GED. Com um folderId, lista o\n" +
 			"conteúdo da pasta: subpastas, arquivos e artigos, com id, versão,\n" +
-			"tamanho e autor. Navegue descendo pelos ids.",
+			"tamanho e autor. Navegue descendo pelos ids.\n\n" +
+			"--recursive desce a árvore inteira a partir do folderId (limite:\n" +
+			"--depth níveis) e mostra o CAMINHO de cada item — a verificação\n" +
+			"pós-deploy \"o documento foi para a pasta certa?\" em uma chamada.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
+			if recursive && len(args) == 0 {
+				return output.Usagef("--recursive precisa de um folderId de partida (as raízes vêm de: fluigcli document list)")
+			}
 			ctx := context.Background()
 			_, client, err := app.connect(ctx, passwordStdin)
 			if err != nil {
@@ -86,6 +100,9 @@ func newDocumentListCmd(app *App) *cobra.Command {
 			folderID, err := strconv.Atoi(args[0])
 			if err != nil || folderID <= 0 {
 				return output.Usagef("folderId inválido %q", args[0])
+			}
+			if recursive {
+				return runDocumentTree(app, p, ctx, client, folderID, depth, "")
 			}
 			docs, err := client.ListGEDDocuments(ctx, folderID)
 			if err != nil {
@@ -122,6 +139,8 @@ func newDocumentListCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&recursive, "recursive", false, "desce a árvore a partir do folderId, mostrando o caminho de cada item")
+	cmd.Flags().IntVar(&depth, "depth", 10, "com --recursive: profundidade máxima (1 = só o conteúdo direto)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
@@ -329,6 +348,103 @@ func newDocumentDeleteCmd(app *App) *cobra.Command {
 			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(args))
 		},
 	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- document find + a varredura compartilhada com o list --recursive ---
+
+// docWalkMaxRequests é o teto de listagens por varredura (cada pasta visitada
+// = 1 requisição). Ao atingir, a CLI AVISA — teto silencioso esconde resultado.
+const docWalkMaxRequests = 300
+
+// runDocumentTree varre a árvore e imprime; com globPattern, filtra pelo NOME
+// (case-insensitive) — é o coração do `document find`.
+func runDocumentTree(app *App, p *output.Printer, ctx context.Context, client *fluig.Client, folderID, depth int, globPattern string) error {
+	entries, truncated, err := client.WalkGEDTree(ctx, folderID, depth, docWalkMaxRequests)
+	if err != nil {
+		return mapFluigError(err)
+	}
+	if globPattern != "" {
+		kept := entries[:0]
+		lower := strings.ToLower(globPattern)
+		for _, e := range entries {
+			if ok, _ := path.Match(lower, strings.ToLower(e.Description)); ok {
+				kept = append(kept, e)
+			}
+		}
+		entries = kept
+	}
+	if truncated {
+		p.Warnf("varredura interrompida no teto de %d pastas — o resultado está INCOMPLETO; use --depth menor ou uma pasta de partida mais específica", docWalkMaxRequests)
+	}
+	if len(entries) == 0 {
+		if globPattern != "" {
+			p.Infof("Nenhum item com nome %q na árvore da pasta %d.", globPattern, folderID)
+		} else {
+			p.Infof("A pasta %d está vazia (ou nada é visível para o seu usuário).", folderID)
+		}
+	} else {
+		rows := make([][]string, 0, len(entries))
+		for _, e := range entries {
+			size := ""
+			if e.Type == "file" {
+				size = fmt.Sprintf("%.1f KB", e.SizeMB*1024)
+			}
+			rows = append(rows, []string{
+				strconv.FormatInt(e.ID, 10), gedTypeLabel(e.Type), e.Path,
+				strconv.Itoa(e.Version), size, e.Publisher,
+			})
+		}
+		p.Table(output.Table{
+			Headers: []string{"ID", "Tipo", "Caminho", "Versão", "Tamanho", "Autor"},
+			Rows:    rows,
+			Style: output.BoldHeaderStyle(func(row, col int, padded string) string {
+				if col == 1 && entries[row].Type == "folder" {
+					return output.Green(padded)
+				}
+				return padded
+			}),
+		})
+	}
+	p.Done(map[string]any{"items": entries, "truncated": truncated})
+	return nil
+}
+
+func newDocumentFindCmd(app *App) *cobra.Command {
+	var (
+		name          string
+		under         int
+		depth         int
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "find --name <padrão> --under <folderId>",
+		Short: "Procura documentos por nome na árvore de uma pasta do GED",
+		Long: "Varre a árvore a partir de --under e devolve os itens cujo NOME casa\n" +
+			"com o padrão glob (case-insensitive; * e ? valem). O resultado traz o\n" +
+			"caminho completo de cada item.\n\n" +
+			"Exemplo: fluigcli document find --name \"Notificação nº*\" --under 12345",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if strings.TrimSpace(name) == "" {
+				return output.Usagef("informe o padrão com --name (glob; ex.: --name \"Notificação nº*\")")
+			}
+			if under <= 0 {
+				return output.Usagef("informe a pasta de partida com --under <folderId> (as raízes vêm de: fluigcli document list)")
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			return runDocumentTree(app, p, ctx, client, under, depth, name)
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "padrão glob do nome (case-insensitive; * e ?)")
+	cmd.Flags().IntVar(&under, "under", 0, "pasta de partida da busca (obrigatório)")
+	cmd.Flags().IntVar(&depth, "depth", 10, "profundidade máxima (1 = só o conteúdo direto)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }
