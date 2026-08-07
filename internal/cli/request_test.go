@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -89,6 +90,13 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			time.Sleep(s.writeDelay)
 		}
 		json.NewDecoder(r.Body).Decode(&s.startBody)
+		// Recusa real de --assignee em atividade de POOL (capturada ao vivo em
+		// 2026-08-07): pessoa em destino que espera pool.
+		if ta, _ := s.startBody["targetAssignee"].(string); ta == "pessoa_em_pool" {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"code":"WorkflowException","message":"Usuário selecionado não encontrado."}`)
+			return
+		}
 		if s.needsAssignee {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			io.WriteString(w, `{"processInstanceId":0,"toShowPossibleAssignees":true,"possibleAssignees":[`+
@@ -100,6 +108,17 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/process-management/api/v2/requests/", func(w http.ResponseWriter, r *http.Request) {
 		if s.writeDelay > 0 && strings.HasSuffix(r.URL.Path, "/move") {
 			time.Sleep(s.writeDelay)
+		}
+		if strings.HasSuffix(r.URL.Path, "/move") {
+			var mb map[string]any
+			b, _ := io.ReadAll(r.Body)
+			json.Unmarshal(b, &mb)
+			r.Body = io.NopCloser(bytes.NewReader(b))
+			if ta, _ := mb["targetAssignee"].(string); ta == "pessoa_em_pool" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, `{"code":"WorkflowException","message":"Usuário selecionado não encontrado."}`)
+				return
+			}
 		}
 		if strings.HasSuffix(r.URL.Path, "/move") {
 			// O servidor responde 404 no /move tanto para solicitação
@@ -171,6 +190,10 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			w.Write([]byte("PNG-BYTES-DE-TESTE"))
 		case "/process-management/api/v2/requests/196526/possible-assignees":
 			s.assigneesQuery = r.URL.Query()
+			if r.URL.Query().Get("targetState") == "21" {
+				io.WriteString(w, `{"items":[{"code":"Pool:Role:sucesso_cliente","name":"Sucesso do Cliente","login":""}],"hasNext":false}`)
+				return
+			}
 			io.WriteString(w, `{"items":[{"code":"c1","name":"Ana Andrade","login":"user1"},`+
 				`{"code":"c2","name":"Bruno Barros","login":"user2"}],"hasNext":false}`)
 		default:

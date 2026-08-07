@@ -364,7 +364,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 					if isTimeoutErr(serr) {
 						return reportStartTimeout(app, p, args[0], server.Username, serr)
 					}
-					return app.mapErr(serr)
+					return app.mapErr(enrichPoolAssigneeErr(ctx, client, serr, 0, targetState, assignee))
 				}
 				detail := fmt.Sprintf("%d anexo(s)", len(atts))
 				if noSend {
@@ -380,7 +380,7 @@ func newRequestStartCmd(app *App) *cobra.Command {
 				if isTimeoutErr(err) {
 					return reportStartTimeout(app, p, args[0], server.Username, err)
 				}
-				return app.mapErr(err)
+				return app.mapErr(enrichPoolAssigneeErr(ctx, client, err, 0, targetState, assignee))
 			}
 			return reportMoveResult(p, res, fmt.Sprintf("solicitação %d criada (%s → etapa %q)",
 				res.RequestID, res.ProcessID, res.NextStateName))
@@ -453,7 +453,7 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 				if isTimeoutErr(err) {
 					return reportMoveTimeout(ctx, app, p, client, id, seq, err)
 				}
-				return app.mapErr(err)
+				return app.mapErr(enrichPoolAssigneeErr(ctx, client, err, id, targetState, assignee))
 			}
 			// O 200 real pode vir com nextStateName vazio (validado na homolog).
 			dest := fmt.Sprintf("etapa %d", res.NextState)
@@ -926,4 +926,39 @@ func newRequestCancelCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&comment, "comment", "", "motivo do cancelamento (vai para o histórico)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// enrichPoolAssigneeErr melhora a recusa "Usuário selecionado não encontrado"
+// quando havia --assignee: o texto do servidor sugere login errado, mas a
+// causa comum é a atividade destino usar POOL (Papel/Grupo) — pool recebe o
+// pool, não uma pessoa (ROADMAP3 §4.17; reproduzido ao vivo em 2026-08-07 com
+// usuário existente, ativo e membro do papel).
+//
+// requestID > 0 (move): consulta os candidatos reais da atividade destino
+// (best-effort) e, se são pools, nomeia-os. requestID 0 (start): a solicitação
+// não existe ainda — a dica sai genérica.
+func enrichPoolAssigneeErr(ctx context.Context, client *fluig.Client, err error, requestID, targetState int, assignee string) error {
+	if err == nil || assignee == "" || !strings.Contains(err.Error(), "Usuário selecionado não encontrado") {
+		return err
+	}
+	base := fmt.Sprintf("o servidor recusou o responsável %q: \"Usuário selecionado não encontrado\"", assignee)
+	if requestID > 0 && targetState > 0 {
+		if candidates, cerr := client.PossibleAssignees(ctx, requestID, targetState); cerr == nil {
+			var pools []string
+			for _, c := range candidates {
+				if strings.HasPrefix(c.Code, "Pool:") {
+					pools = append(pools, fmt.Sprintf("%s (%s)", c.Name, c.Code))
+				}
+			}
+			if len(pools) > 0 {
+				return output.ServerErrorf("%s — a atividade destino (etapa %d) usa POOL e recebe o pool, "+
+					"não uma pessoa: %s. Omita --assignee (a tarefa nasce no pool; assuma depois com: fluigcli task assume %d)",
+					base, targetState, strings.Join(pools, ", "), requestID).WithCause(err)
+			}
+		}
+	}
+	return output.ServerErrorf("%s. Se o login está certo, a causa comum é a atividade destino usar POOL "+
+		"(Papel/Grupo) — ela recebe o pool, não uma pessoa: omita --assignee (a tarefa nasce no pool). "+
+		"Confira os candidatos com: fluigcli request assignees <número> --target-state %d",
+		base, targetState).WithCause(err)
 }

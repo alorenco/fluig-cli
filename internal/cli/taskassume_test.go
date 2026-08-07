@@ -139,3 +139,63 @@ func TestRequestCancelParcial(t *testing.T) {
 		t.Fatalf("results deveria ter os 2 itens (sucesso E falha): %+v", results)
 	}
 }
+
+// --- §4.17: --assignee em atividade de POOL — a recusa "Usuário selecionado
+// não encontrado" ganha a explicação certa. ---
+
+// No move, a CLI consulta os candidatos reais e NOMEIA o pool.
+func TestRequestMoveAssigneePoolExplicado(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "move", "196526", "--movement", "15",
+		"--target-state", "21", "--assignee", "pessoa_em_pool",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	for _, want := range []string{"usa POOL", "Sucesso do Cliente", "Pool:Role:sucesso_cliente",
+		"Omita --assignee", "task assume 196526"} {
+		if !strings.Contains(env.Error.Message, want) {
+			t.Errorf("mensagem sem %q: %s", want, env.Error.Message)
+		}
+	}
+}
+
+// No start a solicitação ainda não existe — a dica sai genérica, mas sai.
+func TestRequestStartAssigneePoolExplicado(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "request", "start", "compras_requisicao_abastecimento",
+		"--target-state", "21", "--assignee", "pessoa_em_pool",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	for _, want := range []string{"causa comum é a atividade destino usar POOL", "omita --assignee",
+		"request assignees"} {
+		if !strings.Contains(env.Error.Message, want) {
+			t.Errorf("mensagem sem %q: %s", want, env.Error.Message)
+		}
+	}
+}
+
+// Recusa DIFERENTE (não é o texto do pool) não é tocada.
+func TestRequestMoveOutraRecusaNaoEnriquece(t *testing.T) {
+	stub := &requestStub{}
+	proj := requestProject(t, stub.server(t).URL)
+	// o stub /quebrado/ devolve o throw de evento no start
+	code, stdout := runMain(t, "request", "start", "quebrado", "--assignee", "alguem",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if strings.Contains(env.Error.Message, "POOL") {
+		t.Errorf("recusa de outro tipo não pode ganhar a dica de pool: %s", env.Error.Message)
+	}
+}

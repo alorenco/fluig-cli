@@ -158,6 +158,13 @@ echo '{"aprNivel1":"aprovado","comentarioNivel1":"ok"}' | \
   fluigcli request move 196542 --target-state 13 --fields-file -
 ```
 
+⚠️ **`--assignee` em atividade de pool**: se a atividade destino usa Pool
+(Papel/Grupo), ela recebe o **pool**, não uma pessoa — o servidor recusa com
+"Usuário selecionado não encontrado", mesmo com o login certo e o usuário no
+papel. A CLI explica o caso: no `move`, ela consulta os candidatos reais e
+nomeia o pool; no `start`, dá a orientação geral. A correção é **omitir**
+`--assignee` (a tarefa nasce no pool; assuma depois com `task assume`).
+
 ⚠️ **Anexos**: a REST v2 não tem upload de anexo de solicitação. Ela só faz
 download. Alguns processos exigem anexo no início. Um exemplo é o
 `hAPI.listAttachments()` no `beforeTaskSave`. Estes processos **só** iniciam
