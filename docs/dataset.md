@@ -1,8 +1,8 @@
 # fluigcli dataset — datasets
 
 O grupo `dataset` importa, exporta, consulta e administra datasets. A
-administração cobre ativação, histórico de versões e restauração. Use este
-vocabulário:
+administração cobre ativação, histórico de versões, restauração e exclusão
+permanente. Use este vocabulário:
 
 - **import** = servidor → projeto local
 - **export** = projeto local → servidor

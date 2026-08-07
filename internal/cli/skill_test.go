@@ -328,3 +328,38 @@ func TestSkillFluigTypesReferencia(t *testing.T) {
 		t.Error("SKILL.md não cita reference/fluig.d.ts")
 	}
 }
+
+// Página de grupo em docs/ que tem tabela de comandos no topo precisa listar
+// TODAS as suas seções nela — a tabela é a vitrine da página, e vitrine
+// desatualizada faz o recurso parecer não documentado (aconteceu com o
+// `task assume` na v0.9.0: a seção existia, a tabela não o citava).
+func TestDocsPageTableCoversSections(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "docs", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secRE := regexp.MustCompile("(?m)^## `fluigcli ([a-z-]+(?: [a-z-]+)?)")
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := string(data)
+		// A "tabela do topo" é a que tem o cabeçalho | Comando |.
+		idx := strings.Index(doc, "| Comando |")
+		if idx < 0 {
+			continue
+		}
+		primeiraSecao := strings.Index(doc, "\n## ")
+		if primeiraSecao >= 0 && idx > primeiraSecao {
+			continue // tabela em outra posição não é a vitrine do topo
+		}
+		topo := doc[:primeiraSecao]
+		for _, m := range secRE.FindAllStringSubmatch(doc, -1) {
+			cmd := m[1]
+			if !strings.Contains(topo, "`"+cmd+"`") && !strings.Contains(topo, "`"+cmd+" ") {
+				t.Errorf("%s: a seção %q não aparece na tabela de comandos do topo — atualize a vitrine da página", filepath.Base(f), cmd)
+			}
+		}
+	}
+}

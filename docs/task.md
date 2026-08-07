@@ -1,12 +1,14 @@
 # fluigcli task — tarefas de workflow
 
-Este grupo lê a fila de tarefas. Ele lê as suas tarefas, as de outro usuário ou
-as de todos. Ele é nativo. Ele usa a REST v2 `process-management`.
+Este grupo trabalha a fila de tarefas. Ele lê as suas tarefas, as de outro
+usuário ou as de todos — e **assume para você** uma tarefa parada num pool.
+Ele usa a REST v2 `process-management` e, no `assume`, o SOAP nativo.
 
 | Comando | O que faz |
 |---|---|
 | `task list` | lista tarefas (as suas, de outro usuário, de todos ou de um pool) |
 | `task summary` | resumo da central de tarefas: contadores e pools visíveis |
+| `task assume` | assume para você a tarefa de pool de uma solicitação |
 
 ## `fluigcli task list [flags]`
 

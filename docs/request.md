@@ -1,6 +1,7 @@
 # fluigcli request — solicitações de workflow
 
-O grupo `request` consulta, inicia e movimenta solicitações direto do terminal.
+O grupo `request` consulta, inicia, movimenta e **cancela** solicitações direto
+do terminal.
 Uma solicitação é uma instância de processo. Este é o primeiro grupo de
 **Operação** da CLI. Você usa a plataforma no dia a dia. Você não faz deploy de
 artefatos aqui. Os comandos usam a REST v2 `process-management`. O start com

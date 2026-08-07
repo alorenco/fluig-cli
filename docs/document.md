@@ -1,8 +1,9 @@
 # fluigcli document — GED
 
-Este grupo navega, baixa e publica documentos do GED direto do terminal. Ele é
-nativo. Ele usa a REST v2 `content-management`. As pastas raiz vêm do SOAP
-`ECMFolderService`, a única rota que as lista.
+Este grupo trabalha o GED direto do terminal: navega (inclusive a árvore
+inteira, com `--recursive`), **procura por nome**, mostra onde um documento
+está, **move**, baixa, publica, cria pastas e exclui. Ele usa a REST v2
+`content-management`; as pastas raiz e o move vêm do SOAP (as únicas rotas).
 
 ## `fluigcli document list [<folderId>]`
 
@@ -14,44 +15,6 @@ com versão, tamanho, autor e data. Navegue descendo pelos ids.
 fluigcli document list                # raízes
 fluigcli document list 2864           # conteúdo da pasta 2864
 fluigcli document list 2864 --json    # para agentes/CI
-```
-
-## `fluigcli document download <id>... [--dir <pasta>]`
-
-Este comando baixa documentos pelo id. O nome do arquivo vem dos metadados. O
-round-trip com o upload é byte a byte. Um documento pode ter o arquivo físico
-removido do volume do servidor. Neste caso, o comando gera erro claro (exit 5).
-Um id inexistente gera exit **4**.
-
-```sh
-fluigcli document download 926468 --dir ./downloads
-```
-
-## `fluigcli document upload <file>... --folder <id>`
-
-Este comando publica arquivos numa pasta do GED. Ele faz upload e publish em uma
-etapa.
-
-```sh
-fluigcli document upload relatorio.pdf --folder 1111279
-fluigcli document upload *.pdf --folder 1111279
-```
-
-## `fluigcli document mkdir <parentId> <nome>`
-
-Este comando cria uma pasta dentro de outra. Descubra o pai com `document list`.
-
-```sh
-fluigcli document mkdir 2864 "Relatórios 2026"
-```
-
-## `fluigcli document delete <id>...`
-
-Este comando envia documentos ou pastas para a **lixeira** do GED. Ele não faz
-exclusão definitiva. Ele pede confirmação. Informe `--yes` para pular.
-
-```sh
-fluigcli document delete 1111280 --yes
 ```
 
 ## `fluigcli document list <folderId> --recursive [flags]`
@@ -117,3 +80,41 @@ Em lote, cada id tem o próprio resultado em `data.results[]`. Falha parcial
 vira exit **6**. A CLI confirma o efeito: ela relê o item e valida o
 `parentId`. Destino inexistente ou sem permissão volta como exit 5, com a
 mensagem do servidor.
+## `fluigcli document download <id>... [--dir <pasta>]`
+
+Este comando baixa documentos pelo id. O nome do arquivo vem dos metadados. O
+round-trip com o upload é byte a byte. Um documento pode ter o arquivo físico
+removido do volume do servidor. Neste caso, o comando gera erro claro (exit 5).
+Um id inexistente gera exit **4**.
+
+```sh
+fluigcli document download 926468 --dir ./downloads
+```
+
+## `fluigcli document upload <file>... --folder <id>`
+
+Este comando publica arquivos numa pasta do GED. Ele faz upload e publish em uma
+etapa.
+
+```sh
+fluigcli document upload relatorio.pdf --folder 1111279
+fluigcli document upload *.pdf --folder 1111279
+```
+
+## `fluigcli document mkdir <parentId> <nome>`
+
+Este comando cria uma pasta dentro de outra. Descubra o pai com `document list`.
+
+```sh
+fluigcli document mkdir 2864 "Relatórios 2026"
+```
+
+## `fluigcli document delete <id>...`
+
+Este comando envia documentos ou pastas para a **lixeira** do GED. Ele não faz
+exclusão definitiva. Ele pede confirmação. Informe `--yes` para pular.
+
+```sh
+fluigcli document delete 1111280 --yes
+```
+

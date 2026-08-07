@@ -3,7 +3,8 @@
 O grupo `workflow` gerencia os scripts de processo. Ele lista os processos do
 servidor. Ele consulta a versão de um processo. Ele baixa os scripts de eventos
 para o projeto com o comando `import`. Ele faz o deploy cirúrgico dos scripts.
-Este deploy não reimporta o processo inteiro. Os arquivos locais ficam em:
+Este deploy não reimporta o processo inteiro. Ele compara o local com o
+servidor (`diff`) e publica uma versão nova completa (`publish`). Os arquivos locais ficam em:
 
 ```
 workflow/scripts/<Processo>.<evento>.js
