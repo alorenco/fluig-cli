@@ -96,7 +96,10 @@ fluigcli dataset export --help
    substituições comuns, FLUIGC) e confira com `fluigcli audit <path> --json`
    (exit 1 = reprovado; corrija pelas `suggestion`/`fix` dos
    `data.findings[]` — ou `audit --fix` para as determinísticas — e repita
-   até exit 0).
+   até exit 0). Formulário de processo com seções por etapa (`activity-N`):
+   rode também `fluigcli audit --process <id> --json` — ele cruza as seções
+   com as etapas reais do processo e pega o número de etapa errado, que
+   nenhum outro comando acusa.
 4. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
 5. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
 
@@ -105,4 +108,10 @@ fluigcli dataset export --help
 - Scripts de evento de processo (`workflow export`) e `widget list|import`
   exigem o **componente auxiliar** (fluigcliHelper) no servidor. Exit 7 → rode
   `fluigcli server install-helper <name>` (uma vez por servidor).
+- ⚠️ `request start`/`move` e `form records create`/`update` **não executam os
+  eventos do formulário** (`displayFields`, `validateForm`) — a plataforma não
+  os roda no caminho REST. Uma solicitação com os campos obrigatórios vazios é
+  aceita sem crítica. **Não use esses comandos para testar a validação do
+  formulário**: o teste passa e a conclusão sai errada. Valide no navegador ou
+  no `fluigcli dev`. Os eventos de **processo** rodam normalmente.
 - HTTP (`--ssl=false`) trafega senha e cookies em texto claro; prefira HTTPS.

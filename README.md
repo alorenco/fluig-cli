@@ -131,7 +131,7 @@ fluigcli diff --json | jq '.data.counts'
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `deploy` | `deploy --plan <arquivo.json>`. Executa um plano de release na ordem (com `--dry-run` e `--from`) | [docs/deploy.md](docs/deploy.md) |
-| `audit` | linter do projeto Style Guide 2.0 e typos de API | [docs/audit.md](docs/audit.md) |
+| `audit` | linter do projeto: Style Guide 2.0, typos de API, footguns do Rhino e, com `--process`, o cruzamento formulário × etapas do processo | [docs/audit.md](docs/audit.md) |
 | `watch` | publica ao salvar. | [docs/watch.md](docs/watch.md) |
 | `dev` | dev server com live reload. | [docs/dev.md](docs/dev.md) |
 

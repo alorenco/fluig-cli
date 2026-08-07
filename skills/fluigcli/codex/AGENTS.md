@@ -45,7 +45,10 @@ o `export` AUDITA antes de enviar: erro de audit barra o arquivo com exit 1 e el
 não chega ao servidor — corrija pelo achado ou envie com `--no-audit`. O MESMO
 gate vale em `event export`, `mechanism export`, `workflow export|publish` (nestes
 o aborto é total: publicação atômica) e `form export` (só `RHINO*`/`FL*` barram;
-`SG*` de tema visual não)),
+`SG*` de tema visual não). No `query`: `--fields a,b` recorta o resultado no
+cliente na ordem pedida (economiza tokens; dataset customizado ignora o pedido
+no servidor); ⚠️ resultado VAZIO volta como **1 linha em branco** — a API
+materializa; o envelope marca `emptyRowSuspect:true`, trate como zero linhas),
 `db` (query|grants|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper;
 `query --file script.sql` roda o script instrução por instrução — `--list` só lista,
 `--statement N` roda uma, falha parcial = exit 6 com `data.statements[]`),
@@ -56,7 +59,15 @@ o aborto é total: publicação atômica) e `form export` (só `RHINO*`/`FL*` ba
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
-`request` (list|show|start|move|assignees|attachments — solicitações de workflow),
+`request` (list|show|start|move|assignees|attachments — solicitações de workflow.
+⚠️ `start`/`move` NÃO executam os eventos do FORMULÁRIO (displayFields/
+validateForm): card com obrigatórios vazios é ACEITO — não sirva de teste de
+validação (falso positivo garantido; os eventos de PROCESSO rodam). Linha de
+tabela-filha no `--fields-file`: sufixo `campo___N` no MESMO JSON plano.
+404 no `move` é desambiguado por `error.code`: `POOL_TASK_NOT_ASSIGNED` =
+tarefa em pool sem dono (a solicitação EXISTE; não é permissão — assuma no
+portal) · `NO_HUMAN_TASK` = atividade automática em curso · `NOT_FOUND` = não
+existe mesmo),
 `task` (list|summary — fila de tarefas; sem flags = as suas em aberto; `--group TI`/
 `--role controladoria` = paradas no pool do grupo/papel; summary = contadores da
 central + pools visíveis),
@@ -79,8 +90,12 @@ vira `status:"error"` no item e exit 6, o resto segue comparado),
 `event`/`mechanism`/`form`/`widget`/`workflow` (publish)/`db`; para no 1º erro e marca o
 resto `skipped`, retome com `--from N`; `--dry-run` valida tudo sem escrever —
 inclusive se cada evento local EXISTE no processo; audita todos os scripts antes
-de começar), `audit` (linter do Style
-Guide 2.0 em forms/widgets; exit 1 = reprovado, corrija pelas `suggestion`
+de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs inexistentes (FL*;
+FL005 = método do hAPI chamado como global em script de processo, ERRO) e
+footguns do Rhino (RHINO*); com `--process <id>` cruza as seções `activity-N`
+do formulário com as etapas REAIS do processo (WF001 = seção que nunca
+renderiza, ERRO) — rode-o antes de testar um processo com formulário por
+etapa; exit 1 = reprovado, corrija pelas `suggestion`
 dos `data.findings[]` e repita). Os `new`/`new-script` são
 scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o
 `workflow new-script <pid> <evento>` gera a assinatura correta do evento — o

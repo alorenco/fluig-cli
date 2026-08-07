@@ -47,6 +47,8 @@ Regras para o agente:
 | 2 | `ExitUsage` | `USAGE_ERROR` | flag/argumento inválido; faltou argumento em modo não-interativo |
 | 3 | `ExitAuth` | `AUTH_FAILED` | login/sessão falhou |
 | 4 | `ExitNotFound` | `NOT_FOUND` | dataset/form/processo/servidor inexistente |
+| 4 | `ExitNotFound` | `POOL_TASK_NOT_ASSIGNED` | `request move`: a tarefa corrente está num **pool** e ninguém a assumiu — a solicitação EXISTE (ver abaixo) |
+| 4 | `ExitNotFound` | `NO_HUMAN_TASK` | `request move`: a solicitação está em **atividade automática** (service task) — não há tarefa humana para concluir |
 | 5 | `ExitServer` | `SERVER_ERROR` | o servidor Fluig retornou erro |
 | 5 | `ExitServer` | `TIMEOUT` | a requisição estourou o tempo limite do CLIENTE — **resultado desconhecido** (ver abaixo) |
 | 6 | `ExitPartial` | `PARTIAL_FAILURE` | operação em lote com alguns itens falhos |
@@ -72,6 +74,13 @@ esac
   e `server test`. Não adianta repetir sem mudar a credencial.
 - **exit 4 (não encontrado)**: id/nome/login inexistente — **corrija o
   identificador; NÃO repita** o mesmo comando (o retry dá o mesmo 4).
+  **Confira o `error.code` antes de concluir que o recurso não existe**: no
+  `request move`, o servidor responde 404 também quando a tarefa não é sua, e
+  a CLI desambigua. `POOL_TASK_NOT_ASSIGNED` = a solicitação existe e a tarefa
+  está num pool sem dono (a mensagem traz o pool; NÃO é problema de permissão
+  nem de id — alguém precisa assumir a tarefa no portal). `NO_HUMAN_TASK` = a
+  solicitação está em atividade automática (aguarde o servidor ou olhe o
+  `log tail`). Nos dois casos, repetir dá o mesmo 4 até o estado mudar.
 - **exit 5 (servidor)**: erro do Fluig — pode ser **transitório**; um retry com
   pequeno backoff (1–2 tentativas) é razoável. Persistiu? Leia
   `error.message`. **Confira o `error.code` antes de repetir**: com `TIMEOUT` a
@@ -120,7 +129,7 @@ esac
 | `--json` | — | envelope JSON em stdout (implica não-interativo) |
 | `--non-interactive` | `FLUIGCLI_NON_INTERACTIVE=1` | falha em vez de perguntar |
 | `--server <name>` | `FLUIGCLI_SERVER` | servidor alvo |
-| `--project <dir>` | `FLUIGCLI_PROJECT` | raiz do projeto (default: descoberta automática, subindo do cwd até achar uma pasta convencional). ⚠️ Rodando de FORA do projeto (scratchpad, /tmp), os servidores do `.fluigcli/servers.json` ficam invisíveis e o alvo dá `NOT_FOUND` — a mensagem diz que nenhum projeto foi descoberto; a correção é esta flag, não cadastrar o servidor de novo |
+| `--project <dir>` | `FLUIGCLI_PROJECT` | raiz do projeto (default: descoberta automática, subindo do cwd — primeiro procurando `.fluigcli/`, que vence sempre; sem ele, as pastas convencionais). Rodar de DENTRO de `forms/<nome>/`, `datasets/` ou qualquer subpasta funciona. ⚠️ Rodando de FORA do projeto (scratchpad, /tmp), os servidores do `.fluigcli/servers.json` ficam invisíveis e o alvo dá `NOT_FOUND` — a mensagem diz que nenhum projeto foi descoberto; a correção é esta flag, não cadastrar o servidor de novo |
 | `--password-stdin` | — | lê a senha do stdin (comandos de auth) |
 | — | `FLUIGCLI_PASSWORD` | senha do servidor selecionado |
 | `--timeout <dur>` | `FLUIGCLI_TIMEOUT` | timeout por requisição (ex.: `30s`, `1m`). Default 30s; **piso de 2m** nas operações de ESCRITA e nas LEITURAS PESADAS (`db query`, `db grants`, `dataset query`, `user audit`, `log tail --since/--until`). O valor informado aqui sempre vence, inclusive para baixo. Com `-v`, a CLI diz no stderr quando elevou. ⚠️ O timeout é do CLIENTE: o servidor segue executando depois que a CLI desiste |
