@@ -17,7 +17,78 @@ func newTaskCmd(app *App) *cobra.Command {
 	}
 	cmd.AddCommand(newTaskListCmd(app))
 	cmd.AddCommand(newTaskSummaryCmd(app))
+	cmd.AddCommand(newTaskAssumeCmd(app))
 	return cmd
+}
+
+// --- task assume ---
+
+func newTaskAssumeCmd(app *App) *cobra.Command {
+	var (
+		thread        int
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "assume <número>",
+		Short: "Assume para você a tarefa de pool de uma solicitação",
+		Long: "Assume, para o usuário autenticado, a tarefa de pool (Pool Papel /\n" +
+			"Pool Grupo) da solicitação. É o desbloqueio do teste de processo por CLI:\n" +
+			"tarefa de pool não assumida não pode ser movimentada (o request move\n" +
+			"responde POOL_TASK_NOT_ASSIGNED).\n\n" +
+			"Você precisa pertencer ao papel/grupo do pool. ⚠️ Não existe API para\n" +
+			"DEVOLVER a tarefa ao pool (o releaseProcess do SOAP faz outra coisa:\n" +
+			"libera versão de processo) — assuma com critério; depois, conclua com\n" +
+			"request move ou transfira pelo portal.\n\n" +
+			"--thread distingue ramos PARALELOS do diagrama (gateway paralelo); no\n" +
+			"fluxo único o padrão 0 serve.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTaskAssume(app, cmd, args[0], passwordStdin, thread)
+		},
+	}
+	cmd.Flags().IntVar(&thread, "thread", 0, "ramo paralelo da tarefa (threadSequence; 0 = fluxo único)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// runTaskAssume executa o takeProcessTask e confirma relendo o estado: o
+// "OK" do SOAP não diz com quem a tarefa ficou — a prova é o assignee da
+// tarefa em aberto depois da operação.
+func runTaskAssume(app *App, cmd *cobra.Command, rawID string, passwordStdin bool, thread int) error {
+	p := app.printerFor(cmd)
+	id, err := strconv.Atoi(rawID)
+	if err != nil || id <= 0 {
+		return output.Usagef("número de solicitação inválido %q", rawID)
+	}
+	ctx := context.Background()
+	_, client, err := app.connectWrite(ctx, passwordStdin, "assumir a tarefa de uma solicitação")
+	if err != nil {
+		return err
+	}
+	if err := client.TakeProcessTask(ctx, id, thread); err != nil {
+		return app.mapErr(err)
+	}
+
+	// Confirmação: relê as tarefas em aberto e mostra com quem ficou.
+	data := map[string]any{"requestId": id, "action": "assumed"}
+	if tasks, terr := client.RequestTasks(ctx, id); terr == nil {
+		for _, t := range tasks {
+			if t.Status != "NOT_COMPLETED" || t.Assignee == nil {
+				continue
+			}
+			data["movement"] = t.Movement
+			data["stateName"] = t.StateName
+			data["assignee"] = t.Assignee
+			p.Successf("tarefa da solicitação %d (etapa %q) assumida por %s (%s)",
+				id, t.StateName, t.Assignee.Name, t.Assignee.Login)
+			break
+		}
+	}
+	if data["assignee"] == nil {
+		p.Successf("tarefa da solicitação %d assumida.", id)
+	}
+	p.Done(data)
+	return nil
 }
 
 // --- task summary ---

@@ -192,7 +192,7 @@ O exit code é **4** nos três casos.
 
 | Código no envelope | Significado | O que fazer |
 |---|---|---|
-| `POOL_TASK_NOT_ASSIGNED` | a tarefa está num pool e ninguém a assumiu | assuma a tarefa no portal |
+| `POOL_TASK_NOT_ASSIGNED` | a tarefa está num pool e ninguém a assumiu | `fluigcli task assume <número>` (requer pertencer ao pool) |
 | `NO_HUMAN_TASK` | a etapa corrente é automática (service task) | aguarde o servidor ou veja o log do evento |
 | `NOT_FOUND` | a solicitação não existe, ou a tarefa é de outro usuário | confira o número |
 
@@ -202,7 +202,7 @@ A mensagem traz a etapa e o nome do pool:
 {"code":"POOL_TASK_NOT_ASSIGNED",
  "message":"a tarefa corrente da solicitação 230702 (etapa 21, \"Acompanhar Retornos\")
             está no pool Sucesso do Cliente (Pool:Role:sucesso_cliente) e ninguém a assumiu;
-            assuma a tarefa no portal antes de movimentar"}
+            assuma com: fluigcli task assume 230702"}
 ```
 
 A consulta extra roda **só** quando o move falha. O caminho de sucesso não

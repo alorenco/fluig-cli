@@ -169,6 +169,56 @@ func BuildStartProcess(companyID int, username, password, processID string, choo
 	return marshalEnvelope(NSWorkflow, req)
 }
 
+// --- takeProcessTask / releaseProcess ---
+
+// wfTakeTaskReq assume uma tarefa de pool para o usuário (userId = userCode).
+// threadSequence distingue ramos paralelos (0 = fluxo único).
+type wfTakeTaskReq struct {
+	XMLName           xml.Name `xml:"ws:takeProcessTask"`
+	Username          string   `xml:"username"`
+	Password          string   `xml:"password"`
+	CompanyID         int      `xml:"companyId"`
+	UserID            string   `xml:"userId"`
+	ProcessInstanceID int      `xml:"processInstanceId"`
+	ThreadSequence    int      `xml:"threadSequence"`
+}
+
+// BuildTakeProcessTask monta o envelope do takeProcessTask.
+func BuildTakeProcessTask(companyID int, username, password, userID string, instanceID, threadSequence int) ([]byte, error) {
+	return marshalEnvelope(NSWorkflow, wfTakeTaskReq{
+		Username: username, Password: password, CompanyID: companyID,
+		UserID: userID, ProcessInstanceID: instanceID, ThreadSequence: threadSequence,
+	})
+}
+
+// ParseStringResult devolve o `result` de uma resposta padrão {op}Response —
+// o shape comum de takeProcessTask, releaseProcess e cancelInstance. O path
+// depende da operação, então a decodificação é genérica.
+func ParseStringResult(body []byte, op string) (string, error) {
+	var env struct {
+		XMLName xml.Name `xml:"Envelope"`
+		Body    struct {
+			Fault *Fault `xml:"Fault"`
+			Inner []struct {
+				XMLName xml.Name
+				Result  string `xml:"result"`
+			} `xml:",any"`
+		} `xml:"Body"`
+	}
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return "", fmt.Errorf("resposta SOAP inválida de %s: %w", op, err)
+	}
+	if env.Body.Fault != nil {
+		return "", env.Body.Fault
+	}
+	for _, in := range env.Body.Inner {
+		if in.XMLName.Local == op+"Response" {
+			return in.Result, nil
+		}
+	}
+	return "", fmt.Errorf("resposta SOAP de %s sem o elemento %sResponse", op, op)
+}
+
 type wfStartResp struct {
 	XMLName xml.Name        `xml:"Envelope"`
 	Items   []wfStringArray `xml:"Body>startProcessResponse>result>item"`

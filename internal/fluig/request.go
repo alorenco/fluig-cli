@@ -736,8 +736,8 @@ func (e *MoveBlockedError) Error() string {
 			pool = fmt.Sprintf("%s (%s)", e.PoolName, e.PoolCode)
 		}
 		return fmt.Sprintf("a tarefa corrente da solicitação %d (etapa %d, %q) está no pool %s "+
-			"e ninguém a assumiu; assuma a tarefa no portal antes de movimentar",
-			e.RequestID, e.Sequence, e.StateName, pool)
+			"e ninguém a assumiu; assuma com: fluigcli task assume %d",
+			e.RequestID, e.Sequence, e.StateName, pool, e.RequestID)
 	case MoveBlockedAutomatic:
 		return fmt.Sprintf("a solicitação %d está em atividade automática (etapa %d, %q); "+
 			"não há tarefa humana para concluir. Aguarde o servidor ou verifique o log do evento",

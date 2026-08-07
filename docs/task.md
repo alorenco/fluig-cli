@@ -90,3 +90,39 @@ v2 seguem fora (veja o aviso acima). O Fluig monta o resumo quando o usuário
 abre a central no portal. Por isso a consulta de um usuário que nunca abriu a
 central responde vazio. Isso não é erro: a CLI mostra uma mensagem e aponta o
 `task list --assignee` como alternativa.
+
+## `fluigcli task assume <número> [flags]`
+
+Este comando assume, para você, a **tarefa de pool** de uma solicitação (Pool
+Papel / Pool Grupo). Ele é o desbloqueio do teste de processo por CLI: uma
+tarefa de pool sem responsável **não pode ser movimentada** — o `request move`
+responde `POOL_TASK_NOT_ASSIGNED`. Depois do `assume`, o `request move` segue
+normalmente.
+
+```sh
+fluigcli task assume 230702
+# tarefa da solicitação 230702 (etapa "Acompanhar Retornos") assumida por Alessandro Lorençone (alorenco)
+fluigcli request move 230702 --target-state 24
+```
+
+Você precisa **pertencer ao papel ou grupo do pool**. Fora dele, o servidor
+recusa e a CLI repassa a mensagem (exit 5).
+
+A CLI confirma o resultado: ela relê as tarefas da solicitação e mostra a
+etapa e o novo responsável. Com `--json`, os mesmos dados saem em
+`data.{movement, stateName, assignee}`.
+
+| Flag | Uso |
+|---|---|
+| `--thread N` | ramo **paralelo** do diagrama (threadSequence); no fluxo único o padrão `0` serve |
+
+⚠️ **Não existe devolução ao pool.** A plataforma não expõe API para devolver
+uma tarefa assumida (o `releaseProcess` do SOAP, apesar do nome, **libera
+versão de processo** — outra coisa). Assuma com critério. Para passar a tarefa
+adiante, conclua com `request move` ou transfira pelo portal.
+
+Situações que o servidor recusa (exit 5, com a mensagem dele):
+
+- a tarefa em aberto já está com uma pessoa (inclusive você): "Tarefa não
+  encontrada" — só tarefa **de pool sem dono** pode ser assumida;
+- você não pertence ao papel/grupo do pool.

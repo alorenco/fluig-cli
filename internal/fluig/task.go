@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 )
 
 const restTasksPath = "/process-management/api/v2/tasks"
@@ -152,4 +154,46 @@ func (c *Client) ListTasks(ctx context.Context, f TaskFilter) ([]TaskSummary, er
 			return out, nil
 		}
 	}
+}
+
+// TakeProcessTask assume, para o usuário autenticado, a tarefa de pool da
+// solicitação (SOAP ECMWorkflowEngineService.takeProcessTask — fora dos
+// swaggers; a sessão é a credencial, a senha vai em branco como no
+// startProcess). threadSequence distingue ramos paralelos (0 = fluxo único).
+//
+// O servidor responde `result` string: "OK" = sucesso (validado ao vivo);
+// outro texto = recusa de negócio — vira errServerRejected.
+func (c *Client) TakeProcessTask(ctx context.Context, requestID, threadSequence int) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	userCode, err := c.ResolveUserCode(ctx)
+	if err != nil {
+		return err
+	}
+	reqBody, err := soap.BuildTakeProcessTask(c.opts.CompanyID, c.opts.Username, "", userCode, requestID, threadSequence)
+	if err != nil {
+		return err
+	}
+	respBody, err := c.postSOAP(ctx, soapWorkflowPath, "takeProcessTask", reqBody)
+	if err != nil {
+		return err
+	}
+	return stringResultToErr(respBody, "takeProcessTask", requestID)
+}
+
+// stringResultToErr interpreta o `result` string das operações de workflow.
+// ⚠️ Validado ao vivo na homologação (2026-08-07): o sucesso vem como a STRING
+// "OK" (não vazio) — o takeProcessTask assumiu a tarefa de verdade e respondeu
+// result="OK". Qualquer outro texto é a mensagem de recusa do servidor.
+func stringResultToErr(body []byte, op string, requestID int) error {
+	result, err := soap.ParseStringResult(body, op)
+	if err != nil {
+		return err
+	}
+	msg := strings.TrimSpace(result)
+	if msg == "" || strings.EqualFold(msg, "ok") {
+		return nil
+	}
+	return fmt.Errorf("%w: %s (solicitação %d)", errServerRejected, msg, requestID)
 }

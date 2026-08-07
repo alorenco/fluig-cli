@@ -78,7 +78,7 @@ esac
   `request move`, o servidor responde 404 também quando a tarefa não é sua, e
   a CLI desambigua. `POOL_TASK_NOT_ASSIGNED` = a solicitação existe e a tarefa
   está num pool sem dono (a mensagem traz o pool; NÃO é problema de permissão
-  nem de id — alguém precisa assumir a tarefa no portal). `NO_HUMAN_TASK` = a
+  nem de id — assuma com `task assume <número>` se você pertence ao pool). `NO_HUMAN_TASK` = a
   solicitação está em atividade automática (aguarde o servidor ou olhe o
   `log tail`). Nos dois casos, repetir dá o mesmo 4 até o estado mudar.
 - **exit 5 (servidor)**: erro do Fluig — pode ser **transitório**; um retry com

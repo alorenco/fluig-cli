@@ -30,6 +30,8 @@ type requestStub struct {
 	moveBody       map[string]any
 	needsAssignee  bool   // start responde 412 com possibleAssignees
 	soapStartBody  string // envelope recebido no startProcess SOAP
+	soapTaskBody   string // envelope recebido no takeProcessTask
+	takeRejects    bool   // o take/release responde recusa de negócio
 	assigneesQuery url.Values
 	// writeDelay atrasa move/start para o cliente estourar o --timeout (o
 	// servidor real continua processando depois disso — ROADMAP §2.10-B).
@@ -180,6 +182,21 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{"content":{"login":"u","userCode":"uc"}}`)
 	})
 	mux.HandleFunc("/webdesk/ECMWorkflowEngineService", func(w http.ResponseWriter, r *http.Request) {
+		// takeProcessTask: result "OK" = sucesso; texto = recusa de negócio
+		// (shape validado ao vivo na homologação, 2026-08-07).
+		if op := r.Header.Get("SOAPAction"); op == "takeProcessTask" {
+			b, _ := io.ReadAll(r.Body)
+			s.soapTaskBody = string(b)
+			result := "OK"
+			if s.takeRejects {
+				result = "Usuário não pertence ao papel do pool"
+			}
+			w.Header().Set("Content-Type", "text/xml")
+			io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
+				`<ns2:`+op+`Response xmlns:ns2="http://ws.workflow.ecm.technology.totvs.com/"><result>`+result+
+				`</result></ns2:`+op+`Response></soap:Body></soap:Envelope>`)
+			return
+		}
 		if r.Header.Get("SOAPAction") != "startProcess" {
 			http.Error(w, "op?", 500)
 			return

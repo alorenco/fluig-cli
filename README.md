@@ -140,7 +140,7 @@ fluigcli diff --json | jq '.data.counts'
 | Grupo | Comandos | Doc |
 |---|---|---|
 | `request` | `list` `show` `start` `move` `assignees` `attachments` | [docs/request.md](docs/request.md) |
-| `task` | `list` `summary` | [docs/task.md](docs/task.md) |
+| `task` | `list` `summary` `assume` | [docs/task.md](docs/task.md) |
 | `document` | `list` `download` `upload` `mkdir` `delete` | [docs/document.md](docs/document.md) |
 | `log` | `files` (`--all`, `--pattern`) `tail` (`--follow`, `--level`, `--grep`, `--since`/`--until`, `--ndjson`) `download` | [docs/log.md](docs/log.md) |
 
