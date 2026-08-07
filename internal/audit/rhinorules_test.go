@@ -330,3 +330,37 @@ func TestRhinoDatasetRowSoServerSide(t *testing.T) {
 		t.Errorf("script de processo deveria acusar: %d", n)
 	}
 }
+
+// §4.11-C — getValue("WK…") global como fonte da RHINO001. O getValue genérico
+// segue de fora (ambíguo — decisão de 2026-07-23); a forma com literal WK* é
+// inequívoca: é a global de script de processo e devolve java.lang.String.
+func TestRhinoB1GetValueWK(t *testing.T) {
+	casos := []struct {
+		nome string
+		src  string
+		quer int
+	}{
+		{"comparação direta", `if (getValue("WKNumState") === '21') {}`, 1},
+		{"espelho", `if ('21' === getValue("WKNumState")) {}`, 1},
+		{"com encadeamento de string", `if (getValue("WKUser").toLowerCase() === 'jsilva') {}`, 1},
+		{"variável rastreada (o caso 13.3 do feedback)", `
+var numState = getValue("WKNumState");
+if (numState === '') {}`, 1},
+		{"String(...) coage e não acusa", `if (String(getValue("WKNumState")) === '21') {}`, 0},
+		{"concatenação coage e não acusa", `
+var s = getValue("WKNumState") + '';
+if (s === '21') {}`, 0},
+		{"igualdade solta não acusa", `if (getValue("WKNumState") == '21') {}`, 0},
+		// obj.getValue não é a global de processo (dataset.getValue(i, col)
+		// devolve Object; form.getValue é client-side): fora do escopo.
+		{"getValue com objeto não acusa", `if (ds.getValue("WKNumState") === 'x') {}`, 0},
+		{"getValue sem WK não acusa (ambíguo de propósito)", `if (getValue("outraCoisa") === 'x') {}`, 0},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			if got := rhinoCount(t, tc.src); got != tc.quer {
+				t.Errorf("got %d, quer %d\n%s", got, tc.quer, tc.src)
+			}
+		})
+	}
+}

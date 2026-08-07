@@ -64,7 +64,7 @@ var RuleTitles = map[string]string{
 	RuleUnknownFormAPI: "Método form.* que não existe no FormController (fluig.d.ts) — provável typo",
 	RuleUnknownAPI:     "Membro inexistente em API do Fluig (FLUIGC, DatasetFactory, docAPI, WCMAPI…) — provável typo",
 
-	RuleJavaStrictEq:     "=== / !== entre retorno java.lang.String (getFieldName, getString…) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
+	RuleJavaStrictEq:     "=== / !== entre um java.lang.String (getFieldName, getString…, getValue(\"WK...\") global) e literal de texto — no Rhino do Fluig é sempre false; use == ou String(...)",
 	RuleRhinoES6:         "Sintaxe ES6+ (class, import/export, async/await, parâmetro default, spread, propriedade computada) — o Rhino do Fluig não aceita; dá SyntaxError no deploy",
 	RuleConstInLoop:      "const declarado no corpo de um laço (for/while/do) — o Rhino do Fluig congela o valor da 1ª iteração, sem erro; use let",
 	RuleDatasetRowAccess: "dataset.values[i] acessado por NOME de coluna em JS server-side — a linha é Object[] Java e quebra em runtime; use getValue(i, \"coluna\")",

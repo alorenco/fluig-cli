@@ -59,6 +59,24 @@ var (
 	// Comparação de uma variável (bareword) com literal (e o espelho).
 	varEqRe       = regexp.MustCompile(`(^|[^.\w])(\w+)\s*(===|!==)\s*(?:` + strLit + `)`)
 	varEqMirrorRe = regexp.MustCompile(`(?:` + strLit + `)\s*(===|!==)\s*(\w+)\b`)
+
+	// getValue GLOBAL com literal WK* — a global de script de processo, que
+	// devolve java.lang.String (ROADMAP3 §4.11-C, caso 13.3 do feedback: o
+	// retorno entrou num `=== ''` e o ramo nunca executou). O `getValue`
+	// genérico segue FORA de javaStringMethods (decisão de 2026-07-23: todo
+	// objeto JS pode ter um) — mas a forma global com literal `"WK..."` é
+	// inequívoca. Encadeamento de métodos de string preserva o java.lang.String
+	// (igual ao javaCall).
+	wkValueCall = `getValue\s*\(\s*["']WK\w+["']\s*\)(?:\s*\.\s*\w+\s*\([^()]*\))*`
+
+	// Comparação direta: getValue("WK…") ===|!== literal (e o espelho). O
+	// prefixo exige forma GLOBAL (não precedida de ponto); no espelho a própria
+	// sequência op→getValue já exclui a forma com objeto.
+	directWkEqRe       = regexp.MustCompile(`(^|[^.\w])` + wkValueCall + `\s*(===|!==)\s*(?:` + strLit + `)`)
+	directWkEqMirrorRe = regexp.MustCompile(`(?:` + strLit + `)\s*(===|!==)\s*` + wkValueCall)
+
+	// getValue("WK…") em qualquer lugar de uma expressão (rastreio de variável).
+	wkAnyValueRe = regexp.MustCompile(`(^|[^.\w])getValue\s*\(\s*["'](WK\w+)["']\s*\)`)
 )
 
 // rhinoFindings roda as regras RHINO* sobre um arquivo JS server-side inteiro
@@ -91,6 +109,13 @@ func rhinoFindings(rel string, content []byte) []Finding {
 		}
 		if m := directEqMirrorRe.FindStringSubmatch(line); m != nil {
 			add(n, "direct:"+m[0], directMsg(m[1]), directSug())
+		}
+		// (a2) comparação direta com getValue("WK…") global.
+		if m := directWkEqRe.FindStringSubmatch(line); m != nil {
+			add(n, "wk:"+m[0], wkMsg(m[2]), wkSug())
+		}
+		if m := directWkEqMirrorRe.FindStringSubmatch(line); m != nil {
+			add(n, "wk:"+m[0], wkMsg(m[1]), wkSug())
 		}
 
 		// (b) comparação de uma variável que sabemos ser java.lang.String.
@@ -529,12 +554,20 @@ func collectJavaStringVars(lines []string) map[string]string {
 		name, rhs := m[1], strings.TrimSpace(strings.TrimRight(strings.TrimSpace(m[2]), ";"))
 		call := anyJavaCallRe.FindString(rhs)
 		coerced := strings.Contains(rhs, "String(") || strings.Contains(rhs, "+")
-		if call != "" && !coerced {
+		switch {
+		case call != "" && !coerced:
 			method := strings.Trim(strings.TrimPrefix(strings.TrimSpace(call), "."), " (")
 			if _, ok := hasJava[name]; !ok {
-				hasJava[name] = method
+				hasJava[name] = "." + method + "(...)"
 			}
-		} else {
+		case !coerced && wkAnyValueRe.MatchString(rhs):
+			// var estado = getValue("WKNumState"); — fonte java.lang.String
+			// (a global de script de processo; ver wkValueCall).
+			if _, ok := hasJava[name]; !ok {
+				wk := wkAnyValueRe.FindStringSubmatch(rhs)
+				hasJava[name] = fmt.Sprintf("getValue(%q)", wk[2])
+			}
+		default:
 			hasSafe[name] = true
 		}
 	}
@@ -552,7 +585,15 @@ func directMsg(op string) string {
 }
 
 func varMsg(name, src, op string) string {
-	return fmt.Sprintf("a variável %q recebe um java.lang.String (de .%s(...)) e é comparada com %s a um literal — no Rhino do Fluig isso é SEMPRE %s", name, src, op, alwaysResult(op))
+	return fmt.Sprintf("a variável %q recebe um java.lang.String (de %s) e é comparada com %s a um literal — no Rhino do Fluig isso é SEMPRE %s", name, src, op, alwaysResult(op))
+}
+
+func wkMsg(op string) string {
+	return fmt.Sprintf(`getValue("WK...") devolve java.lang.String — comparação estrita (%s) com literal de texto é SEMPRE %s no Rhino do Fluig`, op, alwaysResult(op))
+}
+
+func wkSug() string {
+	return `converta antes de comparar (String(getValue("WKNumState")) === 'y') ou use igualdade solta (==)`
 }
 
 // alwaysResult: === com java.lang.String é sempre false; !== é sempre true.
