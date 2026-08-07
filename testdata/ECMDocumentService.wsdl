@@ -1,0 +1,1522 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://ws.dm.ecm.technology.totvs.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns2="http://schemas.xmlsoap.org/soap/http" xmlns:ns1="http://jaxb.dev.java.net/array" name="ECMDocumentServiceService" targetNamespace="http://ws.dm.ecm.technology.totvs.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://ws.dm.ecm.technology.totvs.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://ws.dm.ecm.technology.totvs.com/">
+  <xs:complexType name="documentDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="accessCount" type="xs:int"/>
+      <xs:element minOccurs="0" name="activeUserApprover" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="activeVersion" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="additionalComments" type="xs:string"/>
+      <xs:element minOccurs="0" name="allowMuiltiCardsPerUser" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvalAndOr" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approved" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="approvedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="articleContent" type="xs:string"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="attachments" nillable="true" type="tns:attachment"/>
+      <xs:element minOccurs="0" name="atualizationId" type="xs:int"/>
+      <xs:element minOccurs="0" name="backgroundColor" type="xs:string"/>
+      <xs:element minOccurs="0" name="backgroundImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="bannerImage" type="xs:string"/>
+      <xs:element minOccurs="0" name="cardDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="convertDocumentType" type="xs:int"/>
+      <xs:element minOccurs="0" name="crc" type="xs:long"/>
+      <xs:element minOccurs="0" name="createDate" type="xs:dateTime"/>
+      <xs:element name="createDateInMilliseconds" type="xs:long"/>
+      <xs:element minOccurs="0" name="datasetName" type="xs:string"/>
+      <xs:element minOccurs="0" name="dateFormStarted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="deleted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentKeyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentPropertyNumber" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentPropertyVersion" type="xs:int"/>
+      <xs:element minOccurs="0" name="documentType" type="xs:string"/>
+      <xs:element minOccurs="0" name="documentTypeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="downloadEnabled" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="draft" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expirationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="expiredForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="expires" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="externalDocumentId" type="xs:string"/>
+      <xs:element minOccurs="0" name="favorite" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileURL" type="xs:string"/>
+      <xs:element minOccurs="0" name="folderId" type="xs:int"/>
+      <xs:element name="forAproval" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="hashAnnotations" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconId" type="xs:int"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="imutable" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="indexed" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="inheritApprovers" type="xs:boolean"/>
+      <xs:element name="inheritSecurity" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="internalVisualizer" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="isEncrypted" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="keyWord" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageId" type="xs:string"/>
+      <xs:element minOccurs="0" name="languageIndicator" type="xs:string"/>
+      <xs:element minOccurs="0" name="lastModifiedDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="lastModifiedTime" type="xs:string"/>
+      <xs:element minOccurs="0" name="metaListId" type="xs:int"/>
+      <xs:element minOccurs="0" name="metaListRecordId" type="xs:int"/>
+      <xs:element minOccurs="0" name="newStructure" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="notificationDays" type="xs:int"/>
+      <xs:element name="onCheckout" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="parentDocumentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="pdfRenderEngine" type="xs:string"/>
+      <xs:element minOccurs="0" name="permissionType" type="xs:int"/>
+      <xs:element minOccurs="0" name="phisicalFile" type="xs:string"/>
+      <xs:element minOccurs="0" name="phisicalFileSize" type="xs:float"/>
+      <xs:element minOccurs="0" name="priority" type="xs:int"/>
+      <xs:element minOccurs="0" name="privateColleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="privateDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="protectedCopy" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publicDocument" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="publisherId" type="xs:string"/>
+      <xs:element minOccurs="0" name="publisherName" type="xs:string"/>
+      <xs:element minOccurs="0" name="quota" type="xs:int"/>
+      <xs:element minOccurs="0" name="relatedFiles" type="xs:string"/>
+      <xs:element minOccurs="0" name="restrictionType" type="xs:int"/>
+      <xs:element name="rowId" type="xs:int"/>
+      <xs:element minOccurs="0" name="searchNumber" type="xs:int"/>
+      <xs:element name="securityLevel" type="xs:int"/>
+      <xs:element minOccurs="0" name="siteCode" type="xs:string"/>
+      <xs:element minOccurs="0" name="sociableDocumentDto" type="tns:sociableDocumentDto"/>
+      <xs:element minOccurs="0" name="socialDocument" type="xs:string"/>
+      <xs:element minOccurs="0" name="tool" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="topicId" type="xs:int"/>
+      <xs:element name="translated" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="UUID" type="xs:string"/>
+      <xs:element name="updateIsoProperties" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userAnswerForm" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userNotify" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="userPermission" type="xs:int"/>
+      <xs:element minOccurs="0" name="validationStartDate" type="xs:dateTime"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="versionDescription" type="xs:string"/>
+      <xs:element minOccurs="0" name="versionOption" type="xs:string"/>
+      <xs:element minOccurs="0" name="visualization" type="xs:string"/>
+      <xs:element minOccurs="0" name="volumeId" type="xs:string"/>
+      <xs:element minOccurs="0" name="watermarkId" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="attachment">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="attach" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="descriptor" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="displayFileName" type="xs:string"/>
+      <xs:element minOccurs="0" name="editing" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="fileModificationDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="fileName" type="xs:string"/>
+      <xs:element minOccurs="0" name="fileSelected" type="tns:attachment"/>
+      <xs:element name="fileSize" type="xs:long"/>
+      <xs:element minOccurs="0" name="filecontent" type="xs:base64Binary"/>
+      <xs:element minOccurs="0" name="fullPatch" type="xs:string"/>
+      <xs:element minOccurs="0" name="iconPath" type="xs:string"/>
+      <xs:element minOccurs="0" name="mobile" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="pathName" type="xs:string"/>
+      <xs:element minOccurs="0" name="principal" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="supportedNewViewer" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="sociableDocumentDto">
+    <xs:sequence>
+      <xs:element name="commented" type="xs:boolean"/>
+      <xs:element name="denounced" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="documentId" type="xs:int"/>
+      <xs:element name="following" type="xs:boolean"/>
+      <xs:element name="liked" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="numberComments" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberDenouncements" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberFollows" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberLikes" type="xs:int"/>
+      <xs:element minOccurs="0" name="numberShares" type="xs:int"/>
+      <xs:element name="shared" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="sociableId" type="xs:long"/>
+      <xs:element minOccurs="0" name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="documentSecurityConfigDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="attributionType" type="xs:int"/>
+      <xs:element minOccurs="0" name="attributionValue" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element minOccurs="0" name="downloadEnabled" type="xs:boolean"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="inheritSecurity" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="permission" type="xs:boolean"/>
+      <xs:element minOccurs="0" name="securityLevel" type="xs:int"/>
+      <xs:element minOccurs="0" name="securityVersion" type="xs:boolean"/>
+      <xs:element name="sequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="showContent" type="xs:boolean"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="approverWithLevelDto">
+    <xs:sequence>
+      <xs:element name="approverType" type="xs:int"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="levelId" type="xs:int"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="approvalLevelDto">
+    <xs:sequence>
+      <xs:element name="approvalMode" type="xs:int"/>
+      <xs:element minOccurs="0" name="levelDescription" type="xs:string"/>
+      <xs:element name="levelId" type="xs:int"/>
+      <xs:element name="mandatorySignature" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="relatedDocumentDto">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="relatedDocumentId" type="xs:int"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="webServiceMessage">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element minOccurs="0" name="documentDescription" type="xs:string"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element name="version" type="xs:int"/>
+      <xs:element minOccurs="0" name="webServiceMessage" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="documentApprovalStatusDto">
+    <xs:sequence>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element name="status" type="xs:int"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="approverDto">
+    <xs:sequence>
+      <xs:element name="approvelMode" type="xs:int"/>
+      <xs:element name="approverType" type="xs:int"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element name="companyId" type="xs:long"/>
+      <xs:element name="documentId" type="xs:int"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="foo" nillable="true" type="xs:string"/>
+      <xs:element minOccurs="0" name="levelDescription" type="xs:string"/>
+      <xs:element name="levelId" type="xs:int"/>
+      <xs:element name="version" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="documentApprovementHistoryDto">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="approvementDate" type="xs:dateTime"/>
+      <xs:element minOccurs="0" name="colleagueId" type="xs:string"/>
+      <xs:element minOccurs="0" name="colleagueName" type="xs:string"/>
+      <xs:element name="documentVersion" type="xs:int"/>
+      <xs:element name="iterationSequence" type="xs:int"/>
+      <xs:element name="levelId" type="xs:int"/>
+      <xs:element name="movementSequence" type="xs:int"/>
+      <xs:element minOccurs="0" name="observation" type="xs:string"/>
+      <xs:element name="signed" type="xs:boolean"/>
+      <xs:element name="status" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="attachmentArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:attachment"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentSecurityConfigDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentSecurityConfigDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="approverWithLevelDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:approverWithLevelDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="approvalLevelDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:approvalLevelDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="relatedDocumentDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:relatedDocumentDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="webServiceMessageArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:webServiceMessage"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentApprovalStatusDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentApprovalStatusDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="approverDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:approverDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType final="#all" name="documentApprovementHistoryDtoArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="tns:documentApprovementHistoryDto"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Exception" type="tns:Exception"/>
+  <xs:complexType name="Exception">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://jaxb.dev.java.net/array" version="1.0">
+
+  <xs:complexType final="#all" name="intArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType final="#all" name="stringArray">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="item" nillable="true" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="findMostPopularDocumentsOnDemand">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="limit" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="lastRowId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="removeSecurityResponse">
+  </wsdl:message>
+  <wsdl:message name="getDocumentVersionResponse">
+    <wsdl:part name="folder" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentApprovalStatus">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="moveDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentIds" type="ns1:intArray">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="destFolderId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getSecurity">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="approveDocument">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="approverId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="approved" type="xsd:boolean">
+    </wsdl:part>
+    <wsdl:part name="observation" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentContentResponse">
+    <wsdl:part name="folder" type="xsd:base64Binary">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="restoreDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="destroyDocument">
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentApprovalHistoryResponse">
+    <wsdl:part name="DocumentApprovementHistoryDtos" type="tns:documentApprovementHistoryDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="validateIntegrationRequirementsResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createDocumentWithApprovementLevelsResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getApprovers">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getApproversResponse">
+    <wsdl:part name="Approvers" type="tns:approverWithLevelDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="restoreDocument">
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="Document" type="tns:documentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="security" type="tns:documentSecurityConfigDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Approvers" type="tns:approverDtoArray">
+    </wsdl:part>
+    <wsdl:part name="RelatedDocuments" type="tns:relatedDocumentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="removeSecurity">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Exception">
+    <wsdl:part element="tns:Exception" name="Exception">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getRelatedDocuments">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getUserPermissionsResponse">
+    <wsdl:part name="result" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateGroupSecurityTypeResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="moveDocumentResponse">
+    <wsdl:part name="result" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findMostPopularDocumentsOnDemandResponse">
+    <wsdl:part name="result" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentContent">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentoVersao" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="nomeArquivo" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findMostPopularDocuments">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="nrResultados" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentByExternalId">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="externalDocumentnId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getReportSubjectIdResponse">
+    <wsdl:part name="topicId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createDocumentWithApprovementLevels">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="Document" type="tns:documentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="security" type="tns:documentSecurityConfigDtoArray">
+    </wsdl:part>
+    <wsdl:part name="ApproversWithLevels" type="tns:approverWithLevelDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Levels" type="tns:approvalLevelDtoArray">
+    </wsdl:part>
+    <wsdl:part name="RelatedDocuments" type="tns:relatedDocumentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleDocumentPrivateResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="copyDocumentToUploadAreaResponse">
+    <wsdl:part name="result" type="ns1:stringArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="destroyDocumentApproval">
+    <wsdl:part name="userId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="validateIntegrationRequirements">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentVersion">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findMostPopularDocumentsResponse">
+    <wsdl:part name="result" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocumentConversionStatus">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="status" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="msg" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocumentConversionStatusResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getUserPermissions">
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocumentWithApprovementLevelsResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="deleteDocument">
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findRecycledDocumentsResponse">
+    <wsdl:part name="result" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateSimpleDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleDocumentPrivate">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="createSimpleDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="parentDocumentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="publisherId" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="documentDescription" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActiveDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentApprovalStatusResponse">
+    <wsdl:part name="DocumentApprovalStatusDtos" type="tns:documentApprovalStatusDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="approveDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getSecurityResponse">
+    <wsdl:part name="Security" type="tns:documentSecurityConfigDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateGroupSecurityType">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="permissionType" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="restrictionType" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="findRecycledDocuments">
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getRelatedDocumentsResponse">
+    <wsdl:part name="RelatedDocuments" type="tns:relatedDocumentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocumentWithApprovementLevels">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="Document" type="tns:documentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="security" type="tns:documentSecurityConfigDtoArray">
+    </wsdl:part>
+    <wsdl:part name="ApproversWithLevels" type="tns:approverWithLevelDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Levels" type="tns:approvalLevelDtoArray">
+    </wsdl:part>
+    <wsdl:part name="RelatedDocuments" type="tns:relatedDocumentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentByExternalIdResponse">
+    <wsdl:part name="Documents" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="copyDocumentToUploadArea">
+    <wsdl:part name="user" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="colleagueId" type="xsd:string">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getReportSubjectId">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="destroyDocumentResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="destroyDocumentApprovalResponse">
+    <wsdl:part name="result" type="tns:webServiceMessageArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getActiveDocumentResponse">
+    <wsdl:part name="folder" type="tns:documentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="updateDocument">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="Document" type="tns:documentDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Attachments" type="tns:attachmentArray">
+    </wsdl:part>
+    <wsdl:part name="security" type="tns:documentSecurityConfigDtoArray">
+    </wsdl:part>
+    <wsdl:part name="Approvers" type="tns:approverDtoArray">
+    </wsdl:part>
+    <wsdl:part name="RelatedDocuments" type="tns:relatedDocumentDtoArray">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getDocumentApprovalHistory">
+    <wsdl:part name="username" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="password" type="xsd:string">
+    </wsdl:part>
+    <wsdl:part name="companyId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="documentId" type="xsd:int">
+    </wsdl:part>
+    <wsdl:part name="version" type="xsd:int">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="DocumentService">
+    <wsdl:operation name="findMostPopularDocuments">
+      <wsdl:input message="tns:findMostPopularDocuments" name="findMostPopularDocuments">
+    </wsdl:input>
+      <wsdl:output message="tns:findMostPopularDocumentsResponse" name="findMostPopularDocumentsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentByExternalId">
+      <wsdl:input message="tns:getDocumentByExternalId" name="getDocumentByExternalId">
+    </wsdl:input>
+      <wsdl:output message="tns:getDocumentByExternalIdResponse" name="getDocumentByExternalIdResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createDocumentWithApprovementLevels">
+      <wsdl:input message="tns:createDocumentWithApprovementLevels" name="createDocumentWithApprovementLevels">
+    </wsdl:input>
+      <wsdl:output message="tns:createDocumentWithApprovementLevelsResponse" name="createDocumentWithApprovementLevelsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="destroyDocumentApproval">
+      <wsdl:input message="tns:destroyDocumentApproval" name="destroyDocumentApproval">
+    </wsdl:input>
+      <wsdl:output message="tns:destroyDocumentApprovalResponse" name="destroyDocumentApprovalResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findMostPopularDocumentsOnDemand">
+      <wsdl:input message="tns:findMostPopularDocumentsOnDemand" name="findMostPopularDocumentsOnDemand">
+    </wsdl:input>
+      <wsdl:output message="tns:findMostPopularDocumentsOnDemandResponse" name="findMostPopularDocumentsOnDemandResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentApprovalStatus">
+      <wsdl:input message="tns:getDocumentApprovalStatus" name="getDocumentApprovalStatus">
+    </wsdl:input>
+      <wsdl:output message="tns:getDocumentApprovalStatusResponse" name="getDocumentApprovalStatusResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="validateIntegrationRequirements">
+      <wsdl:input message="tns:validateIntegrationRequirements" name="validateIntegrationRequirements">
+    </wsdl:input>
+      <wsdl:output message="tns:validateIntegrationRequirementsResponse" name="validateIntegrationRequirementsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentVersion">
+      <wsdl:input message="tns:getDocumentVersion" name="getDocumentVersion">
+    </wsdl:input>
+      <wsdl:output message="tns:getDocumentVersionResponse" name="getDocumentVersionResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="moveDocument">
+      <wsdl:input message="tns:moveDocument" name="moveDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:moveDocumentResponse" name="moveDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocumentConversionStatus">
+      <wsdl:input message="tns:updateDocumentConversionStatus" name="updateDocumentConversionStatus">
+    </wsdl:input>
+      <wsdl:output message="tns:updateDocumentConversionStatusResponse" name="updateDocumentConversionStatusResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getUserPermissions">
+      <wsdl:input message="tns:getUserPermissions" name="getUserPermissions">
+    </wsdl:input>
+      <wsdl:output message="tns:getUserPermissionsResponse" name="getUserPermissionsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="deleteDocument">
+      <wsdl:input message="tns:deleteDocument" name="deleteDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:deleteDocumentResponse" name="deleteDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleDocument">
+      <wsdl:input message="tns:updateSimpleDocument" name="updateSimpleDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:updateSimpleDocumentResponse" name="updateSimpleDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getSecurity">
+      <wsdl:input message="tns:getSecurity" name="getSecurity">
+    </wsdl:input>
+      <wsdl:output message="tns:getSecurityResponse" name="getSecurityResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleDocumentPrivate">
+      <wsdl:input message="tns:createSimpleDocumentPrivate" name="createSimpleDocumentPrivate">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleDocumentPrivateResponse" name="createSimpleDocumentPrivateResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="approveDocument">
+      <wsdl:input message="tns:approveDocument" name="approveDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:approveDocumentResponse" name="approveDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleDocument">
+      <wsdl:input message="tns:createSimpleDocument" name="createSimpleDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:createSimpleDocumentResponse" name="createSimpleDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActiveDocument">
+      <wsdl:input message="tns:getActiveDocument" name="getActiveDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:getActiveDocumentResponse" name="getActiveDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="destroyDocument">
+      <wsdl:input message="tns:destroyDocument" name="destroyDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:destroyDocumentResponse" name="destroyDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getApprovers">
+      <wsdl:input message="tns:getApprovers" name="getApprovers">
+    </wsdl:input>
+      <wsdl:output message="tns:getApproversResponse" name="getApproversResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="restoreDocument">
+      <wsdl:input message="tns:restoreDocument" name="restoreDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:restoreDocumentResponse" name="restoreDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createDocument">
+      <wsdl:input message="tns:createDocument" name="createDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:createDocumentResponse" name="createDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="removeSecurity">
+      <wsdl:input message="tns:removeSecurity" name="removeSecurity">
+    </wsdl:input>
+      <wsdl:output message="tns:removeSecurityResponse" name="removeSecurityResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateGroupSecurityType">
+      <wsdl:input message="tns:updateGroupSecurityType" name="updateGroupSecurityType">
+    </wsdl:input>
+      <wsdl:output message="tns:updateGroupSecurityTypeResponse" name="updateGroupSecurityTypeResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findRecycledDocuments">
+      <wsdl:input message="tns:findRecycledDocuments" name="findRecycledDocuments">
+    </wsdl:input>
+      <wsdl:output message="tns:findRecycledDocumentsResponse" name="findRecycledDocumentsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getRelatedDocuments">
+      <wsdl:input message="tns:getRelatedDocuments" name="getRelatedDocuments">
+    </wsdl:input>
+      <wsdl:output message="tns:getRelatedDocumentsResponse" name="getRelatedDocumentsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocumentWithApprovementLevels">
+      <wsdl:input message="tns:updateDocumentWithApprovementLevels" name="updateDocumentWithApprovementLevels">
+    </wsdl:input>
+      <wsdl:output message="tns:updateDocumentWithApprovementLevelsResponse" name="updateDocumentWithApprovementLevelsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="copyDocumentToUploadArea">
+      <wsdl:input message="tns:copyDocumentToUploadArea" name="copyDocumentToUploadArea">
+    </wsdl:input>
+      <wsdl:output message="tns:copyDocumentToUploadAreaResponse" name="copyDocumentToUploadAreaResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getReportSubjectId">
+      <wsdl:input message="tns:getReportSubjectId" name="getReportSubjectId">
+    </wsdl:input>
+      <wsdl:output message="tns:getReportSubjectIdResponse" name="getReportSubjectIdResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocument">
+      <wsdl:input message="tns:updateDocument" name="updateDocument">
+    </wsdl:input>
+      <wsdl:output message="tns:updateDocumentResponse" name="updateDocumentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentApprovalHistory">
+      <wsdl:input message="tns:getDocumentApprovalHistory" name="getDocumentApprovalHistory">
+    </wsdl:input>
+      <wsdl:output message="tns:getDocumentApprovalHistoryResponse" name="getDocumentApprovalHistoryResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentContent">
+      <wsdl:input message="tns:getDocumentContent" name="getDocumentContent">
+    </wsdl:input>
+      <wsdl:output message="tns:getDocumentContentResponse" name="getDocumentContentResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Exception" name="Exception">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="ECMDocumentServiceServiceSoapBinding" type="tns:DocumentService">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="findMostPopularDocuments">
+      <soap:operation soapAction="findMostPopularDocuments" style="rpc"/>
+      <wsdl:input name="findMostPopularDocuments">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="findMostPopularDocumentsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentByExternalId">
+      <soap:operation soapAction="getDocumentByExternalId" style="rpc"/>
+      <wsdl:input name="getDocumentByExternalId">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDocumentByExternalIdResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createDocumentWithApprovementLevels">
+      <soap:operation soapAction="createDocumentWithApprovementLevels" style="rpc"/>
+      <wsdl:input name="createDocumentWithApprovementLevels">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createDocumentWithApprovementLevelsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="destroyDocumentApproval">
+      <soap:operation soapAction="destroyDocumentApproval" style="rpc"/>
+      <wsdl:input name="destroyDocumentApproval">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="destroyDocumentApprovalResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findMostPopularDocumentsOnDemand">
+      <soap:operation soapAction="findMostPopularDocumentsOnDemand" style="rpc"/>
+      <wsdl:input name="findMostPopularDocumentsOnDemand">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="findMostPopularDocumentsOnDemandResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentApprovalStatus">
+      <soap:operation soapAction="getDocumentApprovalStatus" style="rpc"/>
+      <wsdl:input name="getDocumentApprovalStatus">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDocumentApprovalStatusResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="validateIntegrationRequirements">
+      <soap:operation soapAction="validateIntegrationRequirements" style="rpc"/>
+      <wsdl:input name="validateIntegrationRequirements">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="validateIntegrationRequirementsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentVersion">
+      <soap:operation soapAction="getDocumentVersion" style="rpc"/>
+      <wsdl:input name="getDocumentVersion">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDocumentVersionResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="moveDocument">
+      <soap:operation soapAction="moveDocument" style="rpc"/>
+      <wsdl:input name="moveDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="moveDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocumentConversionStatus">
+      <soap:operation soapAction="updateDocumentConversionStatus" style="rpc"/>
+      <wsdl:input name="updateDocumentConversionStatus">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateDocumentConversionStatusResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getUserPermissions">
+      <soap:operation soapAction="getUserPermissions" style="rpc"/>
+      <wsdl:input name="getUserPermissions">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getUserPermissionsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="deleteDocument">
+      <soap:operation soapAction="deleteDocument" style="rpc"/>
+      <wsdl:input name="deleteDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="deleteDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateSimpleDocument">
+      <soap:operation soapAction="updateSimpleDocument" style="rpc"/>
+      <wsdl:input name="updateSimpleDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateSimpleDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getSecurity">
+      <soap:operation soapAction="getSecurity" style="rpc"/>
+      <wsdl:input name="getSecurity">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getSecurityResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleDocumentPrivate">
+      <soap:operation soapAction="createSimpleDocumentPrivate" style="rpc"/>
+      <wsdl:input name="createSimpleDocumentPrivate">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleDocumentPrivateResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="approveDocument">
+      <soap:operation soapAction="approveDocument" style="rpc"/>
+      <wsdl:input name="approveDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="approveDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createSimpleDocument">
+      <soap:operation soapAction="createSimpleDocument" style="rpc"/>
+      <wsdl:input name="createSimpleDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createSimpleDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getActiveDocument">
+      <soap:operation soapAction="getActiveDocument" style="rpc"/>
+      <wsdl:input name="getActiveDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getActiveDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="destroyDocument">
+      <soap:operation soapAction="destroyDocument" style="rpc"/>
+      <wsdl:input name="destroyDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="destroyDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getApprovers">
+      <soap:operation soapAction="getApprovers" style="rpc"/>
+      <wsdl:input name="getApprovers">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getApproversResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="restoreDocument">
+      <soap:operation soapAction="restoreDocument" style="rpc"/>
+      <wsdl:input name="restoreDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="restoreDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="createDocument">
+      <soap:operation soapAction="createDocument" style="rpc"/>
+      <wsdl:input name="createDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="createDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="removeSecurity">
+      <soap:operation soapAction="removeSecurity" style="rpc"/>
+      <wsdl:input name="removeSecurity">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="removeSecurityResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateGroupSecurityType">
+      <soap:operation soapAction="updateGroupSecurityType" style="rpc"/>
+      <wsdl:input name="updateGroupSecurityType">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateGroupSecurityTypeResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="findRecycledDocuments">
+      <soap:operation soapAction="findRecycledDocuments" style="rpc"/>
+      <wsdl:input name="findRecycledDocuments">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="findRecycledDocumentsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getRelatedDocuments">
+      <soap:operation soapAction="getRelatedDocuments" style="rpc"/>
+      <wsdl:input name="getRelatedDocuments">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getRelatedDocumentsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocumentWithApprovementLevels">
+      <soap:operation soapAction="updateDocumentWithApprovementLevels" style="rpc"/>
+      <wsdl:input name="updateDocumentWithApprovementLevels">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateDocumentWithApprovementLevelsResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="copyDocumentToUploadArea">
+      <soap:operation soapAction="copyDocumentToUploadArea" style="rpc"/>
+      <wsdl:input name="copyDocumentToUploadArea">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="copyDocumentToUploadAreaResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getReportSubjectId">
+      <soap:operation soapAction="getReportSubject" style="rpc"/>
+      <wsdl:input name="getReportSubjectId">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getReportSubjectIdResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="updateDocument">
+      <soap:operation soapAction="updateDocument" style="rpc"/>
+      <wsdl:input name="updateDocument">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="updateDocumentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentApprovalHistory">
+      <soap:operation soapAction="getDocumentApprovalHistory" style="rpc"/>
+      <wsdl:input name="getDocumentApprovalHistory">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDocumentApprovalHistoryResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="getDocumentContent">
+      <soap:operation soapAction="getDocumentContent" style="rpc"/>
+      <wsdl:input name="getDocumentContent">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getDocumentContentResponse">
+        <soap:body namespace="http://ws.dm.ecm.technology.totvs.com/" use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Exception">
+        <soap:fault name="Exception" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="ECMDocumentServiceService">
+    <wsdl:port binding="tns:ECMDocumentServiceServiceSoapBinding" name="DocumentServicePort">
+      <soap:address location="http://10.1.2.253:8080/webdesk/ECMDocumentService"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

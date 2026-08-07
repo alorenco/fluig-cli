@@ -23,6 +23,8 @@ func newDocumentCmd(app *App) *cobra.Command {
 	}
 	cmd.AddCommand(newDocumentListCmd(app))
 	cmd.AddCommand(newDocumentFindCmd(app))
+	cmd.AddCommand(newDocumentShowCmd(app))
+	cmd.AddCommand(newDocumentMoveCmd(app))
 	cmd.AddCommand(newDocumentDownloadCmd(app))
 	cmd.AddCommand(newDocumentUploadCmd(app))
 	cmd.AddCommand(newDocumentMkdirCmd(app))
@@ -445,6 +447,120 @@ func newDocumentFindCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "padrão glob do nome (case-insensitive; * e ?)")
 	cmd.Flags().IntVar(&under, "under", 0, "pasta de partida da busca (obrigatório)")
 	cmd.Flags().IntVar(&depth, "depth", 10, "profundidade máxima (1 = só o conteúdo direto)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- document show ---
+
+func newDocumentShowCmd(app *App) *cobra.Command {
+	var passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "show <id>",
+		Short: "Mostra os metadados de um documento ou pasta do GED",
+		Long: "Mostra id, nome, tipo, versão e a PASTA PAI de um item do GED — a\n" +
+			"resposta rápida para \"onde este documento está?\", sem precisar do\n" +
+			"dataset document.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			id, err := strconv.Atoi(args[0])
+			if err != nil || id <= 0 {
+				return output.Usagef("id inválido %q", args[0])
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			info, err := client.GetGEDDocument(ctx, id)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			// Nome da pasta pai: best-effort (sem permissão/raiz → só o id).
+			parentName := ""
+			if info.ParentID > 0 {
+				if parent, perr := client.GetGEDDocument(ctx, int(info.ParentID)); perr == nil {
+					parentName = parent.Description
+				}
+			}
+			p.Successf("%s (id %d, %s, versão %d)", info.Description, info.ID, info.Type, info.Version)
+			if parentName != "" {
+				p.Successf("pasta pai: %s (id %d)", parentName, info.ParentID)
+			} else {
+				p.Successf("pasta pai: id %d", info.ParentID)
+			}
+			p.Done(map[string]any{
+				"id": info.ID, "documentId": info.ID, "description": info.Description,
+				"type": info.Type, "version": info.Version,
+				"parentId": info.ParentID, "parentName": parentName,
+			})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- document move ---
+
+func newDocumentMoveCmd(app *App) *cobra.Command {
+	var (
+		folder        int
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "move <id>... --folder <destino>",
+		Short: "Move documentos ou pastas do GED para outra pasta",
+		Long: "Move itens do GED para a pasta destino (SOAP moveDocument — não há\n" +
+			"rota REST). Em lote, cada id tem o próprio resultado em results[];\n" +
+			"falha parcial vira exit 6. A CLI confirma o efeito relendo o parentId.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if folder <= 0 {
+				return output.Usagef("informe a pasta destino com --folder <id>")
+			}
+			ids := make([]int, 0, len(args))
+			for _, raw := range args {
+				id, err := strconv.Atoi(raw)
+				if err != nil || id <= 0 {
+					return output.Usagef("id inválido %q", raw)
+				}
+				ids = append(ids, id)
+			}
+			ctx := context.Background()
+			_, client, err := app.connectWrite(ctx, passwordStdin, "mover documentos do GED")
+			if err != nil {
+				return err
+			}
+
+			results := make([]map[string]any, 0, len(ids))
+			failures := 0
+			var single error
+			for _, id := range ids {
+				item := map[string]any{"id": id, "action": "moved", "success": true, "folderId": folder}
+				err := client.MoveGEDDocuments(ctx, []int{id}, folder)
+				if err == nil {
+					if info, gerr := client.GetGEDDocument(ctx, id); gerr == nil && int(info.ParentID) != folder {
+						err = fmt.Errorf("o servidor aceitou o move, mas o item segue na pasta %d", info.ParentID)
+					}
+				}
+				if err != nil {
+					item["action"], item["success"] = "failed", false
+					item["error"] = output.AsError(app.mapErr(err)).Message
+					failures++
+					single = app.mapErr(err)
+					p.Warnf("documento %d: %s", id, item["error"])
+				} else {
+					p.Successf("documento %d movido para a pasta %d.", id, folder)
+				}
+				results = append(results, item)
+			}
+			return finishBatch(p, single, map[string]any{"results": results, "folderId": folder}, failures, len(ids))
+		},
+	}
+	cmd.Flags().IntVar(&folder, "folder", 0, "pasta destino (obrigatório)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

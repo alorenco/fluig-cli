@@ -67,3 +67,31 @@ func ParseFolders(body []byte) ([]FolderItem, error) {
 	}
 	return env.Sub, nil
 }
+
+// --- moveDocument (ECMDocumentService, mesmo namespace dm) ---
+
+// moveDocReq move documentos para outra pasta. Assinatura RPC/literal do WSDL
+// do ECMDocumentService (testdata/ECMDocumentService.wsdl); o array vai em
+// elementos <item>, como nos demais serviços.
+type moveDocReq struct {
+	XMLName      xml.Name   `xml:"ws:moveDocument"`
+	Username     string     `xml:"username"`
+	Password     string     `xml:"password"`
+	CompanyID    int        `xml:"companyId"`
+	DocumentIDs  moveDocIDs `xml:"documentIds"`
+	ColleagueID  string     `xml:"colleagueId"`
+	DestFolderID int        `xml:"destFolderId"`
+}
+
+type moveDocIDs struct {
+	Items []int `xml:"item"`
+}
+
+// BuildMoveDocument monta o envelope do moveDocument. colleagueID = userCode.
+func BuildMoveDocument(companyID int, username, password, colleagueID string, documentIDs []int, destFolderID int) ([]byte, error) {
+	return marshalEnvelope(NSCardIndex, moveDocReq{
+		Username: username, Password: password, CompanyID: companyID,
+		DocumentIDs: moveDocIDs{Items: documentIDs},
+		ColleagueID: colleagueID, DestFolderID: destFolderID,
+	})
+}

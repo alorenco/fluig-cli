@@ -284,6 +284,8 @@ as flags, e inclui as vigências expiradas).
 |---|---|
 | `document list [<folderId>] [--recursive] [--depth N]` | sem arg = pastas raiz; com id = conteúdo (pastas/arquivos/artigos). `--recursive` desce a árvore (default 10 níveis) mostrando o CAMINHO de cada item — a verificação pós-deploy "foi para a pasta certa?" em 1 chamada; teto de 300 pastas com AVISO quando trunca |
 | `document find --name "glob" --under <folderId> [--depth N]` | procura por NOME na árvore (glob `*`/`?`, case-insensitive); resultado com caminho completo |
+| `document show <id>` | metadados + a PASTA PAI (nome e id) — "onde este documento está?" sem o dataset document; `data.id` e `data.documentId` são sinônimos |
+| `document move <id>... --folder <destino>` | move itens para outra pasta (SOAP moveDocument — sem rota REST; o PATCH de propriedades recusa parentId). Lote com results[] + exit 6 parcial; a CLI confirma relendo o parentId |
 | `document download <id>... [--dir pasta]` | baixa pelo id (nome vem dos metadados; byte a byte) |
 | `document upload <file>... --folder <id>` | publica na pasta (upload + publish em uma etapa) |
 | `document mkdir <parentId> <nome>` | cria pasta |

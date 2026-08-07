@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/alorenco/fluig-cli/internal/fluig/soap"
 )
 
 const restCMDocs = "/content-management/api/v2/documents"
@@ -330,4 +332,40 @@ func (c *Client) WalkGEDTree(ctx context.Context, folderID, maxDepth, maxRequest
 		}
 	}
 	return out, false, nil
+}
+
+// soapDocServicePath é o serviço SOAP de documentos do GED (move — sem rota
+// REST: o PATCH /v2/documents/{id} recusa parentId com PatchException,
+// validado ao vivo em 2026-08-07).
+const soapDocServicePath = "/webdesk/ECMDocumentService"
+
+// MoveGEDDocuments move documentos/pastas para outra pasta do GED (SOAP
+// ECMDocumentService.moveDocument; sessão como credencial). ⚠️ Validado ao
+// vivo (2026-08-07): o result tem semântica própria — "[OK] - <id>" no
+// sucesso e "[NOK] - <mensagem>" na recusa (ex.: pasta destino inexistente).
+func (c *Client) MoveGEDDocuments(ctx context.Context, ids []int, destFolderID int) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	colleague, err := c.ResolveUserCode(ctx)
+	if err != nil {
+		return err
+	}
+	reqBody, err := soap.BuildMoveDocument(c.opts.CompanyID, c.opts.Username, "", colleague, ids, destFolderID)
+	if err != nil {
+		return err
+	}
+	respBody, err := c.postSOAP(ctx, soapDocServicePath, "moveDocument", reqBody)
+	if err != nil {
+		return err
+	}
+	result, err := soap.ParseStringResult(respBody, "moveDocument")
+	if err != nil {
+		return err
+	}
+	msg := strings.TrimSpace(result)
+	if msg == "" || strings.HasPrefix(msg, "[OK]") {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", errServerRejected, strings.TrimSpace(strings.TrimPrefix(msg, "[NOK] -")))
 }

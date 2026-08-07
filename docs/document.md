@@ -87,3 +87,33 @@ fluigcli document find --name "*.pdf" --under 25255 --depth 2
 O `--under` é obrigatório: ele delimita a busca (descubra as raízes com
 `document list` sem argumento). Os limites do `--recursive` valem aqui também
 (`--depth`, teto de 300 pastas com aviso).
+
+## `fluigcli document show <id>`
+
+Este comando mostra os metadados de um item do GED: id, nome, tipo, versão e a
+**pasta pai** (nome e id). Ele responde "onde este documento está?" sem o
+dataset `document`.
+
+```sh
+fluigcli document show 1247112
+# zz_move_teste.txt (id 1247112, FileDocument, versão 1000)
+# pasta pai: zz_fluigcli_test_move_B (id 1247111)
+```
+
+No `--json`, `data.id` e `data.documentId` são sinônimos (consistência entre
+comandos).
+
+## `fluigcli document move <id>... --folder <destino>`
+
+Este comando move documentos ou pastas para outra pasta do GED. Ele usa o SOAP
+`moveDocument` — não há rota REST (o `PATCH` de propriedades recusa
+`parentId`).
+
+```sh
+fluigcli document move 1247112 --folder 1247110
+```
+
+Em lote, cada id tem o próprio resultado em `data.results[]`. Falha parcial
+vira exit **6**. A CLI confirma o efeito: ela relê o item e valida o
+`parentId`. Destino inexistente ou sem permissão volta como exit 5, com a
+mensagem do servidor.

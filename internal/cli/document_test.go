@@ -17,6 +17,7 @@ import (
 // documentStub simula o GED: raízes via SOAP (fixture real), conteúdo de
 // pasta via REST (fixture real sanitizada), metadados/stream/upload/delete.
 type documentStub struct {
+	moveBody string // envelope recebido no moveDocument
 	uploadedName string
 	uploadedBody []byte
 	mkdirBody    string
@@ -40,6 +41,24 @@ func (s *documentStub) server(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/user/findUserByLogin", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"content":{"login":"u","userCode":"uc"}}`)
+	})
+	mux.HandleFunc("/webdesk/ECMDocumentService", func(w http.ResponseWriter, r *http.Request) {
+		// moveDocument: "[OK] - <id>" = sucesso; "[NOK] - msg" = recusa
+		// (semântica validada ao vivo em 2026-08-07).
+		if r.Header.Get("SOAPAction") != "moveDocument" {
+			http.Error(w, "op?", 500)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		s.moveBody = string(b)
+		result := "[OK] - 103"
+		if strings.Contains(s.moveBody, "<destFolderId>999</destFolderId>") {
+			result = "[NOK] - A pasta destino não pode ser localizada. Destino: 999"
+		}
+		w.Header().Set("Content-Type", "text/xml")
+		io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
+			`<ns2:moveDocumentResponse xmlns:ns2="http://ws.dm.ecm.technology.totvs.com/"><result>`+result+
+			`</result></ns2:moveDocumentResponse></soap:Body></soap:Envelope>`)
 	})
 	mux.HandleFunc("/webdesk/ECMFolderService", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/xml")
@@ -87,6 +106,10 @@ func (s *documentStub) server(t *testing.T) *httptest.Server {
 		case r.Method == http.MethodDelete:
 			s.deleted = append(s.deleted, path)
 			w.WriteHeader(http.StatusNoContent)
+		case path == "103":
+			io.WriteString(w, `{"companyId":1,"id":103,"version":2000,"type":"FileDocument","description":"Notificação nº 7.pdf","parentId":101}`)
+		case path == "101":
+			io.WriteString(w, `{"companyId":1,"id":101,"version":1000,"type":"Folder","description":"Contratos","parentId":100}`)
 		case path == "926468":
 			// Metadados reais (homolog 2026-07-14).
 			io.WriteString(w, `{"companyId":1,"id":926468,"version":1000,"type":"FileDocument","description":"manual.pdf","parentId":962589,"downloadEnabled":true}`)
@@ -348,5 +371,75 @@ func TestDocumentFindSemFlags(t *testing.T) {
 	}
 	if code, _ := runMain(t, "document", "find", "--under", "100", "--json", "--project", proj, "--server", "homolog"); code != output.ExitUsage {
 		t.Errorf("sem --name: exit=%d, quer %d", code, output.ExitUsage)
+	}
+}
+
+// --- document show / document move (ROADMAP3 §4.16) ---
+
+func TestDocumentShow(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "show", "103",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	if data["parentId"].(float64) != 101 || data["parentName"] != "Contratos" {
+		t.Errorf("pai não resolvido: %+v", data)
+	}
+	// Alias de id (consistência entre comandos — §4.18).
+	if data["id"].(float64) != 103 || data["documentId"].(float64) != 103 {
+		t.Errorf("id e documentId devem ser sinônimos: %+v", data)
+	}
+}
+
+func TestDocumentMove(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "move", "103", "--folder", "101",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for _, want := range []string{"<item>103</item>", "<destFolderId>101</destFolderId>", "<colleagueId>uc</colleagueId>"} {
+		if !strings.Contains(stub.moveBody, want) {
+			t.Errorf("envelope sem %s:\n%s", want, stub.moveBody)
+		}
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	results, _ := data["results"].([]any)
+	first, _ := results[0].(map[string]any)
+	// A confirmação relê o parentId (o stub devolve 101 = destino).
+	if first["success"] != true {
+		t.Errorf("resultado: %+v", first)
+	}
+}
+
+// "[NOK] - msg" vira recusa com a mensagem do servidor.
+func TestDocumentMoveRecusado(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "move", "103", "--folder", "999",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "pasta destino") {
+		t.Errorf("mensagem da recusa: %+v", env.Error)
+	}
+}
+
+func TestDocumentMoveSemFolder(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	if code, _ := runMain(t, "document", "move", "103", "--json", "--project", proj, "--server", "homolog"); code != output.ExitUsage {
+		t.Errorf("sem --folder: exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
