@@ -339,6 +339,12 @@ fluigcli workflow convert Compras --from 20 --to 29
 # 3. converta: todas as solicitações, ou só as escolhidas
 fluigcli workflow convert Compras --from 20 --to 29 --all
 fluigcli workflow convert Compras --from 20 --to 29 --instance 151158 --instance 151338
+
+# etapa aberta sem correspondente no destino? complete o de-para com --map
+fluigcli workflow convert Compras --from 20 --to 29 --all --map 66=29,72=13
+
+# em automação: sem confirmação e com um resultado por solicitação no JSON
+fluigcli workflow convert Compras --from 20 --to 29 --all --yes --json
 ```
 
 | Flag | Uso |
