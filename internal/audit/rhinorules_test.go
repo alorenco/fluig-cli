@@ -263,3 +263,70 @@ func TestRhinoB3SoServerSide(t *testing.T) {
 		t.Errorf("widget (client-side): got %d RHINO002, quer 0", n)
 	}
 }
+
+// RHINO004 — values[i] acessado por nome de coluna no server-side (a linha é
+// Object[] Java). Os casos legítimos vêm do projeto REAL de produção
+// (calibração de 2026-08-07): acesso por índice numérico/variável é comum
+// (15 arquivos) e FUNCIONA — só chave string e ponto quebram.
+func TestRhinoDatasetRowPorNome(t *testing.T) {
+	casos := []struct {
+		nome string
+		src  string
+		quer int
+	}{
+		// O caso do relato (13.2): chave string.
+		{"chave string quebra", `if (resultado.values[0]["status"] == false) {}`, 1},
+		{"chave string com aspas simples", `var s = ds.values[i]['coluna'];`, 1},
+		// O caso que derrubaria a regex ingênua: padrões REAIS da produção.
+		{"índice numérico é legítimo", `return report.values[0][0];`, 0},
+		{"índice numérico alto", `signatariosObj.push({ email: String(signatarios.values[idx][3]), act: 1 });`, 0},
+		{"expressão como índice", `var idlan = result.values[i - 1][1].split(";")[1];`, 0},
+		{"chave em variável não acusa (conservador)", `var v = ds.values[0][chave];`, 0},
+		// Acesso por ponto.
+		{"acesso por ponto quebra", `if (ds.values[0].status == 'ok') {}`, 1},
+		{"length é legítimo (array Java tem length)", `for (var i = 0; i < ds.values[i].length; i++) {}`, 0},
+		// Ruído que não pode acusar.
+		{"dentro de string não conta", `log.info("use ds.values[0].status aqui");`, 0},
+		{"dentro de comentário não conta", `// antes era ds.values[0]["status"]`, 0},
+		{"getValue certo não acusa", `var s = ds.getValue(0, "status");`, 0},
+		{"dois acessos na mesma linha = 1 achado", `var a = ds.values[0].x + ds.values[0].y;`, 1},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			fs := rhinoDatasetRowFindings("datasets/ds_x.js", []byte(tc.src))
+			if len(fs) != tc.quer {
+				t.Errorf("achados = %d, quer %d: %+v", len(fs), tc.quer, fs)
+			}
+		})
+	}
+}
+
+// A sugestão da RHINO004 traz a correção pronta, com a coluna quando dá.
+func TestRhinoDatasetRowSugestao(t *testing.T) {
+	fs := rhinoDatasetRowFindings("f.js", []byte(`var s = resultado.values[0].status;`))
+	if len(fs) != 1 || fs[0].Suggestion != `use resultado.getValue(0, "status")` {
+		t.Fatalf("sugestão com coluna: %+v", fs)
+	}
+	fs = rhinoDatasetRowFindings("f.js", []byte(`var s = resultado.values[0]["status"];`))
+	if len(fs) != 1 || fs[0].Suggestion != `use resultado.getValue(0, "coluna")` {
+		t.Fatalf("chave string fica mascarada — sugestão genérica: %+v", fs)
+	}
+}
+
+// RHINO004 só roda no server-side: no navegador values[i].coluna FUNCIONA
+// (248 usos legítimos no projeto real de produção).
+func TestRhinoDatasetRowSoServerSide(t *testing.T) {
+	src := []byte(`$("#campo").val(dados.values[0].data_baixa);`)
+	if n := countRule(scanJS("", "forms/F/F.js", src), RuleDatasetRowAccess); n != 0 {
+		t.Errorf("JS de formulário (client-side) não pode acusar: %d", n)
+	}
+	if n := countRule(scanJS("", "wcm/widget/w/src/main/webapp/resources/js/app.js", src), RuleDatasetRowAccess); n != 0 {
+		t.Errorf("widget (client-side) não pode acusar: %d", n)
+	}
+	if n := countRule(scanJS("", "forms/F/events/displayFields.js", src), RuleDatasetRowAccess); n != 1 {
+		t.Errorf("evento de formulário RODA no servidor — deveria acusar: %d", n)
+	}
+	if n := countRule(scanJS("", "workflow/scripts/p.servicetask7.js", src), RuleDatasetRowAccess); n != 1 {
+		t.Errorf("script de processo deveria acusar: %d", n)
+	}
+}

@@ -50,6 +50,9 @@ func newAuditCmd(app *App) *cobra.Command {
 			"                   (Voyager 2) não aceita; dá SyntaxError no deploy\n" +
 			"  RHINO003 (erro)  const declarado no corpo de um laço (for/while/do) — o Rhino\n" +
 			"                   congela o valor da 1ª iteração, sem erro; use let\n" +
+			"  RHINO004 (aviso) dataset.values[i] acessado por NOME de coluna em JS\n" +
+			"                   server-side — a linha é Object[] Java e quebra em runtime;\n" +
+			"                   use getValue(i, \"coluna\") (índice numérico funciona)\n" +
 			"  WF001 (erro)   [--process] seção activity-N do formulário sem etapa de\n" +
 			"                   sequence N no processo — a seção nunca renderiza\n" +
 			"  WF002 (aviso)  [--process] atividade humana sem seção activity-N no HTML\n\n" +

@@ -112,6 +112,66 @@ func rhinoFindings(rel string, content []byte) []Finding {
 	out = append(out, rhinoES6Findings(rel, lines)...)
 	// RHINO003 (footgun B2) — const declarado no corpo de um laço.
 	out = append(out, rhinoConstInLoopFindings(rel, content)...)
+	// RHINO004 — linha de dataset acessada por nome de coluna no server-side.
+	out = append(out, rhinoDatasetRowFindings(rel, content)...)
+	return out
+}
+
+// RHINO004 — `dataset.values[i]` acessado por NOME de coluna em JS server-side
+// (ROADMAP3 §4.11-B, bug real do feedback de 2026-08-03/04). No servidor,
+// `values[i]` é um `Object[]` Java: `values[0]["status"]` e `values[0].status`
+// quebram em runtime com `Java class "[Ljava.lang.Object;" has no public
+// instance field or method named "status"`. O certo é `getValue(i, "coluna")`.
+// No client-side (JS de formulário) o mesmo padrão funciona — a regra roda só
+// no server-side, como as demais RHINO*.
+//
+// ⚠️ Calibrado no projeto real de produção (2026-08-07, 192 datasets + 201
+// scripts de processo): o acesso por ÍNDICE (`values[0][0]`, `values[idx][3]`)
+// é LEGÍTIMO (Object[] aceita índice numérico) e aparece em 15 arquivos — a
+// regex sugerida no feedback (`\.values\[\w+\]\s*\[`) acusaria todos como
+// falso positivo. Só a CHAVE STRING e o acesso por PONTO quebram. `.length`
+// também é legítimo (array Java tem length no Rhino).
+var (
+	// `x.values[i]["coluna"]` — o "[" seguido de aspas. Roda sobre a fonte
+	// MASCARADA (maskSource preserva os delimitadores de aspas).
+	dsRowStringKeyRe = regexp.MustCompile(`(\w+)\s*\.\s*values\s*\[([^\]\n]*)\]\s*\[\s*["']`)
+	// `x.values[i].coluna` — acesso por ponto (membro capturado para a mensagem).
+	dsRowDotRe = regexp.MustCompile(`(\w+)\s*\.\s*values\s*\[([^\]\n]*)\]\s*\.\s*([A-Za-z_$]\w*)`)
+)
+
+// dsRowLegalMembers são os membros que um Object[] Java TEM no Rhino.
+var dsRowLegalMembers = map[string]bool{"length": true}
+
+func rhinoDatasetRowFindings(rel string, content []byte) []Finding {
+	var out []Finding
+	seenLine := map[int]bool{} // 1 achado por linha: o conserto é o mesmo
+	add := func(n int, base, index, member string) {
+		if seenLine[n] {
+			return
+		}
+		seenLine[n] = true
+		col := `"coluna"`
+		if member != "" {
+			col = fmt.Sprintf("%q", member)
+		}
+		out = append(out, Finding{
+			Rule: RuleDatasetRowAccess, Severity: SeverityWarning, File: rel, Line: n,
+			Message: fmt.Sprintf("%s.values[%s] acessado por nome de coluna — no server-side a linha é um Object[] Java "+
+				"e o acesso por nome quebra em runtime (acesso por índice numérico funciona)", base, strings.TrimSpace(index)),
+			Suggestion: fmt.Sprintf("use %s.getValue(%s, %s)", base, strings.TrimSpace(index), col),
+		})
+	}
+	for i, line := range strings.Split(string(maskSource(content)), "\n") {
+		for _, m := range dsRowStringKeyRe.FindAllStringSubmatch(line, -1) {
+			add(i+1, m[1], m[2], "") // o nome da coluna está mascarado
+		}
+		for _, m := range dsRowDotRe.FindAllStringSubmatch(line, -1) {
+			if dsRowLegalMembers[m[3]] {
+				continue
+			}
+			add(i+1, m[1], m[2], m[3])
+		}
+	}
 	return out
 }
 
