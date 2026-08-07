@@ -47,7 +47,9 @@ func newAuditCmd(app *App) *cobra.Command {
 			"                   se a chamada falha, o formulário quebra com TypeError\n" +
 			"  RHINO001 (aviso) === / !== entre um java.lang.String (getFieldName…,\n" +
 			"                   getValue(\"WK...\") global) e literal — no Rhino do Fluig é\n" +
-			"                   sempre false; use == ou String(...)\n" +
+			"                   sempre false; use == ou String(...). Rastreia a variável\n" +
+			"                   que recebe o retorno e o helper local (isEmpty) que compara\n" +
+			"                   o parâmetro com === e recebe uma fonte java\n" +
 			"  RHINO002 (erro)  sintaxe ES6+ (class, import/export, async/await, parâmetro\n" +
 			"                   default, spread, propriedade computada) — o Rhino do Fluig\n" +
 			"                   (Voyager 2) não aceita; dá SyntaxError no deploy\n" +

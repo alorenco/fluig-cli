@@ -1,6 +1,9 @@
 package audit
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func rhinoCount(t *testing.T, src string) int {
 	t.Helper()
@@ -362,5 +365,106 @@ if (s === '21') {}`, 0},
 				t.Errorf("got %d, quer %d\n%s", got, tc.quer, tc.src)
 			}
 		})
+	}
+}
+
+// §4.11-C parte 2 — rastreio interprocedural mínimo: helper local que compara
+// um PARÂMETRO com ===/!== a literal de texto, chamado com fonte
+// java.lang.String. O caso-guia é o bug real do feedback (isEmpty(numVenda)
+// sempre false com o card vazio).
+func TestRhinoB1Interprocedural(t *testing.T) {
+	casos := []struct {
+		nome string
+		src  string
+		quer int
+	}{
+		{"o caso do relato: var rastreada entra no helper", `
+function isEmpty(value) {
+   return value === null || value === undefined || value === '';
+}
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(numVenda)) { }`, 1},
+		{"fonte direta como argumento", `
+function isEmpty(v) { return v === ''; }
+if (isEmpty(hAPI.getCardValue("numVenda"))) { }`, 1},
+		{"getValue WK global como argumento", `
+function isEmpty(v) { return v === ''; }
+if (isEmpty(getValue("WKNumState"))) { }`, 1},
+		{"coerção na chamada é segura", `
+function isEmpty(v) { return v === ''; }
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(String(numVenda))) { }`, 0},
+		{"helper com == é seguro (o shape REAL da produção pós-correção)", `
+function isEmpty(value) {
+    if (value == null || value == '')
+        return true;
+    return false;
+}
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(numVenda)) { }`, 0},
+		{"=== só com null/undefined é seguro (não é literal de texto)", `
+function isEmpty(v) { return v === null || v === undefined; }
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(numVenda)) { }`, 0},
+		{"parâmetro reatribuído no corpo cala (pode ter coagido)", `
+function isEmpty(v) { v = String(v); return v === ''; }
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(numVenda)) { }`, 0},
+		{"argumento comum não acusa", `
+function isEmpty(v) { return v === ''; }
+var texto = 'abc';
+if (isEmpty(texto)) { }`, 0},
+		{"posição do parâmetro importa", `
+function comparaCampo(nome, valor) { return valor === ''; }
+var numVenda = hAPI.getCardValue("numVenda");
+if (comparaCampo(numVenda, 'x')) { }
+if (comparaCampo('x', numVenda)) { }`, 1},
+		{"variável de segundo grau: só o helper acusa uma vez por linha", `
+function isEmpty(v) { return v === ''; }
+var a = c.getFieldName();
+if (isEmpty(a) || isEmpty(a)) { }`, 1},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			fs := rhinoFindings("datasets/ds_x.js", []byte(tc.src))
+			n := 0
+			for _, f := range fs {
+				if strings.Contains(f.Message, "a função compara o parâmetro") {
+					n++
+				}
+			}
+			if n != tc.quer {
+				t.Errorf("interprocedural = %d, quer %d\n%+v", n, tc.quer, fs)
+			}
+		})
+	}
+}
+
+// A mensagem do interprocedural aponta as DUAS linhas: a da chamada (Finding.
+// Line) e a da comparação dentro do helper (no texto).
+func TestRhinoB1InterproceduralLinhas(t *testing.T) {
+	src := `function isEmpty(value) {
+   return value === '';
+}
+var numVenda = hAPI.getCardValue("numVenda");
+if (isEmpty(numVenda)) { }`
+	fs := rhinoFindings("f.js", []byte(src))
+	var hit *Finding
+	for i := range fs {
+		if strings.Contains(fs[i].Message, "a função compara o parâmetro") {
+			hit = &fs[i]
+		}
+	}
+	if hit == nil {
+		t.Fatalf("sem achado interprocedural: %+v", fs)
+	}
+	if hit.Line != 5 {
+		t.Errorf("o achado ancora na CHAMADA (linha 5), veio %d", hit.Line)
+	}
+	if !strings.Contains(hit.Message, "linha 2") {
+		t.Errorf("a mensagem deveria citar a linha da comparação (2): %s", hit.Message)
+	}
+	if !strings.Contains(hit.Message, "getCardValue") {
+		t.Errorf("a mensagem deveria citar a fonte: %s", hit.Message)
 	}
 }

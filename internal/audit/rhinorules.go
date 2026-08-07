@@ -133,6 +133,72 @@ func rhinoFindings(rel string, content []byte) []Finding {
 		}
 	}
 
+	// (c) rastreio interprocedural mínimo (ROADMAP3 §4.11-C parte 2): helper
+	// local que compara um PARÂMETRO com ===/!== a literal de texto, chamado
+	// com uma fonte java.lang.String. Foi o shape exato do bug real do
+	// feedback de 2026-08-03/04: `function isEmpty(v){ return v === ''; }` +
+	// `isEmpty(hAPI.getCardValue("numVenda"))` → sempre false com o card
+	// vazio, e a service task entrou no ramo errado.
+	masked := strings.Split(string(maskSource([]byte(strings.Join(lines, "\n")))), "\n")
+	suspects := collectSuspectHelpers(masked)
+	if len(suspects) > 0 {
+		for i, line := range masked {
+			n := i + 1
+			// Varredura própria de call sites: `nome(` cujo caractere anterior
+			// não é ponto nem parte de identificador. (O bareCallRe não serve
+			// aqui: o grupo de prefixo CONSOME o caractere e o casamento
+			// não-sobreposto pula `isEmpty(` dentro de `if (isEmpty(...))`.)
+			for _, m := range callSiteRe.FindAllStringSubmatchIndex(line, -1) {
+				if m[0] > 0 {
+					prev := line[m[0]-1]
+					if prev == '.' || prev == '$' || isWordByte(prev) {
+						continue
+					}
+				}
+				name := line[m[2]:m[3]]
+				helper, ok := suspects[name]
+				if !ok {
+					continue
+				}
+				args, closed := splitCallArgs(line[m[3]:])
+				if !closed {
+					continue // chamada quebrada em várias linhas: na dúvida, cala
+				}
+				for pos, cmpLine := range helper.suspect {
+					if pos >= len(args) {
+						continue
+					}
+					// O argumento sai da linha CRUA: a máscara apaga o
+					// conteúdo dos literais (ex.: o "WK…" do getValue).
+					raw := lines[i]
+					lo, hi := m[3]+args[pos][0], m[3]+args[pos][1]
+					if hi > len(raw) {
+						continue
+					}
+					arg := strings.TrimSpace(raw[lo:hi])
+					src := ""
+					switch {
+					case javaVars[arg] != "":
+						src = javaVars[arg]
+					case anyJavaCallRe.MatchString(arg):
+						call := anyJavaCallRe.FindString(arg)
+						src = "." + strings.Trim(strings.TrimPrefix(strings.TrimSpace(call), "."), " (") + "(...)"
+					case wkAnyValueRe.MatchString(arg):
+						wk := wkAnyValueRe.FindStringSubmatch(arg)
+						src = fmt.Sprintf("getValue(%q)", wk[2])
+					}
+					if src == "" || strings.Contains(arg, "String(") || strings.Contains(arg, "+") {
+						continue // coerção na chamada = seguro
+					}
+					add(n, fmt.Sprintf("helper:%s:%d", name, pos),
+						fmt.Sprintf("%s(...) recebe um java.lang.String (de %s) e a função compara o parâmetro com === a literal de texto (linha %d) — no Rhino do Fluig a comparação é SEMPRE false",
+							name, src, cmpLine),
+						fmt.Sprintf("coaja na chamada (%s(String(...))) ou troque a comparação estrita da função por ==", name))
+				}
+			}
+		}
+	}
+
 	// RHINO002 (footgun B3) — sintaxe ES6+ que o Rhino do Fluig não aceita.
 	out = append(out, rhinoES6Findings(rel, lines)...)
 	// RHINO003 (footgun B2) — const declarado no corpo de um laço.
@@ -578,6 +644,128 @@ func collectJavaStringVars(lines []string) map[string]string {
 		}
 	}
 	return out
+}
+
+// suspectHelper é uma função local que compara um parâmetro com ===/!== a
+// literal de texto: posição do parâmetro → linha da comparação.
+type suspectHelper struct {
+	suspect map[int]int
+}
+
+// suspectFnDeclRe casa as duas formas de declarar a função com os parâmetros.
+var suspectFnDeclRe = regexp.MustCompile(
+	`\bfunction\s+(\w+)\s*\(([^)]*)\)|\b(?:var|let|const)\s+(\w+)\s*=\s*function\s*\(([^)]*)\)`)
+
+// callSiteRe casa `nome(` — o chamador confere o caractere anterior.
+var callSiteRe = regexp.MustCompile(`([A-Za-z_$]\w*)\s*\(`)
+
+// collectSuspectHelpers varre o arquivo MASCARADO atrás de funções locais que
+// comparam um parâmetro com ===/!== a literal de texto — as candidatas a
+// engolir um java.lang.String (isEmpty, isBlank…). Parâmetro reatribuído no
+// corpo é descartado (pode ter sido coagido — na dúvida, cala).
+func collectSuspectHelpers(maskedLines []string) map[string]suspectHelper {
+	full := strings.Join(maskedLines, "\n")
+	out := map[string]suspectHelper{}
+	for _, m := range suspectFnDeclRe.FindAllStringSubmatchIndex(full, -1) {
+		name, params := groupAt(full, m, 1), groupAt(full, m, 2)
+		if name == "" {
+			name, params = groupAt(full, m, 3), groupAt(full, m, 4)
+		}
+		if name == "" || strings.TrimSpace(params) == "" {
+			continue
+		}
+		body, bodyStart := functionBody(full, m[1])
+		if body == "" {
+			continue
+		}
+		h := suspectHelper{suspect: map[int]int{}}
+		for pos, p := range strings.Split(params, ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			// Reatribuição do parâmetro no corpo (`p = ...`, sem ser ==): o
+			// valor pode ter sido coagido — descarta.
+			if regexp.MustCompile(`\b` + regexp.QuoteMeta(p) + `\s*=[^=]`).MatchString(body) {
+				continue
+			}
+			cmp := regexp.MustCompile(`\b` + regexp.QuoteMeta(p) + `\s*(?:===|!==)\s*(?:` + strLit + `)` +
+				`|(?:` + strLit + `)\s*(?:===|!==)\s*` + regexp.QuoteMeta(p) + `\b`)
+			if loc := cmp.FindStringIndex(body); loc != nil {
+				h.suspect[pos] = 1 + strings.Count(full[:bodyStart+loc[0]], "\n")
+			}
+		}
+		if len(h.suspect) > 0 {
+			out[name] = h
+		}
+	}
+	return out
+}
+
+// groupAt devolve o texto do grupo i de um FindAllStringSubmatchIndex.
+func groupAt(s string, m []int, i int) string {
+	if m[2*i] < 0 {
+		return ""
+	}
+	return s[m[2*i]:m[2*i+1]]
+}
+
+// functionBody acha o corpo `{...}` da função cuja declaração termina em pos
+// (balanceamento de chaves sobre a fonte mascarada). Devolve o corpo e o
+// offset do início dele em full.
+func functionBody(full string, pos int) (string, int) {
+	open := strings.IndexByte(full[pos:], '{')
+	if open < 0 {
+		return "", 0
+	}
+	start := pos + open + 1
+	depth := 1
+	for i := start; i < len(full); i++ {
+		switch full[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return full[start:i], start
+			}
+		}
+	}
+	return "", 0
+}
+
+// splitCallArgs separa os argumentos de uma chamada e devolve os OFFSETS de
+// cada um (relativos a s), para o chamador reler o trecho na linha CRUA — a
+// máscara preserva posições byte a byte, mas apaga o conteúdo dos literais
+// (um `"WKNumState"` mascarado vira espaços). s começa logo depois do nome da
+// função. closed=false quando o fecha-parêntese não está na mesma linha — aí
+// a análise cala.
+func splitCallArgs(s string) ([][2]int, bool) {
+	i := strings.IndexByte(s, '(')
+	if i < 0 {
+		return nil, false
+	}
+	depth := 1
+	var args [][2]int
+	start := i + 1
+	for j := i + 1; j < len(s); j++ {
+		switch s[j] {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			depth--
+			if depth == 0 {
+				args = append(args, [2]int{start, j})
+				return args, true
+			}
+		case ',':
+			if depth == 1 {
+				args = append(args, [2]int{start, j})
+				start = j + 1
+			}
+		}
+	}
+	return nil, false
 }
 
 func directMsg(op string) string {
