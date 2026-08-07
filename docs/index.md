@@ -60,12 +60,12 @@ em pt-BR.
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
-| [audit](./audit) | auditar forms/widgets contra o Style Guide 2.0 |
+| [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino e formulário × etapas do processo |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |
-| [request](./request) | solicitações: consultar, iniciar, movimentar, anexos |
-| [task](./task) | fila de tarefas (a sua e a dos outros) |
-| [document](./document) | GED: navegar, baixar e publicar documentos |
+| [request](./request) | solicitações: consultar, iniciar, movimentar, **cancelar** e anexos |
+| [task](./task) | fila de tarefas (a sua, a dos outros e os pools) e **assumir tarefa de pool** |
+| [document](./document) | GED: navegar (com árvore recursiva), **procurar por nome**, ver, **mover**, baixar e publicar |
 | [log](./log) | logs do servidor: tail com filtros, follow e download |
 | [user](./user) | usuários da plataforma (requer admin) |
 | [group](./group) | grupos e membros (requer admin) |
