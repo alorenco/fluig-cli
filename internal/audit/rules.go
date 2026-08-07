@@ -124,6 +124,11 @@ func scanJS(root, rel string, content []byte) []Finding {
 		// FL005 — método do hAPI chamado como global (só script de processo).
 		out = append(out, processGlobalFindings(root, rel, content)...)
 	}
+	if !serverSide {
+		// FL006 — getDataset(...).values encadeado sem guarda (só client-side:
+		// no servidor a falha vira exceção, não undefined).
+		out = append(out, chainedDatasetFileFindings(rel, content)...)
+	}
 	return out
 }
 
@@ -186,6 +191,7 @@ func scanMarkup(rel string, content []byte, cat *Catalog) []Finding {
 		if wasInScript {
 			out = append(out, nativeDialogFindings(rel, n, line)...)
 			out = append(out, apiFindings(rel, n, line)...)
+			out = append(out, chainedDatasetLineFindings(rel, n, stripLineComment(line))...)
 		}
 
 		// Classes fs-* inexistentes (typos) — ignora interpolações.

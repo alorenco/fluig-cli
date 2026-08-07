@@ -356,7 +356,8 @@ func TestRuleTitlesCompletas(t *testing.T) {
 		RuleImportant, RuleInlineStyle, RuleUnknownClass, RuleNativeDialog,
 		RuleUnknownHAPI, RuleUnknownWKVar, RuleUnknownFormAPI, RuleUnknownAPI,
 		RuleJavaStrictEq, RuleRhinoES6, RuleConstInLoop,
-		RuleDatasetRowAccess, RuleBareHAPICall, RuleActivityUnknown, RuleActivityMissing} {
+		RuleDatasetRowAccess, RuleBareHAPICall, RuleChainedGetDataset,
+		RuleActivityUnknown, RuleActivityMissing} {
 		if RuleTitles[rule] == "" {
 			t.Errorf("regra %s sem título em RuleTitles", rule)
 		}

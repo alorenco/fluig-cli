@@ -91,6 +91,42 @@ func apiSuggestion(nearest, obj string) string {
 	return fmt.Sprintf("confira a assinatura no reference/fluig.d.ts da skill (grep '%s') — se a API existe mesmo, ela falta no arquivo", obj)
 }
 
+// FL006 — `getDataset(...).values` (ou `.getValue`) encadeado DIRETO no
+// client-side (ROADMAP3 §4.11-D, caso 13.4 do feedback de 2026-08-03/04).
+// Quando a chamada falha no navegador (sessão/JWT expirado, dataset fora do
+// ar), `getDataset` devolve undefined e o formulário estoura com
+// `TypeError: Cannot read properties of undefined (reading 'values')` — sem
+// nenhuma pista para o usuário final. Só o encadeamento IMEDIATO é apontado:
+// retorno guardado em variável (mesmo sem if) fica de fora — na dúvida, calar.
+// No server-side a regra não roda: lá a falha vira exceção, não undefined.
+var chainedGetDatasetRe = regexp.MustCompile(
+	`\bgetDataset\s*\((?:[^()]|\([^()]*\))*\)\s*\.\s*(values|getValue)\b`)
+
+// chainedDatasetLineFindings roda a FL006 numa linha de JS client-side (já sem
+// comentário de linha; o chamador de arquivo .js mascara strings/comentários).
+func chainedDatasetLineFindings(rel string, n int, line string) []Finding {
+	var out []Finding
+	for _, m := range chainedGetDatasetRe.FindAllStringSubmatch(line, -1) {
+		out = append(out, Finding{
+			Rule: RuleChainedGetDataset, Severity: SeverityWarning, File: rel, Line: n,
+			Message: fmt.Sprintf("getDataset(...).%s encadeado — se a chamada falhar (sessão expirada, dataset fora do ar), "+
+				"o retorno é undefined e o formulário quebra com TypeError, sem pista para o usuário", m[1]),
+			Suggestion: "guarde o retorno e verifique: var ds = DatasetFactory.getDataset(...); if (ds && ds.values) { ... }",
+		})
+	}
+	return out
+}
+
+// chainedDatasetFileFindings roda a FL006 num arquivo .js client-side inteiro
+// (strings e comentários mascarados — código comentado não acusa).
+func chainedDatasetFileFindings(rel string, content []byte) []Finding {
+	var out []Finding
+	for i, line := range strings.Split(string(maskSource(content)), "\n") {
+		out = append(out, chainedDatasetLineFindings(rel, i+1, line)...)
+	}
+	return out
+}
+
 // isServerSideJS informa se o JS roda no servidor (Rhino): datasets, eventos
 // globais, mecanismos, scripts de processo e eventos de formulário. Regras de
 // navegador (SG007) não valem lá.

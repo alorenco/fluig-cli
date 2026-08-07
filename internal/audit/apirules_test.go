@@ -187,3 +187,64 @@ func TestRunFLSeverityOff(t *testing.T) {
 		}
 	}
 }
+
+// FL006 — getDataset(...).values encadeado sem guarda no client-side
+// (ROADMAP3 §4.11-D). Quando a chamada falha no navegador, o retorno é
+// undefined e o formulário estoura com TypeError sem pista para o usuário.
+func TestChainedGetDataset(t *testing.T) {
+	casos := []struct {
+		nome string
+		src  string
+		quer int
+	}{
+		// O caso literal do feedback (13.4).
+		{"encadeamento direto acusa",
+			`var ds = DatasetFactory.getDataset("dsInsDocumentGed", null, constraints, null).values;`, 1},
+		{"encadeado com getValue acusa",
+			`var v = DatasetFactory.getDataset("ds", null, null, null).getValue(0, "x");`, 1},
+		{"constraint com chamada aninhada nos args",
+			`const dsUrl = DatasetFactory.getDataset("dsDCDownloadURL", null, mk(c), null).values;`, 1},
+		// Guardar em variável (mesmo sem if) NÃO acusa — na dúvida, calar.
+		{"retorno guardado não acusa",
+			`var ds = DatasetFactory.getDataset("ds", null, null, null);
+var v = ds.values;`, 0},
+		{"guarda com if é o padrão certo",
+			`var ds = DatasetFactory.getDataset("ds", null, null, null);
+if (ds && ds.values) { usar(ds.values); }`, 0},
+		{"código comentado não acusa",
+			`// var ds = DatasetFactory.getDataset("ds", null, null, null).values;`, 0},
+		{"dentro de string não acusa",
+			`var doc = 'DatasetFactory.getDataset("x").values';`, 0},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			fs := chainedDatasetFileFindings("forms/F/F.js", []byte(tc.src))
+			if len(fs) != tc.quer {
+				t.Errorf("achados = %d, quer %d: %+v", len(fs), tc.quer, fs)
+			}
+		})
+	}
+}
+
+// A FL006 é do client-side: no server-side a falha do getDataset vira exceção
+// Java, não undefined — encadear lá não tem o mesmo risco.
+func TestChainedGetDatasetSoClientSide(t *testing.T) {
+	src := []byte(`var ds = DatasetFactory.getDataset("ds", null, null, null).values;`)
+	if fs := scanJS("", "datasets/ds_x.js", src); countRule(fs, RuleChainedGetDataset) != 0 {
+		t.Errorf("server-side não pode acusar FL006")
+	}
+	if fs := scanJS("", "forms/F/events/displayFields.js", src); countRule(fs, RuleChainedGetDataset) != 0 {
+		t.Errorf("evento de formulário roda no servidor — não pode acusar FL006")
+	}
+	if fs := scanJS("", "forms/F/F.js", src); countRule(fs, RuleChainedGetDataset) != 1 {
+		t.Errorf("JS de formulário (client-side) deveria acusar")
+	}
+	// <script> embutido no HTML do formulário também é client-side.
+	html := []byte(`<form name="f"><script>
+var ds = DatasetFactory.getDataset("ds", null, null, null).values;
+</script></form>`)
+	cat := &Catalog{}
+	if fs := scanMarkup("forms/F/F.html", html, cat); countRule(fs, RuleChainedGetDataset) != 1 {
+		t.Errorf("<script> do HTML deveria acusar FL006: %+v", fs)
+	}
+}

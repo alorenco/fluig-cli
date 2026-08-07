@@ -43,6 +43,8 @@ func newAuditCmd(app *App) *cobra.Command {
 			"  FL004 (aviso)  membro inexistente em FLUIGC/DatasetFactory/docAPI/WCMAPI etc.\n" +
 			"  FL005 (erro)   método do hAPI chamado como função global em script de\n" +
 			"                   processo (getCardValue sem o hAPI.) — falha em runtime\n" +
+			"  FL006 (aviso)  getDataset(...).values encadeado sem guarda no client-side —\n" +
+			"                   se a chamada falha, o formulário quebra com TypeError\n" +
 			"  RHINO001 (aviso) === / !== entre um java.lang.String (getFieldName…,\n" +
 			"                   getValue(\"WK...\") global) e literal — no Rhino do Fluig é\n" +
 			"                   sempre false; use == ou String(...)\n" +

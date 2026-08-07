@@ -41,7 +41,8 @@ const (
 	RuleConstInLoop      = "RHINO003" // const declarado no corpo de laço — o Rhino congela o valor da 1ª iteração
 	RuleDatasetRowAccess = "RHINO004" // values[i] acessado por nome de coluna em JS server-side (a linha é Object[])
 
-	RuleBareHAPICall = "FL005" // método do hAPI chamado como função global em script de processo
+	RuleBareHAPICall      = "FL005" // método do hAPI chamado como função global em script de processo
+	RuleChainedGetDataset = "FL006" // getDataset(...).values encadeado sem guarda no client-side
 
 	RuleActivityUnknown = "WF001" // activity-N do formulário sem etapa de sequence N no processo
 	RuleActivityMissing = "WF002" // atividade humana do processo sem seção activity-N no formulário
@@ -70,6 +71,8 @@ var RuleTitles = map[string]string{
 	RuleDatasetRowAccess: "dataset.values[i] acessado por NOME de coluna em JS server-side — a linha é Object[] Java e quebra em runtime; use getValue(i, \"coluna\")",
 
 	RuleBareHAPICall: "Método do hAPI chamado como função global (getCardValue(...) sem o hAPI.) em script de processo — falha em runtime",
+
+	RuleChainedGetDataset: "getDataset(...).values encadeado no client-side — se a chamada falha, o retorno é undefined e o formulário quebra com TypeError; guarde e verifique antes",
 
 	RuleActivityUnknown: "Seção activity-N do formulário sem etapa de sequence N no processo — a seção nunca renderiza (audit --process)",
 	RuleActivityMissing: "Atividade humana do processo sem seção activity-N no formulário (audit --process)",
