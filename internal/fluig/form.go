@@ -23,8 +23,12 @@ const (
 	VersionNew  = "2" // cria nova versão
 )
 
-// Form resume um formulário do servidor.
+// Form resume um formulário do servidor. ID e DocumentID carregam o MESMO
+// valor: `documentId` é o nome histórico deste comando e `id` o dos demais —
+// o alias tira a inconsistência que quebrava percorredor de agente
+// (ROADMAP3 §4.18). Não remover nenhum dos dois (contrato).
 type Form struct {
+	ID              int    `json:"id"`
 	DocumentID      int    `json:"documentId"`
 	Description     string `json:"description"`
 	DatasetName     string `json:"datasetName"`
@@ -65,6 +69,7 @@ func (c *Client) ListForms(ctx context.Context, colleagueID string) ([]Form, err
 	out := make([]Form, 0, len(docs))
 	for _, d := range docs {
 		out = append(out, Form{
+			ID:              d.DocumentID,
 			DocumentID:      d.DocumentID,
 			Description:     d.DocumentDescription,
 			DatasetName:     d.DatasetName,

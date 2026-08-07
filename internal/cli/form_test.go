@@ -281,6 +281,12 @@ func TestFormListJSON(t *testing.T) {
 	if len(forms) != 1 {
 		t.Errorf("esperava 1 form no envelope, veio %d", len(forms))
 	}
+	// §4.18 — id e documentId são sinônimos (o document list usa `id`; este
+	// comando historicamente usa `documentId` — o alias tira a inconsistência).
+	first, _ := forms[0].(map[string]any)
+	if first["id"] != first["documentId"] || first["id"] == nil {
+		t.Errorf("id e documentId devem ser sinônimos: %+v", first)
+	}
 }
 
 // Modo humano: tabela com bordas (padrão de listas — ver CLAUDE.md).

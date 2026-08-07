@@ -443,3 +443,23 @@ func TestDocumentMoveSemFolder(t *testing.T) {
 		t.Errorf("sem --folder: exit=%d, quer %d", code, output.ExitUsage)
 	}
 }
+
+// §4.18 — id e documentId são sinônimos nos envelopes de list (o mesmo alias
+// já existe no show). O percorredor de agente não pode quebrar pelo nome.
+func TestDocumentListAliasDeID(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "document", "list", "100",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	items, _ := data["items"].([]any)
+	first, _ := items[0].(map[string]any)
+	if first["id"] != first["documentId"] || first["id"] == nil {
+		t.Errorf("id e documentId devem ser sinônimos: %+v", first)
+	}
+}

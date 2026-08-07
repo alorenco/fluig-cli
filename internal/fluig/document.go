@@ -19,8 +19,11 @@ const restCMDocs = "/content-management/api/v2/documents"
 
 // GEDDocument é um item da listagem de uma pasta do GED (invdata do
 // Datatable). documentType: "0" raiz, "1" pasta, "2" arquivo, "8" artigo.
+// ID e DocumentID carregam o MESMO valor (alias de consistência entre
+// comandos — ROADMAP3 §4.18; `form list` usa documentId, este grupo usa id).
 type GEDDocument struct {
 	ID          int64      `json:"id"`
+	DocumentID  int64      `json:"documentId"`
 	Type        string     `json:"type"` // folder | file | article | código cru
 	Description string     `json:"description"`
 	Version     int        `json:"version"`
@@ -93,6 +96,7 @@ func (c *Client) ListGEDDocuments(ctx context.Context, folderID int) ([]GEDDocum
 		for _, it := range parsed.InvData {
 			doc := GEDDocument{
 				ID:          it.DocumentID,
+				DocumentID:  it.DocumentID,
 				Type:        gedTypeName(it.DocumentType),
 				Description: it.DocumentDescription,
 				Version:     it.Version,

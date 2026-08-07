@@ -63,6 +63,10 @@ fluigcli form export forms/frm_pedido --new    # cria no servidor
 
 ## `fluigcli form list`
 
+No `--json`, cada formulário traz `id` e `documentId` com o **mesmo valor**.
+O nome histórico deste comando é `documentId`; os outros grupos usam `id` —
+o alias tira a inconsistência. Use qualquer um.
+
 Este comando lista os formulários do servidor (documentId, nome, dataset,
 versão).
 
