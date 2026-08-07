@@ -359,7 +359,12 @@ func logRangeStub(t *testing.T, gotQuery *url.Values) *httptest.Server {
 		io.WriteString(w, "pong")
 	})
 	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.5.0","zoneId":"America/Sao_Paulo","zoneOffsetMinutes":-180}`)
+		// ⚠️ O campo do fuso na RESPOSTA DO HELPER chama `offsetMinutes`
+		// (HelperInfoDto.java) — `zoneOffsetMinutes` é o nome no ENVELOPE DE
+		// SAÍDA da CLI. O stub usava o nome errado, a CLI ignorava o fuso e o
+		// serverNow caía no fuso local — o TestLogTailJanela só flagrava isso
+		// quando o dia local diferia do dia do servidor (00:00–03:00 UTC).
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.5.0","zoneId":"America/Sao_Paulo","offsetMinutes":-180}`)
 	})
 	mux.HandleFunc("/fluigcliHelper/api/logs/server.log/range", func(w http.ResponseWriter, r *http.Request) {
 		*gotQuery = r.URL.Query()
