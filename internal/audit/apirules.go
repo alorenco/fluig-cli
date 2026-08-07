@@ -144,3 +144,47 @@ func isServerSideJS(rel string) bool {
 func isFormEventJS(rel string) bool {
 	return strings.HasPrefix(rel, "forms/") && strings.Contains(rel, "/events/")
 }
+
+// FL007 — caractere fora do CP-1252 em script server-side (ROADMAP3 §4.3).
+// O Fluig guarda os scripts em colunas varchar com collation
+// Latin1_General_CI_AS (CP-1252): na GRAVAÇÃO, qualquer caractere fora dessa
+// página (→, ✓, emoji…) vira "?" de forma PERMANENTE — comprovado byte a byte
+// na homologação (2026-08-07). O CP-1252 cobre a acentuação toda e a
+// pontuação tipográfica (— – " " ' ' … •), então o aviso só dispara no que
+// realmente se perde. Aviso (não erro): o "?" num comentário é cosmético; num
+// literal de string é bug — quem decide é o autor.
+func nonCP1252Findings(rel string, content []byte) []Finding {
+	var out []Finding
+	for i, line := range strings.Split(string(content), "\n") {
+		for _, r := range line {
+			if r == '\t' || CP1252Encodable(r) {
+				continue
+			}
+			out = append(out, Finding{
+				Rule: RuleNonCP1252, Severity: SeverityWarning, File: rel, Line: i + 1,
+				Message: fmt.Sprintf("o caractere %q (U+%04X) não existe no CP-1252 — o banco do Fluig o grava como \"?\" (perda permanente)", r, r),
+				Suggestion: "troque por um equivalente ASCII/CP-1252 (ex.: \"→\" → \"->\") ou aceite o \"?\" no servidor",
+			})
+			break // um aviso por linha basta — a correção é revisar a linha
+		}
+	}
+	return out
+}
+
+// CP1252Encodable informa se a runa existe na página de código Windows-1252.
+// Latin-1 (U+0000–U+00FF) entra quase todo: o CP-1252 substitui só a faixa de
+// controle U+0080–U+009F pelos tipográficos abaixo.
+func CP1252Encodable(r rune) bool {
+	if r < 0x80 {
+		return true
+	}
+	if r >= 0xA0 && r <= 0xFF {
+		return true
+	}
+	switch r {
+	case '€', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', 'Ž',
+		'‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', 'ž', 'Ÿ':
+		return true
+	}
+	return false
+}

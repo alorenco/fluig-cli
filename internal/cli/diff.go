@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alorenco/fluig-cli/internal/audit"
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
@@ -234,7 +235,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				switch {
 				case !found:
 					entry.Status = diffOnlyLocal
-				case normalizeEOL(remote) == local:
+				case normalizeEOL(remote) == projectCP1252(local):
 					entry.Status = diffEqual
 				default:
 					entry.Status = diffModified
@@ -759,7 +760,7 @@ func diffOneForm(ctx context.Context, client *fluig.Client, root string, t formD
 		switch {
 		case !found:
 			entry.Status = diffOnlyLocal
-		case normalizeEOL(remote) == normalizeEOL(string(local)):
+		case normalizeEOL(remote) == projectCP1252(normalizeEOL(string(local))):
 			entry.Status = diffEqual
 		default:
 			entry.Status = diffModified
@@ -823,7 +824,7 @@ func diffProcessScripts(ctx context.Context, client *fluig.Client, p *output.Pri
 		switch {
 		case !found:
 			entry.Status = diffOnlyLocal
-		case normalizeEOL(remote) == local:
+		case normalizeEOL(remote) == projectCP1252(local):
 			entry.Status = diffEqual
 		default:
 			entry.Status = diffModified
@@ -847,6 +848,28 @@ func diffProcessScripts(ctx context.Context, client *fluig.Client, p *output.Pri
 		}
 	}
 	return entries, nil
+}
+
+// projectCP1252 aplica ao texto LOCAL a mesma perda que o banco do Fluig
+// aplica na gravação de script server-side (varchar CP-1252): caractere fora
+// da página vira "?". Sem isso, um script local com "→" fica `modified` PARA
+// SEMPRE contra o "?" que o servidor guardou — diff fantasma (ROADMAP3 §4.3;
+// comprovado byte a byte na homologação). Quem avisa da perda é a regra FL007
+// do audit; o diff responde só "está sincronizado?".
+func projectCP1252(s string) string {
+	projected := false
+	out := []rune(s)
+	for i, r := range out {
+		if r == '\t' || r == '\n' || audit.CP1252Encodable(r) {
+			continue
+		}
+		out[i] = '?'
+		projected = true
+	}
+	if !projected {
+		return s
+	}
+	return string(out)
 }
 
 // fillContentDiff decide equal/modified para conteúdo possivelmente binário:

@@ -128,3 +128,17 @@ comparada. Veja um fluxo típico para agentes e CI:
 fluigcli diff --json | jq '.data.counts'     # há algo a publicar?
 fluigcli dataset export datasets/ds_clientes.js --yes
 ```
+
+
+## Caracteres fora do CP-1252 (o `?` do servidor)
+
+O banco do Fluig guarda scripts server-side em colunas **CP-1252**. Na
+gravação, um caractere fora dessa página (`→`, `✓`, emoji) vira `?` — de forma
+permanente. A acentuação e a pontuação tipográfica (`—`, `…`, aspas curvas)
+sobrevivem.
+
+O `diff` compara o lado local **projetado para CP-1252** (a mesma perda que o
+servidor aplica). Assim, um script local com `→` não fica `modified` para
+sempre contra o `?` do servidor. Quem avisa da perda é a regra `FL007` do
+`audit`, no export. Cada ferramenta com o seu papel: o diff responde "está
+sincronizado?"; o audit responde "algo vai se perder?".

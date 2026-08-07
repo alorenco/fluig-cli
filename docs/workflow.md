@@ -225,6 +225,19 @@ API: o `request move` responde `NO_HUMAN_TASK`. Diagnostique pelo
 `fluigcli log tail` e aguarde o motor — ou cancele com `request cancel` (se
 você é o solicitante ou o gestor).
 
+## Encoding: o que acontece com acentos e símbolos
+
+O banco do Fluig guarda os scripts em colunas **CP-1252**. Na prática:
+
+- acentos (`ç ã é`) e a pontuação tipográfica (`—`, `…`, `“aspas”`)
+  **sobrevivem** ao export;
+- caracteres fora do CP-1252 (`→`, `✓`, emoji) viram `?` **na gravação**,
+  permanentemente — o `audit` avisa (regra `FL007`) antes do export;
+- a leitura do `diff`/`import` usa o export UTF-8 da versão corrente, **fiel ao
+  que está gravado**. (Versões antigas do fluigcli liam pelo zip SOAP, que o
+  servidor serializa em ISO-8859-1 estrito — era isso que fazia um `—`
+  publicado corretamente aparecer como `?` no diff, para sempre.)
+
 ## `fluigcli workflow diff <arquivo|processId> [flags]`
 
 Este comando compara os scripts de eventos locais com o que está publicado no

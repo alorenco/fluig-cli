@@ -119,6 +119,8 @@ func scanJS(root, rel string, content []byte) []Finding {
 	if serverSide {
 		// Footguns do Rhino (RHINO*) — só no JS que roda no servidor.
 		out = append(out, rhinoFindings(rel, content)...)
+		// FL007 — o banco do Fluig grava script server-side em CP-1252.
+		out = append(out, nonCP1252Findings(rel, content)...)
 	}
 	if isProcessScriptJS(rel) {
 		// FL005 — método do hAPI chamado como global (só script de processo).

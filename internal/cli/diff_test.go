@@ -805,3 +805,19 @@ func TestDiffDiretorioVazio(t *testing.T) {
 		t.Errorf("mensagem pouco clara: %s", stdout)
 	}
 }
+
+// §4.3 — a projeção CP-1252 do lado local: o servidor grava "?" no lugar de
+// caractere fora da página, e o diff não pode acusar modified para sempre.
+func TestProjectCP1252(t *testing.T) {
+	casos := []struct{ in, quer string }{
+		{"travessão — fica", "travessão — fica"},
+		{"seta → vira ?", "seta ? vira ?"},
+		{"emoji ☕ também", "emoji ? também"},
+		{"com\ttab e\nquebra", "com\ttab e\nquebra"},
+	}
+	for _, tc := range casos {
+		if got := projectCP1252(tc.in); got != tc.quer {
+			t.Errorf("projectCP1252(%q) = %q, quer %q", tc.in, got, tc.quer)
+		}
+	}
+}

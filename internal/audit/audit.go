@@ -43,6 +43,7 @@ const (
 
 	RuleBareHAPICall      = "FL005" // método do hAPI chamado como função global em script de processo
 	RuleChainedGetDataset = "FL006" // getDataset(...).values encadeado sem guarda no client-side
+	RuleNonCP1252         = "FL007" // caractere fora do CP-1252 em script server-side (vira "?" no banco)
 
 	RuleActivityUnknown = "WF001" // activity-N do formulário sem etapa de sequence N no processo
 	RuleActivityMissing = "WF002" // atividade humana do processo sem seção activity-N no formulário
@@ -73,6 +74,8 @@ var RuleTitles = map[string]string{
 	RuleBareHAPICall: "Método do hAPI chamado como função global (getCardValue(...) sem o hAPI.) em script de processo — falha em runtime",
 
 	RuleChainedGetDataset: "getDataset(...).values encadeado no client-side — se a chamada falha, o retorno é undefined e o formulário quebra com TypeError; guarde e verifique antes",
+
+	RuleNonCP1252: "Caractere fora do CP-1252 em script server-side — o banco do Fluig o grava como \"?\" (perda permanente na gravação)",
 
 	RuleActivityUnknown: "Seção activity-N do formulário sem etapa de sequence N no processo — a seção nunca renderiza (audit --process)",
 	RuleActivityMissing: "Atividade humana do processo sem seção activity-N no formulário (audit --process)",

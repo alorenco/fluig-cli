@@ -78,11 +78,23 @@ func (c *Client) ExportProcessZip(ctx context.Context, processID string) ([]byte
 }
 
 // ProcessEventScripts devolve os scripts de eventos de um processo como mapa
-// evento → código, extraídos do export nativo (§5.7 da SPEC: o zip traz um
-// único XML <ProcessDefinition>, com os scripts em <WorkflowProcessEvent>).
-// Leitura pura — não requer o fluigcliHelper. Quando o XML traz eventos de
-// mais de uma versão do processo, prevalece a versão mais alta.
+// evento → código. Leitura pura — não requer o fluigcliHelper.
+//
+// ⚠️ A fonte preferida é o export XML REST da versão corrente, que é UTF-8 e
+// FIEL ao que está gravado. O zip SOAP (exportProcessInZipFormat) é só
+// fallback: o servidor o serializa em ISO-8859-1 ESTRITO e troca por "?" os
+// caracteres que ele mesmo guardou corretamente em CP-1252 (travessão, aspas
+// curvas, reticências…) — comprovado byte a byte na homologação em
+// 2026-08-07 (ROADMAP3 §4.3). Ler pelo zip gerava diff fantasma e, pior, um
+// `workflow import` corrompia a cópia local com os "?" da leitura.
 func (c *Client) ProcessEventScripts(ctx context.Context, processID string) (map[string]string, error) {
+	if version, err := c.WorkflowVersion(ctx, processID); err == nil && version > 0 {
+		if events, verr := c.ProcessVersionEventScripts(ctx, processID, version); verr == nil {
+			return events, nil
+		}
+	}
+	// Fallback (Fluig antigo sem a rota REST de export por versão): o zip
+	// SOAP, com a perda de leitura documentada acima.
 	zipData, err := c.ExportProcessZip(ctx, processID)
 	if err != nil {
 		return nil, err

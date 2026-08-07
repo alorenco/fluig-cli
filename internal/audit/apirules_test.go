@@ -248,3 +248,41 @@ var ds = DatasetFactory.getDataset("ds", null, null, null).values;
 		t.Errorf("<script> do HTML deveria acusar FL006: %+v", fs)
 	}
 }
+
+// FL007 — caractere fora do CP-1252 em script server-side vira "?" no banco
+// (ROADMAP3 §4.3, comprovado byte a byte na homologação).
+func TestNonCP1252(t *testing.T) {
+	casos := []struct {
+		nome string
+		src  string
+		quer int
+	}{
+		// A pontuação tipográfica do CP-1252 NÃO acusa — ela sobrevive à
+		// gravação (foi a descoberta que inverteu o diagnóstico do relato).
+		{"acentuação e tipográficos sobrevivem", "// travessão — aspas “x” reticências … bullet • euro €", 0},
+		{"seta se perde", "// dataset server-side é Object[] → ler por getValue", 1},
+		{"emoji se perde", `var s = "café ☕";`, 1},
+		{"um aviso por linha", "// → ✓ ☕ na mesma linha", 1},
+		{"ascii puro em paz", "function x(a, b) { return a + b; }", 0},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			fs := nonCP1252Findings("datasets/ds_x.js", []byte(tc.src))
+			if len(fs) != tc.quer {
+				t.Errorf("achados = %d, quer %d: %+v", len(fs), tc.quer, fs)
+			}
+		})
+	}
+}
+
+// A FL007 roda só no server-side: script de widget vive em arquivo, não na
+// coluna varchar do banco.
+func TestNonCP1252SoServerSide(t *testing.T) {
+	src := []byte("// seta →")
+	if n := countRule(scanJS("", "wcm/widget/w/src/main/webapp/resources/js/app.js", src), RuleNonCP1252); n != 0 {
+		t.Errorf("client-side não pode acusar FL007: %d", n)
+	}
+	if n := countRule(scanJS("", "workflow/scripts/p.beforeTaskSave.js", src), RuleNonCP1252); n != 1 {
+		t.Errorf("script de processo deveria acusar FL007: %d", n)
+	}
+}
