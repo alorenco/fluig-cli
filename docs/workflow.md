@@ -191,6 +191,40 @@ de evento inexistente.
 
 Use `--no-audit` para pular a checagem.
 
+## Iterar numa service task (reexecução)
+
+Corrigir o script de uma service task não exige uma solicitação nova por
+tentativa. O caminho de reexecução é o **fluxo de erro do próprio processo**:
+a service task falha, a solicitação cai na **tarefa de correção** (em geral um
+pool, ex.: Pool Grupo TI) e a transição dessa tarefa **volta para a service
+task**. Movimentar a correção reexecuta o script.
+
+O ciclo inteiro sai pela CLI:
+
+```sh
+# 1. corrija e publique o script
+fluigcli workflow export workflow/scripts/meu_proc.servicetask7.js
+
+# 2. assuma a tarefa de correção (é um pool — requer pertencer ao grupo/papel)
+fluigcli task assume 230715
+
+# 3. movimente de volta para a service task: o motor a reexecuta
+fluigcli request move 230715 --target-state 7
+
+# 4. acompanhe o resultado no log
+fluigcli log tail --follow --grep "meu_proc" --for 2m
+```
+
+O número da etapa de destino (`--target-state`) é a sequence da service task
+no diagrama. Consulte com `fluigcli audit --process <id>` (a sugestão lista as
+etapas) ou no Explorador de Processos do `fluigcli dev`.
+
+⚠️ Solicitação parada **na própria atividade automática** (service task em
+execução ou pendurada, sem tarefa humana) não tem destrave pela CLI nem pela
+API: o `request move` responde `NO_HUMAN_TASK`. Diagnostique pelo
+`fluigcli log tail` e aguarde o motor — ou cancele com `request cancel` (se
+você é o solicitante ou o gestor).
+
 ## `fluigcli workflow diff <arquivo|processId> [flags]`
 
 Este comando compara os scripts de eventos locais com o que está publicado no

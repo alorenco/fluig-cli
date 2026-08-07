@@ -30,6 +30,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver os contadores da central de tarefas (e descobrir os pools) | `task summary` |
 | assumir uma tarefa de pool para poder movimentá-la | `task assume <número>` |
 | descartar solicitações de teste (criar → verificar → descartar) | `request cancel <número>...` |
+| reexecutar uma service task após corrigir o script | `task assume` + `request move --target-state <seqDaServiceTask>` (fluxo de erro do processo; ver docs/workflow.md) |
 | navegar / baixar / subir documentos (GED) | `document` |
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
