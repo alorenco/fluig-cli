@@ -51,7 +51,7 @@ func processNotFound(ctx context.Context, client *fluig.Client, processID string
 func newWorkflowCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Processos: listagem, versão e scripts de eventos (import = servidor → local; export = local → servidor)",
+		Short: "Processos: listagem, versões, scripts de eventos e conversão de versão (import = servidor → local; export = local → servidor)",
 	}
 	cmd.AddCommand(newWorkflowNewScriptCmd(app))
 	cmd.AddCommand(newWorkflowListCmd(app))

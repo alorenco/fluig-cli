@@ -37,7 +37,7 @@ export default defineConfig({
           { text: 'event — eventos globais', link: '/event' },
           { text: 'mechanism — mecanismos', link: '/mechanism' },
           { text: 'form — formulários', link: '/form' },
-          { text: 'workflow — scripts de processo', link: '/workflow' },
+          { text: 'workflow — scripts e versões de processo', link: '/workflow' },
           { text: 'widget — widgets', link: '/widget' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
           { text: 'deploy — release por manifesto', link: '/deploy' },
