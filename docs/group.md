@@ -92,8 +92,12 @@ Em servidor `prod`, as operações de escrita (`create`/`update`/`delete`/
 
 ## Notas
 
-- **Não há endpoint para trocar diretamente os grupos DE um usuário.** A
-  associação é sempre pelo lado do grupo (`group add-user`/`remove-user`), como
-  aqui, ou pelos papéis (ciclo `role`, futuro).
+- **Na CLI, a associação é sempre pelo lado do grupo** (`group add-user` e
+  `group remove-user`).
+  > **Correção (2026-08-08).** Esta nota dizia que não existe endpoint para
+  > trocar os grupos pelo lado do usuário. Isso está incorreto. A API expõe
+  > `GET/POST /admin/api/v1/users/{login}/groups` e
+  > `DELETE /admin/api/v1/users/{login}/groups/{code}`, e as rotas respondem. A
+  > CLI ainda não as usa.
 - Os papéis e subgrupos de um grupo (`/groups/{code}/roles|groups`) existem na
   API. Estes comandos ficaram fora por ora. Não há demanda.

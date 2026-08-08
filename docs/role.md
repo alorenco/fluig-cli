@@ -5,8 +5,15 @@ administrativo (`/admin/api/v1`). Estes comandos **precisam de um usuário com
 privilégio administrativo**. Sem o privilégio, a API responde 401 (exit 3).
 
 Um papel tem apenas dois campos. O **`code`** é o identificador. A
-**`description`** é o rótulo humano. Este grupo é a via para dar ou tirar um papel
-de um usuário. Não há endpoint para alterar os papéis pelo lado do usuário.
+**`description`** é o rótulo humano. Este grupo é a via da CLI para dar ou tirar
+um papel de um usuário.
+
+> **Nota (2026-08-08).** Até aqui esta página afirmava que não existe endpoint
+> para alterar os papéis pelo lado do usuário. Isso está incorreto. A API expõe
+> `GET/POST /admin/api/v1/users/{login}/roles` e
+> `DELETE /admin/api/v1/users/{login}/roles/{code}`, e as rotas respondem. A CLI
+> ainda não as usa, então por enquanto o caminho continua sendo `role add-user`
+> e `role remove-user`.
 
 ## `fluigcli role list [flags]`
 
