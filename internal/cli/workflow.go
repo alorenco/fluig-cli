@@ -236,6 +236,38 @@ func selectedEventNames(events map[string]string, want map[string]bool) []string
 	return names
 }
 
+// selectPublishScripts recorta os scripts locais pelos eventos pedidos em
+// --events, preservando a ordem da flag. Sem a flag, devolve tudo (o padrão
+// histórico do publish).
+//
+// Evento pedido sem script local é erro, e não silêncio: quem escreveu
+// `--events x` espera publicar o x. A mensagem é a mesma do export
+// (resolveWorkflowTargets), para os dois comandos falharem igual.
+func selectPublishScripts(scripts []project.ProcessScript, eventsFlag []string, localPrefix string) ([]project.ProcessScript, error) {
+	if len(eventsFlag) == 0 {
+		return scripts, nil
+	}
+	byEvent := make(map[string]project.ProcessScript, len(scripts))
+	for _, s := range scripts {
+		byEvent[s.Event] = s
+	}
+	var selected []project.ProcessScript
+	visto := make(map[string]bool, len(eventsFlag))
+	for _, ev := range eventsFlag {
+		s, ok := byEvent[ev]
+		if !ok {
+			return nil, output.NotFoundf("script do evento %q não encontrado (%s/%s.%s.js)",
+				ev, project.WorkflowScriptsDir, localPrefix, ev)
+		}
+		if visto[ev] {
+			continue // --events a,a publica uma vez só
+		}
+		visto[ev] = true
+		selected = append(selected, s)
+	}
+	return selected, nil
+}
+
 // --- workflow publish ---
 
 func newWorkflowPublishCmd(app *App) *cobra.Command {
@@ -244,6 +276,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 		processIDFlag string
 		noAudit       bool
 		passwordStdin bool
+		eventsFlag    []string
 	)
 	cmd := &cobra.Command{
 		Use:   "publish <processId>",
@@ -254,11 +287,20 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			"Diferença para o workflow export: o export atualiza os scripts na versão\n" +
 			"corrente, sem criar versão (bom para desenvolvimento); o publish é o\n" +
 			"deploy — sobe versão nova e libera (a versão anterior é desativada).\n\n" +
+			"Por padrão o publish aplica TODOS os scripts locais do processo. Use\n" +
+			"--events para publicar só os eventos indicados. Os demais eventos ficam\n" +
+			"com o conteúdo que está no servidor, e não com a cópia local — é o que\n" +
+			"protege a alteração que outra pessoa fez pelo Fluig Studio desde o seu\n" +
+			"último import.\n\n" +
 			"O publish NÃO cria eventos nem processos: scripts locais de eventos que\n" +
 			"não existem no processo interrompem o comando antes de qualquer mudança.\n\n" +
 			"Use --process-id quando o processId no servidor for diferente do prefixo\n" +
 			"do arquivo local. O argumento continua a identificar os scripts locais. A\n" +
 			"flag troca apenas o processo de destino no servidor.",
+		Example: "  # publica todos os scripts locais do processo\n" +
+			"  fluigcli workflow publish Compras\n\n" +
+			"  # publica só dois eventos; o resto do processo fica como está no servidor\n" +
+			"  fluigcli workflow publish Compras --events beforeStateEntry,servicetask27",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -278,6 +320,18 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			if len(scripts) == 0 {
 				return output.Usagef("nenhum script local do processo %q (esperado %s/%s.<evento>.js)",
 					localPrefix, project.WorkflowScriptsDir, localPrefix)
+			}
+			// --events recorta o que vai ao servidor. O que fica de fora não é
+			// "publicado igual": o ApplyProcessEventScripts só troca os eventos
+			// do mapa, então os demais seguem com o conteúdo do SERVIDOR.
+			locais := len(scripts)
+			scripts, err = selectPublishScripts(scripts, eventsFlag, localPrefix)
+			if err != nil {
+				return err
+			}
+			if fora := locais - len(scripts); fora > 0 {
+				p.Infof("publicando %d de %d scripts locais de %q; os outros %d ficam com o conteúdo do servidor.",
+					len(scripts), locais, localPrefix, fora)
 			}
 			events, err := readWorkflowEvents(scripts)
 			if err != nil {
@@ -324,6 +378,7 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringSliceVar(&eventsFlag, "events", nil, "publica só os eventos indicados (separados por vírgula); os demais ficam como estão no servidor")
 	cmd.Flags().BoolVar(&noRelease, "no-release", false, "cria a versão nova em edição, sem liberá-la")
 	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit aborta o publish)")
 	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")

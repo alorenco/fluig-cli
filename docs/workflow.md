@@ -271,7 +271,7 @@ no servidor. Diferenças só de quebra de linha (CRLF/LF) não contam. Com `--js
 o resultado sai no envelope (`data.artifacts[]` com `status` e `diff`, mais
 `data.counts`).
 
-## `fluigcli workflow publish <processId> [--no-release]`
+## `fluigcli workflow publish <processId> [--events a,b] [--no-release]`
 
 Este comando faz o deploy do processo. Ele cria uma versão nova no servidor com
 os scripts locais (`workflow/scripts/<processId>.*.js`) aplicados. Ele libera
@@ -286,6 +286,10 @@ aborta o comando e nada é publicado. Ver
 fluigcli workflow publish Compras --server homolog
 fluigcli workflow publish Compras --no-release    # só cria a versão, sem liberar
 
+# publica só dois eventos; o resto do processo fica como está no servidor
+fluigcli workflow publish Compras \
+    --events beforeStateEntry,servicetask27 --server homolog
+
 # processId no servidor diferente do prefixo do arquivo local
 fluigcli workflow publish SolicitacaoAdiantamento \
     --process-id "Adiantamento ao Fornecedor" --server homolog
@@ -293,8 +297,35 @@ fluigcli workflow publish SolicitacaoAdiantamento \
 
 | Flag | Uso |
 |---|---|
+| `--events a,b` | publica só os eventos indicados; os demais ficam com o conteúdo do servidor |
 | `--no-release` | cria a versão nova em modo de edição, sem liberá-la |
 | `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
+
+### Publicar só alguns eventos
+
+Sem `--events`, o `publish` aplica **todos** os scripts locais do processo. Isso
+é o que você quer quando o repositório está em dia com o servidor.
+
+Quando não está, é um risco. Suponha que outra pessoa corrigiu um evento pelo
+Fluig Studio depois do seu último `workflow import`. Se você publicar uma
+correção pontual sem `--events`, a sua cópia local **antiga** dos outros eventos
+sobe junto e desfaz o trabalho dela. O `publish` cria versão e libera, então o
+estrago vai ao ar.
+
+Com `--events`, só os eventos indicados são trocados. Os demais entram na versão
+nova com o conteúdo que está **no servidor**, e não com a cópia local. No modo
+humano, o comando diz quantos scripts ficaram de fora.
+
+A flag também isola o resto do repositório do deploy. Um script local de um
+evento que não existe no processo aborta o `publish` inteiro — mas não quando
+ele fica fora do `--events`. O mesmo vale para a checagem do `audit`: ela olha
+só os scripts que vão ser publicados.
+
+Um evento pedido em `--events` que não tem script local é erro (exit **4**),
+antes de qualquer contato com o servidor. A CLI não publica um subconjunto
+menor do que você pediu, em silêncio.
+
+Para conferir o que diverge antes de decidir, use o `workflow diff`.
 
 O argumento continua a identificar os scripts locais
 (`workflow/scripts/<argumento>.*.js`). A flag `--process-id` troca apenas o

@@ -14,6 +14,7 @@ import (
 
 	"github.com/alorenco/fluig-cli/internal/config"
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 // workflowStub simula version (SOAP nativo), ping do helper, o update de
@@ -913,4 +914,165 @@ func TestWorkflowExportSingleFile(t *testing.T) {
 	if data["updated"].(float64) != 1 || data["processId"] != "Compras" {
 		t.Errorf("resultado inesperado: %+v", data)
 	}
+}
+
+// --- publish --events: publicar um subconjunto (ROADMAP §1.1-a) ---
+
+// escrevePublishScripts grava os scripts locais do processo e devolve a pasta.
+func escrevePublishScripts(t *testing.T, proj string, arquivos map[string]string) {
+	t.Helper()
+	dir := filepath.Join(proj, "workflow", "scripts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for nome, js := range arquivos {
+		if err := os.WriteFile(filepath.Join(dir, nome), []byte(js), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// O recorte é o ponto do item: sem --events, um script local de evento que NÃO
+// existe no processo aborta o publish inteiro. Com --events, o evento de fora
+// nem é olhado — publicar uma correção pontual deixa de depender de os outros
+// arquivos locais estarem em dia.
+func TestWorkflowPublishEventsRecorta(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	escrevePublishScripts(t, proj, map[string]string{
+		"Compras.beforeTaskSave.js":     "function beforeTaskSave(){ /* publicado */ }",
+		"Compras.afterProcessFinish.js": "function afterProcessFinish(){ /* não existe no processo */ }",
+	})
+
+	// Sem a flag: o evento inexistente derruba o publish antes de escrever.
+	code, _ := runMain(t, "workflow", "publish", "Compras", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("sem --events esperava exit %d, veio %d", output.ExitNotFound, code)
+	}
+	if stub.importedXML != nil {
+		t.Fatal("nada podia ter sido importado")
+	}
+
+	// Com a flag: publica só o evento pedido.
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--events", "beforeTaskSave",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	data, _ := env.Data.(map[string]any)
+	events, _ := data["events"].([]any)
+	if len(events) != 1 || events[0] != "beforeTaskSave" {
+		t.Errorf("eventos publicados inesperados: %v", events)
+	}
+	if !strings.Contains(string(stub.importedXML), "/* publicado */") {
+		t.Error("o XML importado não tem o script pedido")
+	}
+	if strings.Contains(string(stub.importedXML), "não existe no processo") {
+		t.Error("o script fora do --events vazou para o XML")
+	}
+}
+
+// Evento pedido sem script local é erro, não silêncio: quem escreveu
+// --events x espera publicar o x. Mesma mensagem do export.
+func TestWorkflowPublishEventsInexistenteLocal(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	escrevePublishScripts(t, proj, map[string]string{
+		"Compras.beforeTaskSave.js": "function beforeTaskSave(){}",
+	})
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--events", "beforeStateEntry",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if env.Error == nil || !strings.Contains(env.Error.Message, "beforeStateEntry") {
+		t.Errorf("mensagem sem o evento pedido: %+v", env.Error)
+	}
+	if stub.importedXML != nil {
+		t.Error("nada podia ter sido importado")
+	}
+}
+
+// A pré-checagem do audit passa a olhar só o que vai ser publicado: um erro de
+// audit num script FORA do --events não pode abortar a publicação.
+func TestWorkflowPublishEventsAuditSoNoSelecionado(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	escrevePublishScripts(t, proj, map[string]string{
+		"Compras.beforeTaskSave.js": "function beforeTaskSave(){}",
+		// RHINO003: const no corpo de um laço — erro de audit.
+		"Compras.afterProcessFinish.js": "function afterProcessFinish(){ for (var i=0;i<2;i++){ const x = i; usa(x); } }",
+	})
+
+	code, stdout := runMain(t, "workflow", "publish", "Compras", "--events", "beforeTaskSave",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("o audit do script fora do --events não podia abortar: exit=%d\n%s", code, stdout)
+	}
+
+	// Prova de que o script excluído REPROVA mesmo o audit: pedindo ele, o
+	// publish para antes de tocar no servidor.
+	stub2 := &workflowStub{}
+	proj2 := workflowProject(t, stub2.server(t).URL)
+	escrevePublishScripts(t, proj2, map[string]string{
+		"Compras.afterProcessFinish.js": "function afterProcessFinish(){ for (var i=0;i<2;i++){ const x = i; usa(x); } }",
+	})
+	code2, _ := runMain(t, "workflow", "publish", "Compras", "--events", "afterProcessFinish",
+		"--json", "--project", proj2, "--server", "homolog")
+	if code2 == output.ExitOK {
+		t.Error("o script com erro de audit deveria reprovar quando é o selecionado")
+	}
+	if stub2.importedXML != nil {
+		t.Error("audit reprovado não podia ter importado")
+	}
+}
+
+// O modo humano diz o que ficou de fora — é o que dá sentido à flag.
+func TestWorkflowPublishEventsAvisaOQueFicouDeFora(t *testing.T) {
+	stub := &workflowStub{}
+	proj := workflowProject(t, stub.server(t).URL)
+	escrevePublishScripts(t, proj, map[string]string{
+		"Compras.beforeTaskSave.js":     "function beforeTaskSave(){}",
+		"Compras.afterProcessFinish.js": "function afterProcessFinish(){}",
+	})
+
+	_, stdout := runMain(t, "workflow", "publish", "Compras", "--events", "beforeTaskSave",
+		"--project", proj, "--server", "homolog")
+	if !strings.Contains(stdout, "conteúdo do servidor") {
+		t.Errorf("faltou avisar que os demais eventos ficam como estão no servidor: %s", stdout)
+	}
+}
+
+// Recorte puro: ordem da flag preservada, repetição ignorada.
+func TestSelectPublishScripts(t *testing.T) {
+	todos := []project.ProcessScript{
+		{ProcessID: "P", Event: "beforeTaskSave", Path: "a.js"},
+		{ProcessID: "P", Event: "afterTaskSave", Path: "b.js"},
+		{ProcessID: "P", Event: "beforeStateEntry", Path: "c.js"},
+	}
+	t.Run("sem flag devolve tudo", func(t *testing.T) {
+		got, err := selectPublishScripts(todos, nil, "P")
+		if err != nil || len(got) != 3 {
+			t.Fatalf("got=%v err=%v", got, err)
+		}
+	})
+	t.Run("ordem da flag e dedup", func(t *testing.T) {
+		got, err := selectPublishScripts(todos, []string{"beforeStateEntry", "beforeTaskSave", "beforeStateEntry"}, "P")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].Event != "beforeStateEntry" || got[1].Event != "beforeTaskSave" {
+			t.Errorf("recorte inesperado: %+v", got)
+		}
+	})
+	t.Run("evento sem script local é erro", func(t *testing.T) {
+		if _, err := selectPublishScripts(todos, []string{"onNotify"}, "P"); err == nil {
+			t.Error("esperava erro para evento sem script local")
+		}
+	})
 }
