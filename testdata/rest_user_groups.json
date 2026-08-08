@@ -1,0 +1,8 @@
+{
+ "items": [
+  { "id": 1, "tenantId": 1, "code": "DefaultGroup-1", "description": "Default tenant access group", "type": "cloud", "data": null, "_expandables": ["data"] },
+  { "id": 12, "tenantId": 1, "code": "TI", "description": "Tecnologia da Informação", "type": "user", "data": null, "_expandables": ["data"] },
+  { "id": 30, "tenantId": 1, "code": "MEMBER_comunidade", "description": "Membros da comunidade", "type": "community", "data": null, "_expandables": ["data"] }
+ ],
+ "hasNext": false
+}

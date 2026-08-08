@@ -67,7 +67,7 @@ em pt-BR.
 | [task](./task) | fila de tarefas (a sua, a dos outros e os pools) e **assumir tarefa de pool** |
 | [document](./document) | GED: navegar (com árvore recursiva), **procurar por nome**, ver, **mover**, baixar e publicar |
 | [log](./log) | logs do servidor: tail com filtros, follow e download |
-| [user](./user) | usuários da plataforma (requer admin) |
+| [user](./user) | usuários da plataforma, com os papéis e grupos de cada um (requer admin) |
 | [group](./group) | grupos e membros (requer admin) |
 | [role](./role) | papéis e usuários (requer admin) |
 | [replacement](./replacement) | substitutos de usuário / delegação (requer admin) |

@@ -28,6 +28,12 @@ func newUserCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newUserActivateCmd(app, true))
 	cmd.AddCommand(newUserActivateCmd(app, false))
 	cmd.AddCommand(newUserAuditCmd(app))
+	cmd.AddCommand(newUserRolesCmd(app))
+	cmd.AddCommand(newUserGroupsCmd(app))
+	cmd.AddCommand(newUserLinkCmd(app, true, true))   // add-role
+	cmd.AddCommand(newUserLinkCmd(app, true, false))  // remove-role
+	cmd.AddCommand(newUserLinkCmd(app, false, true))  // add-group
+	cmd.AddCommand(newUserLinkCmd(app, false, false)) // remove-group
 	return cmd
 }
 

@@ -22,6 +22,9 @@ type adminUserStub struct {
 	createBody string
 	updateBody string
 	posted     []string // POSTs em activate/deactivate
+
+	vinculosPost   []string // "roles:{...}" | "groups:{...}" (ROADMAP §5.1)
+	vinculosDelete []string // "roles/<code>" | "groups/<code>"
 }
 
 func (s *adminUserStub) server(t *testing.T) *httptest.Server {
@@ -55,6 +58,13 @@ func (s *adminUserStub) server(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/admin/api/v1/users/", func(w http.ResponseWriter, r *http.Request) {
 		rest := strings.TrimPrefix(r.URL.Path, "/admin/api/v1/users/")
+		// Vínculos pelo lado do usuário (ROADMAP §5.1): /roles e /groups.
+		if i := strings.Index(rest, "/"); i > 0 {
+			if familia := strings.SplitN(rest[i+1:], "/", 2)[0]; familia == "roles" || familia == "groups" {
+				s.serveVinculos(t, w, r, rest[:i], familia, rest[i+1:])
+				return
+			}
+		}
 		// activate/deactivate: login inexistente responde 400, não 404 (real).
 		if strings.HasSuffix(rest, "/activate") || strings.HasSuffix(rest, "/deactivate") {
 			login := rest[:strings.LastIndex(rest, "/")]
@@ -86,9 +96,56 @@ func (s *adminUserStub) server(t *testing.T) *httptest.Server {
 			`"lastUpdateDate":"2026-02-18T12:54:46.074-0400",`+
 			`"roles":["admin","user"],"groups":["DefaultGroup-1","TI"]}`)
 	})
+	// Pré-validação do alvo nos comandos de vínculo (§5.1): existe só o papel
+	// "faturista" e o grupo "TI".
+	mux.HandleFunc("/admin/api/v1/roles/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimPrefix(r.URL.Path, "/admin/api/v1/roles/") != "faturista" {
+			http.Error(w, `{"code":"FDNEntityNotFoundException","message":""}`, http.StatusNotFound)
+			return
+		}
+		io.WriteString(w, `{"code":"faturista","description":"Faturista"}`)
+	})
+	mux.HandleFunc("/admin/api/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimPrefix(r.URL.Path, "/admin/api/v1/groups/") != "TI" {
+			http.Error(w, `{"code":"FDNEntityNotFoundException","message":""}`, http.StatusNotFound)
+			return
+		}
+		io.WriteString(w, `{"code":"TI","description":"Tecnologia da Informação","type":"user"}`)
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// serveVinculos atende /admin/api/v1/users/{login}/{roles|groups}[/{code}],
+// reproduzindo o contrato medido na homologação em 2026-08-08 (ROADMAP §5.1).
+// O `caminho` é o que vem depois do login, ex.: "roles" ou "roles/faturista".
+func (s *adminUserStub) serveVinculos(t *testing.T, w http.ResponseWriter, r *http.Request, login, familia, caminho string) {
+	t.Helper()
+	if login != "user1" {
+		http.Error(w, `{"code":"FDNEntityNotFoundException","message":""}`, http.StatusNotFound)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		arquivo := "rest_user_roles.json"
+		if familia == "groups" {
+			arquivo = "rest_user_groups.json"
+		}
+		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", arquivo))
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(b)
+	case http.MethodPost:
+		b, _ := io.ReadAll(r.Body)
+		s.vinculosPost = append(s.vinculosPost, familia+":"+string(b))
+		w.Write(b)
+	case http.MethodDelete:
+		code := strings.TrimPrefix(caminho, familia+"/")
+		s.vinculosDelete = append(s.vinculosDelete, familia+"/"+code)
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func adminUserProject(t *testing.T, stubURL string) string {

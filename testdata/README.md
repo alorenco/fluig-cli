@@ -176,3 +176,16 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 
 > `TestIntegrationFormListAndDownload` (`-tags=integration`) exercita list +
 > download + eventos read-only.
+
+## vínculos pelo lado do usuário (ROADMAP §5.1, 2026-08-08)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `rest_user_roles.json` | `GET /admin/api/v1/users/{login}/roles` | ✅ shape gravado da homologação em 2026-08-08 (35 papéis de uma conta real); reduzido a 3 itens e códigos/descrições trocados por fictícios |
+| `rest_user_groups.json` | `GET /admin/api/v1/users/{login}/groups` | ✅ idem (13 grupos → 3), cobrindo os três `type` reais: `cloud`, `user` e `community` |
+
+> O item do GRUPO traz o campo `type`; o do PAPEL não. É a única diferença de
+> shape entre as duas listagens, e é o que a tabela do `user groups` mostra a
+> mais. ⚠️ O contrato de ESCRITA diverge bem mais entre as duas famílias — a
+> tabela completa (o POST de grupo aceita código inexistente com 200 e não cria
+> nada) está no FLUIG-APIS.md.

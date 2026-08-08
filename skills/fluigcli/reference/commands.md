@@ -38,6 +38,8 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | criar / editar registros de um formulário | `form records` |
 | ver tudo que um usuário fez num período (tarefas/solicitações/documentos) | `user audit <login>` |
 | administrar usuários / grupos / papéis | `user` · `group` · `role` |
+| ver ou mudar os papéis/grupos DE uma pessoa | `user roles <login>` · `user add-role <login> <papel>` · idem `groups`/`add-group` |
+| ver ou mudar quem está EM um papel/grupo | `role users <papel>` · `role add-user <papel> <login>` · idem `group` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
@@ -222,6 +224,9 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 | `user update <login> [--email] [--first-name] [--last-name] [--full-name] [--set-password]` | mescla os campos informados |
 | `user activate\|deactivate <login>` | ativa/desativa (desativado = state BLOCKED; não há exclusão na API) |
 | `user audit <login> [--day dd/mm/aaaa \| --from … --to …] [--only tasks,requests,documents] [-o arq.txt\|arq.xlsx]` | atuação do usuário no período: tarefas que concluiu (com horário), solicitações que abriu e documentos que criou. Sem data = HOJE |
+| `user roles <login>` · `user groups <login>` | papéis e grupos DO usuário, em tabela (`data.roles[]`/`data.groups[]`) |
+| `user add-role\|remove-role <login> <papel>` | vincula/desvincula papel. **Mesmo vínculo do `role add-user`**, argumentos na ordem inversa. `add` é idempotente (exit 0 se já tinha); `remove` sem vínculo = exit 4 |
+| `user add-group\|remove-group <login> <grupo>` | inclui/remove do grupo. **Mesmo vínculo do `group add-user`**. Incluir quem já é membro = exit 5 (o servidor recusa, igual ao `group add-user`); `remove` sem vínculo = exit 4 |
 
 `user audit` é uma CONSULTA operacional (não exige admin como o resto do grupo):
 resolve login→userCode e cruza `task list` (ordenado por conclusão), `request

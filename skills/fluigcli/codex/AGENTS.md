@@ -86,9 +86,12 @@ o tempo acabou antes),
 `document` (list|find|show|move|download|upload|mkdir|delete — GED; `list <id> --recursive`
 desce a árvore com o caminho de cada item; `find --name "glob" --under <id>` acha
 por nome, case-insensitive),
-`user` (list|show|create|update|activate|deactivate — requer admin; senha do
-novo usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
-+ users|add-user|remove-user; requerem admin), `replacement` (list|show|create|
+`user` (list|show|create|update|activate|deactivate|audit + roles|groups|
+add-role|remove-role|add-group|remove-group — requer admin; senha do novo
+usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
++ users|add-user|remove-user; requerem admin). Os vínculos têm DUAS portas para
+a mesma escrita: pelo usuário (`user add-role <login> <papel>`) ou pelo
+papel/grupo (`role add-user <papel> <login>`), `replacement` (list|show|create|
 update|delete — substituto/delegação de tarefas; requer admin), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado),

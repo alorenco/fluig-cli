@@ -85,6 +85,68 @@ fluigcli user activate jsilva
 Login inexistente → exit **4**. Em servidor `prod`, as operações de escrita
 respeitam a trava de confirmação.
 
+## `fluigcli user roles <login>` / `groups <login>`
+
+Estes comandos listam os papéis e os grupos **de um usuário**. A saída traz o
+código e a descrição. A tabela dos grupos traz também o tipo.
+
+```sh
+fluigcli user roles jsilva
+fluigcli user groups jsilva
+```
+
+No `--json`, os dados saem em `data.roles[]` e `data.groups[]`, com o `login`
+junto. Login inexistente → exit **4**.
+
+## `fluigcli user add-role <login> <papel>` / `remove-role`
+
+Estes comandos vinculam e desvinculam um papel de um usuário.
+
+```sh
+fluigcli user add-role jsilva faturista
+fluigcli user remove-role jsilva faturista
+```
+
+Vincular um papel que o usuário já tem **não é erro**. A operação é idempotente
+e responde exit **0**. Remover um papel que ele não tem → exit **4**.
+
+## `fluigcli user add-group <login> <grupo>` / `remove-group`
+
+Estes comandos incluem e removem um usuário de um grupo.
+
+```sh
+fluigcli user add-group jsilva TI
+fluigcli user remove-group jsilva TI
+```
+
+Incluir quem já é membro → exit **5**. O servidor recusa, e o comando repassa a
+mensagem dele. Remover quem não é membro → exit **4**.
+
+### As duas portas do mesmo vínculo
+
+Um vínculo usuário↔papel é um só. A CLI oferece duas portas para escrevê-lo:
+
+| Pelo usuário | Pelo papel ou grupo |
+|---|---|
+| `user add-role jsilva faturista` | `role add-user faturista jsilva` |
+| `user remove-role jsilva faturista` | `role remove-user faturista jsilva` |
+| `user add-group jsilva TI` | `group add-user TI jsilva` |
+| `user remove-group jsilva TI` | `group remove-user TI jsilva` |
+
+As duas escrevem a mesma coisa. Só muda a ordem dos argumentos. Use a que
+combina com a pergunta que você está respondendo. Quem administra uma pessoa
+pensa "quais papéis o jsilva tem". Quem administra um papel pensa "quem está no
+faturista".
+
+> **Nota.** Até 2026-08-08 a documentação afirmava que a API não permite mudar
+> os vínculos pelo lado do usuário. Isso estava incorreto. As rotas existem e
+> são as que estes comandos usam.
+
+Um cuidado que a CLI resolve por você: a API aceita em silêncio um grupo que não
+existe. Ela responde sucesso e não cria vínculo nenhum. Por isso o comando
+confere o alvo antes de escrever. Grupo ou papel inexistente → exit **4**, sem
+nada ser enviado.
+
 ## `fluigcli user audit <login> [flags]`
 
 Este comando reúne a **atuação de um usuário num período**. Ele serve para

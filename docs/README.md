@@ -16,7 +16,7 @@ uso por agentes de IA.
 - [task](task.md) — tarefas de workflow. A sua fila, a dos outros, os pools — e **assumir tarefa de pool**
 - [document](document.md) — GED. Navega (com árvore recursiva), **procura por nome**, mostra, **move**, baixa e publica documentos
 - [log](log.md) — logs do servidor. Tail com filtros, follow e download (requer o fluigcliHelper)
-- [user](user.md) — usuários da plataforma (requer admin)
+- [user](user.md) — usuários da plataforma, com os papéis e grupos de cada um (requer admin)
 - [group](group.md) — grupos da plataforma e membros (requer admin)
 - [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)

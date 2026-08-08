@@ -1,0 +1,8 @@
+{
+ "items": [
+  { "id": 6, "tenantId": 1, "code": "user", "description": "user", "data": null, "_expandables": ["data"] },
+  { "id": 41, "tenantId": 1, "code": "gestor_compras", "description": "Gestor de Compras", "data": null, "_expandables": ["data"] },
+  { "id": 55, "tenantId": 1, "code": "faturista", "description": "Faturista", "data": null, "_expandables": ["data"] }
+ ],
+ "hasNext": false
+}

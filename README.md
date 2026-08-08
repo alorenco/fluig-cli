@@ -148,7 +148,7 @@ fluigcli diff --json | jq '.data.counts'
 
 | Grupo | Comandos | Doc |
 |---|---|---|
-| `user` | `list` `show` `create` `update` `activate` `deactivate` `audit` | [docs/user.md](docs/user.md) |
+| `user` | `list` `show` `create` `update` `activate` `deactivate` `audit` `roles` `groups` `add-role` `remove-role` `add-group` `remove-group` | [docs/user.md](docs/user.md) |
 | `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/group.md](docs/group.md) |
 | `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/role.md](docs/role.md) |
 | `replacement` | `list` `show` `create` `update` `delete` | [docs/replacement.md](docs/replacement.md) |
