@@ -45,6 +45,7 @@ Regras para o agente:
 | 0 | `ExitOK` | — | sucesso total |
 | 1 | `ExitGeneric` | `INTERNAL_ERROR` | erro inesperado |
 | 2 | `ExitUsage` | `USAGE_ERROR` | flag/argumento inválido; faltou argumento em modo não-interativo |
+| 2 | `ExitUsage` | `PROTECTED_DATASET` | `dataset delete`: o alvo existe, mas é `BUILTIN` ou `GENERATED` — o comando remove só `CUSTOM` (ver abaixo) |
 | 3 | `ExitAuth` | `AUTH_FAILED` | login/sessão falhou |
 | 4 | `ExitNotFound` | `NOT_FOUND` | dataset/form/processo/servidor inexistente |
 | 4 | `ExitNotFound` | `POOL_TASK_NOT_ASSIGNED` | `request move`: a tarefa corrente está num **pool** e ninguém a assumiu — a solicitação EXISTE (ver abaixo) |
@@ -69,7 +70,12 @@ esac
 ## Estratégia por exit code (o que o agente faz)
 
 - **exit 2 (uso)**: você errou a flag/argumento — **conserte o comando**, não
-  reenvie igual. Consulte `--help` do subcomando.
+  reenvie igual. Consulte `--help` do subcomando. Com
+  `error.code == "PROTECTED_DATASET"` o argumento é que está errado: o
+  `dataset delete` remove só dataset `CUSTOM`, e você apontou um `BUILTIN` (da
+  plataforma) ou um `GENERATED` (de um formulário). Nada foi excluído. Confira
+  o tipo com `dataset list --json` antes de apontar outro id. Para remover um
+  `GENERATED`, exclua o formulário dono dele.
 - **exit 3 (auth)**: sessão/senha — confira `FLUIGCLI_PASSWORD`/`FLUIGCLI_USERNAME`
   e `server test`. Não adianta repetir sem mudar a credencial.
 - **exit 4 (não encontrado)**: id/nome/login inexistente — **corrija o

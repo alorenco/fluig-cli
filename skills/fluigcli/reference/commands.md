@@ -99,7 +99,7 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | `dataset enable\|disable <id>...` | — | reativa/desativa datasets no servidor (sem apagar; disable é reversível) |
 | `dataset history <id> [--version N]` | — | histórico de versões; `--version N` imprime o código JS daquela versão |
 | `dataset restore <id> <version>` | — | restaura o código de uma versão do histórico (cria versão nova; exige `--yes` em modo não-interativo) |
-| `dataset delete <id>` | — | remove um dataset de vez (físico, permanente; alvo único; `--yes` em não-interativo). **Requer o fluigcliHelper ≥ 0.7.0** (sem ele: exit 7). Para só desligar de forma reversível, use `disable` |
+| `dataset delete <id>` | — | remove um dataset de vez (físico, permanente; alvo único; `--yes` em não-interativo). Remove **só dataset `CUSTOM`**: `BUILTIN` e `GENERATED` são recusados com exit 2 / `PROTECTED_DATASET`, sem tocar no servidor. Dataset desativado é excluível normalmente. Id inexistente → exit 4 (não é idempotente). **Requer o fluigcliHelper ≥ 0.7.0** (sem ele: exit 7). Para só desligar de forma reversível, use `disable` |
 
 ## deploy — release por manifesto
 

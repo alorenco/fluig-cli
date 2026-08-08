@@ -43,7 +43,15 @@ func newDatasetDeleteCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <id>",
 		Short: "Remove um dataset customizado do servidor (permanente; requer o fluigcliHelper)",
-		Args:  cobra.ExactArgs(1),
+		Long: "Remove um dataset do servidor. A remoção é física e permanente.\n\n" +
+			"O comando exclui apenas dataset do tipo CUSTOM. Um dataset BUILTIN pertence\n" +
+			"à plataforma. Um dataset GENERATED pertence a um formulário. Nos dois casos o\n" +
+			"comando recusa com exit 2 e nada é enviado ao servidor. Confira o tipo na\n" +
+			"coluna \"Tipo\" do `dataset list`.\n\n" +
+			"Um dataset desativado é excluído normalmente. Para um passo reversível, use\n" +
+			"`dataset disable`.\n\n" +
+			"Id inexistente responde exit 4: o comando não é idempotente.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			id := args[0]

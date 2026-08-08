@@ -46,6 +46,11 @@ const (
 	// solicitação aberta e visível — o que manda depurar o lado errado.
 	CodePoolTaskNotAssigned = "POOL_TASK_NOT_ASSIGNED"
 	CodeNoHumanTask         = "NO_HUMAN_TASK"
+	// CodeProtectedDataset marca a recusa do `dataset delete` por TIPO: o id
+	// existe, mas é BUILTIN (da plataforma) ou GENERATED (de um formulário). O
+	// exit é o 2, e não o 4: o recurso foi encontrado. Repetir não adianta — o
+	// conserto é apontar outro id.
+	CodeProtectedDataset = "PROTECTED_DATASET"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -96,6 +101,12 @@ func NotFoundf(format string, args ...any) *Error {
 // automática): código próprio, exit 4 como antes.
 func BlockedTaskf(code, format string, args ...any) *Error {
 	return newError(code, ExitNotFound, format, args...)
+}
+
+// ProtectedResourcef reporta uma exclusão recusada pela própria CLI porque o
+// alvo é do tipo errado. Exit 2: o comando está incorreto, não o servidor.
+func ProtectedResourcef(format string, args ...any) *Error {
+	return newError(CodeProtectedDataset, ExitUsage, format, args...)
 }
 
 func ServerErrorf(format string, args ...any) *Error {

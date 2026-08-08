@@ -35,6 +35,7 @@ type datasetStub struct {
 	handleBig  bool     // 1ª página cheia (força a paginação por offset)
 
 	deleteSeen []string // ids recebidos no DELETE do helper (§2.11-H)
+	searchSeen []string // termos recebidos no `search` da listagem (§2.11-J)
 }
 
 func (s *datasetStub) server(t *testing.T) *httptest.Server {
@@ -64,6 +65,26 @@ func (s *datasetStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/dataset/api/v2/datasets", func(w http.ResponseWriter, r *http.Request) {
 		if s.restMissing {
 			http.NotFound(w, r)
+			return
+		}
+		// `search` filtra por TRECHO do id, como o servidor real. É o caminho do
+		// LookupDataset (§2.11-J).
+		if q := r.URL.Query().Get("search"); q != "" {
+			s.searchSeen = append(s.searchSeen, q)
+			var hits []map[string]any
+			for _, page := range restPages {
+				var parsed struct {
+					Items []map[string]any `json:"items"`
+				}
+				json.Unmarshal(page, &parsed)
+				for _, it := range parsed.Items {
+					if id, _ := it["datasetId"].(string); strings.Contains(id, q) {
+						hits = append(hits, it)
+					}
+				}
+			}
+			b, _ := json.Marshal(map[string]any{"items": hits, "hasNext": false})
+			w.Write(b)
 			return
 		}
 		if restCalls >= len(restPages) {
@@ -188,6 +209,82 @@ func TestDeleteDatasetPermanentlyExistente(t *testing.T) {
 	}
 	if len(stub.deleteSeen) != 1 || stub.deleteSeen[0] != "ds_exemplo" {
 		t.Errorf("esperava DELETE de ds_exemplo, veio %v", stub.deleteSeen)
+	}
+}
+
+// Dataset DESATIVADO: a exclusão tem de funcionar. Este é o fluxo natural —
+// desativar, conferir que nada quebrou, excluir. Enquanto a confirmação prévia
+// usava o loadDataset, o caso caía em "não existe": o loadDataset responde
+// HTTP 500 para dataset inativo (medido ao vivo em 2026-08-08, §2.11-J).
+func TestDeleteDatasetPermanentlyDesativado(t *testing.T) {
+	stub := &datasetStub{}
+	c := datasetClient(t, stub.server(t).URL)
+
+	// ds_inativo é CUSTOM com active:false na fixture real da listagem.
+	if err := c.DeleteDatasetPermanently(context.Background(), "ds_inativo"); err != nil {
+		t.Fatalf("dataset desativado tem de ser excluível: %v", err)
+	}
+	if len(stub.deleteSeen) != 1 || stub.deleteSeen[0] != "ds_inativo" {
+		t.Errorf("esperava DELETE de ds_inativo, veio %v", stub.deleteSeen)
+	}
+}
+
+// Guarda de TIPO (§2.11-J): a remoção é FÍSICA e vale só para dataset
+// customizado. BUILTIN é da plataforma; GENERATED pertence a um formulário.
+// Nos dois casos o DELETE não pode sair.
+func TestDeleteDatasetPermanentlyRecusaTipoProtegido(t *testing.T) {
+	casos := []struct{ id, tipo, motivo string }{
+		{"colleague", "BUILTIN", "plataforma"},
+		{"frm_cadastro", "GENERATED", "formulário"},
+	}
+	for _, caso := range casos {
+		t.Run(caso.id, func(t *testing.T) {
+			stub := &datasetStub{}
+			c := datasetClient(t, stub.server(t).URL)
+
+			err := c.DeleteDatasetPermanently(context.Background(), caso.id)
+			if err == nil {
+				t.Fatalf("esperava recusa para dataset %s", caso.tipo)
+			}
+			if !errors.Is(err, ErrProtectedDataset) {
+				t.Errorf("esperava ErrProtectedDataset, veio %v", err)
+			}
+			// NOT_FOUND enganaria: o dataset existe.
+			if errors.Is(err, ErrNotFound) {
+				t.Errorf("o dataset existe — não pode virar ErrNotFound: %v", err)
+			}
+			for _, quer := range []string{caso.tipo, caso.motivo, "Nada foi excluído"} {
+				if !strings.Contains(err.Error(), quer) {
+					t.Errorf("a mensagem precisa citar %q: %v", quer, err)
+				}
+			}
+			if len(stub.deleteSeen) != 0 {
+				t.Errorf("o DELETE não podia ter sido enviado: %v", stub.deleteSeen)
+			}
+		})
+	}
+}
+
+// LookupDataset casa o id EXATO: `search` é busca por trecho, então
+// `search=colleague` traz colleagueGroup junto no servidor real.
+func TestLookupDatasetCasaIDExato(t *testing.T) {
+	stub := &datasetStub{}
+	c := datasetClient(t, stub.server(t).URL)
+
+	ds, err := c.LookupDataset(context.Background(), "ds_exemplo")
+	if err != nil {
+		t.Fatalf("LookupDataset: %v", err)
+	}
+	if ds.ID != "ds_exemplo" || ds.Type != "CUSTOM" || !ds.Active {
+		t.Errorf("resumo inesperado: %+v", ds)
+	}
+	if len(stub.searchSeen) != 1 || stub.searchSeen[0] != "ds_exemplo" {
+		t.Errorf("esperava uma busca por ds_exemplo, veio %v", stub.searchSeen)
+	}
+
+	// Prefixo que casa vários ids, mas nenhum exato: não pode devolver o vizinho.
+	if _, err := c.LookupDataset(context.Background(), "ds_"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("prefixo sem id exato tem de dar ErrNotFound, veio %v", err)
 	}
 }
 

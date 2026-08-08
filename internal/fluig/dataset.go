@@ -36,6 +36,83 @@ type DatasetSummary struct {
 	Draft       bool   `json:"draft"`
 }
 
+// LookupDataset resolve UM dataset na listagem REST v2 e devolve o resumo dele
+// (existência + tipo + estado). Usa o parâmetro `search`, que é busca por
+// trecho, e depois casa o id EXATO — `search=colleague` também traz
+// `colleagueGroup` e `workflowColleagueRole`.
+//
+// Por que não o loadDataset: ele responde HTTP 500 para dataset DESATIVADO
+// (medido na homologação em 2026-08-08 com um dataset descartável, e nos 10
+// datasets inativos do servidor — ROADMAP §2.11-J). A listagem enxerga o
+// desativado normalmente, com `active:false`.
+//
+// Devolve ErrNotFound quando nenhum id bate.
+func (c *Client) LookupDataset(ctx context.Context, id string) (*DatasetSummary, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	const pageSize = 100
+	for page := 1; ; page++ {
+		endpoint := c.url("/dataset/api/v2/datasets") +
+			"?search=" + url.QueryEscape(id) +
+			"&page=" + strconv.Itoa(page) + "&pageSize=" + strconv.Itoa(pageSize)
+		body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		// Fluig antigo, sem o módulo /dataset: cai na listagem completa, que já
+		// tem o fallback SOAP.
+		if status == http.StatusNotFound && page == 1 {
+			return lookupInList(c.ListDatasets(ctx))(id)
+		}
+		if status < 200 || status >= 300 {
+			return nil, &HTTPError{StatusCode: status, URL: "dataset/api/v2/datasets", Body: truncate(string(body), 512)}
+		}
+		var parsed struct {
+			Items []struct {
+				DatasetID          string `json:"datasetId"`
+				DatasetDescription string `json:"datasetDescription"`
+				Type               string `json:"type"`
+				Custom             bool   `json:"custom"`
+				Active             bool   `json:"active"`
+				Draft              bool   `json:"draft"`
+			} `json:"items"`
+			HasNext bool `json:"hasNext"`
+		}
+		if err := json.Unmarshal(body, &parsed); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de dataset/api/v2/datasets: %w", err)
+		}
+		for _, it := range parsed.Items {
+			if it.DatasetID != id {
+				continue
+			}
+			return &DatasetSummary{
+				ID: it.DatasetID, Type: it.Type, Custom: it.Custom,
+				Description: it.DatasetDescription, Active: it.Active, Draft: it.Draft,
+			}, nil
+		}
+		if !parsed.HasNext || len(parsed.Items) == 0 {
+			return nil, fmt.Errorf("%w: dataset %q", ErrNotFound, id)
+		}
+	}
+}
+
+// lookupInList casa o id exato numa listagem já carregada (caminho de fallback
+// do LookupDataset).
+func lookupInList(list []DatasetSummary, err error) func(string) (*DatasetSummary, error) {
+	return func(id string) (*DatasetSummary, error) {
+		if err != nil {
+			return nil, err
+		}
+		for i := range list {
+			if list[i].ID == id {
+				return &list[i], nil
+			}
+		}
+		return nil, fmt.Errorf("%w: dataset %q", ErrNotFound, id)
+	}
+}
+
 // ListDatasets retorna os datasets do servidor pela REST v2 (paginada). Se o
 // módulo /dataset não existir no servidor (Fluig antigo → 404), cai para o
 // SOAP findAllFormulariesDatasets (sem description/active/draft).
@@ -226,16 +303,30 @@ func (c *Client) DeleteDatasetPermanently(ctx context.Context, id string) error 
 		return err
 	}
 
-	// Confirma que o dataset EXISTE antes de mandar apagar. O helper responde
-	// 200 {"deleted":true} para id inexistente (medido na homologação em
-	// 2026-07-27, ROADMAP §2.11-H), então sem esta checagem a CLI confirma uma
-	// exclusão que nunca aconteceu. Mesmo padrão do form records delete
-	// (§2.10-I): confirmar com uma leitura antes de destruir.
-	if _, err := c.LoadDataset(ctx, id); err != nil {
+	// Confirma EXISTÊNCIA e TIPO antes de mandar apagar, numa leitura só.
+	//
+	// Existência (§2.11-H): o helper responde 200 {"deleted":true} para id
+	// inexistente, então sem esta checagem a CLI confirma uma exclusão que nunca
+	// aconteceu.
+	//
+	// Tipo (§2.11-J): a remoção é FÍSICA e vale só para dataset customizado. O
+	// §2.10-K firmou a checagem de tipo como padrão do projeto para exclusão
+	// perigosa — lá, um id trocado apagava PDF do GED.
+	//
+	// A fonte é a LISTAGEM, não o loadDataset. O loadDataset responde HTTP 500
+	// para dataset desativado, e a CLI lia isso como "não existe" — ou seja,
+	// desativar e depois excluir, que é o fluxo natural, ficava impossível
+	// (defeito reproduzido ao vivo em 2026-08-08).
+	ds, err := c.LookupDataset(ctx, id)
+	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return fmt.Errorf("%w: dataset %q não existe no servidor (nada foi excluído)", ErrNotFound, id)
 		}
 		return err
+	}
+	if ds.Type != datasetTypeCustom {
+		return fmt.Errorf("%w: o dataset %q é do tipo %s. %s. A exclusão física vale só para dataset %s. Nada foi excluído",
+			ErrProtectedDataset, id, ds.Type, motivoDatasetProtegido(ds.Type), datasetTypeCustom)
 	}
 
 	endpoint := c.url(helperDatasetsPath + "/" + url.PathEscape(id))
@@ -497,6 +588,27 @@ func (c *Client) postDatasetWrite(ctx context.Context, op string, payload any) e
 
 // errServerRejected marca uma rejeição de negócio do servidor (deploy recusado).
 var errServerRejected = fmt.Errorf("operação rejeitada pelo servidor Fluig")
+
+// ErrProtectedDataset marca a recusa do hard-delete por TIPO: o id existe, mas
+// não é um dataset customizado. Quem chama repete em vão — o conserto é apontar
+// outro id. Por isso a CLI mapeia este erro para exit 2 (uso incorreto), e não
+// para exit 5.
+var ErrProtectedDataset = errors.New("exclusão recusada")
+
+// motivoDatasetProtegido explica, por tipo, por que a exclusão física não vale.
+// Os valores vêm medidos da homologação: os 359 datasets do servidor devolvem
+// CUSTOM, BUILTIN ou GENERATED, e o `type` da listagem bate com o do
+// loadDataset em todos eles (ROADMAP §2.11-J).
+func motivoDatasetProtegido(tipo string) string {
+	switch tipo {
+	case "BUILTIN":
+		return "A plataforma é a dona dele"
+	case "GENERATED":
+		return "Ele pertence a um formulário e sai junto quando o formulário é excluído"
+	default:
+		return "A CLI não reconhece esse tipo"
+	}
+}
 
 // postSOAP faz o POST de um envelope SOAP com os cookies de sessão do jar.
 func (c *Client) postSOAP(ctx context.Context, path, soapAction string, envelope []byte) ([]byte, error) {

@@ -231,6 +231,11 @@ func mapFluigError(err error) error {
 		}
 		return output.BlockedTaskf(code, "%s", err.Error()).WithCause(err)
 	}
+	// Exclusão recusada por tipo do alvo: o recurso existe, então NOT_FOUND
+	// enganaria. Exit 2 — o conserto é apontar outro id (ROADMAP §2.11-J).
+	if errors.Is(err, fluig.ErrProtectedDataset) {
+		return output.ProtectedResourcef("%s", err.Error()).WithCause(err)
+	}
 	if errors.Is(err, fluig.ErrNotFound) {
 		return output.NotFoundf("%s", err.Error()).WithCause(err)
 	}

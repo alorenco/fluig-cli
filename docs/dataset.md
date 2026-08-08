@@ -199,9 +199,33 @@ forma reversível, use `dataset disable`.
 fluigcli dataset delete zz_ds_teste --yes
 ```
 
-A remoção é **idempotente**. Apagar um dataset que não existe retorna sucesso.
-Uma recusa do servidor (por exemplo, um dataset interno ou com dependência) →
-exit **5**. A remoção exige privilégio de administrador no tenant.
+Antes de apagar, a CLI confere o alvo na listagem do servidor. Essa checagem
+responde duas perguntas numa leitura só: o dataset existe, e ele é do tipo
+certo.
+
+O comando remove **apenas dataset do tipo CUSTOM**. Um dataset `BUILTIN`
+pertence à plataforma. Um dataset `GENERATED` pertence a um formulário e sai
+junto quando o formulário é excluído. Nos dois casos o comando recusa com o
+código `PROTECTED_DATASET` e exit **2**. Nada é enviado ao servidor. Confira o
+tipo na coluna "Tipo" do `dataset list`.
+
+Um dataset **desativado** pode ser excluído normalmente. Desativar antes de
+excluir é o caminho recomendado: primeiro `disable`, depois confira que nada
+quebrou, por fim `delete`.
+
+Exit codes do comando:
+
+| Situação | Exit | Código |
+|---|---|---|
+| Dataset CUSTOM removido | 0 | — |
+| Alvo é `BUILTIN` ou `GENERATED` | 2 | `PROTECTED_DATASET` |
+| Dataset não existe no servidor | 4 | `NOT_FOUND` |
+| Recusa do servidor (dependência, por exemplo) | 5 | `SERVER_ERROR` |
+| fluigcliHelper ausente ou antigo | 7 | `HELPER_NOT_INSTALLED` |
+
+A remoção **não é idempotente**. Repetir o comando depois de excluir devolve
+exit **4**, e a mensagem sempre diz `nada foi excluído`. A remoção exige
+privilégio de administrador no tenant.
 
 ## `fluigcli dataset history <id> [--version N]`
 

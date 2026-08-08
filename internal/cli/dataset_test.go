@@ -73,8 +73,43 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		}
 	})
 	// REST v2: listagem paginada + consulta de valores.
+	//
+	// Com `search`, o servidor real filtra por TRECHO do id e devolve o
+	// desativado normalmente. É por aí que o `dataset delete` confirma
+	// existência e tipo (§2.11-J), então o stub precisa reproduzir o filtro —
+	// paginar em sequência daria o item errado para a busca.
 	restCalls := 0
 	mux.HandleFunc("/dataset/api/v2/datasets", func(w http.ResponseWriter, r *http.Request) {
+		if q := r.URL.Query().Get("search"); q != "" {
+			var items []map[string]any
+			for _, page := range [][]byte{readTD("rest_datasets_page1.json"), readTD("rest_datasets_page2.json")} {
+				var parsed struct {
+					Items []map[string]any `json:"items"`
+				}
+				json.Unmarshal(page, &parsed)
+				items = append(items, parsed.Items...)
+			}
+			// Alvos dos testes de delete, que não estão nas fixtures.
+			for _, extra := range []struct{ id, tipo string }{
+				{"zz_fluigcli_test_del", "CUSTOM"},
+				{"zz_recusado", "CUSTOM"},
+				{"zz_fluigcli_test_hist", "CUSTOM"},
+			} {
+				items = append(items, map[string]any{
+					"datasetId": extra.id, "datasetDescription": "fluigcli teste",
+					"type": extra.tipo, "custom": extra.tipo == "CUSTOM", "active": true, "draft": false,
+				})
+			}
+			var hits []map[string]any
+			for _, it := range items {
+				if id, _ := it["datasetId"].(string); strings.Contains(id, q) {
+					hits = append(hits, it)
+				}
+			}
+			b, _ := json.Marshal(map[string]any{"items": hits, "hasNext": false})
+			w.Write(b)
+			return
+		}
 		restCalls++
 		if restCalls == 1 {
 			w.Write(readTD("rest_datasets_page1.json"))
@@ -943,6 +978,54 @@ func TestDatasetDeleteInexistente(t *testing.T) {
 	}
 	if len(stub.deletedHard) != 0 {
 		t.Errorf("o DELETE não podia ter sido enviado: %v", stub.deletedHard)
+	}
+}
+
+// delete de dataset que não é customizado: exit 2 com código próprio, e
+// NENHUM DELETE enviado (§2.11-J). Não pode virar NOT_FOUND — o dataset
+// existe; o que está errado é o alvo.
+func TestDatasetDeleteTipoProtegido(t *testing.T) {
+	casos := []struct{ id, tipo string }{
+		{"colleague", "BUILTIN"},
+		{"frm_cadastro", "GENERATED"},
+	}
+	for _, caso := range casos {
+		t.Run(caso.id, func(t *testing.T) {
+			stub := &fluigDatasetStub{}
+			proj := datasetProject(t, stub.server(t).URL)
+			code, stdout := runMain(t, "dataset", "delete", caso.id, "--yes", "--json", "--project", proj, "--server", "homolog")
+			if code != output.ExitUsage {
+				t.Errorf("exit=%d, quer %d; stdout=%s", code, output.ExitUsage, stdout)
+			}
+			var env output.Envelope
+			if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+				t.Fatalf("json inválido: %v\n%s", err, stdout)
+			}
+			if env.Error == nil || env.Error.Code != output.CodeProtectedDataset {
+				t.Errorf("esperava código %s, veio %+v", output.CodeProtectedDataset, env.Error)
+			}
+			if !strings.Contains(stdout, caso.tipo) || !strings.Contains(stdout, "Nada foi excluído") {
+				t.Errorf("a mensagem precisa citar o tipo e dizer que nada saiu: %s", stdout)
+			}
+			if len(stub.deletedHard) != 0 {
+				t.Errorf("o DELETE não podia ter sido enviado: %v", stub.deletedHard)
+			}
+		})
+	}
+}
+
+// delete de dataset DESATIVADO: tem de funcionar. Era o caminho quebrado —
+// a confirmação prévia via loadDataset dizia "não existe" para dataset
+// inativo, e desativar antes de excluir é o fluxo natural (§2.11-J).
+func TestDatasetDeleteDesativado(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "delete", "ds_inativo", "--yes", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	if len(stub.deletedHard) != 1 || stub.deletedHard[0] != "ds_inativo" {
+		t.Errorf("DELETE não chegou ao helper: %v", stub.deletedHard)
 	}
 }
 
