@@ -100,10 +100,11 @@ de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
 FL005 = método do hAPI chamado como global em script de processo, ERRO;
 FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
 fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;
-RHINO004 = values[i] por nome de coluna no server-side, aviso); com `--process <id>` cruza as seções `activity-N`
-do formulário com as etapas REAIS do processo (WF001 = seção que nunca
-renderiza, ERRO) — rode-o antes de testar um processo com formulário por
-etapa; exit 1 = reprovado, corrija pelas `suggestion`
+RHINO004 = values[i] por nome de coluna no server-side, aviso); com `--process <id>` cruza as etapas REAIS do
+processo com o formulário (WF001 = seção `activity-N` que nunca renderiza,
+ERRO) e com os scripts (WF003 = número comparado com a etapa corrente que não
+é etapa nenhuma, ERRO — o ramo nunca roda) — rode-o antes de testar um
+processo com formulário por etapa; exit 1 = reprovado, corrija pelas `suggestion`
 dos `data.findings[]` e repita). Os `new`/`new-script` são
 scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o
 `workflow new-script <pid> <evento>` gera a assinatura correta do evento — o

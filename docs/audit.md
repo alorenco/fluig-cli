@@ -56,6 +56,7 @@ fluigcli audit --process meu_processo  # + regras WF*: activity-N × etapas reai
 | `RHINO004` | aviso | `dataset.values[i]` acessado por **nome de coluna** em JS server-side: `values[0]["status"]` ou `values[0].status`. No servidor a linha é um `Object[]` Java — o acesso por nome quebra em runtime (`has no public instance field or method named "status"`). O acesso por **índice numérico** (`values[0][0]`) e o `.length` funcionam e **não** são apontados. No client-side (JS de formulário) o padrão por nome funciona e a regra não roda | `getValue(i, "coluna")` — a sugestão sai pronta, com o nome da coluna quando o acesso é por ponto |
 | `WF001` | erro | **[requer `--process`]** seção `activity-N` do formulário sem etapa de sequence `N` no processo — a seção **nunca renderiza** e a validação daquela etapa nunca roda. `activity-0` é sempre válido (formulário de abertura, `WKNumState = 0`) | a sugestão lista as etapas reais do processo (sequence + nome) |
 | `WF002` | aviso | **[requer `--process`]** atividade **humana** do processo sem seção `activity-N` no HTML. Só é emitido quando o formulário usa a convenção `activity-*` | adicionar a seção — ou ignorar, se a etapa deve mostrar o formulário igual às demais |
+| `WF003` | erro | **[requer `--process`]** o script do processo compara a etapa corrente com um número que **não é sequence de nenhuma etapa** — o ramo nunca executa | a sugestão lista as etapas reais do processo (sequence + nome) |
 
 As regras FL* usam a referência `fluig.d.ts` embutida. Esta referência é um fork
 do [fluig-declaration-type](https://github.com/fluiggers/fluig-declaration-type)
@@ -83,12 +84,28 @@ seção, a validação daquela etapa nunca roda, e nenhum outro comando acusa �
 `diff` passa (local == servidor) e o `request start` não executa os eventos do
 formulário. Este foi um defeito real que custou horas em um projeto.
 
+O mesmo vale do outro lado do processo. O script de evento também guarda o
+número da etapa, quase sempre numa constante no topo da função:
+
+```javascript
+function beforeStateEntry(sequenceId) {
+    var cancelaState = 166;
+    if (sequenceId == cancelaState) { atualizaMovimento("Cancela"); }
+```
+
+Se `166` não é sequence de nenhuma etapa, o ramo **nunca executa**. Não há erro
+no deploy nem em runtime. A condição apenas dá `false` para sempre. As duas
+causas comuns são a constante que ficou de uma versão anterior do processo e a
+constante copiada de outro processo, onde o mesmo passo tem outro número.
+
 O `audit --process <id>` fecha esse buraco:
 
 1. A CLI baixa o processo do servidor alvo (só leitura) e lê as etapas reais.
 2. Ela acha o formulário vinculado ao processo pelo `forms.json` do projeto.
    Sem o vínculo, a mensagem diz como criar (`form import` ou `form link`).
 3. Ela cruza as classes `activity-N` do HTML com as sequences (`WF001`/`WF002`).
+4. Ela cruza os números comparados com a etapa corrente nos scripts
+   `workflow/scripts/<id>.*.js` (`WF003`).
 
 ```sh
 fluigcli audit --process contratos_notificacao_vegetacao --json
@@ -96,6 +113,24 @@ fluigcli audit --process contratos_notificacao_vegetacao --json
 
 `activity-0` é sempre válido: é o formulário de **abertura** (antes do primeiro
 envio, `WKNumState` vale `0`). A checagem usa a **versão corrente** do processo.
+
+A `WF003` reconhece a etapa corrente por duas vias. A primeira é o parâmetro de
+sequence do evento: `sequenceId` em `beforeStateEntry`, `beforeStateLeave`,
+`afterStateEntry` e `afterStateLeave`; `nextSequenceId` nos eventos de tarefa;
+`iCurrentState` em `validateAvailableStates`. A segunda é a variável que recebe
+`getValue("WKNumState")`, com ou sem `parseInt`. O número comparado pode ser um
+literal ou uma constante numérica local. A regra ignora o `0`, que é a mesma
+convenção de "sem etapa" do `activity-0`.
+
+Duas limitações conscientes. A regra não acusa comparação com literal de
+**texto** (`sequenceId == "17"`), porque essa forma não aparece em código real e
+incluí-la aumentaria o falso positivo. E ela pula a variável que recebe outro
+valor em algum ponto do arquivo, para não confundir constante de etapa com o
+idioma `var x = 0; x = calcula();`.
+
+Se o prefixo dos scripts locais difere do `processId` do servidor, a `WF003`
+não acha os arquivos. A CLI avisa em vez de ficar calada. Neste caso, renomeie
+os arquivos ou rode o `audit` com o id que os arquivos usam.
 
 O `--fix` aplica **apenas** o que não tem ambiguidade. Ele corrige o SG001
 (caminho legado → flat). Ele corrige também os SG003 de **hex com valor idêntico**

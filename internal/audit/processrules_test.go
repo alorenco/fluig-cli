@@ -109,3 +109,158 @@ func TestCheckFormActivities(t *testing.T) {
 		}
 	})
 }
+
+// --- WF003: constante de etapa × sequences reais ---
+
+func TestCheckProcessScriptStates(t *testing.T) {
+	const rel = "workflow/scripts/proc_x.beforeStateEntry.js"
+
+	t.Run("caso real do Compras: constante defasada de versão anterior", func(t *testing.T) {
+		// Reduzido do Compras.beforeStateEntry.js do projeto real: o processo
+		// não tem sequence 166, então atualizaMovimento nunca é chamado.
+		js := `function beforeStateEntry(sequenceId) {
+    var cancelaState = 166;
+    var aprovacaoGerente = 7;
+
+    if (sequenceId == cancelaState) {
+        atualizaMovimento("Cancela");
+    }
+    if (sequenceId == aprovacaoGerente) {
+        hAPI.setCardValue("x", "1");
+    }
+}`
+		fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste)
+		bad := findByRule(fs, RuleStateConstUnknown)
+		if len(bad) != 1 {
+			t.Fatalf("esperava 1 achado, veio %d: %+v", len(bad), fs)
+		}
+		if bad[0].Line != 5 {
+			t.Errorf("linha = %d, quer 5 (a comparação)", bad[0].Line)
+		}
+		for _, quer := range []string{"cancelaState", "166", "nunca é verdadeira"} {
+			if !strings.Contains(bad[0].Message, quer) {
+				t.Errorf("mensagem sem %q: %s", quer, bad[0].Message)
+			}
+		}
+		// A sugestão precisa listar as etapas reais, inclusive gateway e
+		// automática — o script compara com elas também.
+		for _, quer := range []string{"7 (Mover Documentos)", "13 (Apto a Notificação)"} {
+			if !strings.Contains(bad[0].Suggestion, quer) {
+				t.Errorf("sugestão sem %q: %s", quer, bad[0].Suggestion)
+			}
+		}
+	})
+
+	t.Run("caso real do distrato: constante copiada de outro processo", func(t *testing.T) {
+		// ETAPA_INICIOGRV = 4 é o "Início" de OUTRO processo; aqui o início é 6.
+		js := `function beforeStateLeave(sequenceId) {
+    var ETAPA_INICIOGRV = 4;
+    if (sequenceId == ETAPA_INICIOGRV) { gravar(); }
+}`
+		fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste)
+		if bad := findByRule(fs, RuleStateConstUnknown); len(bad) != 1 {
+			t.Fatalf("esperava 1 achado, veio %+v", fs)
+		}
+	})
+
+	t.Run("etapas válidas não geram achado", func(t *testing.T) {
+		js := `function beforeStateEntry(sequenceId) {
+    var inicio = 6;
+    var conferencia = 24;
+    if (sequenceId == inicio || sequenceId == conferencia) { ok(); }
+    if (sequenceId != 21) { ok(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("nenhum achado esperado, veio %+v", fs)
+		}
+	})
+
+	t.Run("a etapa vem de getValue(WKNumState), com e sem parseInt", func(t *testing.T) {
+		js := `function afterTaskCreate(colleagueId) {
+    var currentState = parseInt(getValue("WKNumState"));
+    if (currentState == 999) { nunca(); }
+}`
+		if bad := findByRule(CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste),
+			RuleStateConstUnknown); len(bad) != 1 {
+			t.Fatalf("esperava 1 achado para o 999, veio %+v", bad)
+		}
+		js2 := `function afterTaskCreate(colleagueId) {
+    var atv = getValue("WKNumState");
+    if (atv == 24) { ok(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js2), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("24 é etapa válida: %+v", fs)
+		}
+	})
+
+	t.Run("zero é sem-etapa, como o activity-0 do WF001", func(t *testing.T) {
+		js := `function beforeTaskSave(colleagueId, nextSequenceId, userList) {
+    var inicioState = 0;
+    if (nextSequenceId == inicioState) { abertura(); }
+    if (nextSequenceId == 0) { abertura(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("0 não pode ser acusado: %+v", fs)
+		}
+	})
+
+	t.Run("número que não é etapa não conta fora de comparação com a etapa", func(t *testing.T) {
+		// O parâmetro de afterTaskCreate é colleagueId, não uma sequence.
+		// Comparar 999 com outra coisa qualquer não é problema desta regra.
+		js := `function afterTaskCreate(colleagueId) {
+    var limite = 999;
+    var total = getTotal();
+    if (total == limite) { ok(); }
+    if (colleagueId == 999) { ok(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("nenhum achado esperado: %+v", fs)
+		}
+	})
+
+	t.Run("variável reatribuída para não-número sai do conjunto", func(t *testing.T) {
+		// O idioma real: inicializa com 0 e depois recebe o resultado da
+		// função. Não é constante de etapa (8 dos 9 casos do projeto real).
+		js := `function beforeStateEntry(sequenceId) {
+    var statusLan = 111;
+    statusLan = getStatusLan(idLan, codcoligada);
+    var statusLan = getStatusLan(idLan, codcoligada);
+    if (sequenceId == statusLan) { ok(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("variável suja não pode virar constante de etapa: %+v", fs)
+		}
+	})
+
+	t.Run("comentário e string não viram código", func(t *testing.T) {
+		js := `function beforeStateEntry(sequenceId) {
+    // if (sequenceId == 888) { antigo(); }
+    /* if (sequenceId == 777) { antigo(); } */
+    var msg = "sequenceId == 666";
+    if (sequenceId == 6) { ok(); }
+}`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste); len(fs) != 0 {
+			t.Errorf("comentário/string não é comparação: %+v", fs)
+		}
+	})
+
+	t.Run("a mesma constante errada em vários pontos é UM achado", func(t *testing.T) {
+		js := `function beforeStateEntry(sequenceId) {
+    var errada = 166;
+    if (sequenceId == errada) { a(); }
+    if (sequenceId != errada) { b(); }
+    if (errada == sequenceId) { c(); }
+}`
+		if bad := findByRule(CheckProcessScriptStates(rel, []byte(js), "proc_x", estadosTeste),
+			RuleStateConstUnknown); len(bad) != 1 {
+			t.Fatalf("esperava 1 achado (não %d): %+v", len(bad), bad)
+		}
+	})
+
+	t.Run("sem etapas do servidor a regra não roda", func(t *testing.T) {
+		js := `function beforeStateEntry(sequenceId) { if (sequenceId == 166) { a(); } }`
+		if fs := CheckProcessScriptStates(rel, []byte(js), "proc_x", nil); len(fs) != 0 {
+			t.Errorf("sem etapas não há o que cruzar: %+v", fs)
+		}
+	})
+}

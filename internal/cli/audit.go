@@ -60,11 +60,16 @@ func newAuditCmd(app *App) *cobra.Command {
 			"                   use getValue(i, \"coluna\") (índice numérico funciona)\n" +
 			"  WF001 (erro)   [--process] seção activity-N do formulário sem etapa de\n" +
 			"                   sequence N no processo — a seção nunca renderiza\n" +
-			"  WF002 (aviso)  [--process] atividade humana sem seção activity-N no HTML\n\n" +
+			"  WF002 (aviso)  [--process] atividade humana sem seção activity-N no HTML\n" +
+			"  WF003 (erro)   [--process] script do processo compara a etapa corrente com\n" +
+			"                   um número que não é sequence de etapa — o ramo nunca roda\n\n" +
 			"--process <id> liga as regras WF*: a CLI baixa o processo do servidor alvo\n" +
-			"(read-only), acha o formulário vinculado a ele no forms.json e cruza as\n" +
-			"classes activity-N do HTML com as sequences reais. activity-0 é sempre\n" +
-			"válido (formulário de abertura, WKNumState = 0).\n\n" +
+			"(read-only) e cruza as sequences reais dele com dois artefatos locais. No\n" +
+			"formulário vinculado pelo forms.json, confere as classes activity-N do HTML\n" +
+			"(WF001/WF002); activity-0 é sempre válido (formulário de abertura,\n" +
+			"WKNumState = 0). Nos scripts workflow/scripts/<id>.*.js, confere os números\n" +
+			"comparados com a etapa corrente (WF003) — o parâmetro de sequence do evento\n" +
+			"e a variável que recebe getValue(\"WKNumState\").\n\n" +
 			"--fix aplica as correções DETERMINÍSTICAS (CSS legado → flat; cor hex com\n" +
 			"valor idêntico a uma variável do tema → var(...)); o restante fica no\n" +
 			"relatório para correção manual.\n\n" +
@@ -183,9 +188,10 @@ func newAuditCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-// runProcessCheck roda as regras WF* (audit --process): baixa o processo,
-// resolve o formulário vinculado a ele no projeto e cruza as classes
-// activity-N do HTML com as etapas reais. Só leitura no servidor.
+// runProcessCheck roda as regras WF* (audit --process): baixa o processo e
+// cruza as etapas reais dele com dois artefatos locais — o HTML do formulário
+// vinculado (WF001/WF002) e os scripts de evento do processo (WF003). Só
+// leitura no servidor.
 func runProcessCheck(app *App, p *output.Printer, root, processID string, cfg audit.Config) ([]audit.Finding, error) {
 	ctx := context.Background()
 	server, client, err := app.connect(ctx, false)
@@ -196,43 +202,77 @@ func runProcessCheck(app *App, p *output.Printer, root, processID string, cfg au
 	if err != nil {
 		return nil, mapFluigError(err)
 	}
-	if detail.FormID == 0 {
-		p.Infof("o processo %q (versão %d) não tem formulário vinculado — regras WF* sem o que cruzar.", processID, detail.Version)
-		return nil, nil
-	}
-
-	fmap, err := project.LoadFormMap(root, server.FormScopeKey())
-	if err != nil {
-		return nil, err
-	}
-	link, ok := fmap.ByDocumentID(detail.FormID)
-	if !ok {
-		return nil, output.NotFoundf(
-			"o formulário %d (do processo %q) não está vinculado a nenhuma pasta local no forms.json; "+
-				"baixe-o com: fluigcli form import %d — ou vincule uma pasta existente com: fluigcli form link",
-			detail.FormID, processID, detail.FormID)
-	}
-	dir := project.FormDir(root, link.Folder)
-	htmlPath, err := mainFormHTML(dir)
-	if err != nil {
-		return nil, err
-	}
-	content, err := os.ReadFile(htmlPath)
-	if err != nil {
-		return nil, err
-	}
-	rel, rerr := filepath.Rel(root, htmlPath)
-	if rerr != nil {
-		rel = htmlPath
-	}
 
 	states := make([]audit.ProcessActivity, 0, len(detail.States))
 	for _, st := range detail.States {
 		states = append(states, audit.ProcessActivity{Sequence: st.Sequence, Name: st.Name, Kind: st.Kind})
 	}
-	p.Infof("cruzando %s com o processo %q (versão %d, %d etapas).", filepath.ToSlash(rel), processID, detail.Version, len(states))
-	findings := audit.CheckFormActivities(filepath.ToSlash(rel), content, processID, states)
+
+	var findings []audit.Finding
+
+	// WF001/WF002 — dependem do formulário vinculado ao processo.
+	if detail.FormID == 0 {
+		p.Infof("o processo %q (versão %d) não tem formulário vinculado — as regras WF001/WF002 ficam de fora.", processID, detail.Version)
+	} else {
+		fmap, err := project.LoadFormMap(root, server.FormScopeKey())
+		if err != nil {
+			return nil, err
+		}
+		link, ok := fmap.ByDocumentID(detail.FormID)
+		if !ok {
+			return nil, output.NotFoundf(
+				"o formulário %d (do processo %q) não está vinculado a nenhuma pasta local no forms.json; "+
+					"baixe-o com: fluigcli form import %d — ou vincule uma pasta existente com: fluigcli form link",
+				detail.FormID, processID, detail.FormID)
+		}
+		htmlPath, err := mainFormHTML(project.FormDir(root, link.Folder))
+		if err != nil {
+			return nil, err
+		}
+		content, err := os.ReadFile(htmlPath)
+		if err != nil {
+			return nil, err
+		}
+		rel := relOuAbsoluto(root, htmlPath)
+		p.Infof("cruzando %s com o processo %q (versão %d, %d etapas).", rel, processID, detail.Version, len(states))
+		findings = append(findings, audit.CheckFormActivities(rel, content, processID, states)...)
+	}
+
+	// WF003 — scripts de evento do processo. Não dependem do formulário: um
+	// processo sem formulário vinculado ainda compara etapas nos scripts.
+	scripts, err := project.FindProcessScripts(root, processID)
+	if err != nil {
+		return nil, err
+	}
+	if len(scripts) == 0 {
+		// O prefixo do arquivo local pode diferir do processId do servidor
+		// (ROADMAP §1.7-A) — dizer isso evita concluir "está tudo certo".
+		p.Infof("nenhum script local com o prefixo %q em %s — a regra WF003 fica de fora.",
+			processID, project.WorkflowScriptsDir)
+	}
+	for _, sc := range scripts {
+		content, err := os.ReadFile(sc.Path)
+		if err != nil {
+			return nil, err
+		}
+		rel := relOuAbsoluto(root, sc.Path)
+		findings = append(findings, audit.CheckProcessScriptStates(rel, content, processID, states)...)
+	}
+	if len(scripts) > 0 {
+		p.Infof("cruzando %d script(s) de %q com as %d etapas do processo.", len(scripts), processID, len(states))
+	}
+
 	return audit.ApplySeverity(findings, cfg), nil
+}
+
+// relOuAbsoluto devolve o caminho relativo à raiz do projeto, em barras, ou o
+// absoluto quando a relativização falha.
+func relOuAbsoluto(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return path
+	}
+	return filepath.ToSlash(rel)
 }
 
 // mainFormHTML acha o HTML principal do formulário: o único .html no topo da

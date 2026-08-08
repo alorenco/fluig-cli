@@ -391,10 +391,15 @@ server-side): `dataset.values[i]` acessado por NOME de coluna
 (`values[0]["status"]` ou `values[0].status`) — no servidor a linha é
 `Object[]` Java e quebra em runtime; use `getValue(i, "coluna")` (índice
 numérico `values[0][0]` e `.length` funcionam e não são apontados; no
-client-side o padrão por nome funciona). WF001 (**erro**) e WF002 (aviso), só
-com `--process <id>`: cruzamento das seções `activity-N` do formulário com as
-etapas REAIS do processo — seção sem etapa nunca renderiza (WF001); atividade
-humana sem seção é aviso (WF002); `activity-0` = abertura, sempre válido. No `--json`
+client-side o padrão por nome funciona). WF001/WF003 (**erro**) e WF002 (aviso),
+só com `--process <id>`: cruzamento com as etapas REAIS do processo. No
+formulário, seção sem etapa nunca renderiza (WF001) e atividade humana sem
+seção é aviso (WF002); `activity-0` = abertura, sempre válido. Nos scripts
+`workflow/scripts/<id>.*.js`, número comparado com a etapa corrente que não é
+sequence de etapa (WF003) — o ramo nunca roda; a etapa vem do parâmetro do
+evento (`sequenceId`/`nextSequenceId`/`iCurrentState`) ou de
+`getValue("WKNumState")`; `0` é ignorado. Sem script com o prefixo do
+`processId`, a CLI avisa que a WF003 ficou de fora. No `--json`
 reprovado: `error.code=AUDIT_FAILED` e `data.findings[]` completo — **rode
 `audit --fix`, corrija o restante pelas sugestões e repita até exit 0**.
 Config em `.fluigcli/audit.json`: `{"ignore":[globs],

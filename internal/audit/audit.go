@@ -45,8 +45,9 @@ const (
 	RuleChainedGetDataset = "FL006" // getDataset(...).values encadeado sem guarda no client-side
 	RuleNonCP1252         = "FL007" // caractere fora do CP-1252 em script server-side (vira "?" no banco)
 
-	RuleActivityUnknown = "WF001" // activity-N do formulário sem etapa de sequence N no processo
-	RuleActivityMissing = "WF002" // atividade humana do processo sem seção activity-N no formulário
+	RuleActivityUnknown   = "WF001" // activity-N do formulário sem etapa de sequence N no processo
+	RuleActivityMissing   = "WF002" // atividade humana do processo sem seção activity-N no formulário
+	RuleStateConstUnknown = "WF003" // script compara a etapa corrente com número que não é sequence do processo
 )
 
 // RuleTitles explica cada regra em uma linha — os hints das UIs (dashboard do
@@ -79,6 +80,8 @@ var RuleTitles = map[string]string{
 
 	RuleActivityUnknown: "Seção activity-N do formulário sem etapa de sequence N no processo — a seção nunca renderiza (audit --process)",
 	RuleActivityMissing: "Atividade humana do processo sem seção activity-N no formulário (audit --process)",
+
+	RuleStateConstUnknown: "Script de processo compara a etapa corrente com um número que não é sequence de nenhuma etapa — o ramo nunca executa (audit --process)",
 }
 
 // Finding é um achado da auditoria. Fix, quando presente, é o texto que o

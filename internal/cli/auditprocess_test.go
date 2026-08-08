@@ -157,3 +157,94 @@ func TestAuditProcessSemVinculo(t *testing.T) {
 		t.Errorf("mensagem sem o caminho de correção: %+v", env.Error)
 	}
 }
+
+// --- WF003: scripts do processo (ROADMAP §4.12-b) ---
+
+// escreveScript grava um script de evento do processo no projeto.
+func escreveScript(t *testing.T, proj, nome, js string) {
+	t.Helper()
+	dir := filepath.Join(proj, "workflow", "scripts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, nome), []byte(js), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// O audit --process também varre os scripts do processo. A fixture real tem as
+// etapas 5, 17, 20, 26… — 166 não é etapa nenhuma.
+func TestAuditProcessScriptEtapaInexistente(t *testing.T) {
+	stub := auditProcessStub(t)
+	proj := auditProcessProject(t, stub.URL, `<form name="f"></form>`)
+	escreveScript(t, proj, "compras_entrada_documento.beforeStateEntry.js",
+		`function beforeStateEntry(sequenceId) {
+    var cancelaState = 166;
+    var aprovar = 5;
+    if (sequenceId == cancelaState) { cancela(); }
+    if (sequenceId == aprovar) { ok(); }
+}`)
+
+	code, stdout := runMain(t, "audit", "forms", "--process", "compras_entrada_documento",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("exit=%d, quer %d (WF003 é erro)\n%s", code, output.ExitGeneric, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("json inválido: %v\n%s", err, stdout)
+	}
+	data, _ := env.Data.(map[string]any)
+	achados, _ := data["findings"].([]any)
+	var wf3 []map[string]any
+	for _, raw := range achados {
+		if f, _ := raw.(map[string]any); f["rule"] == "WF003" {
+			wf3 = append(wf3, f)
+		}
+	}
+	if len(wf3) != 1 {
+		t.Fatalf("esperava 1 achado WF003, veio %d: %+v", len(wf3), achados)
+	}
+	if arquivo, _ := wf3[0]["file"].(string); !strings.Contains(arquivo, "beforeStateEntry.js") {
+		t.Errorf("achado no arquivo errado: %v", wf3[0])
+	}
+	if msg, _ := wf3[0]["message"].(string); !strings.Contains(msg, "166") {
+		t.Errorf("mensagem sem o número: %v", wf3[0])
+	}
+}
+
+// Script com todas as etapas certas não gera achado — a rede contra falso
+// positivo, que foi o critério de calibração da regra.
+func TestAuditProcessScriptSemAchado(t *testing.T) {
+	stub := auditProcessStub(t)
+	proj := auditProcessProject(t, stub.URL, `<form name="f"></form>`)
+	escreveScript(t, proj, "compras_entrada_documento.beforeTaskSave.js",
+		`function beforeTaskSave(colleagueId, nextSequenceId, userList) {
+    var aprovar = 5;
+    var inicio = 0;
+    if (nextSequenceId == aprovar || nextSequenceId == inicio) { ok(); }
+}`)
+
+	code, stdout := runMain(t, "audit", "forms", "--process", "compras_entrada_documento",
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitOK, stdout)
+	}
+	if strings.Contains(stdout, "WF003") {
+		t.Errorf("nenhum WF003 esperado: %s", stdout)
+	}
+}
+
+// Sem script com o prefixo do processo, a CLI DIZ que a regra ficou de fora.
+// Silêncio aqui viraria "está tudo certo" — e o prefixo local pode diferir do
+// processId do servidor (ROADMAP §1.7-A).
+func TestAuditProcessSemScriptAvisa(t *testing.T) {
+	stub := auditProcessStub(t)
+	proj := auditProcessProject(t, stub.URL, `<form name="f"></form>`)
+
+	_, stdout := runMain(t, "audit", "forms", "--process", "compras_entrada_documento",
+		"--project", proj, "--server", "homolog")
+	if !strings.Contains(stdout, "WF003") || !strings.Contains(stdout, "nenhum script local") {
+		t.Errorf("faltou o aviso de que a WF003 não rodou: %s", stdout)
+	}
+}
