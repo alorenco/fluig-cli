@@ -15,16 +15,15 @@
 # É configuração de máquina, não do repo da ferramenta.
 /.fluigcli/
 
-# Documentos de trabalho do mantenedor (não publicados)
-/SPEC.md
-/ROADMAP.md
-/ROADMAP2.md
+# Documentos de trabalho do mantenedor (não publicados). Todos moram em
+# /docs/interno/ — ROADMAP*.md, DIARIO.md e FLUIG-APIS.md. O VitePress ignora
+# essa pasta pelo srcExclude em docs/.vitepress/config.mts.
+/docs/interno/
+
+# O guia do agente fica na raiz porque o Claude Code só carrega de lá.
 /CLAUDE.md
-/FLUIG-APIS.md
-/DIARIO.md
 
 # Site de documentação (VitePress) — toolchain e build ficam fora do Git
 /docs/node_modules/
 /docs/.vitepress/cache/
 /docs/.vitepress/dist/
-/ROADMAP3.md

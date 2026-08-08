@@ -9,7 +9,9 @@ export default defineConfig({
   // O site vive em https://alorenco.github.io/fluig-cli/
   base: '/fluig-cli/',
   // O README.md é o índice para quem navega no GitHub; no site, a home é o index.md.
-  srcExclude: ['README.md'],
+  // A pasta interno/ guarda os documentos de trabalho do mantenedor (ROADMAP,
+  // DIARIO, FLUIG-APIS). Ela é git-ignorada e NUNCA vira página do site.
+  srcExclude: ['README.md', 'interno/**'],
   cleanUrls: true,
   lastUpdated: true,
 
