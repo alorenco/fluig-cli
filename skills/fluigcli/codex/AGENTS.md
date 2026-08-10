@@ -57,10 +57,14 @@ materializa; o envelope marca `emptyRowSuspect:true`, trate como zero linhas),
 `db` (query|grants|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper;
 `query --file script.sql` roda o script instrução por instrução — `--list` só lista,
 `--statement N` roda uma, falha parcial = exit 6 com `data.statements[]`.
-🚨 **Status de solicitação NUNCA por SQL**: `PROCES_WORKFLOW.STATUS` e
-`TAR_PROCES.CLOSURE_STATUS`/`IDI_STATUS` são números sem contrato público —
-deduzir errado dá relatório errado sem aviso. Use
-`request list --status open|canceled|finalized`),
+🚨 **Status de solicitação: use `request list --status open|canceled|finalized`,
+não SQL** — ler a tabela na mão dá relatório errado sem aviso. Se precisar do
+SQL mesmo assim (medido 2026-08-10, Voyager 2.0.0, não é contrato público):
+`PROCES_WORKFLOW.STATUS` 0=aberta **1=CANCELADA 2=CONCLUÍDA** (a ordem
+intuitiva é a inversa!); `TAR_PROCES.IDI_STATUS` 0=NOT_COMPLETED
+1=PENDING_CONSENSUS 2=COMPLETED 3=TRANSFERRED 4=CANCELED;
+`TAR_PROCES.CLOSURE_STATUS` = SLA no encerramento, 0=aberta 1=ON_TIME
+2=WARNING 3=EXPIRED. Tabela completa no `reference/commands.md`),
 `event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros;
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai;

@@ -148,17 +148,49 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 - `--json` do `query`: `{columns[],rows[],rowCount,truncated}`; `rows` posicional; null do banco = `null`.
 - Erro de SQL ou consulta que não é de leitura = exit 5 com a mensagem do banco.
 
-🚨 **Status de solicitação: use `request list --status`, NUNCA SQL.** As tabelas
-guardam o status em coluna numérica (`PROCES_WORKFLOW.STATUS`,
-`TAR_PROCES.CLOSURE_STATUS`, `TAR_PROCES.IDI_STATUS`) e o significado dos
-números **não é contrato público da TOTVS** — não está documentado aqui de
-propósito. Deduzir errado produz relatório errado **sem nenhum aviso**: foi o
-erro mais sério de uma sessão real (2026-08-10). O comando certo já existe:
-`request list --process "<nome>" --status open|canceled|finalized`. Único ponto
-medido (2026-08-10): `PROCES_WORKFLOW.STATUS = 0` devolveu o mesmo conjunto que
-`--status open`; os demais valores **não foram conferidos**, não extrapole a
-partir do zero. Use o `db query` para o que o `request` não cobre — existência
-de objeto, permissão, volume, cruzamento com tabela de negócio.
+🚨 **Status de solicitação: use `request list --status`, NÃO SQL.** O comando
+devolve o mesmo conjunto e não depende de você lembrar o número:
+`request list --process <processId> --status open|canceled|finalized`. Ler a
+`PROCES_WORKFLOW` na mão produz relatório errado **sem nenhum aviso** — foi o
+erro mais sério de uma sessão real (2026-08-10). Use o `db query` para o que o
+`request` não cobre: existência de objeto, permissão, volume, cruzamento com
+tabela de negócio.
+
+### Enums das tabelas de processo
+
+Medido na homologação em 2026-08-10 (Voyager 2.0.0), por cruzamento SQL ×
+comando. **Não é contrato público da TOTVS** — confira em outra versão.
+
+`PROCES_WORKFLOW` (uma linha por solicitação):
+
+| `STATUS` | = | comando |
+|---|---|---|
+| 0 | em aberto | `request list --status open` |
+| 1 | **cancelada** | `request list --status canceled` |
+| 2 | **concluída** | `request list --status finalized` |
+
+⚠️ **1 = canceled e 2 = finalized** — a ordem intuitiva é a inversa. É aqui que
+o relatório sai errado.
+
+`TAR_PROCES` (uma linha por tarefa de cada movimento):
+
+| `IDI_STATUS` | = | | `CLOSURE_STATUS` | = |
+|---|---|---|---|---|
+| 0 | `NOT_COMPLETED` (aberta) | | 0 | ainda aberta |
+| 1 | `PENDING_CONSENSUS` | | 1 | encerrada `ON_TIME` |
+| 2 | `COMPLETED` | | 2 | encerrada `WARNING` |
+| 3 | `TRANSFERRED` | | 3 | encerrada `EXPIRED` |
+| 4 | `CANCELED` | | | |
+
+`IDI_STATUS` = resultado da tarefa; `CLOSURE_STATUS` = **SLA no encerramento**,
+não resultado. `LOG_ATIV = 1` marca a tarefa corrente. ⚠️ O `CLOSURE_STATUS` da
+**`PROCES_WORKFLOW`** é outra coluna e vale 0 em todas as 214.188 linhas da
+homologação — não tire conclusão dela.
+
+Base da medição: 135 movimentos de 19 solicitações conferidos contra o
+`request show --json` (0 divergências; todos os valores das duas colunas
+apareceram) e 4 processos conferidos por contagem contra o
+`request list --status`.
 
 ## event — eventos globais
 

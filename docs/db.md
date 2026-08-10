@@ -93,12 +93,8 @@ leitura, o servidor recusa com a mesma via.
 
 ### ⚠️ Status de solicitação: use o `request`, não SQL
 
-As tabelas do Fluig guardam o status em **colunas numéricas**
-(`PROCES_WORKFLOW.STATUS`, `TAR_PROCES.CLOSURE_STATUS`, `TAR_PROCES.IDI_STATUS`).
-O significado desses números não é contrato público da TOTVS. Ele não está
-documentado aqui, e deduzir errado produz um relatório errado sem nenhum aviso.
-
-Para status de solicitação, use o comando próprio:
+As tabelas do Fluig guardam o status em **colunas numéricas**. Para status de
+solicitação, use o comando próprio:
 
 ```sh
 fluigcli request list --process "Meu Processo" --status open        # em aberto
@@ -106,9 +102,57 @@ fluigcli request list --process "Meu Processo" --status finalized   # concluída
 fluigcli request list --process "Meu Processo" --status canceled    # canceladas
 ```
 
-Referência medida em 2026-08-10: `PROCES_WORKFLOW.STATUS = 0` devolveu o mesmo
-conjunto que `request list --status open`. Os demais valores **não foram
-conferidos**. Não deduza a partir do zero.
+O comando devolve o mesmo conjunto que o SQL, sem depender de você lembrar o
+número certo. A tabela abaixo existe para quando o `request` não cobre o caso,
+por exemplo num cruzamento com tabela de negócio.
+
+### Enums das tabelas de processo
+
+Medido na homologação em 2026-08-10 (Fluig Voyager 2.0.0), por cruzamento entre
+o SQL e os comandos da CLI. O schema interno não é contrato público da TOTVS.
+**Confira antes de confiar numa versão diferente.**
+
+`PROCES_WORKFLOW` — uma linha por solicitação:
+
+| `STATUS` | significado | comando equivalente |
+|---|---|---|
+| 0 | em aberto | `request list --status open` |
+| 1 | **cancelada** | `request list --status canceled` |
+| 2 | **concluída** | `request list --status finalized` |
+
+⚠️ O 1 é `canceled` e o 2 é `finalized`. A ordem intuitiva seria a inversa.
+Este é o ponto que mais gera relatório errado.
+
+`TAR_PROCES` — uma linha por tarefa de cada movimento:
+
+| `IDI_STATUS` | significado |
+|---|---|
+| 0 | `NOT_COMPLETED` — a tarefa está aberta |
+| 1 | `PENDING_CONSENSUS` — aguarda consenso da atividade colaborativa |
+| 2 | `COMPLETED` — a tarefa foi concluída |
+| 3 | `TRANSFERRED` — a tarefa foi transferida |
+| 4 | `CANCELED` — a tarefa foi cancelada |
+
+| `CLOSURE_STATUS` | significado |
+|---|---|
+| 0 | a tarefa ainda está aberta |
+| 1 | encerrada no prazo (`ON_TIME`) |
+| 2 | encerrada em alerta (`WARNING`) |
+| 3 | encerrada fora do prazo (`EXPIRED`) |
+
+O `CLOSURE_STATUS` da `TAR_PROCES` guarda o **SLA no encerramento**, não o
+resultado da tarefa. O resultado está no `IDI_STATUS`. A coluna `LOG_ATIV = 1`
+marca a tarefa corrente.
+
+⚠️ A coluna `CLOSURE_STATUS` da **`PROCES_WORKFLOW`** é diferente. Ela vale 0 em
+todas as 214.188 linhas da homologação. Não tire conclusão dela.
+
+Como isso foi medido: 135 movimentos de 19 solicitações, comparando o
+`request show --json` de cada uma com as linhas da `TAR_PROCES`, sem nenhuma
+divergência. Os cinco valores de `IDI_STATUS` e os quatro de `CLOSURE_STATUS`
+apareceram na amostra. Os três valores de `PROCES_WORKFLOW.STATUS` foram
+conferidos em quatro processos, por contagem exata contra o
+`request list --status`.
 
 Use o `db query` para o que o `request` não cobre: conferir se um objeto existe,
 testar permissão, medir volume ou cruzar tabelas de negócio.
