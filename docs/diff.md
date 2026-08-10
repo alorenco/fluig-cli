@@ -22,7 +22,42 @@ fluigcli diff --server producao              # contra um servidor específico
 | `modified` | O conteúdo difere. O comando mostra o diff unificado. |
 | `only-local` | O artefato existe no local, mas não no servidor. O export criaria o artefato. |
 | `only-server` | O artefato existe no servidor, mas não no local. Importe o artefato com `<tipo> import <id>`. |
+| `unlinked` | Só em formulário. A pasta local não tem vínculo neste servidor, e há sinal de que o formulário não é novo. Veja abaixo. |
 | `error` | O comando não conseguiu comparar o artefato. O campo `error` traz o motivo. |
+
+O campo `hint` traz a orientação de como resolver, com o comando pronto. Ele
+aparece em `unlinked` e em `only-local` de formulário.
+
+### `unlinked` — a pasta existe, o vínculo não
+
+Um formulário pode ter nome diferente no servidor. Sem o vínculo em
+`.fluigcli/forms.json`, o `diff` não consegue casar a pasta com o formulário.
+
+O status `only-local` diria "o artefato não existe no servidor". Isso engana
+quando o formulário existe com outro nome. Por isso a CLI usa o status
+`unlinked` quando encontra sinal de que a pasta não é um artefato novo:
+
+- há um formulário do servidor que corresponde à pasta de forma inequívoca (por
+  exemplo, pelo nome do dataset); ou
+- a pasta já está vinculada em **outro** servidor. Neste caso, o formulário
+  existe em algum ambiente e não nasceu agora.
+
+Sem nenhum desses sinais, o status continua `only-local`. O `hint` lembra da
+alternativa.
+
+A CLI não afirma que o formulário existe no servidor. Ela informa que falta o
+vínculo. Resolva com `form link`:
+
+```sh
+fluigcli diff forms/frm_fin_adiantamento_pagar
+# ── form frm_fin_adiantamento_pagar sem vínculo (forms/frm_fin_adiantamento_pagar) —
+#    a pasta não tem vínculo em "producao"; provavelmente é "Adiantamento ao Fornecedor"
+#    (documentId 1234, por nome do dataset) — vincule com:
+#    fluigcli form link frm_fin_adiantamento_pagar --document-id 1234
+
+fluigcli form link frm_fin_adiantamento_pagar --document-id 1234
+fluigcli diff forms/frm_fin_adiantamento_pagar   # agora compara arquivo a arquivo
+```
 
 - Sem argumentos, o comando compara os arquivos locais. Ele também aponta os
   artefatos que só existem no servidor. Esses artefatos são datasets

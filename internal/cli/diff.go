@@ -27,6 +27,13 @@ const (
 	diffModified   = "modified"
 	diffOnlyLocal  = "only-local"
 	diffOnlyServer = "only-server"
+	// diffUnlinked marca a pasta de formulário SEM VÍNCULO no servidor ativo
+	// (ROADMAP §5.4). Nasceu de um relato real: o formulário existia no
+	// servidor com outro nome, e o `only-local` fazia parecer que ele não
+	// existia. A CLI não consegue afirmar que ele existe — o que ela sabe é
+	// que a pasta não tem vínculo e que há sinal de que o artefato não é novo
+	// (vínculo em outro servidor ou sugestão inequívoca aqui).
+	diffUnlinked = "unlinked"
 	// diffError marca artefato que NÃO foi possível comparar (ROADMAP2 §3.3).
 	// A varredura continua: um artefato inconsistente no servidor (formulário
 	// órfão, documento que a versão não acha) não pode inutilizar o comando de
@@ -42,6 +49,9 @@ type diffEntry struct {
 	Status string `json:"status"`
 	Diff   string `json:"diff,omitempty"`  // diff unificado (só em modified de texto)
 	Error  string `json:"error,omitempty"` // motivo, só em status error
+	// Hint é a orientação de como resolver, com o comando pronto. Hoje só em
+	// unlinked e only-local de formulário (ROADMAP §5.4).
+	Hint string `json:"hint,omitempty"`
 }
 
 // errorEntry monta a entrada de um artefato que não pôde ser comparado.
@@ -247,7 +257,7 @@ func newDiffCmd(app *App) *cobra.Command {
 
 			// Formulários: pastas locais vs. anexos + eventos do servidor.
 			if swept["form"] || len(targets.forms) > 0 {
-				formEntries, err := diffForms(ctx, client, root, server.FormScopeKey(), targets.forms, swept["form"])
+				formEntries, err := diffForms(ctx, client, root, server.FormScopeKey(), server.Name, targets.forms, swept["form"])
 				if err != nil {
 					return err
 				}
@@ -308,9 +318,12 @@ func newDiffCmd(app *App) *cobra.Command {
 			})
 
 			counts := renderDiffEntries(p, entries)
-			return finishDiffReport(p, entries, counts, firstErr,
-				fmt.Sprintf("%d igual(is), %d diferente(s), %d só local(is), %d só no servidor",
-					counts[diffEqual], counts[diffModified], counts[diffOnlyLocal], counts[diffOnlyServer]))
+			resumo := fmt.Sprintf("%d igual(is), %d diferente(s), %d só local(is), %d só no servidor",
+				counts[diffEqual], counts[diffModified], counts[diffOnlyLocal], counts[diffOnlyServer])
+			if counts[diffUnlinked] > 0 {
+				resumo += fmt.Sprintf(", %d sem vínculo", counts[diffUnlinked])
+			}
+			return finishDiffReport(p, entries, counts, firstErr, resumo)
 		},
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
@@ -373,7 +386,13 @@ func renderDiffEntries(p *output.Printer, entries []diffEntry) map[string]int {
 			p.Successf("── %s %s difere do servidor:", e.Type, e.ID)
 			p.Successf("%s", strings.TrimRight(e.Diff, "\n"))
 		case diffOnlyLocal:
-			p.Successf("── %s %s só existe localmente (%s) — o export criaria no servidor", e.Type, e.ID, e.Path)
+			linha := fmt.Sprintf("── %s %s só existe localmente (%s) — o export criaria no servidor", e.Type, e.ID, e.Path)
+			if e.Hint != "" {
+				linha += ". " + e.Hint
+			}
+			p.Successf("%s", linha)
+		case diffUnlinked:
+			p.Successf("── %s %s sem vínculo (%s) — %s", e.Type, e.ID, e.Path, e.Hint)
 		case diffOnlyServer:
 			p.Successf("%s", onlyServerMessage(e))
 		case diffError:
@@ -620,7 +639,7 @@ func classifyArtifactPath(targets *diffTargets, root, arg string, swept map[stri
 
 // diffForms compara as pastas locais de formulário com o servidor e, na
 // varredura, aponta formulários que só existem no servidor.
-func diffForms(ctx context.Context, client *fluig.Client, root, formScope string, targets []formDiffTarget, sweep bool) ([]diffEntry, error) {
+func diffForms(ctx context.Context, client *fluig.Client, root, formScope, serverName string, targets []formDiffTarget, sweep bool) ([]diffEntry, error) {
 	userCode, err := client.ResolveUserCode(ctx)
 	if err != nil {
 		return nil, mapFluigError(err)
@@ -639,9 +658,7 @@ func diffForms(ctx context.Context, client *fluig.Client, root, formScope string
 	for _, t := range targets {
 		f, found := resolveExportTarget(forms, fmap, t.folder, "", 0)
 		if !found {
-			entries = append(entries, diffEntry{
-				Type: "form", ID: t.folder, Path: relTo(root, t.dir), Status: diffOnlyLocal,
-			})
+			entries = append(entries, formSemVinculo(root, t, forms, fmap, serverName))
 			continue
 		}
 		matched[f.DocumentID] = true
@@ -663,6 +680,43 @@ func diffForms(ctx context.Context, client *fluig.Client, root, formScope string
 		}
 	}
 	return entries, nil
+}
+
+// formSemVinculo classifica a pasta de formulário que não casou com nenhum
+// formulário do servidor ativo (ROADMAP §5.4).
+//
+// O `only-local` puro dizia "só existe localmente", o que soa como "não existe
+// no servidor". No relato de origem o formulário EXISTIA — com outro nome —, e
+// faltava só o vínculo. A CLI não tem como afirmar qual dos dois é o caso, mas
+// tem dois sinais de que a pasta não é um artefato novo:
+//
+//  1. há sugestão inequívoca de formulário aqui (nome ignorando caixa, nome do
+//     dataset, ou o nome já vinculado à pasta em outro servidor); ou
+//  2. a pasta já está vinculada em OUTRO servidor — ou seja, o formulário
+//     existe em algum ambiente e não nasceu agora.
+//
+// Nesses casos o status vira `unlinked` e a orientação traz o comando pronto.
+// Sem nenhum sinal, o `only-local` continua correto (o export criaria), e a
+// orientação só lembra da alternativa.
+func formSemVinculo(root string, t formDiffTarget, forms []fluig.Form, fmap *project.FormMap, serverName string) diffEntry {
+	e := diffEntry{Type: "form", ID: t.folder, Path: relTo(root, t.dir), Status: diffOnlyLocal}
+	sug := suggestFormLinks([]string{t.folder}, forms, fmap)[0]
+	nomeEmOutro, outroServidor, temVinculoEmOutro := fmap.FolderNameHint(t.folder)
+
+	switch {
+	case sug.Form.DocumentID != 0:
+		e.Status = diffUnlinked
+		e.Hint = fmt.Sprintf("a pasta não tem vínculo em %q; provavelmente é %q (documentId %d, por %s) — vincule com: fluigcli form link %s --document-id %d",
+			serverName, sug.Form.Description, sug.Form.DocumentID, sug.Source, t.folder, sug.Form.DocumentID)
+	case temVinculoEmOutro:
+		e.Status = diffUnlinked
+		e.Hint = fmt.Sprintf("a pasta não tem vínculo em %q, mas está vinculada a %q em %s; o formulário pode existir aqui com outro nome — veja o documentId com fluigcli form list e vincule com: fluigcli form link %s --document-id <id>",
+			serverName, nomeEmOutro, outroServidor, t.folder)
+	default:
+		e.Hint = fmt.Sprintf("se ele já existe em %q com outro nome, vincule com: fluigcli form link %s --document-id <id>",
+			serverName, t.folder)
+	}
+	return e
 }
 
 // diffOneForm compara uma pasta local com o formulário do servidor, arquivo a

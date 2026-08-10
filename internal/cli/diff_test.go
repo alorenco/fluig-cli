@@ -380,6 +380,83 @@ func TestDiffCaminhoUnico(t *testing.T) {
 	}
 }
 
+// Pasta de formulário sem vínculo: o status é `unlinked` (não `only-local`)
+// quando há sinal de que o formulário não é novo, e a orientação traz o comando
+// pronto (ROADMAP §5.4).
+func TestDiffFormSemVinculo(t *testing.T) {
+	stub := diffServerStub(t)
+	u := mustParseHostPort(t, stub.URL)
+	proj := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv(config.EnvPassword, "p")
+	s := config.Server{ID: "diff-srv", Name: "homolog", Host: u.host, Port: u.port, SSL: false, Username: "u", CompanyID: 1}
+	if err := config.NewStore(proj).Add(s, false); err != nil {
+		t.Fatal(err)
+	}
+	write := func(rel, content string) {
+		path := filepath.Join(proj, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// ds_outro casa com o datasetName do formulário 77 ("Form Sem Local").
+	write("forms/ds_outro/index.html", "<html></html>")
+	// frm_legado não casa com nada aqui, mas está vinculada em OUTRO servidor.
+	write("forms/frm_legado/index.html", "<html></html>")
+	write(".fluigcli/forms.json",
+		`{"version":"2.0.0","servers":{"outro:8080/1":[{"folder":"frm_legado","documentId":900,"name":"Formulário Legado"}]}}`)
+	// Formulário realmente novo: nenhum sinal, segue only-local.
+	write("forms/NovoDeVerdade/index.html", "<html></html>")
+
+	casos := []struct {
+		pasta, status string
+		noHint        []string
+	}{
+		{"ds_outro", "unlinked", []string{"Form Sem Local", "--document-id 77", "nome do dataset"}},
+		{"frm_legado", "unlinked", []string{"Formulário Legado", "outro:8080/1", "form list"}},
+		{"NovoDeVerdade", "only-local", []string{"fluigcli form link NovoDeVerdade"}},
+	}
+	for _, c := range casos {
+		code, stdout := runMain(t, "diff", filepath.Join(proj, "forms", c.pasta), "--json", "--project", proj)
+		if code != output.ExitOK {
+			t.Fatalf("%s: exit=%d stdout=%s", c.pasta, code, stdout)
+		}
+		var env output.Envelope
+		if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := env.Data.(map[string]any)
+		arts, _ := data["artifacts"].([]any)
+		if len(arts) != 1 {
+			t.Fatalf("%s: veio %d artefatos, quer 1: %s", c.pasta, len(arts), stdout)
+		}
+		m, _ := arts[0].(map[string]any)
+		if got := fmt.Sprintf("%v", m["status"]); got != c.status {
+			t.Errorf("%s: status = %q, quer %q", c.pasta, got, c.status)
+		}
+		hint := fmt.Sprintf("%v", m["hint"])
+		for _, trecho := range c.noHint {
+			if !strings.Contains(hint, trecho) {
+				t.Errorf("%s: hint %q não cita %q", c.pasta, hint, trecho)
+			}
+		}
+	}
+
+	// Modo humano: a linha do unlinked diz "sem vínculo" e traz o comando.
+	code, stdout := runMain(t, "diff", filepath.Join(proj, "forms", "ds_outro"), "--project", proj)
+	if code != output.ExitOK {
+		t.Fatalf("modo humano: exit=%d stdout=%s", code, stdout)
+	}
+	for _, trecho := range []string{"sem vínculo", "fluigcli form link ds_outro --document-id 77", "1 sem vínculo"} {
+		if !strings.Contains(stdout, trecho) {
+			t.Errorf("modo humano não cita %q:\n%s", trecho, stdout)
+		}
+	}
+}
+
 // diff de uma pasta de formulário: compara os arquivos da pasta (incluindo os
 // que o export removeria do servidor), mas não lista outros formulários.
 func TestDiffFormPasta(t *testing.T) {

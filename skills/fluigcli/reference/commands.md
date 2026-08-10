@@ -343,7 +343,14 @@ inexistente → exit 4. Com `--json`, o tail devolve
 | `diff <path>...` | compara só os caminhos informados: arquivo, pasta de formulário ou **pasta** (varrida recursivamente). A pasta de uma convenção inteira (`datasets/`, `events/`, `mechanisms/`, `forms/`, `workflow/scripts/`) também aponta o `only-server` daquele tipo; subpasta não. A raiz do projeto (`.`) equivale a rodar sem argumentos. Pasta sem artefato = exit 2 |
 
 Read-only (não dispara a trava de produção). No `--json`, cada artefato vem com
-`status` (`equal`\|`modified`\|`only-local`\|`only-server`) e o diff unificado.
+`status` (`equal`\|`modified`\|`only-local`\|`only-server`\|`unlinked`) e o diff
+unificado. ⚠️ **`unlinked` só em formulário** = a pasta não tem vínculo NESTE
+servidor e há sinal de que o formulário não é novo (sugestão inequívoca aqui, ou
+vínculo da pasta em outro servidor). **Não** significa "não existe no servidor":
+ele costuma existir com outro nome. O campo `hint` traz o comando pronto
+(`form link <pasta> --document-id <id>`) — resolva o vínculo ANTES de concluir
+que o artefato falta lá. Sem esse sinal, segue `only-local` (o `hint` lembra da
+alternativa).
 Use antes de um `export` para saber o que mudaria. Em formulários, um arquivo
 `only-server` seria **removido** por um `form export` da pasta; anexos binários
 são comparados byte a byte (sem diff textual). Scripts de processo usam o
