@@ -37,15 +37,45 @@ Para criar o vínculo:
 - **`form link`** (recomendado ao configurar um servidor): o comando percorre as
   pastas de `forms/` sem vínculo e sugere o formulário correspondente. Ele
   sugere pelo nome já vinculado à pasta em outro servidor (o caso "acabei de
-  cadastrar a produção"), pelo nome exato da pasta ou ignorando caixa. No modo
-  interativo, Enter aceita a sugestão, um termo busca na lista do servidor, o
-  número escolhe e `s` pula. O `form link --auto` grava só as sugestões
-  inequívocas, sem prompt (com `--json`, para scripts e agentes). O `server add`
-  e o `server test` lembram do comando quando o projeto tem formulários sem
-  vínculo no servidor;
+  cadastrar a produção"), pelo nome exato da pasta, pelo nome ignorando caixa e
+  pelo nome do dataset do formulário. No modo interativo, Enter aceita a
+  sugestão, um termo busca na lista do servidor, o número escolhe e `s` pula. O
+  `form link --auto` grava só as sugestões inequívocas, sem prompt (com
+  `--json`, para scripts e agentes). O `server add` e o `server test` lembram do
+  comando quando o projeto tem formulários sem vínculo no servidor;
+- **`form link <pasta> --document-id <id>`** (ou `--name "<nome no servidor>"`):
+  vincula só aquela pasta, sem prompt. Use quando nenhuma sugestão acerta. Veja
+  o detalhe abaixo;
 - no import: `--folder <pasta>` grava o formulário na pasta indicada;
 - no export: `--name "<nome no servidor>"` ou `--document-id <id>` apontam o alvo.
   A CLI salva o vínculo para as próximas vezes.
+
+### `fluigcli form link <pasta> --document-id <id>`
+
+O `--auto` só grava sugestões inequívocas. Se o nome da pasta não parece com o
+nome no servidor, ele não tem como sugerir nada. Neste caso, aponte o alvo:
+
+```sh
+# a pasta tem nome técnico; o formulário no servidor chama "Adiantamento ao Fornecedor"
+fluigcli form link frm_fin_adiantamento_pagar --document-id 1234
+
+# pelo nome exato do servidor
+fluigcli form link frm_fin_adiantamento_pagar --name "Adiantamento ao Fornecedor"
+```
+
+O comando não pergunta nada e aceita `--json`. Por isso serve em script e em
+agente. Regras:
+
+- A CLI confere o alvo na listagem do servidor. Formulário inexistente responde
+  exit 4 e nada é gravado. Com `--name`, a mensagem sugere os nomes próximos.
+- Pasta que não existe em `forms/` responde exit 4, também com sugestão.
+- Repetir o mesmo comando não é erro. A CLI informa que o vínculo já existia.
+- Se o formulário já está vinculado a **outra** pasta, o comando recusa com exit
+  2. Dois vínculos para o mesmo `documentId` deixariam o mapa ambíguo. Use
+  `--force` para **mover** o vínculo. A pasta antiga fica sem formulário.
+- Se a pasta já aponta para outro formulário, a CLI troca o alvo e avisa.
+- `--document-id` e `--name` são exclusivos. Os dois juntos respondem exit 2.
+- As duas flags exigem a pasta. Sem ela, o comando responde exit 2.
 
 ## `fluigcli form new <name> [--title "..."]`
 

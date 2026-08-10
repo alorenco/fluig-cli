@@ -140,6 +140,18 @@ func (m *FormMap) Upsert(link FormLink) {
 	m.file.Servers[m.key] = append(bucket, link)
 }
 
+// Remove apaga o vínculo da pasta no servidor ativo. Informa se havia vínculo.
+func (m *FormMap) Remove(folder string) bool {
+	bucket := m.links()
+	for i := range bucket {
+		if bucket[i].Folder == folder {
+			m.file.Servers[m.key] = append(bucket[:i:i], bucket[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // Save grava o mapa em disco (cria .fluigcli/ se preciso), preservando os
 // vínculos dos demais servidores.
 func (m *FormMap) Save() error {

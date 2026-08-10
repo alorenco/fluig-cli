@@ -15,6 +15,7 @@ import (
 	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
+	"github.com/alorenco/fluig-cli/internal/strsim"
 )
 
 // linkSuggestion é a sugestão de vínculo de uma pasta local sem mapeamento.
@@ -26,9 +27,14 @@ type linkSuggestion struct {
 
 // suggestFormLinks propõe um formulário do servidor para cada pasta local sem
 // vínculo. Fontes, na ordem: nome já vinculado à pasta em OUTRO servidor
-// (mapeamento inicial de um ambiente novo), nome exato da pasta e nome da
-// pasta ignorando caixa. Sugestão só quando o match é único e o formulário
-// ainda não está vinculado a outra pasta.
+// (mapeamento inicial de um ambiente novo), nome exato da pasta, nome da pasta
+// ignorando caixa e nome do DATASET do formulário. Sugestão só quando o match é
+// único e o formulário ainda não está vinculado a outra pasta.
+//
+// A fonte do datasetName veio do feedback de 2026-08-10 (ROADMAP §5.3): a pasta
+// `frm_fin_adiantamento_pagar` não casa com o nome no servidor ("Adiantamento ao
+// Fornecedor"), mas casa com o nome técnico da tabela do formulário. Fica por
+// último de propósito — o nome visível é a pista mais confiável.
 func suggestFormLinks(folders []string, forms []fluig.Form, fmap *project.FormMap) []linkSuggestion {
 	taken := map[int]bool{}
 	for _, f := range forms {
@@ -66,6 +72,13 @@ func suggestFormLinks(folders []string, forms []fluig.Form, fmap *project.FormMa
 				s.Form, s.Source = f, "nome (ignorando caixa)"
 			}
 		}
+		if s.Form.DocumentID == 0 {
+			if f, ok := unique(func(f fluig.Form) bool {
+				return f.DatasetName != "" && strings.EqualFold(f.DatasetName, folder)
+			}); ok {
+				s.Form, s.Source = f, "nome do dataset"
+			}
+		}
 		if s.Form.DocumentID != 0 {
 			taken[s.Form.DocumentID] = true // uma sugestão por formulário
 		}
@@ -96,26 +109,43 @@ func localFormFolders(root string) ([]string, error) {
 func newFormLinkCmd(app *App) *cobra.Command {
 	var (
 		auto          bool
+		documentID    int
+		nameFlag      string
+		force         bool
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
-		Use:   "link",
+		Use:   "link [pasta]",
 		Short: "Vincula as pastas locais aos formulários do servidor (mapeamento inicial)",
 		Long: "Percorre as pastas de forms/ sem vínculo no servidor ativo e liga cada uma\n" +
 			"a um formulário do servidor, gravando em .fluigcli/forms.json (por servidor).\n\n" +
+			"Com <pasta> e --document-id/--name, vincula só aquela pasta ao formulário\n" +
+			"informado, sem prompt (scriptável; combina com --json). É o caminho quando\n" +
+			"o nome da pasta não parece com o nome no servidor e a sugestão automática\n" +
+			"não tem como acertar.\n\n" +
 			"Sugestões automáticas: nome já vinculado à pasta em outro servidor (ao\n" +
-			"configurar um ambiente novo), nome exato da pasta e nome ignorando caixa.\n" +
+			"configurar um ambiente novo), nome exato da pasta, nome ignorando caixa e\n" +
+			"nome do dataset do formulário (a pasta costuma usar o nome técnico).\n" +
 			"No modo interativo, Enter aceita a sugestão, um termo busca na lista do\n" +
 			"servidor, o número escolhe e \"s\" pula. Com --auto, só as sugestões\n" +
 			"inequívocas são gravadas (para scripts e agentes; combina com --json).",
-		Args: cobra.NoArgs,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			if app.JSON && !auto {
-				return output.Usagef("o modo interativo não suporta --json; use form link --auto")
+			alvoExplicito := documentID != 0 || nameFlag != ""
+			if documentID != 0 && nameFlag != "" {
+				return output.Usagef("use --document-id ou --name, não os dois")
 			}
-			if !auto && !app.Interactive() {
-				return output.Usagef("sem TTY, use form link --auto")
+			if alvoExplicito && len(args) == 0 {
+				return output.Usagef("--document-id/--name exigem a pasta: fluigcli form link <pasta> --document-id <id>")
+			}
+			if !alvoExplicito {
+				if app.JSON && !auto {
+					return output.Usagef("o modo interativo não suporta --json; use form link --auto")
+				}
+				if !auto && !app.Interactive() {
+					return output.Usagef("sem TTY, use form link --auto ou aponte o alvo: form link <pasta> --document-id <id>")
+				}
 			}
 
 			ctx := context.Background()
@@ -135,6 +165,16 @@ func newFormLinkCmd(app *App) *cobra.Command {
 			if len(folders) == 0 {
 				return output.Usagef("nenhuma pasta em forms/ — baixe formulários com form import ou crie a pasta")
 			}
+			if len(args) > 0 {
+				folder, err := escolhePastaLocal(folders, args[0])
+				if err != nil {
+					return err
+				}
+				if alvoExplicito {
+					return app.linkOneForm(ctx, p, server, client, root, folder, nameFlag, documentID, force)
+				}
+				folders = []string{folder}
+			}
 			fmap, err := project.LoadFormMap(root, server.FormScopeKey())
 			if err != nil {
 				return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
@@ -146,7 +186,13 @@ func newFormLinkCmd(app *App) *cobra.Command {
 				}
 			}
 			if len(unlinked) == 0 {
-				p.Infof("Todas as %d pastas de forms/ já têm vínculo em %q.", len(folders), server.Name)
+				if len(folders) == 1 {
+					l, _ := fmap.ByFolder(folders[0])
+					p.Infof("A pasta %s já está vinculada a %q (documentId %d) em %q. Para trocar o alvo: fluigcli form link %s --document-id <id>",
+						folders[0], l.Name, l.DocumentID, server.Name, folders[0])
+				} else {
+					p.Infof("Todas as %d pastas de forms/ já têm vínculo em %q.", len(folders), server.Name)
+				}
 				p.Done(map[string]any{"linked": []any{}, "skipped": []any{}, "alreadyLinked": len(folders)})
 				return nil
 			}
@@ -198,8 +244,115 @@ func newFormLinkCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&auto, "auto", false, "grava só as sugestões inequívocas, sem prompt (para scripts/agentes)")
+	cmd.Flags().IntVar(&documentID, "document-id", 0, "documentId do formulário-alvo (exige a pasta; sem prompt)")
+	cmd.Flags().StringVar(&nameFlag, "name", "", "nome do formulário-alvo no servidor (exige a pasta; sem prompt)")
+	cmd.Flags().BoolVar(&force, "force", false, "move o vínculo quando o formulário já está ligado a outra pasta")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// escolhePastaLocal casa o argumento do usuário com uma pasta de forms/. Aceita
+// o nome puro, o caminho com o prefixo forms/ e o caminho relativo/absoluto que
+// o shell completou (com ou sem a barra final).
+func escolhePastaLocal(folders []string, arg string) (string, error) {
+	nome := filepath.Base(filepath.Clean(strings.TrimSpace(arg)))
+	for _, f := range folders {
+		if f == nome {
+			return f, nil
+		}
+	}
+	for _, f := range folders {
+		if strings.EqualFold(f, nome) {
+			return f, nil
+		}
+	}
+	msg := fmt.Sprintf("a pasta %s não existe em forms/", nome)
+	if s := strsim.Suggest(nome, folders, 3); len(s) > 0 {
+		msg += " — você quis dizer: " + strings.Join(s, ", ") + "?"
+	}
+	return "", output.NotFoundf("%s", msg)
+}
+
+// linkOneForm grava o vínculo de UMA pasta com o formulário apontado por
+// --document-id/--name. Sem prompt: é o caminho scriptável de quem já sabe o
+// alvo (ROADMAP §5.3), para quando o nome da pasta não parece com o nome no
+// servidor e nenhuma sugestão automática tem como acertar.
+func (a *App) linkOneForm(ctx context.Context, p *output.Printer, server *config.Server,
+	client *fluig.Client, root, folder, nameFlag string, documentID int, force bool) error {
+	userCode, err := client.ResolveUserCode(ctx)
+	if err != nil {
+		return mapFluigError(err)
+	}
+	forms, err := client.ListForms(ctx, userCode)
+	if err != nil {
+		return mapFluigError(err)
+	}
+	// O alvo é conferido na LISTAGEM do servidor: gravar um documentId sem
+	// existência confirmada só adiaria o erro para o próximo export.
+	alvo := nameFlag
+	if documentID != 0 {
+		alvo = strconv.Itoa(documentID)
+	}
+	f, ok := matchForm(forms, alvo)
+	if !ok {
+		msg := fmt.Sprintf("nenhum formulário %s no servidor %q", descreveAlvoForm(nameFlag, documentID), server.Name)
+		if nameFlag != "" {
+			nomes := make([]string, 0, len(forms))
+			for _, sf := range forms {
+				nomes = append(nomes, sf.Description)
+			}
+			if s := strsim.Suggest(nameFlag, nomes, 3); len(s) > 0 {
+				msg += " — você quis dizer: " + strings.Join(s, ", ") + "?"
+			}
+		}
+		return output.NotFoundf("%s. Veja os disponíveis com: fluigcli form list", msg)
+	}
+
+	fmap, err := project.LoadFormMap(root, server.FormScopeKey())
+	if err != nil {
+		return output.Genericf("falha ao ler .fluigcli/forms.json: %v", err)
+	}
+	// Dois vínculos para o mesmo formulário deixariam o mapa ambíguo (o diff e o
+	// export resolvem por documentId). Por isso mover exige --force.
+	if outra, ok := fmap.ByDocumentID(f.DocumentID); ok && outra.Folder != folder {
+		if !force {
+			return output.Usagef("o formulário %q (documentId %d) já está vinculado à pasta %s em %q; "+
+				"use --force para mover o vínculo para %s", f.Description, f.DocumentID, outra.Folder, server.Name, folder)
+		}
+		fmap.Remove(outra.Folder)
+		p.Warnf("vínculo movido: a pasta %s ficou sem formulário em %q.", outra.Folder, server.Name)
+	}
+	if atual, ok := fmap.ByFolder(folder); ok {
+		if atual.DocumentID == f.DocumentID {
+			p.Infof("a pasta %s já estava vinculada a %q (documentId %d) em %q — nada a fazer.",
+				folder, f.Description, f.DocumentID, server.Name)
+			p.Done(map[string]any{"linked": []any{}, "skipped": []any{}, "action": "unchanged",
+				"folder": folder, "documentId": f.DocumentID, "name": f.Description})
+			return nil
+		}
+		// Trocar o alvo da pasta não gera ambiguidade, então não exige --force.
+		// Mas o vínculo antigo some, e o usuário precisa ver isso.
+		p.Warnf("a pasta %s estava vinculada a %q (documentId %d) — o vínculo foi trocado.",
+			folder, atual.Name, atual.DocumentID)
+	}
+
+	fmap.Upsert(project.FormLink{Folder: folder, DocumentID: f.DocumentID,
+		Name: f.Description, DatasetName: f.DatasetName})
+	if err := fmap.Save(); err != nil {
+		return output.Genericf("não consegui salvar .fluigcli/forms.json: %v", err)
+	}
+	p.Successf("%s → %q (documentId %d) em %q", folder, f.Description, f.DocumentID, server.Name)
+	p.Done(map[string]any{"linked": []string{folder}, "skipped": []any{}, "action": "linked",
+		"folder": folder, "documentId": f.DocumentID, "name": f.Description})
+	return nil
+}
+
+// descreveAlvoForm monta o trecho da mensagem que identifica o alvo pedido.
+func descreveAlvoForm(nameFlag string, documentID int) string {
+	if documentID != 0 {
+		return fmt.Sprintf("com documentId %d", documentID)
+	}
+	return fmt.Sprintf("chamado %q", nameFlag)
 }
 
 // runFormLinkPrompt é o loop interativo do form link: uma pergunta por pasta.
