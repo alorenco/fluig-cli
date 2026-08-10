@@ -31,10 +31,15 @@ type linkSuggestion struct {
 // ignorando caixa e nome do DATASET do formulário. Sugestão só quando o match é
 // único e o formulário ainda não está vinculado a outra pasta.
 //
-// A fonte do datasetName veio do feedback de 2026-08-10 (ROADMAP §5.3): a pasta
-// `frm_fin_adiantamento_pagar` não casa com o nome no servidor ("Adiantamento ao
-// Fornecedor"), mas casa com o nome técnico da tabela do formulário. Fica por
-// último de propósito — o nome visível é a pista mais confiável.
+// A fonte do datasetName veio do feedback de 2026-08-10 (ROADMAP §5.3). Ela fica
+// por último de propósito — o nome visível é a pista mais confiável.
+//
+// ⚠️ MEDIDO em 2026-08-10 no projeto real: ela NÃO resolve o caso de origem. Os
+// datasetName do servidor são nomes próprios do dataset gerado
+// ("AdiantamentoFornecedor", "dsPagamentosDiversos"), não o nome técnico da
+// pasta (`frm_fin_adiantamento_pagar`). Das 35 pastas, 18 casaram por nome e
+// NENHUMA pelo datasetName. A fonte fica porque é gratuita e só sugere match
+// único, mas quem resolve o caso é o `form link <pasta> --document-id`.
 func suggestFormLinks(folders []string, forms []fluig.Form, fmap *project.FormMap) []linkSuggestion {
 	taken := map[int]bool{}
 	for _, f := range forms {
@@ -125,7 +130,8 @@ func newFormLinkCmd(app *App) *cobra.Command {
 			"não tem como acertar.\n\n" +
 			"Sugestões automáticas: nome já vinculado à pasta em outro servidor (ao\n" +
 			"configurar um ambiente novo), nome exato da pasta, nome ignorando caixa e\n" +
-			"nome do dataset do formulário (a pasta costuma usar o nome técnico).\n" +
+			"nome do dataset do formulário. Pasta com nome técnico (frm_*) costuma não\n" +
+			"casar com nenhuma delas — nesse caso, aponte o alvo com --document-id.\n" +
 			"No modo interativo, Enter aceita a sugestão, um termo busca na lista do\n" +
 			"servidor, o número escolhe e \"s\" pula. Com --auto, só as sugestões\n" +
 			"inequívocas são gravadas (para scripts e agentes; combina com --json).",

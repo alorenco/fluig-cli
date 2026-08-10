@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -743,36 +744,76 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 // justamente a mensagem crua do banco no `db query` que o usuário elogiou por
 // permitir consertar sem adivinhação. A consulta também não é bloqueada — aspa
 // simples em dado é legítima.
+// Medido na homologação em 2026-08-10: a mesma aspa produz DOIS desfechos
+// diferentes, e por isso a função trata os dois.
+//
+//   - `--constraint "campo=xx' or '1'='1"` → HTTP 500 com o corpo
+//     `{"code":"DatasetException","message":"", ...}`. Há sinal estruturado (o
+//     `code`), mas os campos de texto vêm VAZIOS.
+//   - `--constraint "campo=O'Brien"` → resposta nula, que o cliente traduz em
+//     ErrNotFound. Aí a mensagem dizia que o dataset não existe, e ele existe.
+//     Sem o complemento, essa é a pior das duas: ela acusa o alvo errado.
 func explicaFalhaDaConsulta(mapeado, bruto error, cons []fluig.DatasetConstraint) error {
-	var httpErr *fluig.HTTPError
-	if !errors.As(bruto, &httpErr) || httpErr.StatusCode < 500 {
-		return mapeado
-	}
-	var extras []string
-	if corpo := corpoUtilDoServidor(httpErr.Body); corpo != "" {
-		extras = append(extras, "resposta do servidor: "+corpo)
-	}
 	var comAspa []string
 	for _, c := range cons {
 		if strings.Contains(c.Initial, "'") || strings.Contains(c.Final, "'") {
 			comAspa = append(comAspa, c.Field)
 		}
 	}
+	avisoDaAspa := ""
 	if len(comAspa) > 0 {
-		extras = append(extras, fmt.Sprintf(
+		avisoDaAspa = fmt.Sprintf(
 			"o valor de --constraint %s contém aspa simples; dataset que monta SQL por concatenação quebra com esse caractere "+
 				"(o defeito é do script do dataset, não da consulta) — repita sem a aspa para confirmar",
-			strings.Join(comAspa, ", ")))
+			strings.Join(comAspa, ", "))
 	}
-	return withExtraMessage(mapeado, strings.Join(extras, ". "))
+
+	var httpErr *fluig.HTTPError
+	if errors.As(bruto, &httpErr) && httpErr.StatusCode >= 500 {
+		var extras []string
+		if corpo := corpoUtilDoServidor(httpErr.Body); corpo != "" {
+			extras = append(extras, "resposta do servidor: "+corpo)
+		}
+		if avisoDaAspa != "" {
+			extras = append(extras, avisoDaAspa)
+		}
+		return withExtraMessage(mapeado, strings.Join(extras, ". "))
+	}
+	// Resposta nula com aspa na constraint: o dataset provavelmente existe.
+	if errors.Is(bruto, fluig.ErrNotFound) && avisoDaAspa != "" {
+		return withExtraMessage(mapeado, avisoDaAspa)
+	}
+	return mapeado
 }
 
 // corpoUtilDoServidor devolve o texto da resposta de erro quando ele ajuda.
-// Página HTML de container só ocuparia a tela. O corte segue o do 403.
+//
+// O erro do Fluig chega como JSON com `code`/`message`/`detailedMessage`, e os
+// dois campos de texto podem vir VAZIOS (medido em 2026-08-10 no
+// dataset-handle/search). Despejar o JSON inteiro nesse caso só ocuparia a tela
+// com campos em branco, então a função extrai o que tem conteúdo. Página HTML
+// de container é descartada. O corte segue o do 403.
 func corpoUtilDoServidor(body string) string {
 	body = strings.TrimSpace(body)
 	if body == "" || strings.HasPrefix(body, "<") {
 		return ""
+	}
+	var fluigErr struct {
+		Code            string `json:"code"`
+		Message         string `json:"message"`
+		DetailedMessage string `json:"detailedMessage"`
+	}
+	if json.Unmarshal([]byte(body), &fluigErr) == nil && fluigErr.Code != "" {
+		partes := []string{fluigErr.Code}
+		for _, texto := range []string{fluigErr.Message, fluigErr.DetailedMessage} {
+			if texto = strings.TrimSpace(texto); texto != "" {
+				partes = append(partes, texto)
+			}
+		}
+		if len(partes) == 1 {
+			return partes[0] + " (o servidor não detalhou a causa)"
+		}
+		body = strings.Join(partes, ": ")
 	}
 	body = strings.Join(strings.Fields(body), " ")
 	if len(body) > 300 {

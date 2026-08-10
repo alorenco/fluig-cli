@@ -742,7 +742,7 @@ func TestDatasetQueryNotFound(t *testing.T) {
 // e o aviso da aspa simples na constraint) sem trocar a mensagem original nem o
 // exit code (ROADMAP §5.6).
 func TestDatasetQueryErroDoServidorGanhaContexto(t *testing.T) {
-	stub := &fluigDatasetStub{searchError: `{"message":"Incorrect syntax near 'or'."}`}
+	stub := &fluigDatasetStub{searchError: `{"code":"DatasetError","message":"Incorrect syntax near 'or'."}`}
 	proj := datasetProject(t, stub.server(t).URL)
 
 	code, stdout := runMain(t, "dataset", "query", "ds_exemplo",
@@ -798,6 +798,57 @@ func TestDatasetQueryErroHTMLNaoEntraNaMensagem(t *testing.T) {
 	json.Unmarshal([]byte(stdout), &env)
 	if strings.Contains(env.Error.Message, "<html>") {
 		t.Errorf("página HTML despejada na mensagem: %q", env.Error.Message)
+	}
+}
+
+// Corpo de erro do Fluig com os campos de texto VAZIOS — a forma real medida na
+// homologação em 2026-08-10. O JSON inteiro não vai para a tela; sai o `code`
+// mais a informação de que o servidor não detalhou.
+func TestDatasetQueryErroSemDetalheMostraSoOCodigo(t *testing.T) {
+	stub := &fluigDatasetStub{searchError: `{"code":"DatasetException","message":"","detailedMessage":"","helpUrl":null,"details":[]}`}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "query", "ds_exemplo", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	msg := env.Error.Message
+	if !strings.Contains(msg, "DatasetException") || !strings.Contains(msg, "não detalhou") {
+		t.Errorf("mensagem = %q", msg)
+	}
+	if strings.Contains(msg, "helpUrl") || strings.Contains(msg, `"details"`) {
+		t.Errorf("o JSON cru foi despejado: %q", msg)
+	}
+}
+
+// Aspa simples nem sempre dá 500: com um valor legítimo (O'Brien) o servidor
+// devolve resposta NULA, que vira NOT_FOUND — e a mensagem acusava o dataset de
+// não existir. O aviso da constraint também entra nesse caminho (medido em
+// 2026-08-10).
+func TestDatasetQueryNotFoundComAspaGanhaContexto(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "dataset", "query", "nao_existe",
+		"--constraint", "nome=O'Brien", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if !strings.Contains(env.Error.Message, "aspa simples") {
+		t.Errorf("o NOT_FOUND com aspa não ganhou contexto: %q", env.Error.Message)
+	}
+
+	// Sem aspa, o NOT_FOUND continua limpo (nada de diagnóstico inventado).
+	code, stdout = runMain(t, "dataset", "query", "nao_existe", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	json.Unmarshal([]byte(stdout), &env)
+	if strings.Contains(env.Error.Message, "aspa simples") {
+		t.Errorf("aviso de aspa sem constraint nenhuma: %q", env.Error.Message)
 	}
 }
 

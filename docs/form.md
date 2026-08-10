@@ -53,7 +53,14 @@ Para criar o vínculo:
 ### `fluigcli form link <pasta> --document-id <id>`
 
 O `--auto` só grava sugestões inequívocas. Se o nome da pasta não parece com o
-nome no servidor, ele não tem como sugerir nada. Neste caso, aponte o alvo:
+nome no servidor, ele não tem como sugerir nada.
+
+Esse caso é comum. Numa medição de 2026-08-10, num projeto com 35 pastas, 18
+casaram pelo nome e 17 não casaram por nenhuma fonte automática. A pasta
+`frm_fin_adiantamento_pagar` corresponde ao formulário "Adiantamento ao
+Fornecedor", e nada no nome liga os dois.
+
+Neste caso, aponte o alvo:
 
 ```sh
 # a pasta tem nome técnico; o formulário no servidor chama "Adiantamento ao Fornecedor"
