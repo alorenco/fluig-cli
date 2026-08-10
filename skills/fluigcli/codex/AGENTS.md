@@ -6,7 +6,12 @@ processo e widgets. Dirija-a por flags, leia o envelope JSON e **decida pelo
 exit code** — não pelo texto (humano, pt-BR).
 
 Regras de ouro:
-- Sempre `--json` e `--non-interactive`.
+- Sempre `--json` e `--non-interactive` **nos comandos que você executa**.
+- **Comando que a PESSOA vai rodar à mão** (ex.: publicar em produção) é a
+  exceção: escreva no modo interativo — `--server <nome>` no próprio comando,
+  **sem** `--json`, **sem** `--non-interactive`, **sem** `--yes` e **sem**
+  `export FLUIGCLI_SERVER=` (a variável vaza para os comandos seguintes do
+  terminal). Mantenha as flags que mudam o efeito (`--new`, `--no-audit`).
 - **Nunca** passe senha em argumento (vaza em `ps`). Use `FLUIGCLI_PASSWORD` ou
   `--password-stdin`. A sessão é reaproveitada entre execuções.
 - Direção dos verbos: `import` = servidor → local · `export` = local → servidor.

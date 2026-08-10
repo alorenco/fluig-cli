@@ -66,6 +66,13 @@ padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos 
 escrita (`export`, `delete`, `install-helper`) **exigem `--yes`** em modo
 não-interativo (sem ele: exit 2).
 
+⚠️ **Comando escrito para a PESSOA rodar à mão** (ex.: publicação em produção
+que você não executa) segue o modo interativo: `--server <nome>` no próprio
+comando, **sem** `--json`, `--non-interactive` ou `--yes`, e **sem**
+`export FLUIGCLI_SERVER=` (a variável continua valendo nos comandos seguintes
+daquele terminal). As flags que mudam o efeito (`--new`, `--no-audit`) ficam.
+Detalhe e exemplo na seção "Comandos para execução manual" do `SKILL.md`.
+
 ## clone — onboarding de instância existente
 
 `clone` traz para o projeto local tudo o que a CLI gerencia em um servidor já

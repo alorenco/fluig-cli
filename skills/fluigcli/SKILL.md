@@ -17,7 +17,9 @@ lê um envelope JSON e decide pelo **exit code** — não pelo texto.
 
 ## Regras de ouro
 
-1. **Sempre** passe `--json` e `--non-interactive`. Nunca dependa de prompt.
+1. **Sempre** passe `--json` e `--non-interactive` nos comandos que **você**
+   executa. Nunca dependa de prompt. Exceção única: comando que você **escreve
+   para a pessoa rodar à mão** — ver [Comandos para execução manual](#comandos-para-execução-manual).
 2. **Decida pelo exit code**, não pela mensagem (que é humana e em pt-BR):
 
    | código | significado | o que fazer |
@@ -102,6 +104,43 @@ fluigcli dataset export --help
    nenhum outro comando acusa.
 4. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
 5. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
+
+## Comandos para execução manual
+
+Às vezes você não executa o passo. Você **escreve a linha de comando para a
+pessoa rodar no terminal dela**. O caso mais comum é a publicação em produção.
+
+Nesse caso, e **somente nesse caso**, sugira o comando no **modo interativo**:
+
+- Use `--server <nome>` **no próprio comando**. Não instrua
+  `export FLUIGCLI_SERVER=...`: a variável exportada continua valendo nos
+  comandos seguintes daquele terminal e leva a publicar em produção sem querer.
+- **Não** ponha `--json` nem `--non-interactive`. A saída humana é tabela em
+  pt-BR e é mais fácil de conferir na hora.
+- **Não** ponha `--yes`. A trava de produção precisa pedir a confirmação — é a
+  última checagem antes da escrita.
+- **Não** peça `FLUIGCLI_PASSWORD` nem senha na linha. O keyring, a sessão em
+  cache ou o prompt resolvem.
+- **Mantenha** as flags que mudam o QUE o comando faz (`--new`, `--no-audit`,
+  `--events`, `--build`). Elas são parte da decisão, não da forma de execução.
+
+Não sugira assim:
+
+```sh
+export FLUIGCLI_SERVER=producao
+fluigcli dataset export datasets/ds_glb_nat_fin.js --json --non-interactive
+fluigcli form export forms/frm_fin_adiantamento_pagar --no-audit --json --non-interactive
+```
+
+Sugira assim:
+
+```sh
+fluigcli dataset export datasets/ds_glb_nat_fin.js --server producao
+fluigcli form export forms/frm_fin_adiantamento_pagar --no-audit --server producao
+```
+
+Quando **você** roda o comando, vale a regra de ouro 1: `--json` e
+`--non-interactive`, mais `--yes` em servidor `prod`.
 
 ## Limites
 
