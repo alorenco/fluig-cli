@@ -24,6 +24,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | consultar os dados de um dataset | `dataset query` |
 | desligar (reversível) ou remover de vez (permanente) um dataset | `dataset disable` · `dataset delete` |
 | rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
+| saber quantas solicitações estão abertas/canceladas/concluídas | `request list --status` (**não** `db query` na `PROCES_WORKFLOW`) |
 | checar (preflight) se o login do banco pode escrever nas tabelas | `db grants` |
 | consultar / iniciar / movimentar solicitações | `request` |
 | migrar solicitações abertas para outra versão do processo | `workflow convert` |
@@ -146,6 +147,18 @@ diagnóstico — NÃO é `dataset query` (que executa um dataset cadastrado). S�
 - `db grants` é o atalho do preflight de permissão: `✓` concedida, `✗` negada, `?` objeto inexistente. Falta algo = **exit 6** (`ok:false`, itere `tables[].missing`). Tudo concedido = exit 0.
 - `--json` do `query`: `{columns[],rows[],rowCount,truncated}`; `rows` posicional; null do banco = `null`.
 - Erro de SQL ou consulta que não é de leitura = exit 5 com a mensagem do banco.
+
+🚨 **Status de solicitação: use `request list --status`, NUNCA SQL.** As tabelas
+guardam o status em coluna numérica (`PROCES_WORKFLOW.STATUS`,
+`TAR_PROCES.CLOSURE_STATUS`, `TAR_PROCES.IDI_STATUS`) e o significado dos
+números **não é contrato público da TOTVS** — não está documentado aqui de
+propósito. Deduzir errado produz relatório errado **sem nenhum aviso**: foi o
+erro mais sério de uma sessão real (2026-08-10). O comando certo já existe:
+`request list --process "<nome>" --status open|canceled|finalized`. Único ponto
+medido (2026-08-10): `PROCES_WORKFLOW.STATUS = 0` devolveu o mesmo conjunto que
+`--status open`; os demais valores **não foram conferidos**, não extrapole a
+partir do zero. Use o `db query` para o que o `request` não cobre — existência
+de objeto, permissão, volume, cruzamento com tabela de negócio.
 
 ## event — eventos globais
 

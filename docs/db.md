@@ -91,6 +91,28 @@ Quando a consulta tem um erro de SQL, o servidor devolve a mensagem do banco. A
 CLI mostra esta mensagem e termina com o código 5. Quando a consulta não é de
 leitura, o servidor recusa com a mesma via.
 
+### ⚠️ Status de solicitação: use o `request`, não SQL
+
+As tabelas do Fluig guardam o status em **colunas numéricas**
+(`PROCES_WORKFLOW.STATUS`, `TAR_PROCES.CLOSURE_STATUS`, `TAR_PROCES.IDI_STATUS`).
+O significado desses números não é contrato público da TOTVS. Ele não está
+documentado aqui, e deduzir errado produz um relatório errado sem nenhum aviso.
+
+Para status de solicitação, use o comando próprio:
+
+```sh
+fluigcli request list --process "Meu Processo" --status open        # em aberto
+fluigcli request list --process "Meu Processo" --status finalized   # concluídas
+fluigcli request list --process "Meu Processo" --status canceled    # canceladas
+```
+
+Referência medida em 2026-08-10: `PROCES_WORKFLOW.STATUS = 0` devolveu o mesmo
+conjunto que `request list --status open`. Os demais valores **não foram
+conferidos**. Não deduza a partir do zero.
+
+Use o `db query` para o que o `request` não cobre: conferir se um objeto existe,
+testar permissão, medir volume ou cruzar tabelas de negócio.
+
 ### Rodar um script `.sql` com `--file`
 
 A opção `--file` lê um script e executa as instruções **em sequência**, uma por

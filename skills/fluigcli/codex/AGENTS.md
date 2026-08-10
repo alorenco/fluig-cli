@@ -56,7 +56,11 @@ no servidor); ⚠️ resultado VAZIO volta como **1 linha em branco** — a API
 materializa; o envelope marca `emptyRowSuspect:true`, trate como zero linhas),
 `db` (query|grants|datasources — SQL de LEITURA de diagnóstico via datasource JNDI, requer o fluigcliHelper;
 `query --file script.sql` roda o script instrução por instrução — `--list` só lista,
-`--statement N` roda uma, falha parcial = exit 6 com `data.statements[]`),
+`--statement N` roda uma, falha parcial = exit 6 com `data.statements[]`.
+🚨 **Status de solicitação NUNCA por SQL**: `PROCES_WORKFLOW.STATUS` e
+`TAR_PROCES.CLOSURE_STATUS`/`IDI_STATUS` são números sem contrato público —
+deduzir errado dá relatório errado sem aviso. Use
+`request list --status open|canceled|finalized`),
 `event` (new|list|import|export|delete),
 `mechanism` (new|list|import|export|delete), `form` (new|list|import|export|link|records — CRUD de registros;
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai;
