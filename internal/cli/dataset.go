@@ -675,7 +675,7 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 				Limit:       limit,
 			})
 			if err != nil {
-				return mapFluigError(err)
+				return explicaFalhaDaConsulta(mapFluigError(err), err, cons)
 			}
 
 			// Campo pedido que o dataset não devolveu: avisa e segue com o que
@@ -726,6 +726,59 @@ func newDatasetQueryCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 0, "número máximo de linhas (0 = sem limite)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// explicaFalhaDaConsulta acrescenta contexto ao erro do `dataset query` quando
+// o servidor responde 5xx (ROADMAP §5.6).
+//
+// O `dataset-handle/search` devolve HTTP 500 cru, sem nenhum sinal estruturado
+// de causa: o corpo é descartado hoje e a mensagem fica só "servidor Fluig
+// respondeu HTTP 500". Duas coisas ajudam sem inventar diagnóstico:
+//
+//  1. o texto que o servidor mandou, quando não é página HTML de container; e
+//  2. o aviso da aspa simples na constraint — o caso relatado em 2026-08-10,
+//     em que o dataset alvo monta SQL por concatenação e a aspa quebra a query.
+//
+// As duas são ACRÉSCIMO. A mensagem original e o exit code não mudam: foi
+// justamente a mensagem crua do banco no `db query` que o usuário elogiou por
+// permitir consertar sem adivinhação. A consulta também não é bloqueada — aspa
+// simples em dado é legítima.
+func explicaFalhaDaConsulta(mapeado, bruto error, cons []fluig.DatasetConstraint) error {
+	var httpErr *fluig.HTTPError
+	if !errors.As(bruto, &httpErr) || httpErr.StatusCode < 500 {
+		return mapeado
+	}
+	var extras []string
+	if corpo := corpoUtilDoServidor(httpErr.Body); corpo != "" {
+		extras = append(extras, "resposta do servidor: "+corpo)
+	}
+	var comAspa []string
+	for _, c := range cons {
+		if strings.Contains(c.Initial, "'") || strings.Contains(c.Final, "'") {
+			comAspa = append(comAspa, c.Field)
+		}
+	}
+	if len(comAspa) > 0 {
+		extras = append(extras, fmt.Sprintf(
+			"o valor de --constraint %s contém aspa simples; dataset que monta SQL por concatenação quebra com esse caractere "+
+				"(o defeito é do script do dataset, não da consulta) — repita sem a aspa para confirmar",
+			strings.Join(comAspa, ", ")))
+	}
+	return withExtraMessage(mapeado, strings.Join(extras, ". "))
+}
+
+// corpoUtilDoServidor devolve o texto da resposta de erro quando ele ajuda.
+// Página HTML de container só ocuparia a tela. O corte segue o do 403.
+func corpoUtilDoServidor(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" || strings.HasPrefix(body, "<") {
+		return ""
+	}
+	body = strings.Join(strings.Fields(body), " ")
+	if len(body) > 300 {
+		body = body[:300] + "…"
+	}
+	return body
 }
 
 // parseConstraints converte "campo=valor" em filtros de igualdade.

@@ -143,6 +143,33 @@ fluigcli dataset query ds_clientes --fields codigo,nome --constraint ativo=true 
 fluigcli dataset query colleague --fields login --order colleagueName_DESC --json
 ```
 
+### HTTP 500 na consulta
+
+O `dataset-handle/search` responde **HTTP 500 cru** quando a execução do dataset
+falha. A API não informa a causa de forma estruturada. A CLI **acrescenta** o
+que consegue à mensagem, sem trocar o texto original:
+
+- o texto que o servidor devolveu, quando ele não é uma página HTML de erro do
+  container;
+- um aviso quando o valor de uma `--constraint` contém **aspa simples**.
+
+A aspa simples é o caso mais comum. Um dataset que monta o SQL por concatenação
+quebra com esse caractere. O defeito está no script do dataset alvo, não na
+consulta. Confirme repetindo a consulta sem a aspa.
+
+```sh
+fluigcli dataset query ds_centros --constraint "codccusto=xx' or '1'='1"
+# erro: servidor Fluig respondeu HTTP 500 em dataset-handle/search.
+#       resposta do servidor: ... . o valor de --constraint codccusto contém aspa
+#       simples; dataset que monta SQL por concatenação quebra com esse caractere
+#       (o defeito é do script do dataset, não da consulta) — repita sem a aspa
+#       para confirmar
+```
+
+A CLI **não bloqueia** a consulta por causa do caractere. Aspa simples em dado é
+legítima. A CLI também não escapa o valor. Escapar no cliente daria falso senso
+de segurança e quebraria valores válidos.
+
 ### Resultado vazio que volta como 1 linha em branco
 
 A API do Fluig **materializa uma linha em branco** quando o dataset não devolve

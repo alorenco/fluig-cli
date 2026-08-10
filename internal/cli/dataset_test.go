@@ -47,6 +47,10 @@ type fluigDatasetStub struct {
 	// rejectCompile faz create/editDataset devolverem a recusa de compilação do
 	// Fluig — a mensagem genérica que o §3.2 enriquece com o audit local.
 	rejectCompile bool
+
+	// searchError faz o dataset-handle/search responder 500 com este corpo (o
+	// caso do §5.6: constraint que quebra o SQL do dataset alvo).
+	searchError string
 }
 
 func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
@@ -166,6 +170,11 @@ func (s *fluigDatasetStub) server(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("/dataset/api/v2/dataset-handle/search", func(w http.ResponseWriter, r *http.Request) {
+		if s.searchError != "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, s.searchError)
+			return
+		}
 		if r.URL.Query().Get("datasetId") == "nao_existe" {
 			io.WriteString(w, `{"columns":null,"values":null}`)
 			return
@@ -726,6 +735,69 @@ func TestDatasetQueryNotFound(t *testing.T) {
 	code, _ := runMain(t, "dataset", "query", "nao_existe", "--json", "--project", proj, "--server", "homolog")
 	if code != output.ExitNotFound {
 		t.Errorf("exit=%d, quer %d", code, output.ExitNotFound)
+	}
+}
+
+// 500 do dataset-handle/search: a CLI ACRESCENTA contexto (o texto do servidor
+// e o aviso da aspa simples na constraint) sem trocar a mensagem original nem o
+// exit code (ROADMAP §5.6).
+func TestDatasetQueryErroDoServidorGanhaContexto(t *testing.T) {
+	stub := &fluigDatasetStub{searchError: `{"message":"Incorrect syntax near 'or'."}`}
+	proj := datasetProject(t, stub.server(t).URL)
+
+	code, stdout := runMain(t, "dataset", "query", "ds_exemplo",
+		"--constraint", "codccusto=xx' or '1'='1", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitServer, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil {
+		t.Fatal("sem erro no envelope")
+	}
+	msg := env.Error.Message
+	// A mensagem original do transporte continua lá — é ela que diz onde falhou.
+	if !strings.Contains(msg, "HTTP 500") || !strings.Contains(msg, "dataset-handle/search") {
+		t.Errorf("a mensagem original foi substituída: %q", msg)
+	}
+	if !strings.Contains(msg, "Incorrect syntax near") {
+		t.Errorf("o texto do servidor não foi anexado: %q", msg)
+	}
+	if !strings.Contains(msg, "codccusto") || !strings.Contains(msg, "aspa simples") {
+		t.Errorf("faltou o aviso da aspa na constraint: %q", msg)
+	}
+
+	// Sem aspa na constraint, só o texto do servidor entra — nada de
+	// diagnóstico inventado.
+	code, stdout = runMain(t, "dataset", "query", "ds_exemplo",
+		"--constraint", "codccusto=123", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	json.Unmarshal([]byte(stdout), &env)
+	if strings.Contains(env.Error.Message, "aspa simples") {
+		t.Errorf("aviso de aspa sem aspa nenhuma: %q", env.Error.Message)
+	}
+	if !strings.Contains(env.Error.Message, "Incorrect syntax near") {
+		t.Errorf("o texto do servidor sumiu: %q", env.Error.Message)
+	}
+}
+
+// Corpo HTML (página de erro do container) não vira mensagem: só ocuparia a
+// tela sem informar nada.
+func TestDatasetQueryErroHTMLNaoEntraNaMensagem(t *testing.T) {
+	stub := &fluigDatasetStub{searchError: "<html><head><title>Error</title></head><body>500</body></html>"}
+	proj := datasetProject(t, stub.server(t).URL)
+	code, stdout := runMain(t, "dataset", "query", "ds_exemplo", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitServer {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	var env output.Envelope
+	json.Unmarshal([]byte(stdout), &env)
+	if strings.Contains(env.Error.Message, "<html>") {
+		t.Errorf("página HTML despejada na mensagem: %q", env.Error.Message)
 	}
 }
 
