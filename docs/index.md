@@ -60,7 +60,7 @@ em pt-BR.
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
-| [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino e formulário × etapas do processo |
+| [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino, formulário × etapas do processo e baseline da dívida antiga |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |
 | [request](./request) | solicitações: consultar, iniciar, movimentar, **cancelar** e anexos |

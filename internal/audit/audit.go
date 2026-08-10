@@ -94,6 +94,9 @@ type Finding struct {
 	Message    string   `json:"message"`
 	Suggestion string   `json:"suggestion,omitempty"`
 	Fix        string   `json:"fix,omitempty"`
+	// Baseline marca o achado que já estava no .fluigcli/audit-baseline.json —
+	// ele aparece no relatório, mas não reprova (ROADMAP §5.5).
+	Baseline bool `json:"baseline,omitempty"`
 
 	fixOld string // trecho exato substituído pelo --fix (interno)
 }
@@ -103,6 +106,10 @@ type Result struct {
 	Findings []Finding
 	Scanned  int      // arquivos efetivamente auditados
 	Ignored  []string // arquivos pulados (com o motivo)
+	// Files são os arquivos auditados (relativos à raiz, barras normais). O
+	// baseline usa a lista para não alegar que a dívida de um arquivo fora
+	// desta rodada foi quitada (ROADMAP §5.5).
+	Files []string
 }
 
 // Config são as exceções e ajustes do projeto (.fluigcli/audit.json). Cada
@@ -304,6 +311,7 @@ func auditFile(root, p string, cat *Catalog, cfg Config, spaCache map[string]boo
 		return
 	}
 	res.Scanned++
+	res.Files = append(res.Files, rel)
 	switch {
 	case isCSS:
 		res.Findings = append(res.Findings, scanCSS(rel, content, cat)...)

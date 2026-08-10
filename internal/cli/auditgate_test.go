@@ -10,6 +10,58 @@ import (
 	"github.com/alorenco/fluig-cli/internal/output"
 )
 
+// O baseline libera a dívida antiga no gate do publish, mas NÃO libera achado
+// novo no mesmo arquivo (ROADMAP §5.5). É o que troca o --no-audit (que
+// desligava tudo) por "não deixar piorar".
+func TestAuditGateRespeitaBaseline(t *testing.T) {
+	stub := &fluigDatasetStub{}
+	proj := datasetProject(t, stub.server(t).URL)
+	file := writeDataset(t, proj, "ds_exemplo.js", dsConstEmLaco)
+
+	// Sem baseline, o RHINO003 barra o export.
+	if code, _ := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog"); code != output.ExitGeneric {
+		t.Fatalf("sem baseline: exit=%d, quero %d", code, output.ExitGeneric)
+	}
+
+	// Com o baseline gravado, o mesmo export passa.
+	if code, out := runMain(t, "audit", "--save-baseline", "--project", proj, "--json"); code != output.ExitOK {
+		t.Fatalf("--save-baseline: exit=%d\n%s", code, out)
+	}
+	code, stdout := runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("com baseline: exit=%d, quero 0\n%s", code, stdout)
+	}
+
+	// Erro NOVO no mesmo arquivo volta a barrar — o baseline não é --no-audit.
+	novo := dsConstEmLaco + "\nfunction outra() {\n  for (var j = 0; j < 2; j++) {\n    const x = j;\n    log.info(x);\n  }\n}\n"
+	if err := os.WriteFile(file, []byte(novo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout = runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("erro novo com baseline: exit=%d, quero %d\n%s", code, output.ExitGeneric, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil || !strings.Contains(env.Error.Message, "RHINO003") {
+		t.Errorf("a recusa devia citar o achado NOVO: %+v", env.Error)
+	}
+	// O baseline quebrado não pode derrubar a publicação: vira aviso.
+	if err := os.WriteFile(filepath.Join(proj, ".fluigcli", "audit-baseline.json"),
+		[]byte(`{"version":"9.9.9"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte(dsConstEmLaco), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout = runMain(t, "dataset", "export", file, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("baseline inválido: exit=%d, quero %d (o gate volta a barrar)\n%s", code, output.ExitGeneric, stdout)
+	}
+}
+
 // Pré-checagem do audit nos publish (ROADMAP2 §3.13): o §3.2 entregou só o
 // `dataset export`, e a inconsistência era o problema — o mesmo erro de script
 // passava batido nos outros comandos.

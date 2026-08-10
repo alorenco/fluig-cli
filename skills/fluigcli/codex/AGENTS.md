@@ -117,7 +117,11 @@ processo com o formulário (WF001 = seção `activity-N` que nunca renderiza,
 ERRO) e com os scripts (WF003 = número comparado com a etapa corrente que não
 é etapa nenhuma, ERRO — o ramo nunca roda) — rode-o antes de testar um
 processo com formulário por etapa; exit 1 = reprovado, corrija pelas `suggestion`
-dos `data.findings[]` e repita). Os `new`/`new-script` são
+dos `data.findings[]` e repita. **Dívida antiga travando um publish: use
+`audit --save-baseline`, não `--no-audit`** — o baseline
+(`.fluigcli/audit-baseline.json`) faz o audit e os publish reprovarem só o que é
+NOVO, enquanto o `--no-audit` desliga a checagem do seu código também).
+Os `new`/`new-script` são
 scaffolds **locais** (nada vai ao servidor; nunca sobrescrevem; o
 `workflow new-script <pid> <evento>` gera a assinatura correta do evento — o
 catálogo está no `--help`). O `watch` (publica ao salvar) e

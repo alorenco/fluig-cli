@@ -22,7 +22,7 @@ uso por agentes de IA.
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)
 - [diff](diff.md) — compara artefatos locais com o servidor antes de publicar
 - [deploy](deploy.md) — executa um plano de release (manifesto JSON) na ordem
-- [audit](audit.md) — linter do projeto: Style Guide 2.0, APIs de script (typos e usos frágeis), footguns do Rhino e o cruzamento formulário × etapas do processo (`--process`)
+- [audit](audit.md) — linter do projeto: Style Guide 2.0, APIs de script (typos e usos frágeis), footguns do Rhino, o cruzamento formulário × etapas do processo (`--process`) e o baseline da dívida antiga (`--save-baseline`)
 - [watch](watch.md) — publica ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload. Serve widgets sem deploy e dá preview de formulários com simulação de processo (só dev/hml)
 - [skill](skill.md) — Skill para agentes de IA (Claude Code / Codex)

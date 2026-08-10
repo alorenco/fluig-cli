@@ -32,8 +32,11 @@ type auditGate struct {
 	// naoBloqueantes conta achados de nível ERRO que o recorte de regras deste
 	// comando deixou passar (ver auditGateOpts.regras).
 	naoBloqueantes int
+	// doBaseline conta achados de nível ERRO que o .fluigcli/audit-baseline.json
+	// já registrava — dívida antiga não barra publicação (ROADMAP §5.5).
+	doBaseline int
 	// ran informa se a auditoria rodou (false com --no-audit ou se ela falhou).
-	ran bool
+	ran  bool
 	opts auditGateOpts
 }
 
@@ -144,6 +147,16 @@ func (a *App) auditBeforePublish(p *output.Printer, files []string, opts auditGa
 		return gate
 	}
 	gate.ran = true
+	// Dívida antiga registrada no baseline sai de cena para o GATE, mas segue no
+	// relatório (marcada). Sem isto, o único escape continuaria sendo o
+	// --no-audit, que desliga a checagem do código NOVO também.
+	if base, err := audit.LoadBaseline(root); err != nil {
+		p.Warnf("%v — a publicação segue sem o baseline.", err)
+	} else if base != nil {
+		conhecidos, novos, _ := base.Partition(root, res.Findings, res.Files)
+		res.Findings = append(append([]audit.Finding{}, conhecidos...), novos...)
+		sortFindings(res.Findings)
+	}
 	gate.findings = res.Findings
 
 	// Casa cada achado com o alvo do lote: o audit reporta o caminho relativo à
@@ -169,6 +182,10 @@ func (a *App) auditBeforePublish(p *output.Printer, files []string, opts auditGa
 		}
 		if !opts.bloqueia(f.Rule) {
 			gate.naoBloqueantes++
+			continue
+		}
+		if f.Baseline {
+			gate.doBaseline++
 			continue
 		}
 		if ok {
@@ -255,7 +272,7 @@ func (g *auditGate) report(p *output.Printer) {
 	// procuraria um problema que não existe. Esses entram na contagem abaixo.
 	var errs []audit.Finding
 	for _, f := range g.findings {
-		if f.Severity == audit.SeverityError && g.opts.bloqueia(f.Rule) {
+		if f.Severity == audit.SeverityError && g.opts.bloqueia(f.Rule) && !f.Baseline {
 			errs = append(errs, f)
 		}
 	}
@@ -270,6 +287,10 @@ func (g *auditGate) report(p *output.Printer) {
 	if g.naoBloqueantes > 0 {
 		p.Infof("%d achado(s) de nível erro não barram ESTE comando (regras de tema visual) — veja com: fluigcli audit",
 			g.naoBloqueantes)
+	}
+	if g.doBaseline > 0 {
+		p.Infof("%d erro(s) já estavam no baseline (dívida antiga) e não barram a publicação — veja com: fluigcli audit --no-baseline",
+			g.doBaseline)
 	}
 }
 

@@ -176,6 +176,41 @@ Cada entrada de `ignore` casa por caminho exato, por prefixo de pasta (termina e
 regra (`error`, `warning`) ou desliga a regra (`off`). O `--json` lista o que o
 comando ignorou.
 
+## Baseline (`.fluigcli/audit-baseline.json`)
+
+Um projeto antigo chega com dívida. O `export` barra o arquivo por causa de um
+achado que já estava lá antes da sua mudança. A saída era o `--no-audit`, que
+desliga a checagem inteira — inclusive no código que você acabou de escrever.
+
+O baseline resolve isso. Ele grava o retrato dos achados de hoje. Depois disso,
+o `audit` e a pré-checagem dos comandos de publish reprovam **só os achados
+novos**.
+
+```sh
+fluigcli audit --save-baseline     # grava .fluigcli/audit-baseline.json
+fluigcli audit                     # exit 0: a dívida antiga não reprova mais
+fluigcli audit --no-baseline       # confere tudo, ignorando o baseline
+```
+
+Regras:
+
+- O achado antigo **continua no relatório**, com o campo `baseline: true`. O
+  baseline decide o que reprova. Ele não esconde nada.
+- A identidade do achado é o arquivo, a regra e o **texto** da linha apontada,
+  com os espaços normalizados. O número da linha não entra. Por isso, mover o
+  código ou reindentar o arquivo não invalida o baseline.
+- Linhas de texto idêntico contam. Se o baseline tem duas ocorrências e o
+  arquivo passa a ter três, a terceira reprova.
+- O `audit` avisa quando achados do baseline somem. É a dívida quitada. Regrave
+  com `--save-baseline` para o arquivo encolher.
+- Versione o arquivo no Git. Ele é o combinado do time sobre a dívida aceita.
+
+O `--no-audit` continua existindo, para o caso de precisar publicar sem
+checagem nenhuma. A diferença é que agora ele não é mais a única saída.
+
+⚠️ Os comandos de publish **não têm** `--no-baseline`. Quando o arquivo existe,
+eles o respeitam. Para o gate estrito, apague o arquivo ou não o crie.
+
 ## No preview do `dev`
 
 O [`fluigcli dev`](dev.md) roda esta auditoria automaticamente no preview de cada
@@ -188,7 +223,8 @@ mesmas sugestões.
 O [`dataset export`](dataset.md) roda esta auditoria nos arquivos que vai
 publicar. Um achado de nível `error` barra o envio daquele arquivo, com o mesmo
 `AUDIT_FAILED`. Os avisos não barram nada. A opção `--no-audit` do export pula a
-checagem.
+checagem. Com um [baseline](#baseline-fluigcli-audit-baseline-json) no projeto,
+só os achados novos barram.
 
 ## Exit code e CI
 
@@ -198,3 +234,8 @@ sempre retorna 0 (só relatório). No `--json`, o envelope reprovado vem com
 `error.code = AUDIT_FAILED` e o `data` completo (`findings[]` com
 regra/arquivo/linha/sugestão, `counts`, `scanned`, `ignored`). Este formato é
 ideal para agentes de IA corrigirem em loop e para gates de CI.
+
+Com um [baseline](#baseline-fluigcli-audit-baseline-json) no projeto, o exit 1
+considera só os achados novos, e o `data` ganha
+`baseline: {known, new, resolved}`. É o modo recomendado em CI de projeto
+legado: a build falha quando a dívida cresce, não porque ela existe.

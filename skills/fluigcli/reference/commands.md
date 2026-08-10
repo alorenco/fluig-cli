@@ -20,6 +20,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver o que **mudaria** antes de publicar | `diff` |
 | executar um release inteiro na ordem (SQL + datasets + widget), auditável | `deploy --plan release.json` |
 | conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
+| publicar arquivo com dívida ANTIGA de audit sem desligar a checagem do código novo | `audit --save-baseline` (não `--no-audit`) |
 | consultar os dados de um dataset | `dataset query` |
 | desligar (reversível) ou remover de vez (permanente) um dataset | `dataset disable` · `dataset delete` |
 | rodar SQL de diagnóstico (permissão, testar SQL, ver se objeto existe) | `db query` |
@@ -365,6 +366,7 @@ local não fica `modified` para sempre — quem avisa da perda é a FL007 do
 | comando | efeito |
 |---|---|
 | `audit [<path>...]` | linter das pastas convencionais (forms/, wcm/widget/, datasets/, events/, mechanisms/, workflow/scripts/): tema fixo do Fluig 2.0 (SG*), chamadas de API inexistentes (FL*, sobre o fluig.d.ts; FL005 = método do hAPI chamado como global em script de processo — ERRO, falha em runtime; FL006 = getDataset(...).values encadeado sem guarda no client-side — aviso, quebra com TypeError quando a chamada falha; FL007 = caractere fora do CP-1252 em script server-side — aviso, o banco grava "?" permanente; acentos e — … “” sobrevivem) e footguns do Rhino (RHINO*, só JS server-side) e, com `--process <id>`, o cruzamento formulário×processo (WF*: seção `activity-N` sem etapa de sequence N = ERRO — a seção nunca renderiza e a validação daquela etapa nunca roda; atividade humana sem seção = aviso; `activity-0` = abertura, sempre válido; requer o form vinculado no forms.json); `--sync` atualiza o catálogo do servidor; `--fix` aplica as correções determinísticas; `--fail-on error\|warning\|none` (default error → exit 1 reprova) |
+| `audit --save-baseline` | grava os achados de hoje em `.fluigcli/audit-baseline.json`. Com esse arquivo, o `audit` E a pré-checagem dos publish reprovam **só achados NOVOS** — a dívida antiga aparece no relatório com `baseline: true`, mas não barra. **Prefira isto ao `--no-audit` em código legado**: o `--no-audit` desliga a checagem também no código que você acabou de escrever. Identidade do achado = arquivo + regra + TEXTO da linha (não o número): reformatar não invalida. Ocorrências idênticas contam — a que exceder o baseline barra. `--no-baseline` confere tudo. Com baseline ativo, o `--json` ganha `data.baseline {known,new,resolved}`; `resolved` > 0 = dívida quitada, regrave |
 
 Regras: SG001 CSS legado (aviso, `--fix` troca p/ flat) · SG002 recurso
 externo/CDN (erro) · SG003 cor fixa hex/rgb (erro; hex com valor idêntico a

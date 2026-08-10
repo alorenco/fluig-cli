@@ -142,6 +142,80 @@ func TestAuditFix(t *testing.T) {
 	}
 }
 
+// Baseline (ROADMAP §5.5): --save-baseline grava o retrato de hoje; depois só
+// achado NOVO reprova, e o antigo continua no relatório, marcado.
+func TestAuditBaseline(t *testing.T) {
+	proj := auditProject(t)
+
+	code, stdout := runMain(t, "audit", "--save-baseline", "--project", proj, "--json")
+	if code != output.ExitOK {
+		t.Fatalf("--save-baseline: exit=%d\n%s", code, stdout)
+	}
+	if _, err := os.Stat(filepath.Join(proj, ".fluigcli", "audit-baseline.json")); err != nil {
+		t.Fatalf("baseline não gravado: %v", err)
+	}
+
+	// Mesma árvore: os 3 achados viram dívida conhecida e o audit aprova.
+	code, stdout = runMain(t, "audit", "--project", proj, "--json")
+	if code != output.ExitOK {
+		t.Fatalf("com baseline: exit=%d, quero 0\n%s", code, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := env.Data.(map[string]any)
+	findings, _ := data["findings"].([]any)
+	if len(findings) != 3 {
+		t.Errorf("o baseline não pode ESCONDER achado do relatório: %d", len(findings))
+	}
+	for _, f := range findings {
+		if m, _ := f.(map[string]any); m["baseline"] != true {
+			t.Errorf("achado antigo sem a marca baseline: %v", m)
+		}
+	}
+	b, _ := data["baseline"].(map[string]any)
+	if b["known"] != float64(3) || b["new"] != float64(0) {
+		t.Errorf("resumo do baseline: %v", b)
+	}
+
+	// --no-baseline volta a reprovar tudo.
+	if code, _ := runMain(t, "audit", "--no-baseline", "--project", proj, "--json"); code != output.ExitGeneric {
+		t.Errorf("--no-baseline: exit=%d, quero %d", code, output.ExitGeneric)
+	}
+
+	// Achado NOVO num arquivo já coberto pelo baseline reprova.
+	novo := "<script src=\"https://cdn.example.com/x.js\"></script>\n<form name=\"f\"></form>"
+	if err := os.WriteFile(filepath.Join(proj, "forms", "F", "G.html"), []byte(novo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout = runMain(t, "audit", "--project", proj, "--json")
+	if code != output.ExitGeneric {
+		t.Fatalf("achado novo: exit=%d, quero %d\n%s", code, output.ExitGeneric, stdout)
+	}
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error == nil || !strings.Contains(env.Error.Message, "baseline") {
+		t.Errorf("a mensagem devia dizer quantos achados do baseline não contam: %+v", env.Error)
+	}
+	data, _ = env.Data.(map[string]any)
+	b, _ = data["baseline"].(map[string]any)
+	if b["known"] != float64(3) || b["new"] != float64(1) {
+		t.Errorf("resumo do baseline com achado novo: %v", b)
+	}
+
+	// Dívida quitada: o arquivo antigo some e o audit avisa para regravar.
+	os.Remove(filepath.Join(proj, "forms", "F", "F.html"))
+	code, stdout = runMain(t, "audit", "--project", proj)
+	if code != output.ExitGeneric {
+		t.Fatalf("exit=%d\n%s", code, stdout)
+	}
+	if !strings.Contains(stdout, "dívida quitada") {
+		t.Errorf("faltou avisar da dívida quitada:\n%s", stdout)
+	}
+}
+
 // Exceções via .fluigcli/audit.json.
 func TestAuditIgnoreConfig(t *testing.T) {
 	proj := auditProject(t)
