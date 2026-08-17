@@ -46,6 +46,13 @@ const (
 	// solicitação aberta e visível — o que manda depurar o lado errado.
 	CodePoolTaskNotAssigned = "POOL_TASK_NOT_ASSIGNED"
 	CodeNoHumanTask         = "NO_HUMAN_TASK"
+	// CodeLocalIO marca falha na GRAVAÇÃO LOCAL: o servidor respondeu bem e
+	// quem falhou foi o disco (diretório sem permissão, disco cheio, nome
+	// inválido). O exit é o 1, e não o 5: repetir a chamada não resolve, porque
+	// o problema está na máquina de quem chamou. Antes o erro saía como
+	// SERVER_ERROR e fazia quem automatiza gastar retentativas (relato de
+	// 2026-08-17, num lote de 2.382 downloads do GED).
+	CodeLocalIO = "LOCAL_IO_ERROR"
 	// CodeProtectedDataset marca a recusa do `dataset delete` por TIPO: o id
 	// existe, mas é BUILTIN (da plataforma) ou GENERATED (de um formulário). O
 	// exit é o 2, e não o 4: o recurso foi encontrado. Repetir não adianta — o
@@ -107,6 +114,12 @@ func BlockedTaskf(code, format string, args ...any) *Error {
 // alvo é do tipo errado. Exit 2: o comando está incorreto, não o servidor.
 func ProtectedResourcef(format string, args ...any) *Error {
 	return newError(CodeProtectedDataset, ExitUsage, format, args...)
+}
+
+// LocalIOf reporta falha de escrita local: exit 1, com código próprio para
+// quem automatiza não confundir com erro de servidor (e não repetir em vão).
+func LocalIOf(format string, args ...any) *Error {
+	return newError(CodeLocalIO, ExitGeneric, format, args...)
 }
 
 func ServerErrorf(format string, args ...any) *Error {

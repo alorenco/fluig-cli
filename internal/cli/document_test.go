@@ -120,6 +120,34 @@ func (s *documentStub) server(t *testing.T) *httptest.Server {
 				return
 			}
 			w.Write([]byte("BYTES-DO-PDF"))
+		// 77995: descrição com "/" e sem extensão, stream sem
+		// Content-Disposition (caso real do relato de 2026-08-17).
+		case path == "77995":
+			io.WriteString(w, `{"companyId":1,"id":77995,"version":1000,"type":"FileDocument","description":"Aditivo 9387 - Cancelado em Nov/24.","parentId":1}`)
+		case path == "77995/stream":
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Write([]byte("PDF-77995"))
+		// 77996: stream com Content-Disposition sem aspas e com acento em
+		// CP-1252 — o nome físico ganha da descrição.
+		case path == "77996":
+			io.WriteString(w, `{"companyId":1,"id":77996,"version":1000,"type":"FileDocument","description":"Contrato 12.056","parentId":1}`)
+		case path == "77996/stream":
+			w.Header().Set("Content-Disposition", "attachment; filename=Aditivo de Renegocia\xe7\xe3o No. 9387.pdf")
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Write([]byte("PDF-77996"))
+		// 77997 e 77998: descrição IDÊNTICA — no lote, um sobrescrevia o
+		// outro em silêncio.
+		case path == "77997" || path == "77998":
+			io.WriteString(w, `{"companyId":1,"id":`+path+`,"version":1000,"type":"FileDocument","description":"Aditivo (Cópia)","parentId":1}`)
+		case path == "77997/stream" || path == "77998/stream":
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Write([]byte("PDF-" + strings.TrimSuffix(path, "/stream")))
+		// 77999: sem descrição e sem nome físico — sobra o id.
+		case path == "77999":
+			io.WriteString(w, `{"companyId":1,"id":77999,"version":1000,"type":"FileDocument","description":"","parentId":1}`)
+		case path == "77999/stream":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Write([]byte("JPG-77999"))
 		case path == "999999" || path == "999999/stream":
 			http.Error(w, `{"code":"NotFound","message":"documento não encontrado"}`, http.StatusNotFound)
 		case strings.HasSuffix(path, "/stream"):
@@ -221,6 +249,140 @@ func TestDocumentDownload(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "não existe no volume") {
 		t.Errorf("mensagem do órfão deveria explicar o NoSuchFile:\n%s", stdout)
+	}
+}
+
+// downloadResults lê o results[] do envelope --json.
+func downloadResults(t *testing.T, stdout string) []map[string]any {
+	t.Helper()
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope inválido: %v\n%s", err, stdout)
+	}
+	data, _ := env.Data.(map[string]any)
+	raw, _ := data["results"].([]any)
+	out := make([]map[string]any, 0, len(raw))
+	for _, r := range raw {
+		item, _ := r.(map[string]any)
+		out = append(out, item)
+	}
+	return out
+}
+
+// Nome do arquivo: barra da descrição vira "_", extensão sai do mime type e o
+// nome físico do Content-Disposition tem preferência (relato de 2026-08-17).
+func TestDocumentDownloadNomeDoArquivo(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	dir := t.TempDir()
+	code, stdout := runMain(t, "document", "download", "77995", "77996", "77999",
+		"--dir", dir, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	quer := map[string]string{
+		// A barra virou "_", o ponto do fim caiu e o mime completou a extensão.
+		"Aditivo 9387 - Cancelado em Nov_24.pdf": "PDF-77995",
+		// Nome físico do header, com o acento CP-1252 decodificado.
+		"Aditivo de Renegociação No. 9387.pdf": "PDF-77996",
+		// Sem descrição e sem nome físico: sobra o id, com extensão do mime.
+		"documento_77999.jpg": "JPG-77999",
+	}
+	for nome, conteudo := range quer {
+		got, err := os.ReadFile(filepath.Join(dir, nome))
+		if err != nil {
+			t.Fatalf("arquivo %q não foi gravado: %v", nome, err)
+		}
+		if string(got) != conteudo {
+			t.Errorf("%q tem %q, quer %q", nome, got, conteudo)
+		}
+	}
+
+	// results[] casa o id pedido com o arquivo gravado.
+	results := downloadResults(t, stdout)
+	if len(results) != 3 {
+		t.Fatalf("esperava 3 results, veio %d", len(results))
+	}
+	first := results[0]
+	if first["id"] != "77995" || first["documentId"] != float64(77995) {
+		t.Errorf("results[0] deveria trazer o id PEDIDO: %+v", first)
+	}
+	if first["fileName"] != "Aditivo 9387 - Cancelado em Nov_24.pdf" {
+		t.Errorf("results[0].fileName inesperado: %+v", first)
+	}
+	if p, _ := first["path"].(string); !filepath.IsAbs(p) {
+		t.Errorf("results[0].path deveria ser absoluto: %q", p)
+	}
+}
+
+// Dois documentos de mesma descrição no mesmo lote não se sobrescrevem.
+func TestDocumentDownloadNomeRepetido(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	dir := t.TempDir()
+	code, stdout := runMain(t, "document", "download", "77997", "77998",
+		"--dir", dir, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	for nome, conteudo := range map[string]string{
+		"Aditivo (Cópia).pdf":     "PDF-77997",
+		"Aditivo (Cópia) (2).pdf": "PDF-77998",
+	} {
+		got, err := os.ReadFile(filepath.Join(dir, nome))
+		if err != nil {
+			t.Fatalf("arquivo %q não foi gravado: %v", nome, err)
+		}
+		if string(got) != conteudo {
+			t.Errorf("%q tem %q, quer %q", nome, got, conteudo)
+		}
+	}
+	results := downloadResults(t, stdout)
+	if len(results) != 2 || results[0]["fileName"] == results[1]["fileName"] {
+		t.Errorf("results[] deveria dar nomes distintos: %+v", results)
+	}
+}
+
+// --name-template manda no nome e aceita subpasta.
+func TestDocumentDownloadNameTemplate(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	dir := t.TempDir()
+	code, stdout := runMain(t, "document", "download", "77995", "--dir", dir,
+		"--name-template", "{id}/{id}_{name}{ext}", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d stdout=%s", code, stdout)
+	}
+	dst := filepath.Join(dir, "77995", "77995_Aditivo 9387 - Cancelado em Nov_24.pdf")
+	if _, err := os.ReadFile(dst); err != nil {
+		t.Fatalf("template não gravou em %s: %v", dst, err)
+	}
+
+	// Marcador desconhecido é erro de uso, não arquivo com "{}" no nome.
+	code, stdout = runMain(t, "document", "download", "77995", "--dir", dir,
+		"--name-template", "{versao}", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("marcador desconhecido: exit=%d, quer %d\n%s", code, output.ExitUsage, stdout)
+	}
+}
+
+// Falha de escrita local sai como LOCAL_IO_ERROR (exit 1), não SERVER_ERROR: o
+// servidor respondeu bem, e repetir não resolve (relato de 2026-08-17).
+func TestDocumentDownloadErroDeEscritaLocal(t *testing.T) {
+	stub := &documentStub{}
+	proj := documentProject(t, stub.server(t).URL)
+	// --dir aponta para um ARQUIVO: o MkdirAll falha.
+	arquivo := filepath.Join(t.TempDir(), "nao-e-pasta")
+	if err := os.WriteFile(arquivo, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout := runMain(t, "document", "download", "926468", "--dir", arquivo,
+		"--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitGeneric {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitGeneric, stdout)
+	}
+	if !strings.Contains(stdout, output.CodeLocalIO) {
+		t.Errorf("erro deveria ter o código %s:\n%s", output.CodeLocalIO, stdout)
 	}
 }
 

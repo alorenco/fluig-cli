@@ -152,11 +152,21 @@ func newDocumentListCmd(app *App) *cobra.Command {
 func newDocumentDownloadCmd(app *App) *cobra.Command {
 	var (
 		dir           string
+		nameTemplate  string
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
 		Use:   "download <id>...",
 		Short: "Baixa documentos do GED pelo id",
+		Long: "Baixa documentos do GED pelo id.\n\n" +
+			"O nome do arquivo vem do arquivo físico do documento. Sem esse dado, a CLI usa\n" +
+			"a descrição e completa a extensão pelo tipo do conteúdo. Caractere que o sistema\n" +
+			"de arquivos não aceita (por exemplo \"/\") vira \"_\".\n\n" +
+			"Dois documentos do mesmo lote com o mesmo nome não se sobrescrevem. O segundo\n" +
+			"ganha o sufixo \" (2)\". Cada item de results[] traz documentId, fileName e path,\n" +
+			"então quem automatiza sabe qual arquivo é de qual documento.\n\n" +
+			"Use --name-template para mandar no nome. Marcadores: " + nameTemplateHelp + ".\n" +
+			"O template aceita \"/\" e cria subpasta. Por exemplo: --name-template \"{id}/{fileName}\".",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			if len(args) == 0 {
@@ -168,48 +178,59 @@ func newDocumentDownloadCmd(app *App) *cobra.Command {
 				return err
 			}
 			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
+				return output.LocalIOf("não foi possível criar o diretório %s: %v", dir, err).WithCause(err)
 			}
 
-			var results []itemResult
+			var results []fileResult
 			var lastErr error
 			failures := 0
+			guard := nameGuard{}
 			for _, arg := range args {
 				id, aerr := strconv.Atoi(arg)
 				if aerr != nil || id <= 0 {
 					return output.Usagef("id de documento inválido %q", arg)
 				}
-				name := arg
-				content, derr := func() ([]byte, error) {
+				var name, path string
+				var size int
+				derr := func() error {
 					info, gerr := client.GetGEDDocument(ctx, id)
 					if gerr != nil {
-						return nil, gerr
+						return gerr
 					}
-					if info.Description != "" {
-						name = info.Description
+					doc, gerr := client.DownloadGEDDocument(ctx, id)
+					if gerr != nil {
+						return gerr
 					}
-					return client.DownloadGEDDocument(ctx, id)
+					size = len(doc.Content)
+					name, gerr = resolveDownloadName(nameTemplate, id, doc.FileName, info.Description, doc.MimeType)
+					if gerr != nil {
+						return gerr
+					}
+					dst, gerr := project.SafeJoin(dir, name)
+					if gerr != nil {
+						return output.Usagef("%s", gerr.Error())
+					}
+					path = guard.unique(dst)
+					return writeDownloadFile(path, doc.Content)
 				}()
-				var path string
-				if derr == nil {
-					if path, derr = project.SafeJoin(dir, name); derr == nil {
-						derr = os.WriteFile(path, content, 0o644)
-					}
-				}
 				if derr != nil {
 					failures++
 					lastErr = mapFluigError(derr)
-					results = append(results, itemResult{ID: arg, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					results = append(results, fileResult{ID: arg, DocumentID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
 					p.Warnf("documento %s: %s", arg, output.AsError(lastErr).Message)
 					continue
 				}
-				results = append(results, itemResult{ID: name, Action: "downloaded", Success: true})
-				p.Successf("documento %d salvo como %q (%d bytes)", id, name, len(content))
+				results = append(results, fileResult{
+					ID: arg, DocumentID: id, Action: "downloaded", Success: true,
+					FileName: filepath.Base(path), Path: absOrSame(path),
+				})
+				p.Successf("documento %d salvo como %q (%d bytes)", id, path, size)
 			}
 			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(args))
 		},
 	}
 	cmd.Flags().StringVar(&dir, "dir", ".", "diretório de destino dos downloads")
+	cmd.Flags().StringVar(&nameTemplate, "name-template", "", "template do nome do arquivo; marcadores: "+nameTemplateHelp)
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

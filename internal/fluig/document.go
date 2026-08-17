@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -148,11 +149,23 @@ func (c *Client) GetGEDDocument(ctx context.Context, id int) (*GEDDocumentInfo, 
 	return &info, nil
 }
 
+// GEDDocumentContent é o conteúdo baixado de um documento mais o que a resposta
+// diz sobre o arquivo. FileName é o nome do arquivo FÍSICO, lido do
+// Content-Disposition, e sai CRU do servidor (pode conter "/" ou ":") — quem
+// grava em disco precisa sanear com project.SafeFileName. MimeType vem do
+// Content-Type e serve para completar a extensão quando o nome não tem uma.
+// Os dois campos podem vir vazios: nem todo servidor manda os headers.
+type GEDDocumentContent struct {
+	Content  []byte `json:"-"`
+	FileName string `json:"fileName,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
+}
+
 // DownloadGEDDocument baixa o conteúdo de um documento (round-trip byte a
 // byte validado na homologação). ⚠️ O stream exige Accept != application/json
 // (406 NotAcceptableException); documento cujo arquivo físico sumiu do volume
 // responde 500 NoSuchFileException — vira mensagem clara.
-func (c *Client) DownloadGEDDocument(ctx context.Context, id int) ([]byte, error) {
+func (c *Client) DownloadGEDDocument(ctx context.Context, id int) (*GEDDocumentContent, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
@@ -179,7 +192,15 @@ func (c *Client) DownloadGEDDocument(ctx context.Context, id int) ([]byte, error
 		}
 		return nil, restRequestError("v2/documents/{id}/stream", resp.StatusCode, []byte(body))
 	}
-	return []byte(body), nil
+	mimeType := resp.Header.Get("Content-Type")
+	if mt, _, err := mime.ParseMediaType(mimeType); err == nil {
+		mimeType = mt
+	}
+	return &GEDDocumentContent{
+		Content:  []byte(body),
+		FileName: responseFileName(resp.Header),
+		MimeType: mimeType,
+	}, nil
 }
 
 // UploadGEDDocument publica um arquivo numa pasta do GED em uma etapa

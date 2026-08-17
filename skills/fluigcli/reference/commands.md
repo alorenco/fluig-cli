@@ -258,7 +258,7 @@ apareceram) e 4 processos conferidos por contagem contra o
 | `request move <número> [--target-state N] [--fields-file arq.json\|-] [--field k=v]... [--comment s] [--movement N]` | conclui a tarefa corrente (descoberta sozinha) e envia adiante; tarefa de outro usuário = 404. ⚠️ O 404 é AMBÍGUO no servidor e a CLI desambigua (exit 4 nos 3 casos): `POOL_TASK_NOT_ASSIGNED` = tarefa em pool que ninguém assumiu (a mensagem traz o pool) · `NO_HUMAN_TASK` = etapa automática em curso · `NOT_FOUND` = não existe mesmo. Várias tarefas no MESMO movimento (pool + usuário) NÃO são ambiguidade — segue direto. Só movimentos DIFERENTES (paralelas) pedem `--movement`: exit 2 com `data.options[]` = `{movement, stateName, assignee, status, slaStatus}` para escolher sem ler texto. ⚠️ Eventos do FORMULÁRIO não rodam (igual ao start) |
 | `request cancel <número>... [--comment s] [--yes]` | cancela solicitações (PERMANENTE, status CANCELED; exige `--yes` em não-interativo). ⚠️ Só o SOLICITANTE ou o gestor do processo cancela — admin não basta (regra da plataforma; recusa = exit 5 com a mensagem). A CLI confirma relendo o status (`data.results[].status == "CANCELED"`); lote com falha parcial = exit 6 |
 | `request assignees <número> [--target-state N]` | possíveis responsáveis da próxima atividade |
-| `request attachments <número> [--download] [--seq N] [--dir pasta]` | lista/baixa os anexos (o "(formulário)" da lista não é baixado; --seq inexistente = exit 4) |
+| `request attachments <número> [--download] [--seq N] [--dir pasta]` | lista/baixa os anexos (o "(formulário)" da lista não é baixado; --seq inexistente = exit 4). No download, `results[]` traz `sequence`+`fileName`+`path`; caractere proibido no nome vira `_` e anexo de nome repetido ganha ` (2)` |
 
 ## task — fila de tarefas (operação)
 
@@ -350,7 +350,7 @@ as flags, e inclui as vigências expiradas).
 | `document find --name "glob" --under <folderId> [--depth N]` | procura por NOME na árvore (glob `*`/`?`, case-insensitive); resultado com caminho completo |
 | `document show <id>` | metadados + a PASTA PAI (nome e id) — "onde este documento está?" sem o dataset document; `data.id` e `data.documentId` são sinônimos |
 | `document move <id>... --folder <destino>` | move itens para outra pasta (SOAP moveDocument — sem rota REST; o PATCH de propriedades recusa parentId). Lote com results[] + exit 6 parcial; a CLI confirma relendo o parentId |
-| `document download <id>... [--dir pasta]` | baixa pelo id (nome vem dos metadados; byte a byte) |
+| `document download <id>... [--dir pasta] [--name-template "{id}_{fileName}"]` | baixa pelo id (byte a byte). **Lote em UMA chamada**: cada `results[]` traz `documentId`, `fileName` e `path` (absoluto), então dá para casar id → arquivo sem baixar um por vez. O nome sai do arquivo FÍSICO; sem ele, da descrição, e a extensão é completada pelo mime type. Caractere proibido (`/`, `:`) vira `_`; nome repetido no MESMO lote ganha ` (2)` em vez de sobrescrever. `--name-template` aceita `{id}`, `{name}`, `{ext}`, `{fileName}` e cria subpasta com `/`. ⚠️ Falha de gravação local = `LOCAL_IO_ERROR` **exit 1** (não é erro de servidor — não repita) |
 | `document upload <file>... --folder <id>` | publica na pasta (upload + publish em uma etapa) |
 | `document mkdir <parentId> <nome>` | cria pasta |
 | `document delete <id>...` | envia para a lixeira (exige `--yes` em modo não-interativo) |

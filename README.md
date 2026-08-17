@@ -141,7 +141,7 @@ fluigcli diff --json | jq '.data.counts'
 |---|---|---|
 | `request` | `list` `show` `start` `move` `cancel` `assignees` `attachments` | [docs/request.md](docs/request.md) |
 | `task` | `list` `summary` `assume` | [docs/task.md](docs/task.md) |
-| `document` | `list` (`--recursive`) `find` `show` `move` `download` `upload` `mkdir` `delete` | [docs/document.md](docs/document.md) |
+| `document` | `list` (`--recursive`) `find` `show` `move` `download` (`--name-template`) `upload` `mkdir` `delete` | [docs/document.md](docs/document.md) |
 | `log` | `files` (`--all`, `--pattern`) `tail` (`--follow`, `--level`, `--grep`, `--since`/`--until`, `--ndjson`) `download` | [docs/log.md](docs/log.md) |
 
 **Administração**. Gerencie a plataforma. Requer usuário com privilégio administrativo:
@@ -183,7 +183,7 @@ Exit codes estáveis. A CLI os documenta e os cobre por teste:
 | Código | Significado |
 |---|---|
 | 0 | Sucesso total |
-| 1 | Erro genérico/inesperado |
+| 1 | Erro genérico/inesperado (com `error.code` `LOCAL_IO_ERROR`, falhou a gravação no disco local) |
 | 2 | Uso incorreto (argumento faltando, flag inválida) |
 | 3 | Falha de autenticação/sessão |
 | 4 | Recurso não encontrado |

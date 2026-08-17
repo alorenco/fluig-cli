@@ -559,32 +559,42 @@ func newRequestAttachmentsCmd(app *App) *cobra.Command {
 			}
 
 			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
+				return output.LocalIOf("não foi possível criar o diretório %s: %v", dir, err).WithCause(err)
 			}
-			var results []itemResult
+			var results []fileResult
 			var lastErr error
 			failures := 0
+			guard := nameGuard{}
 			for _, a := range targets {
-				name := a.Name
+				// O nome vem do servidor e pode ter caractere que o sistema de
+				// arquivos não aceita (o mesmo defeito visto no `document
+				// download` em 2026-08-17). Anexos de mesmo nome também não se
+				// sobrescrevem mais.
+				name := project.SafeFileName(a.Name)
 				if name == "" {
 					name = fmt.Sprintf("anexo_%d", a.Sequence)
 				}
+				var path string
 				content, derr := client.DownloadRequestAttachment(ctx, id, a.Sequence)
 				if derr == nil {
-					var path string
-					if path, derr = project.SafeJoin(dir, name); derr == nil {
-						derr = os.WriteFile(path, content, 0o644)
+					var dst string
+					if dst, derr = project.SafeJoin(dir, name); derr == nil {
+						path = guard.unique(dst)
+						derr = writeDownloadFile(path, content)
 					}
 				}
 				if derr != nil {
 					failures++
 					lastErr = mapFluigError(derr)
-					results = append(results, itemResult{ID: name, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					results = append(results, fileResult{ID: name, Sequence: a.Sequence, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
 					p.Warnf("anexo %q: %s", name, output.AsError(lastErr).Message)
 					continue
 				}
-				results = append(results, itemResult{ID: name, Action: "downloaded", Success: true})
-				p.Successf("anexo %q salvo em %s (%d bytes)", name, dir, len(content))
+				results = append(results, fileResult{
+					ID: name, Sequence: a.Sequence, Action: "downloaded", Success: true,
+					FileName: filepath.Base(path), Path: absOrSame(path),
+				})
+				p.Successf("anexo %q salvo em %s (%d bytes)", filepath.Base(path), dir, len(content))
 			}
 			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(targets))
 		},

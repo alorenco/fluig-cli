@@ -6,12 +6,14 @@ package fluig
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // Options configura um Client. LogWriter recebe o log de requisições quando
@@ -146,6 +148,52 @@ func readBody(resp *http.Response, limit int64) (string, error) {
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 	return string(data), err
+}
+
+// responseFileName lê o nome do arquivo do Content-Disposition da resposta.
+// Devolve "" quando o header não existe ou não traz nome. O valor sai CRU (pode
+// conter "/" ou ":"), então quem grava em disco precisa sanear antes.
+func responseFileName(h http.Header) string {
+	cd := h.Get("Content-Disposition")
+	if cd == "" {
+		return ""
+	}
+	// O caminho normal cobre filename="x.pdf" e o filename*=UTF-8''… (o
+	// ParseMediaType decodifica o RFC 2231 e devolve na chave "filename").
+	if _, params, err := mime.ParseMediaType(cd); err == nil {
+		if name := params["filename"]; name != "" {
+			return decodeLatin1(name)
+		}
+	}
+	// Fallback tolerante: o Fluig manda o nome SEM aspas, e nome com espaço
+	// derruba o ParseMediaType ("invalid media parameter").
+	for _, part := range strings.Split(cd, ";") {
+		part = strings.TrimSpace(part)
+		lower := strings.ToLower(part)
+		if !strings.HasPrefix(lower, "filename=") {
+			continue
+		}
+		name := strings.TrimSpace(part[len("filename="):])
+		name = strings.Trim(name, `"`)
+		if name != "" {
+			return decodeLatin1(name)
+		}
+	}
+	return ""
+}
+
+// decodeLatin1 converte texto de header que não é UTF-8 válido, tratando cada
+// byte como Latin-1/CP-1252. O Fluig manda o nome do arquivo cru no header, e
+// acento fora de UTF-8 chegaria como byte inválido (ex.: "Renegociação").
+func decodeLatin1(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		b.WriteRune(rune(s[i]))
+	}
+	return b.String()
 }
 
 // loggingTransport loga método, URL, status e duração no stderr. Headers e

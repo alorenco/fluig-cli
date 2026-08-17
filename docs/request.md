@@ -327,6 +327,12 @@ fluigcli request attachments 196540 --seq 2               # um específico
 Sequence inexistente → exit **4**. A CLI valida o sequence contra a lista antes
 de baixar.
 
+O nome do anexo vem do servidor. Por isso, o caractere que o sistema de arquivos
+não aceita (por exemplo `/`) vira `_`. Dois anexos de mesmo nome não se
+sobrescrevem: o segundo recebe o sufixo ` (2)`. Cada item de `data.results[]`
+traz o `sequence`, o `fileName` gravado e o `path` absoluto. A falha de gravação
+em disco sai como `LOCAL_IO_ERROR`, com exit **1**.
+
 ## Status e SLA (valores da API)
 
 - `status`: `OPEN` (em andamento), `CANCELED`, `FINALIZED`.

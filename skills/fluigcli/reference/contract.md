@@ -44,6 +44,7 @@ Regras para o agente:
 |---|---|---|---|
 | 0 | `ExitOK` | — | sucesso total |
 | 1 | `ExitGeneric` | `INTERNAL_ERROR` | erro inesperado |
+| 1 | `ExitGeneric` | `LOCAL_IO_ERROR` | a gravação no DISCO LOCAL falhou (pasta sem permissão, disco cheio). O servidor respondeu bem — **não repita**, conserte o destino |
 | 2 | `ExitUsage` | `USAGE_ERROR` | flag/argumento inválido; faltou argumento em modo não-interativo |
 | 2 | `ExitUsage` | `PROTECTED_DATASET` | `dataset delete`: o alvo existe, mas é `BUILTIN` ou `GENERATED` — o comando remove só `CUSTOM` (ver abaixo) |
 | 3 | `ExitAuth` | `AUTH_FAILED` | login/sessão falhou |

@@ -19,7 +19,9 @@ Regras de ouro:
 
 Exit codes: `0` ok · `2` uso · `3` auth · `4` não encontrado · `5` erro do
 servidor · `6` falha parcial (ver `data`) · `7` falta o componente auxiliar (fluigcliHelper)
-(rode `fluigcli server install-helper <name>`).
+(rode `fluigcli server install-helper <name>`). Exit `1` com
+`error.code == "LOCAL_IO_ERROR"` = a gravação no DISCO LOCAL falhou; o servidor
+respondeu bem, então **não repita** — conserte o destino.
 
 ⚠️ Exit `5` com `error.code == "TIMEOUT"` = quem desistiu foi o CLIENTE; o
 resultado da operação é **desconhecido** e o servidor pode ter concluído.
@@ -100,7 +102,9 @@ uma entrada JSON por linha, começa agora, exit 0 se apareceu e **exit 4** se
 o tempo acabou antes),
 `document` (list|find|show|move|download|upload|mkdir|delete — GED; `list <id> --recursive`
 desce a árvore com o caminho de cada item; `find --name "glob" --under <id>` acha
-por nome, case-insensitive),
+por nome, case-insensitive; `download <id>...` baixa um LOTE numa chamada e cada
+`results[]` traz `documentId`+`fileName`+`path` — use `--name-template
+"{id}_{fileName}"` para mandar no nome),
 `user` (list|show|create|update|activate|deactivate|audit + roles|groups|
 add-role|remove-role|add-group|remove-group — requer admin; senha do novo
 usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
