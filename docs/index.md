@@ -63,8 +63,8 @@ em pt-BR.
 | [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino, formulário × etapas do processo e baseline da dívida antiga |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |
-| [request](./request) | solicitações: consultar, iniciar, movimentar, **cancelar** e anexos |
-| [task](./task) | fila de tarefas (a sua, a dos outros e os pools) e **assumir tarefa de pool** |
+| [request](./request) | solicitações: consultar, iniciar, movimentar, **cancelar**, anexos e **destravar atividade automática** (`move --manager`) |
+| [task](./task) | fila de tarefas (a sua, a dos outros, os pools e as **paradas em atividade automática**) e **assumir tarefa de pool** |
 | [document](./document) | GED: navegar (com árvore recursiva), **procurar por nome**, ver, **mover**, baixar e publicar |
 | [log](./log) | logs do servidor: tail com filtros, follow e download |
 | [user](./user) | usuários da plataforma, com os papéis e grupos de cada um (requer admin) |

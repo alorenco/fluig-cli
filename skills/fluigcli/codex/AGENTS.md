@@ -85,10 +85,13 @@ validação (falso positivo garantido; os eventos de PROCESSO rodam). Linha de
 tabela-filha no `--fields-file`: sufixo `campo___N` no MESMO JSON plano.
 404 no `move` é desambiguado por `error.code`: `POOL_TASK_NOT_ASSIGNED` =
 tarefa em pool sem dono (a solicitação EXISTE; não é permissão — use
-`task assume <número>`) · `NO_HUMAN_TASK` = atividade automática em curso ·
+`task assume <número>`) · `NO_HUMAN_TASK` = atividade automática; se ela já
+executou e travou na transição de saída, destrave com `request move <número>
+--manager --yes` (modo gestor, SOAP; único caminho — o motor não reagenda) ·
 `NOT_FOUND` = não existe mesmo),
 `task` (list|summary|assume — fila de tarefas; sem flags = as suas em aberto; `--group TI`/
-`--role controladoria` = paradas no pool do grupo/papel; summary = contadores da
+`--role controladoria` = paradas no pool do grupo/papel; `--automatic` = paradas em
+atividade automática (System:Auto, de todos — candidatas a `request move --manager`); summary = contadores da
 central + pools visíveis; `assume <número>` assume PARA VOCÊ a tarefa de pool —
 destrava o `request move` após POOL_TASK_NOT_ASSIGNED; requer pertencer ao
 papel/grupo; ⚠️ SEM devolução ao pool — não existe API; assuma com critério),

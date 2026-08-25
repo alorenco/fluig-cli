@@ -222,11 +222,14 @@ O número da etapa de destino (`--target-state`) é a sequence da service task
 no diagrama. Consulte com `fluigcli audit --process <id>` (a sugestão lista as
 etapas) ou no Explorador de Processos do `fluigcli dev`.
 
-⚠️ Solicitação parada **na própria atividade automática** (service task em
-execução ou pendurada, sem tarefa humana) não tem destrave pela CLI nem pela
-API: o `request move` responde `NO_HUMAN_TASK`. Diagnostique pelo
-`fluigcli log tail` e aguarde o motor — ou cancele com `request cancel` (se
-você é o solicitante ou o gestor).
+⚠️ Solicitação parada **na própria atividade automática** (service task com
+responsável `System:Auto`, sem tarefa humana): o `request move` normal
+responde `NO_HUMAN_TASK`. Se a atividade ainda executa, aguarde o motor. Se
+ela já executou e a transição de saída falhou (por exemplo, erro no
+`beforeStateEntry` do destino), o motor não reagenda. Reexecute a transição em
+modo gestor: `fluigcli request move <número> --manager`. Encontre essas
+solicitações com `fluigcli task list --automatic`. Detalhes em
+[docs/request.md](request.md).
 
 ## Encoding: o que acontece com acentos e símbolos
 

@@ -164,6 +164,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 	var (
 		assignee      string
 		everyone      bool
+		automatic     bool
 		group         string
 		role          string
 		status        string
@@ -179,7 +180,9 @@ func newTaskListCmd(app *App) *cobra.Command {
 		Long: "Sem flags, lista as SUAS tarefas em aberto (\"o que está comigo?\").\n" +
 			"Use --assignee para ver a fila de outro usuário, --everyone para todos,\n" +
 			"--group ou --role para as tarefas paradas no pool de um grupo ou papel,\n" +
-			"e --status para outros estados (completed, transferred... ou all).",
+			"--automatic para as solicitações paradas em atividade automática\n" +
+			"(responsável System:Auto, de todos os usuários) e --status para outros\n" +
+			"estados (completed, transferred... ou all).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -197,6 +200,9 @@ func newTaskListCmd(app *App) *cobra.Command {
 			}
 			if everyone && assignee != "" {
 				return output.Usagef("use --assignee ou --everyone, não os dois")
+			}
+			if automatic && (assignee != "" || group != "" || role != "") {
+				return output.Usagef("--automatic não combina com --assignee, --group nem --role: a atividade automática não tem responsável humano")
 			}
 			if group != "" && role != "" {
 				return output.Usagef("use --group ou --role, não os dois")
@@ -238,8 +244,15 @@ func newTaskListCmd(app *App) *cobra.Command {
 					}
 				}
 			} else {
-				if who == "" && !everyone {
+				if who == "" && !everyone && !automatic {
 					who = server.Username // default: as minhas tarefas
+				}
+				// --automatic filtra no cliente (a v2 filtra assignee por
+				// userCode, e System:Auto não é usuário), então busca tudo e
+				// aplica o limite depois.
+				fetchLimit := limit
+				if automatic {
+					fetchLimit = 0
 				}
 				tasks, err = client.ListTasks(ctx, fluig.TaskFilter{
 					Assignee:  who,
@@ -247,14 +260,22 @@ func newTaskListCmd(app *App) *cobra.Command {
 					ProcessID: process,
 					Status:    st,
 					SLAStatus: sl,
-					Limit:     limit,
+					Limit:     fetchLimit,
 				})
+				if err == nil && automatic {
+					tasks = fluig.OnlyAutomaticTasks(tasks)
+					if limit > 0 && len(tasks) > limit {
+						tasks = tasks[:limit]
+					}
+				}
 			}
 			if err != nil {
 				return mapFluigError(err)
 			}
 			if len(tasks) == 0 {
-				if group != "" {
+				if automatic {
+					p.Infof("Nenhuma solicitação parada em atividade automática com esses filtros. 🎉")
+				} else if group != "" {
 					p.Infof("Nenhuma tarefa parada no pool do grupo %q. 🎉", group)
 				} else if role != "" {
 					p.Infof("Nenhuma tarefa parada no pool do papel %q. 🎉", role)
@@ -290,6 +311,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável (default: você)")
 	cmd.Flags().BoolVar(&everyone, "everyone", false, "tarefas de todos os usuários (sem filtro de responsável)")
+	cmd.Flags().BoolVar(&automatic, "automatic", false, "solicitações paradas em atividade automática (responsável System:Auto), de todos os usuários — candidatas a request move --manager")
 	cmd.Flags().StringVar(&group, "group", "", "tarefas paradas no pool de um grupo (código do grupo, ex.: TI)")
 	cmd.Flags().StringVar(&role, "role", "", "tarefas paradas no pool de um papel (código do papel, ex.: controladoria)")
 	cmd.Flags().StringVar(&status, "status", "not_completed", "status: not_completed, pending_consensus, completed, transferred, canceled ou all")

@@ -19,6 +19,7 @@ import (
 type taskStub struct {
 	query        url.Values
 	summaryEmpty bool // fillTypeTasks responde [] (usuário sem central)
+	withAutomatic bool // /v2/tasks devolve uma tarefa System:Auto + uma humana
 }
 
 func (s *taskStub) server(t *testing.T) *httptest.Server {
@@ -35,6 +36,18 @@ func (s *taskStub) server(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/process-management/api/v2/tasks", func(w http.ResponseWriter, r *http.Request) {
 		s.query = r.URL.Query()
+		if s.withAutomatic {
+			// Shape real da v2 (produção, 2026-08-25): a atividade automática
+			// tem assignee.code System:Auto e login vazio.
+			io.WriteString(w, `{"items":[`+
+				`{"processInstanceId":228691,"processId":"Compras","movementSequence":2,"status":"NOT_COMPLETED","slaStatus":"ON_TIME",`+
+				`"assignee":{"code":"System:Auto","name":"","login":""},"requester":{"code":"r1","name":"Ana Andrade","login":"aandrade"},`+
+				`"state":{"sequence":72,"stateName":"Anexar Relatórios"},"startDate":"2026-07-03T14:52:07.767-0400"},`+
+				`{"processInstanceId":228700,"processId":"Compras","movementSequence":4,"status":"NOT_COMPLETED","slaStatus":"ON_TIME",`+
+				`"assignee":{"code":"c3","name":"João Silva","login":"jsilva"},"requester":{"code":"r1","name":"Ana Andrade","login":"aandrade"},`+
+				`"state":{"sequence":17,"stateName":"Aguardar Nota"},"startDate":"2026-08-25T09:45:46.387-0400"}],"hasNext":false}`)
+			return
+		}
 		b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "rest_tasks.json"))
 		if err != nil {
 			t.Fatal(err)

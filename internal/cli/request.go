@@ -407,14 +407,22 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 		targetState   int
 		assignee      string
 		movement      int
+		manager       bool
+		thread        int
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
 		Use:   "move <número>",
-		Short: "Movimenta uma solicitação para a próxima etapa (nativo, REST v2)",
+		Short: "Movimenta uma solicitação para a próxima etapa (nativo, REST v2; --manager usa SOAP)",
 		Long: "Conclui a tarefa corrente da solicitação e a envia adiante. Sem\n" +
 			"--movement, a CLI descobre a tarefa em aberto sozinha (obrigatório\n" +
 			"informar quando houver mais de uma, ex.: atividades paralelas).\n\n" +
+			"--manager movimenta em MODO GESTOR (SOAP saveAndSendTask): conclui a\n" +
+			"tarefa corrente mesmo quando ela não é sua — inclusive a de uma\n" +
+			"atividade automática que já executou e travou na transição de saída\n" +
+			"(NO_HUMAN_TASK). Sem --target-state, a CLI usa a única saída da etapa\n" +
+			"no diagrama; com mais de uma, ela lista as opções. Exige confirmação\n" +
+			"(--yes em modo não-interativo). Não aceita --field nem --assignee.\n\n" +
 			"⚠️ Como no request start, os eventos do FORMULÁRIO não rodam\n" +
 			"(displayFields, validateForm). Os eventos do processo rodam.",
 		Args: cobra.ExactArgs(1),
@@ -429,6 +437,9 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 				return err
 			}
 			ctx := context.Background()
+			if manager && (len(formFields) > 0 || assignee != "") {
+				return output.Usagef("--manager não aceita --field, --fields-file nem --assignee: o modo gestor conclui a tarefa corrente como ela está")
+			}
 			_, client, err := app.connectWrite(ctx, passwordStdin, "movimentar uma solicitação")
 			if err != nil {
 				return err
@@ -440,6 +451,9 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 				if err != nil {
 					return err
 				}
+			}
+			if manager {
+				return runManagerMove(ctx, app, p, client, id, seq, targetState, thread, comment)
 			}
 
 			res, err := client.MoveRequestTo(ctx, id, fluig.RequestMoveOptions{
@@ -469,8 +483,94 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&targetState, "target-state", 0, "etapa de destino (sequence; default: o fluxo do diagrama)")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "login do responsável pela próxima atividade")
 	cmd.Flags().IntVar(&movement, "movement", 0, "movimento (tarefa) a concluir, quando houver mais de um em aberto")
+	cmd.Flags().BoolVar(&manager, "manager", false, "modo gestor (SOAP saveAndSendTask): conclui a tarefa corrente mesmo quando ela não é sua — destrava atividade automática travada (NO_HUMAN_TASK)")
+	cmd.Flags().IntVar(&thread, "thread", 0, "com --manager: ramo paralelo da tarefa (threadSequence; 0 = fluxo único)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// runManagerMove executa o `request move --manager`: descobre a etapa
+// corrente do movimento, resolve o destino (flag ou única saída do diagrama),
+// pede confirmação e chama o saveAndSendTask em modo gestor.
+//
+// Motivo (caso real de produção, 2026-08-25): 15 solicitações paradas 53 dias
+// numa service task cuja transição de saída falhava no beforeStateEntry do
+// destino. O motor não reagenda; a REST não movimenta tarefa de outro
+// responsável; só o modo gestor do SOAP destrava (ROADMAP §4.14, superado).
+func runManagerMove(ctx context.Context, app *App, p *output.Printer, client *fluig.Client,
+	id, movement, targetState, thread int, comment string) error {
+	req, err := client.GetRequest(ctx, id)
+	if err != nil {
+		return mapFluigError(err)
+	}
+	cur := stepWithMovement(dedupStepsByMovement(req.CurrentSteps), movement)
+	if cur == nil {
+		return output.Usagef("a solicitação %d não tem o movimento %d em aberto", id, movement)
+	}
+	// Quem segura a tarefa hoje — vai para a confirmação (best-effort).
+	who := "?"
+	if tasks, terr := client.RequestTasks(ctx, id); terr == nil {
+		if a, _ := taskInfoForMovement(tasks, movement); a != "" {
+			who = a
+		}
+	}
+	target := targetState
+	if target == 0 {
+		state, err := client.StateDetail(ctx, req.ProcessID, req.ProcessVersion, cur.Sequence)
+		if err != nil {
+			return mapFluigError(err)
+		}
+		switch len(state.Transitions) {
+		case 0:
+			return output.Usagef("a etapa %d (%q) não tem transição de saída no diagrama do processo %q v%d — informe --target-state",
+				cur.Sequence, cur.StateName, req.ProcessID, req.ProcessVersion)
+		case 1:
+			target = state.Transitions[0].To
+		default:
+			rows := make([][]string, 0, len(state.Transitions))
+			options := make([]map[string]any, 0, len(state.Transitions))
+			for _, tr := range state.Transitions {
+				def := ""
+				if tr.Default {
+					def = "sim"
+				}
+				rows = append(rows, []string{strconv.Itoa(tr.To), tr.Label, def})
+				options = append(options, map[string]any{"targetState": tr.To, "label": tr.Label, "default": tr.Default})
+			}
+			p.Table(output.Table{
+				Headers: []string{"Destino (sequence)", "Rótulo", "Default"},
+				Rows:    rows,
+				Style:   output.BoldHeaderStyle(nil),
+			})
+			msg := fmt.Sprintf("a etapa %d (%q) tem %d saídas no diagrama — escolha com --target-state %d (ou %d)",
+				cur.Sequence, cur.StateName, len(state.Transitions), state.Transitions[0].To, state.Transitions[1].To)
+			p.FailData(map[string]any{"requestId": id, "sequence": cur.Sequence, "options": options}, output.CodeUsage, msg)
+			return output.Usagef("%s", msg)
+		}
+	}
+	if err := app.confirm(fmt.Sprintf("Movimentar a solicitação %d em MODO GESTOR: etapa %d (%q, responsável atual: %s) → etapa %d?",
+		id, cur.Sequence, cur.StateName, who, target)); err != nil {
+		return err
+	}
+	res, err := client.MoveRequestAsManager(ctx, id, fluig.ManagerMoveOptions{
+		TargetState: target, Comment: comment, ThreadSequence: thread,
+	})
+	if err != nil {
+		if isTimeoutErr(err) {
+			return reportMoveTimeout(ctx, app, p, client, id, movement, err)
+		}
+		return app.mapErr(err)
+	}
+	dest := fmt.Sprintf("etapa %d", res.NextState)
+	if res.NextAssignee != "" {
+		dest += fmt.Sprintf(" (responsável: %s)", res.NextAssignee)
+	}
+	if res.NextState != target {
+		dest += fmt.Sprintf(" — o motor seguiu do destino %d pelas regras do diagrama", target)
+	}
+	p.Successf("solicitação %d movimentada em modo gestor → %s", id, dest)
+	p.Done(map[string]any{"result": res})
+	return nil
 }
 
 // --- request attachments ---

@@ -720,7 +720,7 @@ func (c *Client) PossibleAssignees(ctx context.Context, id, targetState int) ([]
 // o `code` que diz o que está segurando a solicitação.
 const (
 	assigneePoolPrefix = "Pool:"       // "Pool:Role:sucesso_cliente", "Pool:Group:TI"
-	assigneeAutoCode   = "System:Auto" // atividade automática (service task)
+	assigneeAutoCode   = AssigneeAutoCode // atividade automática (service task)
 )
 
 // MoveBlockedError explica por que a movimentação não achou tarefa SUA para
@@ -763,8 +763,10 @@ func (e *MoveBlockedError) Error() string {
 			e.RequestID, e.Sequence, e.StateName, pool, e.RequestID)
 	case MoveBlockedAutomatic:
 		return fmt.Sprintf("a solicitação %d está em atividade automática (etapa %d, %q); "+
-			"não há tarefa humana para concluir. Aguarde o servidor ou verifique o log do evento",
-			e.RequestID, e.Sequence, e.StateName)
+			"não há tarefa humana para concluir. Se a atividade ainda executa, aguarde o servidor. "+
+			"Se ela já executou e a transição de saída falhou (veja: fluigcli log tail --grep %d), "+
+			"reexecute a transição em modo gestor: fluigcli request move %d --manager",
+			e.RequestID, e.Sequence, e.StateName, e.RequestID, e.RequestID)
 	}
 	return fmt.Sprintf("a solicitação %d não tem tarefa atribuída a você", e.RequestID)
 }

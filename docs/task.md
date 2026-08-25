@@ -21,6 +21,7 @@ fluigcli task list --assignee vanderli      # a fila de outro usuário
 fluigcli task list --everyone --sla expired # tudo que está estourado, de todos
 fluigcli task list --group TI               # paradas no pool do grupo TI
 fluigcli task list --role controladoria     # paradas no pool do papel
+fluigcli task list --automatic --process Compras # paradas em atividade automática
 fluigcli task list --process compras_solicitacao --status all
 fluigcli task list --json                   # para agentes/CI
 ```
@@ -29,6 +30,7 @@ fluigcli task list --json                   # para agentes/CI
 |---|---|
 | `--assignee <login>` | responsável (default: **você**); aceita um código de pool (`Pool:Role:financeiro`) |
 | `--everyone` | remove o filtro de responsável (todos os usuários) |
+| `--automatic` | solicitações paradas em **atividade automática** (responsável `System:Auto`), de todos os usuários. Não combina com `--assignee`, `--group` nem `--role` |
 | `--group <código>` | tarefas paradas no pool do grupo — as que nenhum usuário assumiu |
 | `--role <código>` | tarefas paradas no pool do papel — as que nenhum usuário assumiu |
 | `--status s` | `not_completed` (default), `pending_consensus`, `completed`, `transferred`, `canceled` ou `all` |
@@ -40,6 +42,19 @@ fluigcli task list --json                   # para agentes/CI
 A tabela traz a solicitação, o processo, a etapa, o responsável, o solicitante,
 o status (em aberto em verde), o SLA e o início. Use o número da coluna
 Solicitação com o grupo `request` (`request show`, `request move`...).
+
+### Solicitações paradas em atividade automática (`--automatic`)
+
+Uma service task ou um gateway aparece nas tarefas com responsável
+`System:Auto`. Em condição normal essa tarefa dura segundos. Uma tarefa dessas
+aberta há horas ou dias indica uma atividade automática que executou e
+**travou na transição de saída**. O motor não a reagenda. A coluna Início
+mostra há quanto tempo ela está parada. Use o número da solicitação com
+`fluigcli request move <número> --manager` para reexecutar a transição.
+
+A REST filtra responsável por userCode. `System:Auto` não é usuário. Por isso,
+a CLI busca as tarefas de todos os usuários e filtra localmente. `--limit`
+vale depois do filtro.
 
 ### Tarefas paradas num grupo ou papel (`--group`/`--role`)
 

@@ -197,3 +197,21 @@ func stringResultToErr(body []byte, op string, requestID int) error {
 	}
 	return fmt.Errorf("%w: %s (solicitação %d)", errServerRejected, msg, requestID)
 }
+
+// AssigneeAutoCode é o "responsável" das tarefas de atividade automática
+// (service task, gateway) na REST v2 — o login vem vazio e o code identifica.
+const AssigneeAutoCode = "System:Auto"
+
+// OnlyAutomaticTasks devolve só as tarefas cujo responsável é System:Auto.
+// Uma tarefa dessas em aberto há muito tempo é uma atividade automática que
+// executou e travou na transição de saída (o motor não reagenda) — o destrave
+// é o `request move --manager`.
+func OnlyAutomaticTasks(tasks []TaskSummary) []TaskSummary {
+	out := make([]TaskSummary, 0, len(tasks))
+	for _, t := range tasks {
+		if t.Assignee != nil && t.Assignee.Code == AssigneeAutoCode {
+			out = append(out, t)
+		}
+	}
+	return out
+}

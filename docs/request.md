@@ -190,7 +190,42 @@ fluigcli request move 196542 --target-state 13 --field aprNivel1=aprovado
 
 ⚠️ Você só movimenta **a sua** tarefa. A solicitação cuja tarefa aberta é de
 outro usuário responde **404**. Neste caso, o servidor a esconde. Este é o
-comportamento real.
+comportamento real. Para movimentar a tarefa de outro responsável, use
+`--manager` (abaixo).
+
+### Modo gestor (`--manager`)
+
+`--manager` conclui a tarefa corrente **mesmo quando ela não é sua**. Ele usa
+o SOAP `saveAndSendTask` com `managerMode=true`. Este é o único caminho para
+destravar uma solicitação parada em **atividade automática** (service task)
+que já executou e falhou na transição de saída. Por exemplo: o
+`beforeStateEntry` da etapa de destino lançou erro. O motor **não reagenda**
+essa atividade. O `request move` normal responde `NO_HUMAN_TASK`.
+
+```sh
+fluigcli request move 228691 --manager                     # destino = única saída da etapa
+fluigcli request move 228691 --manager --target-state 80   # destino explícito
+fluigcli request move 228691 --manager --yes --json        # agentes/CI
+```
+
+Regras do modo gestor:
+
+- Sem `--target-state`, a CLI lê o diagrama da versão do processo e usa a
+  **única** saída da etapa corrente. Com mais de uma saída, ela lista as
+  opções e responde exit 2 com `data.options[]` (`targetState`, `label`,
+  `default`).
+- O motor avalia gateways normalmente a partir do destino informado. Por
+  isso, a etapa final pode ser outra. O resultado traz `nextState` (onde a
+  solicitação parou), `nextAssignee` e `processLink`.
+- Os eventos de processo da etapa de destino rodam (`beforeStateEntry`...).
+  ⚠️ O "usuário corrente" desses eventos vem **vazio**. Ele não é o
+  solicitante.
+- O comando pede confirmação. Em modo não-interativo, use `--yes`.
+- `--manager` não aceita `--field`, `--fields-file` nem `--assignee`. A tarefa
+  segue como está. Use `--thread` para um ramo paralelo (default 0).
+- Requer permissão de gestor do processo ou administrador.
+
+Para achar as solicitações nesse estado, use `fluigcli task list --automatic`.
 
 ### Quando o 404 não quer dizer "não existe"
 
@@ -201,7 +236,7 @@ O exit code é **4** nos três casos.
 | Código no envelope | Significado | O que fazer |
 |---|---|---|
 | `POOL_TASK_NOT_ASSIGNED` | a tarefa está num pool e ninguém a assumiu | `fluigcli task assume <número>` (requer pertencer ao pool) |
-| `NO_HUMAN_TASK` | a etapa corrente é automática (service task) | aguarde o servidor ou veja o log do evento |
+| `NO_HUMAN_TASK` | a etapa corrente é automática (service task) | se a atividade ainda executa, aguarde; se ela já executou e a transição falhou (veja `log tail --grep <número>`), use `request move <número> --manager` |
 | `NOT_FOUND` | a solicitação não existe, ou a tarefa é de outro usuário | confira o número |
 
 A mensagem traz a etapa e o nome do pool:

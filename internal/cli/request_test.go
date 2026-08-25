@@ -32,7 +32,9 @@ type requestStub struct {
 	needsAssignee  bool   // start responde 412 com possibleAssignees
 	soapStartBody  string // envelope recebido no startProcess SOAP
 	soapTaskBody   string // envelope recebido no takeProcessTask
+	soapMoveBody   string // envelope recebido no saveAndSendTask (--manager)
 	takeRejects    bool   // o take/release responde recusa de negócio
+	managerRejects bool   // o saveAndSendTask responde o par ERROR
 	assigneesQuery url.Values
 	// writeDelay atrasa move/start para o cliente estourar o --timeout (o
 	// servidor real continua processando depois disso — ROADMAP §2.10-B).
@@ -76,6 +78,12 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 	moveResponse := `{"processInstanceId":196600,"processId":"compras_requisicao_abastecimento","processVersion":5,` +
 		`"nextState":5,"nextStateName":"Aprovar Requisição","cardId":1111300,"toShowPossibleAssignees":false}`
 	mux.HandleFunc("/process-management/api/v2/processes/", func(w http.ResponseWriter, r *http.Request) {
+		// Export da versão (--manager resolve o destino pelas transições).
+		if strings.HasSuffix(r.URL.Path, "/export/xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.Write(readTD("rest_process_export_full.xml"))
+			return
+		}
 		if !strings.HasSuffix(r.URL.Path, "/start") {
 			http.NotFound(w, r)
 			return
@@ -162,7 +170,28 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			`{"processInstanceId":196528,"movementSequence":16,"status":"NOT_COMPLETED","slaStatus":"EXPIRED","assignee":{"code":"c4","name":"Maria Souza","login":"msouza"},"state":{"sequence":30,"stateName":"Aprovar Diretoria"}}],"hasNext":false}`
 		// Solicitação sem tarefa em aberto.
 		const semTarefa = `{"processInstanceId":196529,"processId":"contratos_taxa_limpeza","status":"FINALIZED","currentMovements":[]}`
+		// Casos do --manager (processo da fixture rest_process_export_full.xml):
+		// 196534 parada na service task 19 (única saída 19→37, System:Auto);
+		// 196535 na etapa 5 (duas saídas: 17 e 26), tarefa de outro usuário.
+		const travadaAuto = `{"processInstanceId":196534,"processId":"compras_entrada_documento","processVersion":25,"status":"OPEN",` +
+			`"currentMovements":[{"movementSequence":2,"active":true,"slaStatus":"EXPIRED","state":{"sequence":19,"stateName":"Integrar Totvs RM"}}]}`
+		const tarefasTravadaAuto = `{"items":[{"processInstanceId":196534,"movementSequence":2,"status":"NOT_COMPLETED",` +
+			`"slaStatus":"EXPIRED","assignee":{"code":"System:Auto","name":"","login":""},` +
+			`"state":{"sequence":19,"stateName":"Integrar Totvs RM"}}],"hasNext":false}`
+		const outroUsuario = `{"processInstanceId":196535,"processId":"compras_entrada_documento","processVersion":25,"status":"OPEN",` +
+			`"currentMovements":[{"movementSequence":3,"active":true,"slaStatus":"ON_TIME","state":{"sequence":5,"stateName":"Aprovação Diretoria"}}]}`
+		const tarefasOutroUsuario = `{"items":[{"processInstanceId":196535,"movementSequence":3,"status":"NOT_COMPLETED",` +
+			`"slaStatus":"ON_TIME","assignee":{"code":"c3","name":"João Silva","login":"jsilva"},` +
+			`"state":{"sequence":5,"stateName":"Aprovação Diretoria"}}],"hasNext":false}`
 		switch r.URL.Path {
+		case "/process-management/api/v2/requests/196534":
+			io.WriteString(w, travadaAuto)
+		case "/process-management/api/v2/requests/196534/tasks":
+			io.WriteString(w, tarefasTravadaAuto)
+		case "/process-management/api/v2/requests/196535":
+			io.WriteString(w, outroUsuario)
+		case "/process-management/api/v2/requests/196535/tasks":
+			io.WriteString(w, tarefasOutroUsuario)
 		case "/process-management/api/v2/requests/196526":
 			w.Write(readTD("rest_request_show.json"))
 		case "/process-management/api/v2/requests/196526/tasks":
@@ -221,6 +250,23 @@ func (s *requestStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
 				`<ns2:`+op+`Response xmlns:ns2="http://ws.workflow.ecm.technology.totvs.com/"><result>`+result+
 				`</result></ns2:`+op+`Response></soap:Body></soap:Envelope>`)
+			return
+		}
+		// saveAndSendTask em modo gestor (request move --manager): resposta
+		// REAL de produção (2026-08-25, testdata/soap_saveAndSendTask_manager.xml);
+		// recusa de negócio = par ERROR (mesma convenção do startProcess).
+		if r.Header.Get("SOAPAction") == "saveAndSendTask" {
+			b, _ := io.ReadAll(r.Body)
+			s.soapMoveBody = string(b)
+			w.Header().Set("Content-Type", "text/xml")
+			if s.managerRejects {
+				io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
+					`<ns1:saveAndSendTaskResponse xmlns:ns1="http://ws.workflow.ecm.technology.totvs.com/"><result>`+
+					`<item><item>ERROR</item><item>Tarefa não encontrada</item></item>`+
+					`</result></ns1:saveAndSendTaskResponse></soap:Body></soap:Envelope>`)
+				return
+			}
+			w.Write(readTD("soap_saveAndSendTask_manager.xml"))
 			return
 		}
 		if r.Header.Get("SOAPAction") != "startProcess" {

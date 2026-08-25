@@ -265,3 +265,72 @@ func ParseStartProcess(body []byte) (map[string]string, error) {
 	}
 	return out, nil
 }
+
+// --- saveAndSendTask (modo gestor) ---
+
+// wfSaveAndSendReq segue a ordem das parts do WSDL (testdata/
+// ECMWorkflowEngineService.wsdl, message saveAndSendTask). attachments,
+// cardData e appointment vão vazios: o modo gestor conclui a tarefa corrente
+// como ela está.
+type wfSaveAndSendReq struct {
+	XMLName           xml.Name      `xml:"ws:saveAndSendTask"`
+	Username          string        `xml:"username"`
+	Password          string        `xml:"password"`
+	CompanyID         int           `xml:"companyId"`
+	ProcessInstanceID int           `xml:"processInstanceId"`
+	ChoosedState      int           `xml:"choosedState"`
+	ColleagueIDs      wfStringArray `xml:"colleagueIds"`
+	Comments          string        `xml:"comments"`
+	UserID            string        `xml:"userId"`
+	CompleteTask      bool          `xml:"completeTask"`
+	Attachments       struct{}      `xml:"attachments"`
+	CardData          struct{}      `xml:"cardData"`
+	Appointment       struct{}      `xml:"appointment"`
+	ManagerMode       bool          `xml:"managerMode"`
+	ThreadSequence    int           `xml:"threadSequence"`
+}
+
+// BuildSaveAndSendTask monta o envelope do saveAndSendTask. Com managerMode o
+// motor movimenta a tarefa corrente mesmo quando ela não é do usuário
+// autenticado — inclusive a de responsável `System:Auto` (validado em produção
+// em 2026-08-25). userID e assigneeIDs são userCodes.
+func BuildSaveAndSendTask(companyID int, username, password, userID string, instanceID, choosedState int,
+	assigneeIDs []string, comments string, completeTask, managerMode bool, threadSequence int) ([]byte, error) {
+	return marshalEnvelope(NSWorkflow, wfSaveAndSendReq{
+		Username: username, Password: password, CompanyID: companyID,
+		ProcessInstanceID: instanceID, ChoosedState: choosedState,
+		ColleagueIDs: wfStringArray{Items: assigneeIDs},
+		Comments: comments, UserID: userID, CompleteTask: completeTask,
+		ManagerMode: managerMode, ThreadSequence: threadSequence,
+	})
+}
+
+type wfSaveAndSendResp struct {
+	XMLName xml.Name        `xml:"Envelope"`
+	Items   []wfStringArray `xml:"Body>saveAndSendTaskResponse>result>item"`
+	Fault   *Fault          `xml:"Body>Fault"`
+}
+
+// ParseSaveAndSendTask devolve os pares chave/valor do resultado
+// (stringArrayArray). Shape real: iTask = etapa de destino, cDestino =
+// responsável(is) de destino, WDNrDocto, WDNrVersao, processLink; erro de
+// negócio vem no par ERROR.
+func ParseSaveAndSendTask(body []byte) (map[string]string, error) {
+	var env wfSaveAndSendResp
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("resposta SOAP inválida de saveAndSendTask: %w", err)
+	}
+	if env.Fault != nil {
+		return nil, env.Fault
+	}
+	out := make(map[string]string, len(env.Items))
+	for _, it := range env.Items {
+		switch {
+		case len(it.Items) >= 2:
+			out[it.Items[0]] = it.Items[1]
+		case len(it.Items) == 1:
+			out[it.Items[0]] = ""
+		}
+	}
+	return out, nil
+}
