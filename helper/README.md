@@ -12,6 +12,8 @@ plataforma e que a CLI consome:
 | `GET /api/widgets/{arquivo}.war` | `widget import` (download do pacote) |
 | `GET /api/workflows/{processId}/version` | reservado (a CLI usa o SOAP nativo) |
 | `PUT /api/workflows/{processId}/{version}/events` | `workflow export` (update cirúrgico de eventos) |
+| `POST /api/workflows/{processInstanceId}/observations` | `request observe` (observação sem movimentar, via EJB `WorkflowAPIService` do SDK; helper ≥ 0.11.0) |
+| `GET /api/workflows/{processInstanceId}/observations?stateSequence&threadSequence` | `request observations` (lista da etapa; helper ≥ 0.11.0) |
 | `GET /api/logs` | `log files` (arquivos do `jboss.server.log.dir`) |
 | `GET /api/logs/{arquivo}/tail?lines&skip&level&grep` | `log tail` (entradas agrupadas, filtro server-side) |
 | `GET /api/logs/{arquivo}/read?from` | `log tail --follow` (polling por offset) |
@@ -100,6 +102,13 @@ Use **sempre o `build.sh`**. Ele faz o `mvn package`, copia o WAR para
 `helper/fluigcliHelper.war` e atualiza o `.srchash` que o teste anti-drift
 confere. Um `mvn` na mão deixa o hash velho e o teste
 `TestHelperWARAtualizado` reprova.
+
+⚠️ `src/main/java/com/totvs/...` contém **dois shims vazios**
+(`ResponseEnvelopeVO`, `OrderParam`). Não são código da TOTVS. A interface
+`WorkflowAPIService` do SDK 1.8.2 os referencia nos métodos de SLA, e o WildFly
+carrega a interface inteira para criar o proxy do EJB. Sem eles, o lookup
+`java:global/fluig/bpm-sdk/sdk/Workflow` falha com `NoClassDefFoundError`
+(medido na homologação em 2026-09-17). O helper não chama esses métodos.
 
 O WAR **buildado é versionado no Git** (`helper/fluigcliHelper.war`) e
 embutido no binário via `go:embed` — o release da CLI não precisa de

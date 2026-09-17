@@ -23,7 +23,7 @@ import (
 func newRequestCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "request",
-		Short: "Solicitações de workflow: consultar, iniciar, movimentar e baixar anexos",
+		Short: "Solicitações de workflow: consultar, iniciar, movimentar, observar e baixar anexos",
 	}
 	cmd.AddCommand(newRequestListCmd(app))
 	cmd.AddCommand(newRequestShowCmd(app))
@@ -32,6 +32,8 @@ func newRequestCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newRequestAssigneesCmd(app))
 	cmd.AddCommand(newRequestAttachmentsCmd(app))
 	cmd.AddCommand(newRequestCancelCmd(app))
+	cmd.AddCommand(newRequestObserveCmd(app))
+	cmd.AddCommand(newRequestObservationsCmd(app))
 	return cmd
 }
 

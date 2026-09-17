@@ -1,11 +1,12 @@
 # fluigcli request — solicitações de workflow
 
-O grupo `request` consulta, inicia, movimenta e **cancela** solicitações direto
-do terminal.
+O grupo `request` consulta, inicia, movimenta, **cancela** e **observa**
+solicitações direto do terminal.
 Uma solicitação é uma instância de processo. Este é o primeiro grupo de
 **Operação** da CLI. Você usa a plataforma no dia a dia. Você não faz deploy de
 artefatos aqui. Os comandos usam a REST v2 `process-management`. O start com
-anexo usa o SOAP `startProcess`, pois a REST não tem upload de anexo.
+anexo usa o SOAP `startProcess`, pois a REST não tem upload de anexo. O
+`observe` usa o fluigcliHelper, pois a REST não tem comentário sem movimentar.
 
 ## `fluigcli request list [flags]`
 
@@ -367,6 +368,76 @@ não aceita (por exemplo `/`) vira `_`. Dois anexos de mesmo nome não se
 sobrescrevem: o segundo recebe o sufixo ` (2)`. Cada item de `data.results[]`
 traz o `sequence`, o `fileName` gravado e o `path` absoluto. A falha de gravação
 em disco sai como `LOCAL_IO_ERROR`, com exit **1**.
+
+## `fluigcli request observe <número> [flags]`
+
+Este comando registra uma observação no histórico da solicitação. A solicitação
+**não se move**. Ela continua na mesma etapa e com o mesmo responsável. A
+observação sai em nome do usuário autenticado. Ela aparece no Fluig nas
+observações da atividade.
+
+O caso de uso é um agente ou um script que registra um laudo e deixa a decisão
+para a pessoa responsável.
+
+| Flag | Uso |
+|---|---|
+| `--text <s>` | texto da observação (HTML simples permitido) |
+| `--text-file <arq>` | lê o texto de um arquivo; `-` lê do stdin |
+| `--state N` | etapa (`stateSequence`) da tarefa; exige `--movement` |
+| `--movement N` | movimento (`movementSequence`) da tarefa; exige `--state` |
+| `--thread N` | thread da tarefa (default 0, o fluxo principal) |
+
+Informe `--text` **ou** `--text-file`. O teto do texto é **8.000 caracteres**.
+Acima disso, o servidor recusa com exit **5**.
+
+Sem `--state` e `--movement`, a observação vai para a **tarefa corrente**. Se a
+solicitação tem tarefas paralelas, o servidor exige os dois. Veja as tarefas
+com `request show`. Solicitação finalizada ou cancelada não aceita observação.
+O comando responde exit **5** com o motivo.
+
+```sh
+fluigcli request observe 235189 --text "Laudo: documentação conferida."
+cat laudo.html | fluigcli request observe 235189 --text-file - --json
+fluigcli request observe 235189 --text "ok" --state 34 --movement 5
+```
+
+Com `--json`, `data.observation` traz o registro criado: `id`, `stateSequence`,
+`movementSequence`, `threadSequence`, `colleagueId` e `observationDate` em
+ISO-8601 com o fuso do servidor. O `colleagueId` é o **userCode** do autor.
+É a mesma convenção das observações feitas pela tela do Fluig. A tela mostra
+o nome.
+
+::: warning Requer o fluigcliHelper 0.11.0 ou superior
+A REST do Fluig não tem comentário sem movimentação. O SOAP `setTasksComments`
+exige a senha do usuário. Um usuário de app OAuth não tem senha. Por isso a
+observação vai pelo SDK do Fluig, de dentro do helper. Instale ou atualize com
+`fluigcli server install-helper <servidor> --force`. Helper ausente ou antigo
+responde exit **7**.
+:::
+
+Solicitação inexistente → exit **4**. O servidor de produção pede confirmação
+(`--yes` em modo não-interativo), como toda escrita.
+
+## `fluigcli request observations <número> [flags]`
+
+Este comando lista as observações de uma etapa da solicitação. Ele é a
+conferência do `observe`. A tabela mostra data, autor, etapa, movimento e o
+texto sem as tags HTML. O `--json` traz o texto íntegro.
+
+| Flag | Uso |
+|---|---|
+| `--state N` | etapa (`stateSequence`); default = tarefa corrente |
+| `--thread N` | thread da tarefa (default 0) |
+
+```sh
+fluigcli request observations 235189
+fluigcli request observations 235189 --state 34 --json
+```
+
+Sem `--state`, o comando usa a tarefa corrente. Solicitação finalizada,
+cancelada ou com tarefas paralelas exige `--state`. Neste caso o comando
+responde exit **5** e cita a flag. A coluna Data mostra a hora do servidor. O
+comando também requer o fluigcliHelper 0.11.0 ou superior.
 
 ## Status e SLA (valores da API)
 

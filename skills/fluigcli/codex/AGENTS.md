@@ -76,7 +76,8 @@ não parece com o nome no servidor e o `link --auto` não sugere nada),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
-`request` (list|show|start|move|cancel|assignees|attachments — solicitações de workflow.
+`request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.
+`observe` registra observação SEM movimentar (laudo de agente; requer fluigcliHelper ≥ 0.11.0).
 `cancel` descarta solicitação de teste (PERMANENTE; exige `--yes`; só o SOLICITANTE
 ou gestor do processo — admin não basta).
 ⚠️ `start`/`move` NÃO executam os eventos do FORMULÁRIO (displayFields/

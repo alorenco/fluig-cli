@@ -12,7 +12,7 @@ uso por agentes de IA.
 - [form](form.md) — formulários
 - [workflow](workflow.md) — scripts de eventos de processo, publish nativo e **conversão de versão** das solicitações abertas
 - [widget](widget.md) — widgets
-- [request](request.md) — solicitações de workflow. Consulta, inicia, movimenta, **cancela**, trata anexos e **destrava atividade automática travada** (`move --manager`)
+- [request](request.md) — solicitações de workflow. Consulta, inicia, movimenta, **cancela**, trata anexos, **registra observação sem movimentar** (`observe`, via fluigcliHelper) e **destrava atividade automática travada** (`move --manager`)
 - [task](task.md) — tarefas de workflow. A sua fila, a dos outros, os pools, as **paradas em atividade automática** (`--automatic`) — e **assumir tarefa de pool**
 - [document](document.md) — GED. Navega (com árvore recursiva), **procura por nome**, mostra, **move**, baixa e publica documentos
 - [log](log.md) — logs do servidor. Tail com filtros, follow e download (requer o fluigcliHelper)
