@@ -65,7 +65,7 @@ Direção dos verbos (o contrário de "git"): **`import` = servidor→local**,
 | `server test [<name>]` | login + ping + dados do usuário; reporta o componente auxiliar e a VERSÃO dele (`helperVersion`) mais a do WAR do binário (`cliHelperWAR`), avisando quando divergem |
 | `server logout [<name>]` | descarta a sessão em cache (ou de todos com `--all`). ⚠️ Quando NÃO há senha reaproveitável (keyring vazio/ausente e sem `FLUIGCLI_PASSWORD`), o logout deixa a próxima execução dependendo de alguém digitar a senha: o comando **avisa** no stderr (não-interativo) ou pede confirmação (interativo, `--yes` pula). Não use em agente sem ter a senha em env var |
 | `server status [<name>]` | saúde do servidor: versão, helper (instalado/versão), uptime, memória, banco e monitores (requer admin) |
-| `server install-helper [<name>]` | instala/atualiza o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export`, `widget import` e do grupo `log`; o `widget list` tem fallback nativo). **Compara versões antes de publicar**: servidor mais antigo = atualiza · iguais = não reenvia (use `--force` para reparar) · servidor MAIS NOVO = recusa com exit 2 mesmo com `--force` (rebaixaria o servidor; só com `--allow-downgrade`). `--json` traz `version` e `embeddedVersion` |
+| `server install-helper [<name>]` | instala/atualiza o componente auxiliar fluigcliHelper, embutido no binário (pré-requisito de `workflow export`, `widget import`, `layout import` e do grupo `log`; o `widget list` tem fallback nativo). **Compara versões antes de publicar**: servidor mais antigo = atualiza · iguais = não reenvia (use `--force` para reparar) · servidor MAIS NOVO = recusa com exit 2 mesmo com `--force` (rebaixaria o servidor; só com `--allow-downgrade`). `--json` traz `version` e `embeddedVersion` |
 
 Resolução do servidor alvo: `--server`/`FLUIGCLI_SERVER` > padrão do projeto >
 padrão global > único cadastrado. ⚠️ Em servidor com `env=prod`, comandos de
@@ -89,13 +89,14 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 | comando | efeito |
 |---|---|
 | `clone --all` | clona todos os tipos disponíveis (sem perguntar) |
-| `clone --only forms,datasets` | clona só os tipos citados (`forms`, `datasets`, `workflows`, `events`, `mechanisms`, `widgets`) |
+| `clone --only forms,datasets` | clona só os tipos citados (`forms`, `datasets`, `workflows`, `events`, `mechanisms`, `widgets`, `layouts`) |
 | `clone` | interativo: mostra o inventário e pergunta o que clonar |
 
 - Em modo não-interativo (`--json`/CI) `--all` ou `--only` é obrigatório
   (exit 2 sem eles).
-- **widgets exigem o fluigcliHelper**: com `--all` são pulados com aviso; com
-  `--only widgets` sem o helper = exit 7.
+- **widgets e layouts exigem o fluigcliHelper** (layouts: ≥ 0.12.0): com
+  `--all` são pulados com aviso; com `--only widgets|layouts` sem o helper (ou
+  helper antigo, no caso dos layouts) = exit 7.
 - `workflows` = só os **scripts de eventos** (o diagrama fica no servidor);
   widget SPA vem o bundle publicado (sem fonte TS/Vue); páginas, comunidades e
   GED ficam fora do escopo.
@@ -393,12 +394,12 @@ Layouts WCM são as páginas-molde do portal (slots onde os widgets entram). A
 pasta local é `wcm/layout/<código>`, com a MESMA estrutura de um widget
 (`src/main/resources` com `application.info` + `layout.ftl`; `src/main/webapp`
 com `WEB-INF` e `resources`). O `application.info` declara
-`application.type=layout`. Não há `layout import` nem `layout new` nesta
-versão (o import depende do fluigcliHelper — ciclo futuro).
+`application.type=layout`. Não há `layout new` nesta versão.
 
 | comando | direção | efeito |
 |---|---|---|
 | `layout list` | — | lista os layouts customizados do servidor (API nativa de page-management); `--all` inclui os internos da plataforma e acrescenta a coluna `Origem` (`customizado`/`plataforma`). `--json`: `{layouts:[{code,title,internal}], all}` |
+| `layout import <código>... \| --all` | servidor → local | baixa layouts para `wcm/layout/<código>` pelo fluigcliHelper **≥ 0.12.0** (a API nativa não informa o arquivo `.war`, que nem sempre é `<código>.war`); sem helper ou helper antigo = exit 7 com a orientação; o `application.tenant.code=` que o servidor acrescenta é preservado |
 | `layout export <código>` | local → servidor | empacota `wcm/layout/<código>` em WAR e publica pelo deploy nativo (o mesmo do `widget export`; instalação assíncrona). Exige `application.info` com `application.type=layout` (ausente ou tipo diferente = exit 2, nada enviado; pasta inexistente = exit 4). **Recusa com exit 2 quando o código já existe no servidor como WIDGET** (espelho da guarda do `widget export`: o upload sobrescreveria o WAR do widget): renomeie ou publique com `--force`. Republicar um layout existente é a atualização normal, sem `--force`. A checagem falha em aberto |
 
 ## diff — conferir antes de publicar

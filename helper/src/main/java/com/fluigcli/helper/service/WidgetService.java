@@ -16,6 +16,11 @@ public class WidgetService {
         return new WidgetRepository().findAll();
     }
 
+    /** Layouts customizados — mesma tabela, mesmo WAR em apps/ (helper >= 0.12.0). */
+    public List<WidgetDto> findAllLayouts() throws Exception {
+        return new WidgetRepository().findAllLayouts();
+    }
+
     public FileInputStream getWidgetFileInputStream(
         ServletContext servletContext,
         String filename
@@ -29,8 +34,8 @@ public class WidgetService {
         return new FileInputStream(widgetFile);
     }
 
-    // Os WARs das widgets ficam em <instalação>/appserver/apps; o caminho do
-    // appserver é derivado do diretório real deste próprio webapp.
+    // Os WARs das widgets E dos layouts ficam em <instalação>/appserver/apps; o
+    // caminho do appserver é derivado do diretório real deste próprio webapp.
     private String getWidgetPath(ServletContext servletContext, String filename) {
         return servletContext
             .getRealPath("/")

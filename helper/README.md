@@ -10,6 +10,8 @@ plataforma e que a CLI consome:
 | `GET /api/version` | versão do helper (`server status`, painel do dev) |
 | `GET /api/widgets` | `widget list` (fonte primária) |
 | `GET /api/widgets/{arquivo}.war` | `widget import` (download do pacote) |
+| `GET /api/layouts` | `layout import`/`clone --only layouts` (listagem com o `FILE_NAME`, que a API nativa não dá; helper ≥ 0.12.0) |
+| `GET /api/layouts/{arquivo}.war` | `layout import` (download do pacote; helper ≥ 0.12.0) |
 | `GET /api/workflows/{processId}/version` | reservado (a CLI usa o SOAP nativo) |
 | `PUT /api/workflows/{processId}/{version}/events` | `workflow export` (update cirúrgico de eventos) |
 | `POST /api/workflows/{processInstanceId}/observations` | `request observe` (observação sem movimentar, via EJB `WorkflowAPIService` do SDK; helper ≥ 0.11.0) |

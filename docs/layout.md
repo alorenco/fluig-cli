@@ -1,6 +1,6 @@
 # fluigcli layout — layouts WCM
 
-O grupo `layout` lista e publica layouts WCM. Um layout é a página-molde do
+O grupo `layout` lista, importa e publica layouts WCM. Um layout é a página-molde do
 portal. Ele define os slots onde os widgets entram. O layout local é este:
 
 ```
@@ -16,12 +16,13 @@ um layout declara `application.type=layout`.
 
 - **list** mostra os layouts do servidor. O comando usa a API nativa de
   page-management.
+- **import** traz o servidor para o projeto local. O comando usa o
+  **fluigcliHelper** 0.12.0 ou mais novo. A API nativa não informa o arquivo
+  `.war` do layout.
 - **export** envia o projeto local ao servidor (deploy). O comando é
   **nativo** (`uploadfile`), o mesmo caminho do `widget export`.
 
-Esta versão não tem `layout import` nem `layout new`. O Fluig não informa o
-arquivo `.war` de um layout pela API nativa. Por isso o import depende do
-fluigcliHelper e fica para um ciclo futuro.
+Esta versão não tem `layout new`.
 
 ## `fluigcli layout list [--all]`
 
@@ -37,6 +38,34 @@ fluigcli layout list --server homolog
   Público, Constante...). A tabela ganha a coluna `Origem`, com os valores
   `customizado` e `plataforma`.
 - No `--json`: `{layouts: [{code, title, internal}], all}`.
+
+## `fluigcli layout import <código>... | --all`
+
+Este comando baixa e desempacota layouts em `wcm/layout/<código>/`. Ele segue
+o mesmo mapa do [`widget import`](widget.md#fluigcli-widget-import-code--all).
+O `layout.ftl` volta para `src/main/resources/`. Os arquivos binários
+(imagens, fontes) são preservados byte a byte. A pasta `META-INF` do WAR fica
+de fora.
+
+```sh
+fluigcli layout import intranet --server homolog
+fluigcli layout import --all --server homolog
+```
+
+O comando precisa do [fluigcliHelper](server.md#fluigcli-server-install-helper-name)
+na versão 0.12.0 ou mais nova. O arquivo `.war` de um layout nem sempre se
+chama `<código>.war`. Por exemplo, o layout `kit_layout` mora em
+`wcm-layout-kit.war`. Só o helper informa esse nome.
+
+- Sem o helper: exit code 7, com a orientação do `server install-helper`.
+- Helper anterior ao 0.12.0: exit code 7, com a orientação do
+  `server install-helper --force`.
+- Código inexistente no servidor: exit code 4. Em lote, o item com erro falha
+  sozinho e os demais são importados (exit code 6).
+
+O servidor acrescenta a linha `application.tenant.code=` ao `application.info`
+na instalação. O import a preserva, como o `widget import` faz. O
+`layout export` do arquivo importado funciona sem ajuste.
 
 ## `fluigcli layout export <código>`
 
@@ -93,6 +122,12 @@ A verificação falha em aberto. Se o servidor não responder a consulta, o coma
 avisa e publica. A guarda protege contra um erro conhecido. Ela não impede a
 publicação por indisponibilidade.
 
+## No `clone`
+
+O `clone` tem o tipo `layouts`. Ele importa todos os layouts customizados com a
+mesma semântica do `layout import --all`. Com o helper ausente ou anterior ao
+0.12.0, o `clone --all` pula os layouts com aviso. Veja [clone](clone.md).
+
 ## No `deploy --plan`
 
 O passo `{"layout": "<código>"}` publica o layout dentro de um plano de
@@ -105,5 +140,7 @@ release. Ele aceita a opção `force`. O `--dry-run` confere a pasta, o
 |---|---|
 | 0 | Layout enviado. A instalação segue no servidor |
 | 2 | `application.info` ausente ou com tipo diferente de `layout`. Ou código que já é widget, sem `--force` |
-| 4 | Pasta `wcm/layout/<código>` não existe |
+| 4 | Pasta `wcm/layout/<código>` não existe. Ou código inexistente no servidor, no `import` |
 | 5 | O servidor rejeitou o upload |
+| 6 | `import` em lote com uma parte dos itens com erro |
+| 7 | `import` sem o fluigcliHelper, ou com o helper anterior ao 0.12.0 |

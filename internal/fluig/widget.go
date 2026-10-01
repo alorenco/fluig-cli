@@ -69,35 +69,17 @@ func (c *Client) ListWidgets(ctx context.Context) ([]Widget, error) {
 	return widgets, nil
 }
 
-// DownloadWidget baixa o .war/zip de um widget via fluigcliHelper.
-// ⚠️ A rota produz octet-stream e o RESTEasy exige Accept compatível —
-// Accept: application/json responde 406 (mesmo padrão do stream de
-// documentos; visto ao vivo na homolog em 2026-07-18).
+// DownloadWidget baixa o .war/zip de um widget via fluigcliHelper (ver
+// downloadWAR, compartilhado com o DownloadLayout).
 func (c *Client) DownloadWidget(ctx context.Context, filename string) ([]byte, error) {
 	if err := c.requireHelper(ctx); err != nil {
 		return nil, err
 	}
-	endpoint := c.url(helperWidgetsPath+"/") + url.PathEscape(filename)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "*/*")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("falha ao baixar a widget de %s: %w", c.base.Host, err)
-	}
-	body, err := readBody(resp, 256<<20)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusNotFound {
+	war, status, err := c.downloadWAR(ctx, c.url(helperWidgetsPath+"/")+url.PathEscape(filename), HelperFluigcli+"/widgets/"+filename)
+	if status == http.StatusNotFound {
 		return nil, fmt.Errorf("%w: widget %q", ErrNotFound, filename)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, &HTTPError{StatusCode: resp.StatusCode, URL: HelperFluigcli + "/widgets/" + filename, Body: truncate(body, 256)}
-	}
-	return []byte(body), nil
+	return war, err
 }
 
 // ListWidgetsNative lista os widgets customizados pela API nativa de

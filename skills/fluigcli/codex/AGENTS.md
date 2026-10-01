@@ -76,9 +76,10 @@ não parece com o nome no servidor e o `link --auto` não sugere nada),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
-`layout` (list|export — layouts WCM em `wcm/layout/<código>`, mesma estrutura
-do widget com `application.type=layout`; o `export` RECUSA com exit 2 se o código
-já existir como WIDGET; use `layout export`, nunca `widget export` com atalho de pasta),
+`layout` (list|import|export — layouts WCM em `wcm/layout/<código>`, mesma estrutura
+do widget com `application.type=layout`; o `import` exige o fluigcliHelper ≥ 0.12.0;
+o `export` RECUSA com exit 2 se o código já existir como WIDGET; use `layout export`,
+nunca `widget export` com atalho de pasta),
 `request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.
 `observe` registra observação SEM movimentar (laudo de agente; requer fluigcliHelper ≥ 0.11.0).
 `cancel` descarta solicitação de teste (PERMANENTE; exige `--yes`; só o SOLICITANTE

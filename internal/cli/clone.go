@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,7 @@ var cloneTypeDefs = []cloneTypeDef{
 	{"events", "Eventos globais"},
 	{"mechanisms", "Mecanismos de atribuição"},
 	{"widgets", "Widgets"},
+	{"layouts", "Layouts WCM"},
 }
 
 func cloneKeys() []string {
@@ -56,7 +58,11 @@ type cloneInventory struct {
 	events    []fluig.GlobalEvent
 	mechs     []fluig.Mechanism
 	widgets   []fluig.Widget
-	helper    bool // fluigcliHelper instalado (condição para widgets)
+	layouts   []fluig.LayoutPackage
+	helper    bool // fluigcliHelper instalado (condição para widgets e layouts)
+	// layoutsOutdated: helper instalado, mas anterior ao 0.12.0 (sem a rota
+	// /layouts). Os layouts ficam indisponíveis com a orientação de atualizar.
+	layoutsOutdated bool
 }
 
 func (inv *cloneInventory) count(key string) int {
@@ -73,12 +79,34 @@ func (inv *cloneInventory) count(key string) int {
 		return len(inv.mechs)
 	case "widgets":
 		return len(inv.widgets)
+	case "layouts":
+		return len(inv.layouts)
 	}
 	return 0
 }
 
 func (inv *cloneInventory) available(key string) bool {
-	return key != "widgets" || inv.helper
+	switch key {
+	case "widgets":
+		return inv.helper
+	case "layouts":
+		return inv.helper && !inv.layoutsOutdated
+	}
+	return true
+}
+
+// unavailableReason explica por que um tipo está indisponível e como resolver
+// (vazio = disponível). Vai para a tabela de inventário, os avisos e o
+// `data.unavailable` do envelope.
+func (inv *cloneInventory) unavailableReason(key, serverName string) string {
+	switch {
+	case inv.available(key):
+		return ""
+	case key == "layouts" && inv.layoutsOutdated:
+		return "requer o fluigcliHelper 0.12.0 ou mais novo — atualize com: fluigcli server install-helper " + serverName + " --force"
+	default:
+		return "requer o fluigcliHelper — instale com: fluigcli server install-helper " + serverName
+	}
 }
 
 // counts monta o mapa tipo → quantidade do envelope (widgets só quando o
@@ -114,7 +142,9 @@ func newCloneCmd(app *App) *cobra.Command {
 			"  events      eventos globais (events/<id>.js)\n" +
 			"  mechanisms  mecanismos de atribuição (mechanisms/<id>.js)\n" +
 			"  widgets     widgets (wcm/widget/<code>/) — requer o fluigcliHelper;\n" +
-			"              widget SPA vem como o bundle publicado, sem o fonte\n\n" +
+			"              widget SPA vem como o bundle publicado, sem o fonte\n" +
+			"  layouts     layouts WCM (wcm/layout/<code>/) — requer o fluigcliHelper\n" +
+			"              0.12.0 ou mais novo\n\n" +
 			"Sem flags (em terminal interativo), pergunta o que clonar após mostrar o\n" +
 			"inventário. Em modo não-interativo use --all ou --only. Re-executar\n" +
 			"sobrescreve os arquivos locais — commite antes. Páginas, comunidades,\n" +
@@ -160,14 +190,14 @@ func newCloneCmd(app *App) *cobra.Command {
 			switch {
 			case all:
 				for _, d := range cloneTypeDefs {
-					if d.key == "widgets" && !inv.helper {
-						p.Warnf("widgets pulados: fluigcliHelper não instalado — instale com `fluigcli server install-helper %s` e rode `fluigcli clone --only widgets`", server.Name)
+					if !inv.available(d.key) {
+						p.Warnf("%s pulados: %s — depois rode `fluigcli clone --only %s`", d.key, inv.unavailableReason(d.key, server.Name), d.key)
 						continue
 					}
 					selected = append(selected, d.key)
 				}
 			case selected != nil:
-				// --only explícito: pedir widgets sem o helper é erro (exit 7).
+				// --only explícito: pedir widgets/layouts sem o helper é erro (exit 7).
 			default:
 				selected, err = promptCloneSelection(inv)
 				if err != nil {
@@ -175,8 +205,8 @@ func newCloneCmd(app *App) *cobra.Command {
 				}
 			}
 			for _, key := range selected {
-				if key == "widgets" && !inv.helper {
-					return output.MissingHelperf("widgets exigem o componente fluigcliHelper — instale com: fluigcli server install-helper %s", server.Name)
+				if !inv.available(key) {
+					return output.MissingHelperf("%s exigem o componente fluigcliHelper: %s", key, inv.unavailableReason(key, server.Name))
 				}
 			}
 
@@ -207,8 +237,14 @@ func newCloneCmd(app *App) *cobra.Command {
 				"available": inv.counts(),
 				"results":   results,
 			}
-			if !inv.helper {
-				data["unavailable"] = map[string]string{"widgets": "fluigcliHelper não instalado"}
+			unavailable := map[string]string{}
+			for _, d := range cloneTypeDefs {
+				if r := inv.unavailableReason(d.key, server.Name); r != "" {
+					unavailable[d.key] = r
+				}
+			}
+			if len(unavailable) > 0 {
+				data["unavailable"] = unavailable
 			}
 			return finishBatch(p, lastErr, data, failures, total)
 		},
@@ -255,6 +291,15 @@ func (a *App) cloneDiscover(ctx context.Context, client *fluig.Client) (*cloneIn
 		if inv.widgets, err = client.ListWidgets(ctx); err != nil {
 			return nil, mapFluigError(err)
 		}
+		// Helper antigo (sem /layouts) não derruba o clone inteiro: os layouts
+		// ficam indisponíveis, com a orientação de atualizar.
+		inv.layouts, err = client.ListLayoutsHelper(ctx)
+		switch {
+		case errors.Is(err, fluig.ErrHelperOutdated):
+			inv.layoutsOutdated = true
+		case err != nil:
+			return nil, mapFluigError(err)
+		}
 	}
 	return inv, nil
 }
@@ -265,10 +310,9 @@ func printCloneInventory(p *output.Printer, inv *cloneInventory, serverName stri
 	rows := make([][]string, 0, len(cloneTypeDefs))
 	for i, d := range cloneTypeDefs {
 		count := strconv.Itoa(inv.count(d.key))
-		obs := ""
-		if !inv.available(d.key) {
+		obs := inv.unavailableReason(d.key, serverName)
+		if obs != "" {
 			count = "—"
-			obs = "requer o fluigcliHelper (fluigcli server install-helper " + serverName + ")"
 		}
 		rows = append(rows, []string{strconv.Itoa(i + 1), d.key, d.label, count, obs})
 	}
@@ -409,6 +453,15 @@ func (a *App) cloneRun(ctx context.Context, client *fluig.Client, server *config
 			}
 			results = append(results, itemResult{ID: w.Code, Action: "imported", Success: true})
 			p.Successf("widget %q importado em wcm/widget/%s", w.Code, w.Code)
+		}
+	case "layouts":
+		for _, l := range inv.layouts {
+			if err := a.importOneLayout(ctx, client, root, l); err != nil {
+				fail(l.Code, "layout", err)
+				continue
+			}
+			results = append(results, itemResult{ID: l.Code, Action: "imported", Success: true})
+			p.Successf("layout %q importado em wcm/layout/%s", l.Code, l.Code)
 		}
 	}
 	return results, failures, lastErr

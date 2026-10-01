@@ -129,7 +129,7 @@ fluigcli diff --json | jq '.data.counts'
 | `form` | `new` `list` `import` `export` `link` `records` | [docs/form.md](docs/form.md) |
 | `workflow` | `new-script` `list` `version` `versions` `import` `export` `publish` `diff` `convert` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
-| `layout` | `list` `export` | [docs/layout.md](docs/layout.md) |
+| `layout` | `list` `import` `export` | [docs/layout.md](docs/layout.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `deploy` | `deploy --plan <arquivo.json>`. Executa um plano de release na ordem (com `--dry-run` e `--from`) | [docs/deploy.md](docs/deploy.md) |
 | `audit` | linter do projeto: Style Guide 2.0, typos e usos frágeis de API, footguns do Rhino e, com `--process`, o cruzamento formulário × etapas do processo; `--save-baseline` congela a dívida antiga para o gate reprovar só o que é novo | [docs/audit.md](docs/audit.md) |

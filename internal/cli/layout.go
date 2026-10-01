@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -19,15 +20,17 @@ import (
 func newLayoutCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "layout",
-		Short: "Lista e publica layouts WCM (export = local → servidor; deploy nativo)",
+		Short: "Lista, importa e publica layouts WCM (export = local → servidor; deploy nativo)",
 		Long: "Layouts WCM são as páginas-molde do portal (slots onde os widgets\n" +
 			"entram). A pasta local é wcm/layout/<código>, com a mesma estrutura de um\n" +
 			"widget: src/main/resources (application.info, layout.ftl, .properties) e\n" +
 			"src/main/webapp (WEB-INF, resources).\n\n" +
-			"O export publica pelo deploy nativo do WCM, o mesmo do widget export. Não\n" +
-			"há import nem scaffold de layout nesta versão.",
+			"O export publica pelo deploy nativo do WCM, o mesmo do widget export. O\n" +
+			"import baixa o WAR pelo fluigcliHelper (0.12.0 ou mais novo). Não há\n" +
+			"scaffold de layout nesta versão.",
 	}
 	cmd.AddCommand(newLayoutListCmd(app))
+	cmd.AddCommand(newLayoutImportCmd(app))
 	cmd.AddCommand(newLayoutExportCmd(app))
 	return cmd
 }
@@ -107,6 +110,100 @@ func newLayoutListCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "inclui os layouts internos da plataforma")
 	return cmd
+}
+
+// --- layout import (servidor → local, via componente auxiliar) ---
+
+func newLayoutImportCmd(app *App) *cobra.Command {
+	var (
+		all           bool
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "import <code>... | --all",
+		Short: "Baixa layouts do servidor para o projeto local (servidor → local)",
+		Long: "Baixa o WAR de cada layout pelo fluigcliHelper e desempacota em\n" +
+			"wcm/layout/<code>/, no mesmo mapa do widget import. Requer o helper\n" +
+			"0.12.0 ou mais novo: a API nativa de layouts não informa o arquivo .war,\n" +
+			"e ele nem sempre se chama <code>.war.\n\n" +
+			"O servidor acrescenta a linha application.tenant.code ao application.info\n" +
+			"na instalação. O import a preserva, como o widget import.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if !all && len(args) == 0 {
+				return output.Usagef("informe um ou mais códigos de layout ou use --all")
+			}
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			root, err := app.projectRootForFiles()
+			if err != nil {
+				return err
+			}
+			layouts, err := client.ListLayoutsHelper(ctx)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			byCode := make(map[string]fluig.LayoutPackage, len(layouts))
+			for _, l := range layouts {
+				byCode[l.Code] = l
+			}
+
+			codes := args
+			if all {
+				codes = codes[:0]
+				for _, l := range layouts {
+					codes = append(codes, l.Code)
+				}
+			}
+
+			var results []itemResult
+			var lastErr error
+			failures := 0
+			for _, code := range codes {
+				l, ok := byCode[code]
+				if !ok {
+					failures++
+					lastErr = output.NotFoundf("layout %q não encontrado no servidor", code)
+					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					p.Warnf("layout %q: não encontrado", code)
+					continue
+				}
+				if err := app.importOneLayout(ctx, client, root, l); err != nil {
+					failures++
+					lastErr = mapFluigError(err)
+					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
+					p.Warnf("layout %q: %s", code, output.AsError(lastErr).Message)
+					continue
+				}
+				results = append(results, itemResult{ID: code, Action: "imported", Success: true})
+				p.Successf("layout %q importado em wcm/layout/%s", code, code)
+			}
+			if all && len(codes) == 0 {
+				p.Infof("Nenhum layout customizado no servidor.")
+			}
+			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, len(codes))
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "importa todos os layouts customizados do servidor")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// importOneLayout baixa o .war do layout e desempacota em wcm/layout/<code>.
+func (a *App) importOneLayout(ctx context.Context, client *fluig.Client, root string, l fluig.LayoutPackage) error {
+	war, err := client.DownloadLayout(ctx, l.Filename)
+	if err != nil {
+		return err
+	}
+	// O código vem do servidor — confina a pasta em wcm/layout/.
+	dir, err := project.SafeJoin(filepath.Join(root, project.LayoutsDir), l.Code)
+	if err != nil {
+		return err
+	}
+	return unpackWAR(war, dir)
 }
 
 // --- layout export (local → servidor, deploy nativo) ---

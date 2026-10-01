@@ -231,12 +231,19 @@ func (a *App) importOneWidget(ctx context.Context, client *fluig.Client, root st
 	if err != nil {
 		return err
 	}
-	zr, err := zip.NewReader(bytes.NewReader(war), int64(len(war)))
+	// O código do widget vem do servidor — confina a pasta em wcm/widget/.
+	widgetDir, err := project.SafeJoin(filepath.Join(root, project.WidgetsDir), w.Code)
 	if err != nil {
 		return err
 	}
-	// O código do widget vem do servidor — confina a pasta em wcm/widget/.
-	widgetDir, err := project.SafeJoin(filepath.Join(root, project.WidgetsDir), w.Code)
+	return unpackWAR(war, widgetDir)
+}
+
+// unpackWAR desempacota um WAR (widget ou layout — a estrutura é a mesma) na
+// pasta local, pelo mapa inverso de MapWidgetEntryToLocal. Entradas fora do
+// mapa (META-INF/, por exemplo) são ignoradas.
+func unpackWAR(war []byte, dir string) error {
+	zr, err := zip.NewReader(bytes.NewReader(war), int64(len(war)))
 	if err != nil {
 		return err
 	}
@@ -248,7 +255,7 @@ func (a *App) importOneWidget(ctx context.Context, client *fluig.Client, root st
 		if rel == "" {
 			continue // entrada fora do mapa (ignora)
 		}
-		dst, err := project.SafeJoin(widgetDir, rel) // defesa extra contra zip-slip
+		dst, err := project.SafeJoin(dir, rel) // defesa extra contra zip-slip
 		if err != nil {
 			return err
 		}

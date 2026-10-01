@@ -45,6 +45,30 @@ type widgetStub struct {
 	// layoutsInternal são layouts internos da plataforma (internal=true) na
 	// listagem — o `layout list` só os mostra com --all.
 	layoutsInternal map[string]string
+	// layoutRouteMissing simula o helper anterior ao 0.12.0: /api/layouts 404.
+	layoutRouteMissing bool
+}
+
+// layoutZip é o WAR de um layout real reduzido: layout.ftl em
+// WEB-INF/classes, binário e META-INF (fora do mapa — deve ser ignorado).
+func (s *widgetStub) layoutZip(t *testing.T) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	add := func(name string, content []byte) {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(content)
+	}
+	add("META-INF/MANIFEST.MF", []byte("Manifest-Version: 1.0"))
+	add("resources/js/kit_layout.js", []byte("console.log(1)"))
+	add("resources/images/icon.png", widgetBinary)
+	add("WEB-INF/classes/layout.ftl", []byte("<#import \"/wcm.ftl\" as wcm />"))
+	add("WEB-INF/classes/application.info", []byte("application.type=layout\napplication.tenant.code=01\n"))
+	add("WEB-INF/jboss-web.xml", []byte("<jboss-web/>"))
+	zw.Close()
+	return buf.Bytes()
 }
 
 func (s *widgetStub) widgetZip(t *testing.T) []byte {
@@ -147,6 +171,32 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 			items = append(items, `{"id":2,"code":"`+code+`","title":"`+title+`","internal":true}`)
 		}
 		io.WriteString(w, `{"items":[`+strings.Join(items, ",")+`],"hasNext":false}`)
+	})
+	// Layouts via helper (0.12.0): listagem com o arquivo e download.
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperMissing {
+			http.NotFound(w, r)
+			return
+		}
+		v := "0.12.0"
+		if s.layoutRouteMissing {
+			v = "0.11.0"
+		}
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"`+v+`"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/layouts", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperMissing || s.layoutRouteMissing {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `[{"code":"kit_layout","title":"Portal","description":"d","filename":"wcm-layout-kit.war"}]`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/layouts/", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperMissing || s.layoutRouteMissing {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write(s.layoutZip(t))
 	})
 	mux.HandleFunc("/fluigcliHelper/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
 		if s.helperMissing {

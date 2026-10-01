@@ -25,8 +25,9 @@ git init && git add -A && git commit -m "estado inicial do servidor"
 | `events` | `events/<id>.js` | eventos globais |
 | `mechanisms` | `mechanisms/<id>.js` | mecanismos de atribuição customizados |
 | `widgets` | `wcm/widget/<code>/` | requer o [fluigcliHelper](./server#fluigcli-server-install-helper-name). O widget SPA vem como o **bundle publicado**, sem o fonte TS/Vue |
+| `layouts` | `wcm/layout/<code>/` | requer o fluigcliHelper **0.12.0 ou mais novo**. Só os layouts customizados |
 
-A CLI não gerencia estes itens: páginas e layouts, comunidades, parâmetros da
+A CLI não gerencia estes itens: páginas, comunidades, parâmetros da
 plataforma e documentos do GED. Para documentos avulsos, use
 [`document`](./document).
 
@@ -39,15 +40,18 @@ plataforma e documentos do GED. Para documentos avulsos, use
   uma destas flags, o comando termina com exit 2. O `--only` aceita os nomes no
   plural ou no singular.
 
-## Widgets e o fluigcliHelper
+## Widgets, layouts e o fluigcliHelper
 
-O download de widgets precisa do componente auxiliar
+O download de widgets e de layouts precisa do componente auxiliar
 [fluigcliHelper](./server#fluigcli-server-install-helper-name) instalado no servidor:
 
-- Com `--all` e sem o helper, o comando **pula as widgets com aviso**. Os demais
-  tipos seguem normalmente.
+- Com `--all` e sem o helper, o comando **pula as widgets e os layouts com
+  aviso**. Os demais tipos seguem normalmente.
 - Com `--only widgets` e sem o helper, o comando termina com exit 7. O comando
   mostra a orientação do `server install-helper`.
+- Os layouts exigem o helper **0.12.0 ou mais novo**. Com um helper mais
+  antigo, o `--all` pula só os layouts e orienta o
+  `server install-helper --force`. O `--only layouts` termina com exit 7.
 
 ## Re-execução e segurança
 

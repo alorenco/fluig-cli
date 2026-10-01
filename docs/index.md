@@ -58,7 +58,7 @@ em pt-BR.
 | [form](./form) | formulários e registros (CRUD de cards) |
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo, conversão de versão das solicitações |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
-| [layout](./layout) | layouts WCM: listagem e deploy nativo |
+| [layout](./layout) | layouts WCM: listagem, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
 | [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino, formulário × etapas do processo e baseline da dívida antiga |

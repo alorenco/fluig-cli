@@ -21,7 +21,9 @@ import (
 // widget meu_widget.
 type cloneServerStub struct {
 	helperMissing bool
-	widgetStub    widgetStub // reusa o zip do WAR
+	// helperOutdated: helper instalado, mas sem a rota /layouts (< 0.12.0).
+	helperOutdated bool
+	widgetStub     widgetStub // reusa o zip do WAR
 }
 
 func (s *cloneServerStub) server(t *testing.T) *httptest.Server {
@@ -106,6 +108,28 @@ func (s *cloneServerStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/fluigcliHelper/api/widgets/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(s.widgetStub.widgetZip(t))
 	})
+	// layouts (helper 0.12.0); helperOutdated simula o 0.11.0 sem a rota.
+	mux.HandleFunc("/fluigcliHelper/api/version", func(w http.ResponseWriter, r *http.Request) {
+		v := "0.12.0"
+		if s.helperOutdated {
+			v = "0.11.0"
+		}
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"`+v+`"}`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/layouts", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperOutdated {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `[{"code":"meu_layout","title":"Meu Layout","description":"d","filename":"wcm-layout-meu.war"}]`)
+	})
+	mux.HandleFunc("/fluigcliHelper/api/layouts/", func(w http.ResponseWriter, r *http.Request) {
+		if s.helperOutdated {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(s.widgetStub.layoutZip(t))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -158,6 +182,7 @@ func TestCloneAllJSON(t *testing.T) {
 		"events/displayCustomThemes.js",
 		"mechanisms/mec_gestor_area.js",
 		"wcm/widget/meu_widget/src/main/webapp/resources/js/app.js",
+		"wcm/layout/meu_layout/src/main/resources/layout.ftl",
 		".fluigcli/forms.json",
 	} {
 		if _, err := os.Stat(filepath.Join(proj, filepath.FromSlash(rel))); err != nil {
@@ -171,7 +196,7 @@ func TestCloneAllJSON(t *testing.T) {
 		t.Errorf("selected = %v, quer os %d tipos", selected, len(cloneTypeDefs))
 	}
 	available, _ := data["available"].(map[string]any)
-	wants := map[string]float64{"forms": 2, "datasets": 1, "workflows": 1, "events": 2, "mechanisms": 1, "widgets": 1}
+	wants := map[string]float64{"forms": 2, "datasets": 1, "workflows": 1, "events": 2, "mechanisms": 1, "widgets": 1, "layouts": 1}
 	for key, want := range wants {
 		if got, _ := available[key].(float64); got != want {
 			t.Errorf("available.%s = %v, quer %v", key, available[key], want)
@@ -306,10 +331,42 @@ func TestParseCloneTypes(t *testing.T) {
 			t.Fatalf("got %v, want %v", got, want)
 		}
 	}
-	if _, err := parseCloneTypes([]string{"7"}); err == nil {
-		t.Error("número fora da tabela deveria ser erro")
+	if _, err := parseCloneTypes([]string{"8"}); err == nil {
+		t.Error("número fora da tabela (8, com 7 tipos) deveria ser erro")
 	}
 	if _, err := parseCloneTypes([]string{"xyz"}); err == nil {
 		t.Error("tipo desconhecido deveria ser erro")
+	}
+}
+
+// Helper instalado mas anterior ao 0.12.0: com --all os layouts são pulados com
+// a orientação de ATUALIZAR, o resto (inclusive widgets) segue; com
+// --only layouts = exit 7.
+func TestCloneLayoutsComHelperAntigo(t *testing.T) {
+	stub := &cloneServerStub{helperOutdated: true}
+	proj := cloneProject(t, stub.server(t).URL)
+
+	code, stdout, stderr := runMainStderr(t, "clone", "--all", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s stderr=%s", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "layouts pulados") || !strings.Contains(stderr, "0.12.0") || !strings.Contains(stderr, "--force") {
+		t.Errorf("aviso sem a orientação de atualizar o helper: %s", stderr)
+	}
+	data := cloneEnvelope(t, stdout)
+	unavailable, _ := data["unavailable"].(map[string]any)
+	if _, ok := unavailable["layouts"]; !ok {
+		t.Errorf("data.unavailable.layouts deveria estar presente: %v", data)
+	}
+	if _, ok := unavailable["widgets"]; ok {
+		t.Errorf("widgets estão disponíveis com o helper antigo: %v", unavailable)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "wcm", "widget", "meu_widget")); err != nil {
+		t.Errorf("widgets deviam ter sido clonados")
+	}
+
+	code, stdout = runMain(t, "clone", "--only", "layouts", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitMissingHelper || !strings.Contains(stdout, "0.12.0") {
+		t.Errorf("--only layouts com helper antigo: exit=%d stdout=%s", code, stdout)
 	}
 }

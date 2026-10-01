@@ -312,3 +312,95 @@ func TestLayoutListAllTabela(t *testing.T) {
 		t.Errorf("sem --all o interno não devia aparecer:\n%s", stdout)
 	}
 }
+
+// --- layout import ---
+
+// Import desempacota o WAR do layout em wcm/layout/<code>, pelo mesmo mapa do
+// widget (layout.ftl volta para src/main/resources), preservando binário e
+// ignorando META-INF.
+func TestLayoutImportUnpacks(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+
+	code, out := runMain(t, "layout", "import", "kit_layout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	base := filepath.Join(proj, "wcm", "layout", "kit_layout")
+	for _, rel := range []string{
+		"src/main/resources/layout.ftl",
+		"src/main/resources/application.info",
+		"src/main/webapp/WEB-INF/jboss-web.xml",
+		"src/main/webapp/resources/js/kit_layout.js",
+		"src/main/webapp/resources/images/icon.png",
+	} {
+		if _, err := os.Stat(filepath.Join(base, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("arquivo esperado não existe: %s", rel)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(base, "src/main/webapp/resources/images/icon.png")); !bytes.Equal(b, widgetBinary) {
+		t.Errorf("binário corrompido no import")
+	}
+	if _, err := os.Stat(filepath.Join(base, "META-INF")); err == nil {
+		t.Errorf("META-INF não devia ser extraído")
+	}
+	if _, err := os.Stat(filepath.Join(proj, "wcm", "widget", "kit_layout")); err == nil {
+		t.Errorf("o layout foi parar em wcm/widget")
+	}
+	if !strings.Contains(out, `"action":"imported"`) {
+		t.Errorf("envelope sem o resultado: %s", out)
+	}
+}
+
+// Código inexistente no servidor: exit 4 (um só pedido) e o resto do lote segue.
+func TestLayoutImportNaoEncontrado(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+
+	code, out := runMain(t, "layout", "import", "nao_existe", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, esperado %d; saída: %s", code, output.ExitNotFound, out)
+	}
+	code, _ = runMain(t, "layout", "import", "nao_existe", "kit_layout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Errorf("lote com uma falha: exit=%d, esperado %d", code, output.ExitPartial)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "wcm", "layout", "kit_layout", "src", "main", "resources", "layout.ftl")); err != nil {
+		t.Errorf("o item bom do lote não foi importado")
+	}
+}
+
+// --all importa todos os layouts customizados listados pelo helper.
+func TestLayoutImportAll(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, out := runMain(t, "layout", "import", "--all", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK || !strings.Contains(out, `"id":"kit_layout"`) {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	code, out = runMain(t, "layout", "import", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Errorf("sem código e sem --all devia ser exit 2, veio %d: %s", code, out)
+	}
+}
+
+// Sem o helper: exit 7 com a orientação de instalar.
+func TestLayoutImportSemHelper(t *testing.T) {
+	stub := &widgetStub{helperMissing: true}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, out := runMain(t, "layout", "import", "kit_layout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitMissingHelper || !strings.Contains(out, "install-helper") {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+}
+
+// Helper instalado mas anterior ao 0.12.0 (sem /layouts): exit 7 dizendo que
+// está DESATUALIZADO — a mensagem precisa apontar o --force do install-helper.
+func TestLayoutImportHelperAntigo(t *testing.T) {
+	stub := &widgetStub{layoutRouteMissing: true}
+	proj := widgetProject(t, stub.server(t).URL)
+	code, out := runMain(t, "layout", "import", "kit_layout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitMissingHelper || !strings.Contains(out, "desatualizado") || !strings.Contains(out, "--force") {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+}

@@ -268,7 +268,8 @@ Com `--json`, o envelope do `server test` traz `helperVersion` (a do servidor) e
 
 Piso de versão por recurso: 0.3.0 para o grupo `log`, 0.5.0 para a janela
 `--since/--until`, 0.6.0 para o grupo `db`, 0.7.0 para o `dataset delete` e
-0.8.0 para vários `--grep` (OU) e 0.11.0 para `request observe`/`observations`.
+0.8.0 para vários `--grep` (OU), 0.11.0 para `request observe`/`observations`
+e 0.12.0 para `layout import` e `clone --only layouts`.
 
 Com `--war <arquivo>` a CLI publica o artefato que você indicar e **não** compara
 versões. Neste caso a escolha é sua.
