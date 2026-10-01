@@ -35,7 +35,8 @@ type deployPlan struct {
 }
 
 // deployStep é um passo do plano. Exatamente UMA das chaves de tipo
-// (dataset/event/mechanism/widget/db) identifica o que o passo publica ou roda.
+// (dataset/event/mechanism/form/widget/layout/workflow/db) identifica o que o
+// passo publica ou roda.
 type deployStep struct {
 	Name string `json:"name,omitempty"` // rótulo livre, só para o relatório
 
@@ -43,7 +44,10 @@ type deployStep struct {
 	Event     string `json:"event,omitempty"`
 	Mechanism string `json:"mechanism,omitempty"`
 	Widget    string `json:"widget,omitempty"`
-	DB        string `json:"db,omitempty"`
+	// Layout é o código de um layout WCM (wcm/layout/<código>); publica como o
+	// `layout export`, inclusive a guarda de colisão com widget.
+	Layout string `json:"layout,omitempty"`
+	DB     string `json:"db,omitempty"`
 	// Workflow é o PREFIXO LOCAL dos scripts (workflow/scripts/<prefixo>.*.js).
 	// O destino no servidor é ProcessID quando ele difere do prefixo.
 	Workflow string `json:"workflow,omitempty"`
@@ -54,7 +58,7 @@ type deployStep struct {
 	New         bool   `json:"new,omitempty"`         // dataset
 	Description string `json:"description,omitempty"` // dataset, mechanism
 	Build       bool   `json:"build,omitempty"`       // widget
-	Force       bool   `json:"force,omitempty"`       // widget
+	Force       bool   `json:"force,omitempty"`       // widget, layout
 	ProcessID   string `json:"processId,omitempty"`   // workflow (espelha --process-id)
 
 	// Opções do passo form (espelham as flags do `form export`). FormName é
@@ -80,7 +84,7 @@ type deployStep struct {
 type deployStepResult struct {
 	Index  int    `json:"index"` // 1-based, como no --from
 	Name   string `json:"name,omitempty"`
-	Kind   string `json:"kind"`   // dataset | event | mechanism | widget | db
+	Kind   string `json:"kind"`   // dataset | event | mechanism | form | widget | layout | workflow | db
 	Target string `json:"target"` // arquivo, pasta ou código
 	Status string `json:"status"` // ok | failed | skipped | validated
 	Action string `json:"action,omitempty"`
@@ -104,7 +108,7 @@ const (
 func (s deployStep) kindOf() (kind, target string, err error) {
 	pares := []struct{ kind, target string }{
 		{"dataset", s.Dataset}, {"event", s.Event}, {"mechanism", s.Mechanism},
-		{"widget", s.Widget}, {"db", s.DB}, {"workflow", s.Workflow}, {"form", s.Form},
+		{"widget", s.Widget}, {"layout", s.Layout}, {"db", s.DB}, {"workflow", s.Workflow}, {"form", s.Form},
 	}
 	for _, p := range pares {
 		if p.target == "" {
@@ -117,7 +121,7 @@ func (s deployStep) kindOf() (kind, target string, err error) {
 	}
 	if kind == "" {
 		return "", "", fmt.Errorf(
-			"passo sem tipo: informe uma das chaves dataset, event, mechanism, form, widget, workflow ou db")
+			"passo sem tipo: informe uma das chaves dataset, event, mechanism, form, widget, layout, workflow ou db")
 	}
 	return kind, target, nil
 }
@@ -134,7 +138,8 @@ func newDeployCmd(app *App) *cobra.Command {
 		Use:   "deploy --plan <arquivo.json>",
 		Short: "Executa um plano de release na ordem, passo a passo (manifesto JSON)",
 		Long: "Executa um plano de release descrito em JSON: datasets, eventos,\n" +
-			"mecanismos, widgets e scripts SQL de diagnóstico, na ORDEM do arquivo.\n\n" +
+			"mecanismos, formulários, widgets, layouts, processos e scripts SQL de\n" +
+			"diagnóstico, na ORDEM do arquivo.\n\n" +
 			"O plano é um arquivo versionável no repositório. Ele troca o roteiro de\n" +
 			"deploy escrito à mão por algo executável e auditável.\n\n" +
 			"Formato (JSON — o projeto não usa YAML):\n" +
@@ -153,7 +158,7 @@ func newDeployCmd(app *App) *cobra.Command {
 			"\"skipped\" no relatório, então dá para ver exatamente onde o release\n" +
 			"parou. Corrija e retome com --from N (a numeração é a do relatório).\n\n" +
 			"Use --dry-run para validar o plano inteiro sem escrever nada: arquivos\n" +
-			"presentes, auditoria dos scripts, colisão de código da widget e as\n" +
+			"presentes, auditoria dos scripts, colisão de código de widget/layout e as\n" +
 			"instruções de cada script SQL.\n\n" +
 			"O plano NUNCA contém senha. A autenticação segue a precedência normal.\n" +
 			"O passo workflow publica uma versão NOVA do processo com os scripts\n" +
@@ -479,6 +484,22 @@ func checkDeployStep(ctx context.Context, app *App, server *config.Server, clien
 		s.Action = "publicaria a widget " + s.Target
 		return nil
 
+	case "layout":
+		dir := project.LayoutDir(root, s.Target)
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			return output.NotFoundf("layout %q não encontrado em %s", s.Target, project.LayoutsDir)
+		}
+		if err := requireLayoutInfo(dir, s.Target); err != nil {
+			return err
+		}
+		// Espelho da guarda do widget: o layout não pode sobrescrever um widget
+		// só porque o deploy é automatizado.
+		if err := checkWidgetCollision(ctx, discardPrinter(), client, s.Target, false); err != nil {
+			return err
+		}
+		s.Action = "publicaria o layout " + s.Target
+		return nil
+
 	case "form":
 		dir := resolveDeployPath(root, s.Target)
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -666,6 +687,12 @@ func execDeployStep(ctx context.Context, app *App, p *output.Printer, server *co
 			return "failed", err
 		}
 		return "widget " + s.Target + " enviada", nil
+
+	case "layout":
+		if err := app.exportOneLayout(ctx, p, client, root, s.Target, step.Force); err != nil {
+			return "failed", err
+		}
+		return "layout " + s.Target + " enviado", nil
 
 	case "form":
 		opts, err := step.formOptsDoPasso(noAudit)

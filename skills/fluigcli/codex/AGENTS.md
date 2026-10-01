@@ -76,6 +76,9 @@ não parece com o nome no servidor e o `link --auto` não sugere nada),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
+`layout` (list|export — layouts WCM em `wcm/layout/<código>`, mesma estrutura
+do widget com `application.type=layout`; o `export` RECUSA com exit 2 se o código
+já existir como WIDGET; use `layout export`, nunca `widget export` com atalho de pasta),
 `request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.
 `observe` registra observação SEM movimentar (laudo de agente; requer fluigcliHelper ≥ 0.11.0).
 `cancel` descarta solicitação de teste (PERMANENTE; exige `--yes`; só o SOLICITANTE
@@ -121,7 +124,7 @@ vira `status:"error"` no item e exit 6, o resto segue comparado; formulário com
 `status:"unlinked"` **existe no servidor com outro nome** e só falta o vínculo —
 o campo `hint` traz o `form link` pronto, não conclua que o artefato falta lá),
 `deploy` (`--plan release.json` executa um release na ordem: passos `dataset`/
-`event`/`mechanism`/`form`/`widget`/`workflow` (publish)/`db`; para no 1º erro e marca o
+`event`/`mechanism`/`form`/`widget`/`layout`/`workflow` (publish)/`db`; para no 1º erro e marca o
 resto `skipped`, retome com `--from N`; `--dry-run` valida tudo sem escrever —
 inclusive se cada evento local EXISTE no processo; audita todos os scripts antes
 de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;

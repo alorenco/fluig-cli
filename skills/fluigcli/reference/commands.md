@@ -15,10 +15,11 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | começar num servidor existente com uma pasta vazia (baixar tudo) | `clone` |
 | criar um widget novo do zero (esqueleto no padrão oficial) | `widget new <code>` |
 | criar um artefato novo do zero (esqueleto local) | `dataset new` · `form new` · `event new` · `mechanism new` · `workflow new-script` |
-| publicar um artefato local (dataset/form/evento/mecanismo/widget/script) | `<grupo> export` |
+| publicar um artefato local (dataset/form/evento/mecanismo/widget/layout/script) | `<grupo> export` |
+| publicar um layout WCM (página-molde do portal, `wcm/layout/<código>`) | `layout export <código>` (NÃO `widget export` com atalho de pasta) |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
-| executar um release inteiro na ordem (SQL + datasets + widget), auditável | `deploy --plan release.json` |
+| executar um release inteiro na ordem (SQL + datasets + widget + layout), auditável | `deploy --plan release.json` |
 | conferir se o código respeita o Style Guide 2.0 (tema fixo) | `audit` |
 | publicar arquivo com dívida ANTIGA de audit sem desligar a checagem do código novo | `audit --save-baseline` (não `--no-audit`) |
 | consultar os dados de um dataset | `dataset query` |
@@ -119,8 +120,8 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 
 | comando | efeito |
 |---|---|
-| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `form` (pasta; `new`+`parentId`+`datasetName` para criar — num plano NÃO há prompt; alvo por `documentId`/`formName`; grava o vínculo em `.fluigcli/forms.json`), `widget` (`build`, `force`), `workflow` (publica versão nova; `processId` aponta outro processo no servidor, `noRelease` não libera) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
-| `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget, contagem de instruções de cada `.sql` e **se cada evento local existe no processo** (read-only — pega o erro que hoje só aparece no meio do publish) |
+| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `form` (pasta; `new`+`parentId`+`datasetName` para criar — num plano NÃO há prompt; alvo por `documentId`/`formName`; grava o vínculo em `.fluigcli/forms.json`), `widget` (`build`, `force`), `layout` (`force`; exige `application.type=layout`), `workflow` (publica versão nova; `processId` aponta outro processo no servidor, `noRelease` não libera) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
+| `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget e do layout, contagem de instruções de cada `.sql` e **se cada evento local existe no processo** (read-only — pega o erro que hoje só aparece no meio do publish) |
 
 - Audita **todos** os scripts do plano ANTES de conectar: erro de audit aborta o
   release inteiro (exit 1 `AUDIT_FAILED`) e nada é publicado. `--no-audit` pula.
@@ -385,6 +386,20 @@ inexistente → exit 4. Com `--json`, o tail devolve
 | `widget list` | — | lista os widgets do servidor (componente auxiliar; sem ele usa a API nativa, que pode omitir itens) |
 | `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
 | `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar). **Recusa com exit 2 quando o código já existe no servidor como LAYOUT** (o deploy nativo identifica o destino só pelo nome do `.war`, então o upload sobrescreveria o WAR do layout e pode derrubar o servidor): renomeie o widget ou publique com `--force`. A checagem falha em aberto — servidor sem resposta = aviso e publicação |
+
+## layout
+
+Layouts WCM são as páginas-molde do portal (slots onde os widgets entram). A
+pasta local é `wcm/layout/<código>`, com a MESMA estrutura de um widget
+(`src/main/resources` com `application.info` + `layout.ftl`; `src/main/webapp`
+com `WEB-INF` e `resources`). O `application.info` declara
+`application.type=layout`. Não há `layout import` nem `layout new` nesta
+versão (o import depende do fluigcliHelper — ciclo futuro).
+
+| comando | direção | efeito |
+|---|---|---|
+| `layout list` | — | lista os layouts customizados do servidor (API nativa de page-management); `--all` inclui os internos da plataforma e acrescenta a coluna `Origem` (`customizado`/`plataforma`). `--json`: `{layouts:[{code,title,internal}], all}` |
+| `layout export <código>` | local → servidor | empacota `wcm/layout/<código>` em WAR e publica pelo deploy nativo (o mesmo do `widget export`; instalação assíncrona). Exige `application.info` com `application.type=layout` (ausente ou tipo diferente = exit 2, nada enviado; pasta inexistente = exit 4). **Recusa com exit 2 quando o código já existe no servidor como WIDGET** (espelho da guarda do `widget export`: o upload sobrescreveria o WAR do widget): renomeie ou publique com `--force`. Republicar um layout existente é a atualização normal, sem `--force`. A checagem falha em aberto |
 
 ## diff — conferir antes de publicar
 

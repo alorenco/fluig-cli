@@ -289,7 +289,7 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 			"do arquivo (<código>.war), por isso publicar um widget com o código de um\n" +
 			"layout sobrescreve o WAR do layout. Neste caso o comando recusa a\n" +
 			"publicação. Use --force para prosseguir de propósito.\n\n" +
-			"A CLI não publica layouts. Por isso a checagem existe em um sentido só.",
+			"O layout export faz a checagem no sentido inverso (código que já é widget).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -399,22 +399,7 @@ func (a *App) exportOneWidget(ctx context.Context, p *output.Printer, client *fl
 		}
 	}
 
-	refs, err := project.CollectWidgetWARFiles(widgetDir)
-	if err != nil {
-		return err
-	}
-	if len(refs) == 0 {
-		return output.Usagef("nada para empacotar em %s (esperado src/main/...)", widgetDir)
-	}
-	warFiles := make([]fluig.WARFile, 0, len(refs))
-	for _, ref := range refs {
-		content, err := os.ReadFile(ref.LocalPath)
-		if err != nil {
-			return err
-		}
-		warFiles = append(warFiles, fluig.WARFile{Name: ref.WARPath, Content: content})
-	}
-	war, err := fluig.BuildWAR(warFiles)
+	war, err := packWAR(widgetDir)
 	if err != nil {
 		return err
 	}
@@ -425,4 +410,26 @@ func (a *App) exportOneWidget(ctx context.Context, p *output.Printer, client *fl
 		return mapFluigError(err)
 	}
 	return nil
+}
+
+// packWAR monta o WAR em memória a partir de uma pasta no layout de widget
+// (src/main/resources, src/main/webapp). Serve ao widget export e ao layout
+// export: os dois artefatos têm a mesma estrutura e o mesmo deploy.
+func packWAR(dir string) ([]byte, error) {
+	refs, err := project.CollectWidgetWARFiles(dir)
+	if err != nil {
+		return nil, err
+	}
+	if len(refs) == 0 {
+		return nil, output.Usagef("nada para empacotar em %s (esperado src/main/...)", dir)
+	}
+	warFiles := make([]fluig.WARFile, 0, len(refs))
+	for _, ref := range refs {
+		content, err := os.ReadFile(ref.LocalPath)
+		if err != nil {
+			return nil, err
+		}
+		warFiles = append(warFiles, fluig.WARFile{Name: ref.WARPath, Content: content})
+	}
+	return fluig.BuildWAR(warFiles)
 }

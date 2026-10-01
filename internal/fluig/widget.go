@@ -143,9 +143,11 @@ func (c *Client) ListWidgetsNative(ctx context.Context) ([]Widget, error) {
 	}
 }
 
-// Layout é um layout WCM (page-management). A CLI não gerencia layouts; este
-// tipo existe para o preflight de colisão de código do `widget export` — ver
-// FindLayout.
+// Layout é um layout WCM (page-management). Nasceu para o preflight de colisão
+// de código do `widget export` (ver FindLayout); desde o `layout list`
+// (2026-10-01) também é o item da listagem. Description e ID ficam de fora de
+// propósito: a listagem humana mostra código e título, e o JSON segue o mesmo
+// recorte estável.
 type Layout struct {
 	Code     string `json:"code"`
 	Title    string `json:"title"`
@@ -297,4 +299,63 @@ func (c *Client) UploadWidgetWAR(ctx context.Context, warName string, war []byte
 		return fmt.Errorf("%w: %s", errServerRejected, m)
 	}
 	return nil
+}
+
+// applicationsPath é a coleção de widgets instalados do page-management.
+const applicationsPath = "/page-management/api/v2/applications"
+
+// FindWidgetNative busca um widget pelo código na API nativa de
+// page-management (`GET /v2/applications/{code}`). Widget inexistente →
+// ErrNotFound.
+//
+// ⚠️ Por que isto existe: é o espelho do FindLayout para o `layout export`. O
+// upload de WAR do WCM identifica o destino só pelo nome do arquivo
+// (`<código>.war`), então publicar um layout com o código de um widget
+// existente sobrescreve o WAR do widget. A guarda consulta este endpoint antes
+// do upload.
+//
+// Medido na homologação (2026-10-01): código inexistente responde **404** com
+// corpo `{"code":"ApplicationNotFoundException","message":"Application(Widget,
+// Layout or Theme) not found with code '...'"}`; e o código de um LAYOUT também
+// responde **404** — a coleção `applications` só enxerga widgets, apesar do
+// texto da mensagem. Por isso a guarda do `layout export` não dispara ao
+// republicar o próprio layout. Widget existente responde 200 com
+// `{code,title,description,type:"widget",...}`. O GET por código acha
+// inclusive os widgets que a LISTAGEM nativa omite (ver ListWidgetsNative) —
+// por isso ele é a fonte primária, e a listagem só é rede de segurança quando
+// o GET responde algo que não é 2xx nem 404. Indisponibilidade NÃO vira "não
+// existe": nesse caso o erro sobe e quem chama decide (a CLI avisa e publica).
+func (c *Client) FindWidgetNative(ctx context.Context, code string) (*Widget, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url(applicationsPath+"/") + url.PathEscape(code)
+	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case status == http.StatusNotFound:
+		return nil, fmt.Errorf("%w: widget %q", ErrNotFound, code)
+	case status >= 200 && status < 300:
+		var w Widget
+		if err := json.Unmarshal(body, &w); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de page-management/applications/%s: %w", code, err)
+		}
+		if w.Code == "" {
+			return nil, fmt.Errorf("%w: widget %q", ErrNotFound, code)
+		}
+		return &w, nil
+	}
+
+	widgets, listErr := c.ListWidgetsNative(ctx)
+	if listErr != nil {
+		return nil, &HTTPError{StatusCode: status, URL: "page-management/applications/" + code, Body: truncate(string(body), 512)}
+	}
+	for i := range widgets {
+		if strings.EqualFold(widgets[i].Code, code) {
+			return &widgets[i], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: widget %q", ErrNotFound, code)
 }

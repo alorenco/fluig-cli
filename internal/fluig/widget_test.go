@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -217,5 +218,132 @@ func TestFindLayoutTudoQuebradoDevolveErro(t *testing.T) {
 	}
 	if errors.Is(err, ErrNotFound) {
 		t.Errorf("indisponibilidade não pode virar ErrNotFound (viraria publicação silenciosa): %v", err)
+	}
+}
+
+// applicationsStub simula o GET /v2/applications/{code} e a listagem nativa,
+// para o FindWidgetNative (guarda invertida do `layout export`).
+type applicationsStub struct {
+	getStatus, listStatus int
+	getBody, listBody     string
+	getHits, listHits     int
+}
+
+func (s *applicationsStub) client(t *testing.T) *Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/portal/api/servlet/login.do", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONIDSSO", Value: "ok", Path: "/"})
+	})
+	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"message":"pong"}`)
+	})
+	mux.HandleFunc("/page-management/api/v2/applications/", func(w http.ResponseWriter, r *http.Request) {
+		s.getHits++
+		if s.getStatus != 0 {
+			w.WriteHeader(s.getStatus)
+		}
+		io.WriteString(w, s.getBody)
+	})
+	mux.HandleFunc("/page-management/api/v2/applications", func(w http.ResponseWriter, r *http.Request) {
+		s.listHits++
+		if s.listStatus != 0 {
+			w.WriteHeader(s.listStatus)
+		}
+		io.WriteString(w, s.listBody)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c, err := NewClient(Options{BaseURL: srv.URL, Username: "u-apps-" + t.Name(), Password: "p", CompanyID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// Respostas REAIS da homologação (2026-10-01): widget existente → 200 com
+// type=widget; código inexistente (e código de LAYOUT) → 404 com
+// ApplicationNotFoundException.
+func TestFindWidgetNativeRespostasReais(t *testing.T) {
+	widget, err := os.ReadFile("../../testdata/rest_application_widget.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notFound, err := os.ReadFile("../../testdata/rest_application_not_found.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("existente", func(t *testing.T) {
+		stub := &applicationsStub{getBody: string(widget)}
+		w, err := stub.client(t).FindWidgetNative(context.Background(), "alertas_administrativos")
+		if err != nil {
+			t.Fatalf("FindWidgetNative: %v", err)
+		}
+		if w.Code != "alertas_administrativos" || w.Title != "Alertas Administrativos" {
+			t.Errorf("widget inesperado: %+v", w)
+		}
+		if stub.listHits != 0 {
+			t.Errorf("a listagem não devia ser consultada no caminho feliz (%d)", stub.listHits)
+		}
+	})
+	t.Run("inexistente ou layout", func(t *testing.T) {
+		stub := &applicationsStub{getStatus: http.StatusNotFound, getBody: string(notFound)}
+		_, err := stub.client(t).FindWidgetNative(context.Background(), "kit_layout")
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("esperava ErrNotFound, veio %v", err)
+		}
+		if stub.listHits != 0 {
+			t.Errorf("404 é conclusivo; a listagem não devia ser consultada (%d)", stub.listHits)
+		}
+	})
+}
+
+// Corpo 200 sem código também significa "não existe".
+func TestFindWidgetNativeCorpoVazio(t *testing.T) {
+	stub := &applicationsStub{getBody: `{}`}
+	if _, err := stub.client(t).FindWidgetNative(context.Background(), "vazio"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("esperava ErrNotFound com corpo vazio, veio %v", err)
+	}
+}
+
+// GET por código com 500: o fallback pela listagem nativa decide, ignorando a
+// caixa do código.
+func TestFindWidgetNativeFallbackPelaListagem(t *testing.T) {
+	stub := &applicationsStub{
+		getStatus: http.StatusInternalServerError, getBody: `{"message":"erro"}`,
+		listBody: `{"items":[{"code":"Meu_Widget","title":"Meu Widget","internal":false}],"hasNext":false}`,
+	}
+	w, err := stub.client(t).FindWidgetNative(context.Background(), "meu_widget")
+	if err != nil {
+		t.Fatalf("esperava achar pela listagem, veio %v", err)
+	}
+	if w.Title != "Meu Widget" || stub.listHits != 1 {
+		t.Errorf("widget=%+v listHits=%d", w, stub.listHits)
+	}
+
+	stub2 := &applicationsStub{
+		getStatus: http.StatusInternalServerError, getBody: `{}`,
+		listBody: `{"items":[{"code":"outro","title":"Outro"}],"hasNext":false}`,
+	}
+	if _, err := stub2.client(t).FindWidgetNative(context.Background(), "meu_widget"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("sem o código na listagem esperava ErrNotFound, veio %v", err)
+	}
+}
+
+// Os dois caminhos fora do ar: erro de verdade, nunca ErrNotFound — senão o
+// layout sobrescreveria o widget em silêncio.
+func TestFindWidgetNativeTudoQuebradoDevolveErro(t *testing.T) {
+	stub := &applicationsStub{
+		getStatus: http.StatusInternalServerError, getBody: `{}`,
+		listStatus: http.StatusServiceUnavailable, listBody: `{}`,
+	}
+	_, err := stub.client(t).FindWidgetNative(context.Background(), "x")
+	if err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("esperava erro de indisponibilidade, veio %v", err)
+	}
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+		t.Errorf("esperava HTTPError 500 do GET direto, veio %v", err)
 	}
 }

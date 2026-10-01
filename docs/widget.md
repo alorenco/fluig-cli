@@ -177,4 +177,5 @@ A verificação falha em aberto. Se o servidor não responder a consulta, o coma
 avisa e publica. A guarda protege contra um erro conhecido. Ela não impede a
 publicação por indisponibilidade.
 
-A CLI não publica layouts. Por isso a verificação existe em um sentido só.
+O [`layout export`](layout.md#guarda-de-colisão-com-widget) faz a verificação
+no sentido inverso. Ele recusa um layout cujo código já é de um widget.

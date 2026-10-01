@@ -34,6 +34,9 @@ type deployStub struct {
 
 	// layouts responde o GET de layout por código (colisão do §3.1).
 	layouts map[string]string
+	// widgets responde o GET de widget por código (colisão invertida do passo
+	// layout).
+	widgets map[string]string
 	// falhaDataset faz o editDataset recusar o dataset citado.
 	falhaDataset string
 }
@@ -116,6 +119,16 @@ func (s *deployStub) server(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/page-management/api/v2/layouts", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"items":[],"hasNext":false}`)
+	})
+	// layout: widgets (colisão invertida) + o mesmo upload
+	mux.HandleFunc("/page-management/api/v2/applications/", func(w http.ResponseWriter, r *http.Request) {
+		code := strings.TrimPrefix(r.URL.Path, "/page-management/api/v2/applications/")
+		if title, ok := s.widgets[code]; ok {
+			io.WriteString(w, `{"id":1,"code":"`+code+`","title":"`+title+`","type":"widget"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `{"code":"ApplicationNotFoundException","message":"not found"}`)
 	})
 	mux.HandleFunc("/portal/api/rest/wcmservice/rest/product/uploadfile", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseMultipartForm(20 << 20)
@@ -246,6 +259,9 @@ func deployProject(t *testing.T, stubURL string) string {
 	escreve(t, proj, "forms/Formulario de Teste/Formulario de Teste.html", "<html>ok</html>")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/webapp/WEB-INF/application.xml", "<application/>")
 	escreve(t, proj, "wcm/widget/meu_painel/src/main/resources/application.info", "code=meu_painel")
+	escreve(t, proj, "wcm/layout/meu_layout/src/main/webapp/WEB-INF/jboss-web.xml", "<jboss-web/>")
+	escreve(t, proj, "wcm/layout/meu_layout/src/main/resources/layout.ftl", "<#-- layout -->")
+	escreve(t, proj, "wcm/layout/meu_layout/src/main/resources/application.info", "application.type=layout\napplication.code=meu_layout\n")
 	return proj
 }
 
@@ -858,4 +874,67 @@ func TestDeployPassoFormRecorteDeRegras(t *testing.T) {
 			t.Error("publicou o formulário apesar do erro de runtime")
 		}
 	})
+}
+
+// O passo layout publica como o `layout export`: <code>.war pelo mesmo upload.
+func TestDeployPassoLayoutPublica(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"layout": "meu_layout"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+	if !strings.Contains(stdout, `"kind":"layout"`) || !strings.Contains(stdout, "layout meu_layout enviado") {
+		t.Errorf("relatório sem o passo layout: %s", stdout)
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if len(stub.widgetsEnviados) != 1 || stub.widgetsEnviados[0] != "meu_layout.war" {
+		t.Errorf("layout não enviado: %v", stub.widgetsEnviados)
+	}
+}
+
+// A guarda invertida vale dentro do plano, inclusive no --dry-run: o layout
+// não pode sobrescrever um widget só porque o deploy é automatizado.
+func TestDeployRespeitaColisaoDeWidget(t *testing.T) {
+	stub := &deployStub{widgets: map[string]string{"meu_layout": "Painel Widget"}}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"layout": "meu_layout"}]}`)
+
+	for _, extra := range [][]string{{"--dry-run"}, {}} {
+		args := append([]string{"deploy", "--plan", p, "--json", "--project", proj, "--server", "homolog"}, extra...)
+		code, stdout := runMain(t, args...)
+		if code != output.ExitUsage {
+			t.Fatalf("%v: exit=%d, quer %d (colisão); stdout=%s", extra, code, output.ExitUsage, stdout)
+		}
+		if !strings.Contains(stdout, "WIDGET") {
+			t.Errorf("%v: mensagem sem a explicação da colisão: %s", extra, stdout)
+		}
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	if len(stub.widgetsEnviados) != 0 {
+		t.Errorf("o layout foi enviado apesar da colisão: %v", stub.widgetsEnviados)
+	}
+}
+
+// --dry-run do passo layout: pasta presente, application.type conferido e a
+// ação prevista. Pasta de widget apontada como layout = erro antes de escrever.
+func TestDeployDryRunPassoLayout(t *testing.T) {
+	stub := &deployStub{}
+	proj := deployProject(t, stub.server(t).URL)
+	p := plano(t, proj, `{"steps": [{"layout": "meu_layout"}]}`)
+
+	code, stdout := runMain(t, "deploy", "--plan", p, "--dry-run", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK || !strings.Contains(stdout, "publicaria o layout meu_layout") {
+		t.Fatalf("exit=%d; stdout=%s", code, stdout)
+	}
+
+	p2 := plano(t, proj, `{"steps": [{"layout": "meu_painel"}]}`) // existe só em wcm/widget
+	code, stdout = runMain(t, "deploy", "--plan", p2, "--dry-run", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage || !strings.Contains(stdout, "não encontrado") {
+		t.Errorf("layout inexistente: exit=%d stdout=%s", code, stdout)
+	}
 }

@@ -46,6 +46,7 @@ nova.
 | `mechanism` | arquivo `.js` | `description` |
 | `form` | pasta `forms/<pasta>` | `new`, `formName`, `documentId`, `parentId`, `datasetName`, `cardDescription`, `persistenceType`, `version` |
 | `widget` | código do widget | `build` (roda `npm run build`), `force` |
+| `layout` | código do layout (`wcm/layout/<código>`) | `force` |
 | `workflow` | prefixo local dos scripts | `processId`, `noRelease` |
 | `db` | arquivo `.sql` | — (só leitura; o servidor recusa escrita) |
 
@@ -134,6 +135,8 @@ O `--dry-run` valida o plano **sem escrever nada**:
   servidor);
 - o código do widget não colide com um layout (a guarda de
   [`widget export`](widget.md#guarda-de-colisão-com-layout));
+- o layout tem `application.type=layout` e o código não colide com um widget
+  (a guarda de [`layout export`](layout.md#guarda-de-colisão-com-widget));
 - cada script `.sql` tem instruções reconhecíveis, com a contagem;
 - **cada evento local existe no processo**. O `--dry-run` baixa o XML do processo
   e aplica os scripts em memória, sem importar nada. Um evento que não existe no

@@ -5,7 +5,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   lang: 'pt-BR',
   title: 'fluigcli',
-  description: 'CLI não oficial para desenvolvimento TOTVS Fluig — datasets, formulários, workflow e widgets direto do terminal',
+  description: 'CLI não oficial para desenvolvimento TOTVS Fluig — datasets, formulários, workflow, widgets e layouts direto do terminal',
   // O site vive em https://alorenco.github.io/fluig-cli/
   base: '/fluig-cli/',
   // O README.md é o índice para quem navega no GitHub; no site, a home é o index.md.
@@ -41,6 +41,7 @@ export default defineConfig({
           { text: 'form — formulários', link: '/form' },
           { text: 'workflow — scripts e versões de processo', link: '/workflow' },
           { text: 'widget — widgets', link: '/widget' },
+          { text: 'layout — layouts WCM', link: '/layout' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
           { text: 'deploy — release por manifesto', link: '/deploy' },
           { text: 'audit — conformidade com o style guide', link: '/audit' },

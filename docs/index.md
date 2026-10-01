@@ -19,9 +19,9 @@ hero:
 features:
   - icon: 🧩
     title: Artefatos da plataforma
-    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo e widgets. Use import para trazer do servidor para o local. Use export para enviar do local para o servidor. Confira o diff antes de publicar.
+    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo, widgets e layouts. Use import para trazer do servidor para o local. Use export para enviar do local para o servidor. Confira o diff antes de publicar.
     link: /dataset
-    linkText: dataset · form · workflow · widget
+    linkText: dataset · form · workflow · widget · layout
   - icon: ⚡
     title: Dev loop de verdade
     details: O fluigcli dev é um proxy local autenticado do portal. O JS e o CSS das widgets saem do disco. Os formulários têm preview com simulação de processo. O navegador recarrega ao salvar. O widget new gera scaffolds prontos em classic, Vue 3, React 19 e Vuetify 3.
@@ -58,6 +58,7 @@ em pt-BR.
 | [form](./form) | formulários e registros (CRUD de cards) |
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo, conversão de versão das solicitações |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
+| [layout](./layout) | layouts WCM: listagem e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
 | [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino, formulário × etapas do processo e baseline da dívida antiga |

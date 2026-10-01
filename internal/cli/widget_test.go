@@ -34,6 +34,17 @@ type widgetStub struct {
 	layoutGetBroken bool
 	// layoutListBroken derruba também a listagem: o preflight fica sem resposta.
 	layoutListBroken bool
+	// widgets responde o GET de widget por código (código → título). Simula a
+	// colisão layout × widget do `layout export` (guarda invertida).
+	widgets map[string]string
+	// widgetGetBroken faz o GET de widget por código responder 500; a listagem
+	// nativa (acima) vira o fallback do FindWidgetNative.
+	widgetGetBroken bool
+	// applicationsListBroken derruba a listagem nativa também.
+	applicationsListBroken bool
+	// layoutsInternal são layouts internos da plataforma (internal=true) na
+	// listagem — o `layout list` só os mostra com --all.
+	layoutsInternal map[string]string
 }
 
 func (s *widgetStub) widgetZip(t *testing.T) []byte {
@@ -77,8 +88,30 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 		}
 		io.WriteString(w, `[{"code":"meu_widget","title":"Meu Widget","description":"d","filename":"meu_widget.war"}]`)
 	})
-	// Listagem nativa (fallback do widget list quando o fluigcliHelper falta).
+	// GET de widget por código (guarda invertida do layout export).
+	mux.HandleFunc("/page-management/api/v2/applications/", func(w http.ResponseWriter, r *http.Request) {
+		if s.widgetGetBroken {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"message":"erro interno"}`)
+			return
+		}
+		code := strings.TrimPrefix(r.URL.Path, "/page-management/api/v2/applications/")
+		title, ok := s.widgets[code]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, `{"code":"ApplicationNotFoundException","message":"Application(Widget, Layout or Theme) not found with code '`+code+`'."}`)
+			return
+		}
+		io.WriteString(w, `{"id":1,"code":"`+code+`","title":"`+title+`","internal":false,"type":"widget"}`)
+	})
+	// Listagem nativa (fallback do widget list quando o fluigcliHelper falta, e
+	// do FindWidgetNative quando o GET por código falha).
 	mux.HandleFunc("/page-management/api/v2/applications", func(w http.ResponseWriter, r *http.Request) {
+		if s.applicationsListBroken {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"message":"erro interno"}`)
+			return
+		}
 		io.WriteString(w, `{"items":[`+
 			`{"code":"meu_widget","title":"Meu Widget","description":"d","internal":false},`+
 			`{"code":"outro_widget","title":"Outro Widget","description":"d2","internal":false}`+
@@ -106,9 +139,12 @@ func (s *widgetStub) server(t *testing.T) *httptest.Server {
 			io.WriteString(w, `{"message":"erro interno"}`)
 			return
 		}
-		items := make([]string, 0, len(s.layouts))
+		items := make([]string, 0, len(s.layouts)+len(s.layoutsInternal))
 		for code, title := range s.layouts {
 			items = append(items, `{"id":1,"code":"`+code+`","title":"`+title+`","internal":false}`)
+		}
+		for code, title := range s.layoutsInternal {
+			items = append(items, `{"id":2,"code":"`+code+`","title":"`+title+`","internal":true}`)
 		}
 		io.WriteString(w, `{"items":[`+strings.Join(items, ",")+`],"hasNext":false}`)
 	})
