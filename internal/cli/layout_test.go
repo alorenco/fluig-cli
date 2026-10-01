@@ -94,7 +94,10 @@ func TestLayoutExportNaoEncontrado(t *testing.T) {
 	if code != output.ExitNotFound {
 		t.Fatalf("exit=%d, esperado %d; saída: %s", code, output.ExitNotFound, out)
 	}
-	if !strings.Contains(out, filepath.Join("wcm", "layout")) {
+	// No Windows a pasta é wcm\layout, e o JSON escapa a barra invertida —
+	// compara com a forma que o envelope realmente carrega.
+	wantDir, _ := json.Marshal(filepath.Join("wcm", "layout"))
+	if !strings.Contains(out, strings.Trim(string(wantDir), `"`)) {
 		t.Errorf("mensagem não aponta a pasta convencional: %s", out)
 	}
 }
