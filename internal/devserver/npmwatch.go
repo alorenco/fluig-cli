@@ -141,7 +141,7 @@ func (s *Server) runNpmWatch(ctx context.Context, w project.SPAWidget) {
 		select {
 		case <-ctx.Done():
 			killTree(cmd)
-			<-done
+			<-done //nolint:errcheck // processo morto por nós: o erro do Wait não interessa
 			return
 		case err := <-done:
 			if ctx.Err() != nil {
