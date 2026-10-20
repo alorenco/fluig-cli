@@ -23,10 +23,13 @@ type workflowStub struct {
 	helperInstalled bool
 	version         int
 
-	pubVersion   int    // última versão REST (import incrementa; default 3)
-	importedXML  []byte // corpo do import/xml
-	releaseCalls int
-	releaseFail  bool
+	pubVersion     int    // última versão REST (import incrementa; default 3)
+	importedXML    []byte // corpo do import/xml
+	newImportedXML []byte // corpo do import/xml novo (POST /processes/import/xml)
+	newImportCalls int
+	newImportQuery string
+	releaseCalls   int
+	releaseFail    bool
 }
 
 func (s *workflowStub) server(t *testing.T) *httptest.Server {
@@ -110,7 +113,14 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			}
 			w.Write(b)
 		case strings.HasSuffix(path, "/import/xml"):
-			s.importedXML, _ = io.ReadAll(r.Body)
+			body, _ := io.ReadAll(r.Body)
+			if path == "/process-management/api/v2/processes/import/xml" {
+				s.newImportedXML = body
+				s.newImportCalls++
+				s.newImportQuery = r.URL.RawQuery
+			} else {
+				s.importedXML = body
+			}
 			s.pubVersion++
 			io.WriteString(w, `{"processId":"Compras","versions":null}`)
 		case strings.HasSuffix(path, "/process-versions/latest/release"):

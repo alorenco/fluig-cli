@@ -277,6 +277,8 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 		noAudit       bool
 		passwordStdin bool
 		eventsFlag    []string
+		markNew       bool
+		filePath      string
 	)
 	cmd := &cobra.Command{
 		Use:   "publish <processId>",
@@ -294,16 +296,28 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			"último import.\n\n" +
 			"O publish NÃO cria eventos nem processos: scripts locais de eventos que\n" +
 			"não existem no processo interrompem o comando antes de qualquer mudança.\n\n" +
+			"Para CRIAR um processo novo, use --new com --file <base.xml>: o XML base\n" +
+			"(export do Fluig Studio ou de outro ambiente) recebe os scripts locais\n" +
+			"e é importado como processo novo (o <processId> do XML é reescrito para\n" +
+			"o alvo).\n\n" +
 			"Use --process-id quando o processId no servidor for diferente do prefixo\n" +
 			"do arquivo local. O argumento continua a identificar os scripts locais. A\n" +
 			"flag troca apenas o processo de destino no servidor.",
 		Example: "  # publica todos os scripts locais do processo\n" +
 			"  fluigcli workflow publish Compras\n\n" +
 			"  # publica só dois eventos; o resto do processo fica como está no servidor\n" +
-			"  fluigcli workflow publish Compras --events beforeStateEntry,servicetask27",
+			"  fluigcli workflow publish Compras --events beforeStateEntry,servicetask27\n\n" +
+			"  # cria um processo novo a partir do XML base com os scripts locais\n" +
+			"  fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
+			if markNew && filePath == "" {
+				return output.Usagef("--new exige --file <base.xml> (XML exportado do processo)")
+			}
+			if !markNew && filePath != "" {
+				return output.Usagef("--file só combina com --new")
+			}
 			localPrefix := args[0]
 			pid := localPrefix
 			if processIDFlag != "" {
@@ -348,6 +362,9 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 			}
 
 			ctx := context.Background()
+			if markNew {
+				return publishNewWorkflow(ctx, app, p, pid, filePath, byEvent, scripts, noRelease, processIDFlag == "", passwordStdin)
+			}
 			_, client, err := app.connectWrite(ctx, passwordStdin, "publicar uma nova versão do processo")
 			if err != nil {
 				return err
@@ -383,7 +400,80 @@ func newWorkflowPublishCmd(app *App) *cobra.Command {
 	cmd.Flags().BoolVar(&noAudit, "no-audit", false, "publica sem a checagem local do audit (por padrão, erro de audit aborta o publish)")
 	cmd.Flags().StringVar(&processIDFlag, "process-id", "", "processId de destino no servidor, quando diferente do prefixo do arquivo local")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	cmd.Flags().BoolVar(&markNew, "new", false, "cria um processo novo a partir do XML base (exige --file)")
+	cmd.Flags().StringVar(&filePath, "file", "", "XML base do processo novo (export do Fluig Studio ou de outro ambiente)")
 	return cmd
+}
+
+// publishNewWorkflow cria um processo novo: lê o XML base, aplica os scripts
+// locais, reescreve o processId para o alvo e importa via ImportNewProcessXML.
+// Nada é alterado se um evento local não existe no XML base ou se o processo
+// já existe no servidor.
+func publishNewWorkflow(ctx context.Context, app *App, p *output.Printer, pid, filePath string, byEvent map[string]string, scripts []project.ProcessScript, noRelease, derived bool, passwordStdin bool) error {
+	base, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return output.NotFoundf("arquivo %q não encontrado", filePath)
+		}
+		return err
+	}
+	newXML, updated, missing := fluig.ApplyProcessEventScripts(base, byEvent)
+	if len(missing) > 0 {
+		return output.NotFoundf(
+			"evento(s) %s não existem no XML base — o publish não cria eventos; crie-os no Fluig Studio (nada foi alterado)",
+			strings.Join(missing, ", "))
+	}
+	newXML = fluig.RewriteProcessXMLID(newXML, pid)
+
+	_, client, err := app.connectWrite(ctx, passwordStdin, "criar o processo "+pid)
+	if err != nil {
+		return err
+	}
+
+	if v, err := client.WorkflowVersion(ctx, pid); err == nil && v > 0 {
+		return output.ServerErrorf("processo %q já existe no servidor (v%d); sem --new o publish atualiza, com --new ele se recusa a sobrescrever", pid, v)
+	}
+
+	if err := client.ImportNewProcessXML(ctx, pid, newXML); err != nil {
+		return mapFluigError(err)
+	}
+	versions, err := client.ProcessVersions(ctx, pid)
+	if err != nil {
+		return mapFluigError(err)
+	}
+	version := fluig.LatestProcessVersion(versions)
+
+	released := false
+	if !noRelease {
+		if err := client.ReleaseLatestProcessVersion(ctx, pid); err != nil {
+			return output.ServerErrorf(
+				"a versão %d do processo %q foi criada, mas não pôde ser liberada: %v — corrija no Fluig Studio (ou use --no-release)",
+				version, pid, err).WithCause(err)
+		}
+		released = true
+	}
+
+	for _, ev := range updated {
+		p.Successf("evento %q aplicado", ev)
+	}
+	if released {
+		p.Successf("processo %q criado na versão %d e liberado", pid, version)
+	} else {
+		p.Successf("processo %q criado na versão %d em edição (libere com o publish sem --no-release ou no Fluig Studio)",
+			pid, version)
+	}
+	_ = derived
+	_ = scripts
+	p.Done(map[string]any{
+		"processId":       pid,
+		"previousVersion": 0,
+		"version":         version,
+		"released":        released,
+		"events":          updated,
+		"new":             true,
+		"file":            filePath,
+	})
+	return nil
 }
 
 // --- workflow list ---

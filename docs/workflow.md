@@ -274,7 +274,7 @@ no servidor. Diferenças só de quebra de linha (CRLF/LF) não contam. Com `--js
 o resultado sai no envelope (`data.artifacts[]` com `status` e `diff`, mais
 `data.counts`).
 
-## `fluigcli workflow publish <processId> [--events a,b] [--no-release]`
+## `fluigcli workflow publish <processId> [--events a,b] [--no-release] [--new --file base.xml]`
 
 Este comando faz o deploy do processo. Ele cria uma versão nova no servidor com
 os scripts locais (`workflow/scripts/<processId>.*.js`) aplicados. Ele libera
@@ -296,6 +296,9 @@ fluigcli workflow publish Compras \
 # processId no servidor diferente do prefixo do arquivo local
 fluigcli workflow publish SolicitacaoAdiantamento \
     --process-id "Adiantamento ao Fornecedor" --server homolog
+
+# CRIAR um processo novo a partir do XML base + scripts locais
+fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --server homolog
 ```
 
 | Flag | Uso |
@@ -303,6 +306,8 @@ fluigcli workflow publish SolicitacaoAdiantamento \
 | `--events a,b` | publica só os eventos indicados; os demais ficam com o conteúdo do servidor |
 | `--no-release` | cria a versão nova em modo de edição, sem liberá-la |
 | `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
+| `--new` | cria um processo novo (exige `--file`); falha se o processo já existe |
+| `--file XML` | XML base do processo novo (export do Fluig Studio ou de outro ambiente) |
 
 ### Publicar só alguns eventos
 
@@ -345,15 +350,39 @@ Quando usar `publish` vs `export`:
 
 Regras e limitações:
 
-- O publish não cria eventos nem processos. Um script local de um evento que não
-  existe no processo interrompe o comando antes de qualquer mudança no servidor.
-  Crie o evento no Fluig Studio. Eventos do servidor sem script local ficam como
-  estão.
+- O publish não cria eventos. Um script local de um evento que não existe no
+  processo interrompe o comando antes de qualquer mudança no servidor. Crie o
+  evento no Fluig Studio. Eventos do servidor sem script local ficam como estão.
+  Para criar o PROCESSO, use `--new --file` (abaixo).
 - A liberação pode falhar (por exemplo, um diagrama sem início ou fim). Neste
   caso, a versão nova fica criada em edição. A mensagem de erro avisa. Corrija no
   Fluig Studio ou repita com `--no-release`.
 - O diagrama e as demais configurações da versão nova vêm do estado atual do
   servidor. O publish exporta a última versão, troca só os scripts e reimporta.
+
+### Criar um processo novo (`--new --file`)
+
+Sem `--new`, o publish exige que o processo já exista. Com `--new --file`, ele
+CRIA o processo:
+
+```sh
+fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --server homolog
+fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --no-release
+fluigcli workflow publish PrefixoLocal --new --file workflow/base.xml --process-id "Novo Processo"
+```
+
+- O `--file` é o XML base (export do Fluig Studio ou `GET .../export/xml` de
+  outro ambiente). Os scripts locais (`workflow/scripts/<prefixo>.*.js`) são
+  aplicados sobre ele via `ApplyProcessEventScripts`, igual ao publish normal.
+- O `<processId>` do XML é reescrito para o alvo. O export de outro ambiente vem
+  com o ID antigo em dezenas de pontos — a CLI troca todos para o `processId`
+  de destino.
+- `--events`, `--no-release`, `--no-audit` e `--process-id` valem igual. Sem
+  `--events`, aplicam-se todos os scripts locais; com `--events`, só os
+  indicados.
+- Se o processo já existe, o comando se recusa a sobrescrever (erro, nada muda).
+  Sem `--new`, publicar processo inexistente continua exit **4**.
+- `--file` sem `--new` é erro de uso (exit **2**), e `--new` sem `--file` também.
 
 ## `fluigcli workflow convert <processId> [flags]`
 
