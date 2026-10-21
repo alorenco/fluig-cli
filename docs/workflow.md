@@ -307,7 +307,9 @@ fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --server h
 | `--no-release` | cria a versão nova em modo de edição, sem liberá-la |
 | `--process-id ID` | processId de destino no servidor, quando diferente do prefixo do arquivo local |
 | `--new` | cria um processo novo (exige `--file`); falha se o processo já existe |
-| `--file XML` | XML base do processo novo (export do Fluig Studio ou de outro ambiente) |
+| `--file XML` | XML base do processo novo (export de outro ambiente via `GET .../export/xml`) |
+| `--form-id ID` | documentId do formulário no destino (reescreve o `formId` do XML base) |
+| `--description NOME` | nome do processo novo (reescreve a descrição do XML base) |
 
 ### Publicar só alguns eventos
 
@@ -369,20 +371,36 @@ CRIA o processo:
 fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --server homolog
 fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --no-release
 fluigcli workflow publish PrefixoLocal --new --file workflow/base.xml --process-id "Novo Processo"
+fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --form-id 123 --description "Novo Processo"
 ```
 
-- O `--file` é o XML base (export do Fluig Studio ou `GET .../export/xml` de
-  outro ambiente). Os scripts locais (`workflow/scripts/<prefixo>.*.js`) são
-  aplicados sobre ele via `ApplyProcessEventScripts`, igual ao publish normal.
-- O `<processId>` do XML é reescrito para o alvo. O export de outro ambiente vem
-  com o ID antigo em dezenas de pontos — a CLI troca todos para o `processId`
-  de destino.
+- O `--file` é o XML base. A única origem válida é o export de outro
+  ambiente (`GET /process-management/api/v2/processes/{id}/export/xml`). O
+  Fluig Studio trabalha com o diagrama `.process`, e esse formato não serve
+  aqui. Os scripts locais (`workflow/scripts/<prefixo>.*.js`) entram no XML
+  base, igual ao publish normal.
+- O `<processId>` do XML sai reescrito para o alvo. O export de outro ambiente
+  traz o ID antigo em vários pontos. A CLI troca todos para o `processId` de
+  destino.
+- O `formId` do XML base aponta para o formulário no ambiente de origem. No
+  destino esse ID pode não existir, e o servidor não valida. Por isso a CLI
+  confere antes do import. Se o formulário não existe no destino, o comando
+  recusa com exit **4**. Use `--form-id` com o `documentId` do formulário no
+  destino. Use `--description` para trocar o nome do processo novo.
 - `--events`, `--no-release`, `--no-audit` e `--process-id` valem igual. Sem
-  `--events`, aplicam-se todos os scripts locais; com `--events`, só os
+  `--events`, aplicam-se todos os scripts locais. Com `--events`, só os
   indicados.
-- Se o processo já existe, o comando se recusa a sobrescrever (erro, nada muda).
-  Sem `--new`, publicar processo inexistente continua exit **4**.
-- `--file` sem `--new` é erro de uso (exit **2**), e `--new` sem `--file` também.
+- Se o processo já existe, o servidor recusa o import (HTTP 400) e o comando
+  falha com exit **5**. Nada muda no servidor. Sem `--new`, publicar processo
+  inexistente continua exit **4**.
+- `--file`, `--form-id` e `--description` sem `--new` são erro de uso
+  (exit **2**). O mesmo vale para `--new` sem `--file`.
+
+Limitação: o endpoint de processo novo descarta o campo `condition` das
+condições de gateway (`<condition>false</condition>` some no import). O
+endpoint de versão preserva o campo. Confira os gateways do processo novo
+antes de liberar a versão. Use `workflow versions` e valide o fluxo no
+portal. Se algum gateway perde a condição, ajuste no Fluig Studio.
 
 ## `fluigcli workflow convert <processId> [flags]`
 
