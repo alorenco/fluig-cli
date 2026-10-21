@@ -470,6 +470,12 @@ listas ignorando o cache.
 - O dev reescreve os redirects e as URLs absolutas que o portal embute (por
   exemplo, `WCMAPI.serverURL`) para a origem local. Assim, a navegação não
   escapa do proxy.
+- O dev também reescreve as URLs absolutas das respostas JSON. Por exemplo, o
+  portal monta o iframe do formulário de uma solicitação a partir de uma URL
+  que vem em JSON. Sem a reescrita, o iframe aponta para o servidor real, e o
+  navegador bloqueia o iframe por causa do `X-Frame-Options`.
+- A reescrita aceita os dois esquemas do host (`http://` e `https://`). Um
+  servidor atrás de um proxy TLS pode gerar URLs com o esquema interno.
 - O `--json` não é suportado. O dev é um modo interativo de longa duração.
 - O `dev` e o `watch` se complementam. O `dev` dá feedback instantâneo local
   (widgets, layout de forms). O `watch` publica de verdade ao salvar

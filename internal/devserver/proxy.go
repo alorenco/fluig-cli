@@ -49,21 +49,27 @@ func (s *Server) newProxy() *httputil.ReverseProxy {
 			if loc := resp.Header.Get("Location"); origin != "" && strings.HasPrefix(loc, upstream.String()) {
 				resp.Header.Set("Location", origin+strings.TrimPrefix(loc, upstream.String()))
 			}
-			if origin == "" || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+			ct := resp.Header.Get("Content-Type")
+			isHTML := strings.HasPrefix(ct, "text/html")
+			if origin == "" || (!isHTML && !strings.HasPrefix(ct, "application/json")) {
 				return nil
 			}
-			// HTML: URLs absolutas do host real (WCMAPI.serverURL, links, logo)
-			// viram a origem local; o markup das widgets do projeto é
-			// rerenderizado do view.ftl local (ver ftl.go); e o script de live
+			// URLs absolutas do host real viram a origem local. No HTML são o
+			// WCMAPI.serverURL, links e logo; no JSON, URLs que o JS do portal
+			// usa direto — o formHtml do workflowView vira o src do iframe do
+			// formulário, e apontar para o host real esbarra no X-Frame-Options
+			// SAMEORIGIN (issue #6). No HTML, o markup das widgets do projeto é
+			// rerenderizado do view.ftl local (ver ftl.go) e o script de live
 			// reload entra no fim.
 			b, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				return err
 			}
-			body := strings.ReplaceAll(string(b), upstream.String(), origin)
-			body = s.rewriteWidgetBlocks(body)
-			out := injectReloadScript([]byte(body))
+			out := []byte(rewriteUpstreamURLs(string(b), upstream.Host, origin))
+			if isHTML {
+				out = injectReloadScript([]byte(s.rewriteWidgetBlocks(string(out))))
+			}
 			resp.Body = io.NopCloser(strings.NewReader(string(out)))
 			resp.ContentLength = int64(len(out))
 			resp.Header.Set("Content-Length", fmt.Sprint(len(out)))
@@ -81,6 +87,49 @@ func (s *Server) newProxy() *httputil.ReverseProxy {
 			http.Error(w, "fluigcli dev: o servidor Fluig não respondeu", http.StatusBadGateway)
 		},
 	}
+}
+
+// rewriteUpstreamURLs troca as URLs absolutas do host real pela origem local.
+// Cobre os dois esquemas (servidor atrás de proxy TLS, como o Cloudflare, pode
+// gerar URL com o esquema interno) e a barra escapada do JSON (`http:\/\/`).
+// Só troca quando o host termina ali: `https://fluig.x` não casa dentro de
+// `https://fluig.x.y` nem de `https://fluig.x:7777` (o realtime do portal).
+func rewriteUpstreamURLs(body, host, origin string) string {
+	for _, scheme := range []string{"https", "http"} {
+		body = replaceHostURL(body, scheme+"://"+host, origin)
+		body = replaceHostURL(body, scheme+`:\/\/`+host, strings.ReplaceAll(origin, "/", `\/`))
+	}
+	return body
+}
+
+// replaceHostURL troca as ocorrências de prefix que não continuam o nome do
+// host ou a porta.
+func replaceHostURL(body, prefix, repl string) string {
+	if !strings.Contains(body, prefix) {
+		return body
+	}
+	var b strings.Builder
+	b.Grow(len(body))
+	for {
+		i := strings.Index(body, prefix)
+		if i < 0 {
+			b.WriteString(body)
+			return b.String()
+		}
+		end := i + len(prefix)
+		b.WriteString(body[:i])
+		if end < len(body) && continuesHost(body[end]) {
+			b.WriteString(prefix)
+		} else {
+			b.WriteString(repl)
+		}
+		body = body[end:]
+	}
+}
+
+func continuesHost(c byte) bool {
+	return c == '.' || c == '-' || c == ':' || c == '_' ||
+		('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 }
 
 // reloadScript é injetado em toda resposta HTML: escuta o SSE do dev server e

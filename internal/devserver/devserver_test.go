@@ -1,6 +1,7 @@
 package devserver
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -429,5 +430,71 @@ func TestHub(t *testing.T) {
 	h.closeAll()
 	if _, ok := <-b; ok {
 		t.Error("closeAll deveria fechar os canais")
+	}
+}
+
+// Issue #6: o formHtml do workflowView (JSON) vira o src do iframe do
+// formulário; com o host real, o navegador bloqueia pelo X-Frame-Options.
+func TestProxyReescreveJSON(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		host := r.Host
+		_, _ = io.WriteString(w, `{"content":{"formHtml":"http://`+host+`/webdesk/streamcontrol/1/0/0/",`+
+			`"escapado":"http:\/\/`+host+`\/webdesk\/svgviewer",`+
+			`"outroEsquema":"https://`+host+`/x","outraPorta":"http://`+host+`9/y"}}`)
+	}))
+	defer upstream.Close()
+	ts, _, _ := newTestServer(t, upstream)
+
+	resp, err := http.Get(ts.URL + "/ecm/api/rest/ecm/workflowView/getDefinitionProcess?processId=X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	s := string(body)
+
+	var got struct {
+		Content map[string]string `json:"content"`
+	}
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("JSON inválido depois da reescrita: %v\n%s", err, s)
+	}
+	host := strings.TrimPrefix(upstream.URL, "http://")
+	want := map[string]string{
+		"formHtml":     ts.URL + "/webdesk/streamcontrol/1/0/0/",
+		"escapado":     ts.URL + "/webdesk/svgviewer",
+		"outroEsquema": ts.URL + "/x",
+		"outraPorta":   "http://" + host + "9/y",
+	}
+	for k, v := range want {
+		if got.Content[k] != v {
+			t.Errorf("%s = %q, quer %q", k, got.Content[k], v)
+		}
+	}
+	if strings.Contains(s, "fluigcli-dev-reload") {
+		t.Error("o script de live reload não pode entrar no JSON")
+	}
+	if resp.ContentLength != int64(len(body)) {
+		t.Errorf("Content-Length = %d, corpo tem %d", resp.ContentLength, len(body))
+	}
+}
+
+func TestRewriteUpstreamURLs(t *testing.T) {
+	const origin = "http://127.0.0.1:8787"
+	cases := []struct{ in, want string }{
+		{`"https://fluig.x/a"`, `"http://127.0.0.1:8787/a"`},
+		{`"http://fluig.x/a"`, `"http://127.0.0.1:8787/a"`},
+		{`"https:\/\/fluig.x\/a"`, `"http:\/\/127.0.0.1:8787\/a"`},
+		{`"https://fluig.x"`, `"http://127.0.0.1:8787"`},
+		{`"https://fluig.x:7777/socket"`, `"https://fluig.x:7777/socket"`},
+		{`"https://fluig.x.outro/a"`, `"https://fluig.x.outro/a"`},
+		{`"https://fluig.xyz/a"`, `"https://fluig.xyz/a"`},
+		{`sem host`, `sem host`},
+	}
+	for _, c := range cases {
+		if got := rewriteUpstreamURLs(c.in, "fluig.x", origin); got != c.want {
+			t.Errorf("rewriteUpstreamURLs(%s) = %s, quer %s", c.in, got, c.want)
+		}
 	}
 }
