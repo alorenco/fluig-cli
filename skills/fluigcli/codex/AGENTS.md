@@ -72,7 +72,7 @@ intuitiva é a inversa!); `TAR_PROCES.IDI_STATUS` 0=NOT_COMPLETED
 `records show` traz as linhas das tabelas filhas agrupadas por `tableId`, use `--no-children` para só o pai;
 `link <pasta> --document-id <id>` vincula uma pasta sem prompt, para quando o nome da pasta
 não parece com o nome no servidor e o `link --auto` não sugere nada),
-`workflow` (new-script|list|version|versions|import|export|publish|diff|convert — `--process-id` desacopla arquivo do processId do servidor; `publish --events a,b` publica só alguns eventos e deixa os demais com o conteúdo do servidor, use quando o repositório pode estar atrás; `convert` migra solicitações abertas entre versões, requer admin),
+`workflow` (new-script|list|version|versions|import|export|publish|diff|convert — `--process-id` desacopla arquivo do processId do servidor; `publish --events a,b` publica só alguns eventos e deixa os demais com o conteúdo do servidor, use quando o repositório pode estar atrás; `publish --new --file <base.xml>` cria processo novo a partir do export XML de outro ambiente (o `.process` do Studio não serve), com `--form-id` e `--description` opcionais; `convert` migra solicitações abertas entre versões, requer admin),
 `widget` (new|list|import|export — o `export` RECUSA com exit 2 se o código já
 existir no servidor como LAYOUT, porque o upload sobrescreveria o WAR do layout;
 renomeie o widget ou publique com `--force`),
