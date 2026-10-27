@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -23,8 +24,17 @@ type workflowStub struct {
 	helperInstalled bool
 	version         int
 
-	pubVersion   int    // última versão REST (import incrementa; default 3)
-	importedXML  []byte // corpo do import/xml
+	pubVersion     int    // última versão REST (import incrementa; default 3)
+	importedXML    []byte // corpo do import/xml
+	newImportedXML []byte // corpo do import/xml novo (POST /processes/import/xml)
+	newImportCalls int
+	newImportQuery string
+	// newImportConflict simula processId repetido: o import novo responde 400
+	// BPMProcessIdAlreadyExistsException.
+	newImportConflict bool
+	// existingDocs simula documentos existentes (GET .../documents/{id} → 200
+	// com o tipo informado; qualquer outro ID responde 404).
+	existingDocs map[int]string
 	releaseCalls int
 	releaseFail  bool
 }
@@ -110,7 +120,18 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			}
 			w.Write(b)
 		case strings.HasSuffix(path, "/import/xml"):
-			s.importedXML, _ = io.ReadAll(r.Body)
+			body, _ := io.ReadAll(r.Body)
+			if path == "/process-management/api/v2/processes/import/xml" {
+				if s.newImportConflict {
+					http.Error(w, `{"code":"BPMProcessIdAlreadyExistsException","message":"Ja existe um Processo cadastrado com o código informado!"}`, http.StatusBadRequest)
+					return
+				}
+				s.newImportedXML = body
+				s.newImportCalls++
+				s.newImportQuery = r.URL.RawQuery
+			} else {
+				s.importedXML = body
+			}
 			s.pubVersion++
 			io.WriteString(w, `{"processId":"Compras","versions":null}`)
 		case strings.HasSuffix(path, "/process-versions/latest/release"):
@@ -127,6 +148,17 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 		default:
 			http.NotFound(w, r)
 		}
+	})
+	// Documentos do GED (a checagem de formId do publish --new usa o GET por ID:
+	// ID em existingDocs responde 200 com o tipo informado, qualquer outro
+	// responde 404).
+	mux.HandleFunc("/content-management/api/v2/documents/", func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(path.Base(r.URL.Path))
+		if typ, ok := s.existingDocs[id]; ok {
+			fmt.Fprintf(w, `{"documentId":%d,"description":"doc %d","type":%q}`, id, id, typ)
+			return
+		}
+		http.NotFound(w, r)
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

@@ -371,6 +371,9 @@ func processAPIError(status int, body []byte, processID, op string) error {
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Message != "" {
+		if parsed.Code == "BPMProcessIdAlreadyExistsException" {
+			return fmt.Errorf("%w: %s", ErrProcessAlreadyExists, parsed.Message)
+		}
 		return fmt.Errorf("%w: %s", errServerRejected, parsed.Message)
 	}
 	return &HTTPError{StatusCode: status, URL: op, Body: truncate(string(body), 512)}
@@ -397,6 +400,117 @@ func (c *Client) doRaw(ctx context.Context, method, endpoint string, body []byte
 		return nil, resp.StatusCode, err
 	}
 	return []byte(respBody), resp.StatusCode, nil
+}
+
+// RewriteProcessXMLID troca o conteúdo de todas as tags <processId> do XML
+// exportado para newID. O export de outro ambiente/processo vem com o ID
+// antigo em dezenas de pontos (definition, version, states, events); a criação
+// via import/xml?processId= precisa do corpo coerente com o alvo.
+func RewriteProcessXMLID(xmlData []byte, newID string) []byte {
+	const (
+		open  = "<processId>"
+		close = "</processId>"
+	)
+	s := string(xmlData)
+	if !strings.Contains(s, open) {
+		return xmlData
+	}
+	var buf strings.Builder
+	buf.Grow(len(s))
+	rest := s
+	for {
+		i := strings.Index(rest, open)
+		if i < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		j := strings.Index(rest[i+len(open):], close)
+		if j < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		j += i + len(open)
+		buf.WriteString(rest[:i+len(open)])
+		buf.WriteString(newID)
+		rest = rest[j:]
+	}
+	return []byte(buf.String())
+}
+
+// ProcessFormID lê o formId vinculado no XML exportado (0 = sem formulário).
+func ProcessFormID(xmlData []byte) int {
+	const (
+		open  = "<formId>"
+		close = "</formId>"
+	)
+	s := string(xmlData)
+	i := strings.Index(s, open)
+	if i < 0 {
+		return 0
+	}
+	j := strings.Index(s[i+len(open):], close)
+	if j < 0 {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(s[i+len(open) : i+len(open)+j]))
+	return n
+}
+
+// RewriteProcessFormID troca o conteúdo de todas as tags <formId> do XML
+// exportado para formID. O XML base traz o documentId do formulário no
+// ambiente de origem; o destino usa outro ID.
+func RewriteProcessFormID(xmlData []byte, formID int) []byte {
+	const (
+		open  = "<formId>"
+		close = "</formId>"
+	)
+	s := string(xmlData)
+	if !strings.Contains(s, open) {
+		return xmlData
+	}
+	var buf strings.Builder
+	buf.Grow(len(s))
+	rest := s
+	for {
+		i := strings.Index(rest, open)
+		if i < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		j := strings.Index(rest[i+len(open):], close)
+		if j < 0 {
+			buf.WriteString(rest)
+			break
+		}
+		j += i + len(open)
+		buf.WriteString(rest[:i+len(open)])
+		buf.WriteString(strconv.Itoa(formID))
+		rest = rest[j:]
+	}
+	return []byte(buf.String())
+}
+
+// RewriteProcessDescription troca o conteúdo da tag <processDescription> do
+// XML exportado. O XML base traz o nome do processo no ambiente de origem.
+// O texto sai escapado para XML: & < > quebram o import.
+func RewriteProcessDescription(xmlData []byte, description string) []byte {
+	const (
+		open  = "<processDescription>"
+		close = "</processDescription>"
+	)
+	s := string(xmlData)
+	i := strings.Index(s, open)
+	if i < 0 {
+		return xmlData
+	}
+	j := strings.Index(s[i+len(open):], close)
+	if j < 0 {
+		return xmlData
+	}
+	j += i + len(open)
+	var esc bytes.Buffer
+	_ = xml.EscapeText(&esc, []byte(description))
+	return []byte(s[:i+len(open)] + esc.String() + s[j:])
 }
 
 // ApplyProcessEventScripts substitui, no XML exportado do processo, o código

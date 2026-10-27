@@ -17,6 +17,9 @@ var (
 	// ErrHelperOutdated indica que o fluigcliHelper instalado é antigo demais
 	// para a operação pedida (exit 7, como a ausência).
 	ErrHelperOutdated = errors.New("o fluigcliHelper instalado está desatualizado (atualize com: fluigcli server install-helper --force)")
+	// ErrProcessAlreadyExists indica processId repetido no import de processo
+	// novo (HTTP 400 BPMProcessIdAlreadyExistsException).
+	ErrProcessAlreadyExists = errors.New("processId já existe no servidor")
 )
 
 // HTTPError representa uma resposta inesperada do servidor Fluig.
