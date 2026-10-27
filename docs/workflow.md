@@ -385,10 +385,10 @@ fluigcli workflow publish NovoProc --new --file workflow/NovoProc.xml --form-id 
 - O `formId` do XML base aponta para o formulário no ambiente de origem. No
   destino esse ID pode não existir, e o servidor não valida. Por isso a CLI
   confere antes do import. Se o formulário não existe no destino, o comando
-  recusa com exit **4**. Se o ID existe mas não é formulário (pasta, arquivo),
-  o comando também recusa com exit **4**. Use `--form-id` com o `documentId`
-  do formulário no destino. Use `--description` para trocar o nome do processo
-  novo.
+  recusa com exit **4**. Se o ID existe, mas aponta para outro tipo de
+  documento, o comando também recusa com exit **4**. Por exemplo, uma pasta ou
+  um arquivo. Use `--form-id` com o `documentId` do formulário no destino. Use
+  `--description` para trocar o nome do processo novo.
 - `--events`, `--no-release`, `--no-audit` e `--process-id` valem igual. Sem
   `--events`, aplicam-se todos os scripts locais. Com `--events`, só os
   indicados.

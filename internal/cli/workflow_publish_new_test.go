@@ -134,6 +134,9 @@ func TestWorkflowPublishNewJaExiste(t *testing.T) {
 	if env.Error == nil || !strings.Contains(env.Error.Message, "Ja existe um Processo") {
 		t.Errorf("mensagem deveria manter o texto do servidor: %+v", env.Error)
 	}
+	if env.Error != nil && strings.Count(env.Error.Message, "já existe") != 1 {
+		t.Errorf("a mensagem da CLI não pode repetir \"já existe\": %q", env.Error.Message)
+	}
 	if stub.newImportCalls != 0 {
 		t.Error("import recusado não podia contar como chamado")
 	}

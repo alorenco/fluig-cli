@@ -474,7 +474,8 @@ func publishNewWorkflow(ctx context.Context, app *App, p *output.Printer, pid, f
 		// O servidor recusa processId repetido com HTTP 400. A mensagem da CLI
 		// acrescenta contexto e mantém o texto do servidor.
 		if errors.Is(err, fluig.ErrProcessAlreadyExists) {
-			return output.ServerErrorf("processo %q já existe no servidor; sem --new, o publish cria uma versão nova do processo existente: %v", pid, err).WithCause(err)
+			servidor := strings.TrimPrefix(err.Error(), fluig.ErrProcessAlreadyExists.Error()+": ")
+			return output.ServerErrorf("processo %q já existe no servidor; sem --new, o publish cria uma versão nova do processo existente (resposta do servidor: %s)", pid, servidor).WithCause(err)
 		}
 		return mapFluigError(err)
 	}
