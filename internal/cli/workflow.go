@@ -455,24 +455,26 @@ func publishNewWorkflow(ctx context.Context, app *App, p *output.Printer, pid, f
 	}
 
 	// O formId do XML base aponta para o formulário no ambiente de origem. No
-	// destino esse ID pode não existir. O servidor não valida, então a CLI
-	// confere antes do import.
+	// destino esse ID pode não existir ou ser outro tipo de documento, e o
+	// servidor não valida. Por isso a CLI confere antes do import.
 	if formID > 0 {
-		if _, err := client.GetGEDDocument(ctx, formID); err != nil {
+		info, err := client.GetGEDDocument(ctx, formID)
+		if err != nil {
 			if errors.Is(err, fluig.ErrNotFound) {
-				return output.NotFoundf("formulário %d não existe no servidor %q; confira o documentId ou use --form-id <documentId existente>", formID, p.Server)
+				return output.NotFoundf("formulário %d não existe no servidor %q; confira o documentId ou use --form-id <documentId de formulário>", formID, p.Server)
 			}
 			return mapFluigError(err)
+		}
+		if info.Type != "CardIndex" {
+			return output.NotFoundf("documento %d existe no servidor %q, mas não é um formulário (tipo %q); use --form-id <documentId de formulário>", formID, p.Server, info.Type)
 		}
 	}
 
 	if err := client.ImportNewProcessXML(ctx, pid, newXML); err != nil {
-		// O servidor recusa processId repetido com HTTP 400
-		// (BPMProcessIdAlreadyExistsException). A mensagem dele vira um erro
-		// claro, com o mesmo exit 5 de erro do servidor.
-		lowered := strings.ToLower(err.Error())
-		if strings.Contains(err.Error(), "AlreadyExists") || strings.Contains(lowered, "already exists") {
-			return output.ServerErrorf("processo %q já existe no servidor; sem --new, o publish cria uma versão nova do processo existente", pid).WithCause(err)
+		// O servidor recusa processId repetido com HTTP 400. A mensagem da CLI
+		// acrescenta contexto e mantém o texto do servidor.
+		if errors.Is(err, fluig.ErrProcessAlreadyExists) {
+			return output.ServerErrorf("processo %q já existe no servidor; sem --new, o publish cria uma versão nova do processo existente: %v", pid, err).WithCause(err)
 		}
 		return mapFluigError(err)
 	}

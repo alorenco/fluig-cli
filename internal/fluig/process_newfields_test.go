@@ -42,3 +42,10 @@ func TestRewriteProcessDescription(t *testing.T) {
 		t.Error("etapa homônima não podia mudar")
 	}
 }
+
+func TestRewriteProcessDescriptionEscape(t *testing.T) {
+	out := RewriteProcessDescription([]byte(`<list><processDescription>A</processDescription></list>`), "Teste & Cia <x>")
+	if got := string(out); got != `<list><processDescription>Teste &amp; Cia &lt;x&gt;</processDescription></list>` {
+		t.Errorf("texto não escapado: %q", got)
+	}
+}

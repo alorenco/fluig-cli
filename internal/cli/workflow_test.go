@@ -32,9 +32,9 @@ type workflowStub struct {
 	// newImportConflict simula processId repetido: o import novo responde 400
 	// BPMProcessIdAlreadyExistsException.
 	newImportConflict bool
-	// existingDocs simula documentos existentes (GET .../documents/{id} → 200);
-	// qualquer outro ID responde 404.
-	existingDocs map[int]bool
+	// existingDocs simula documentos existentes (GET .../documents/{id} → 200
+	// com o tipo informado; qualquer outro ID responde 404).
+	existingDocs map[int]string
 	releaseCalls int
 	releaseFail  bool
 }
@@ -123,7 +123,7 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 			body, _ := io.ReadAll(r.Body)
 			if path == "/process-management/api/v2/processes/import/xml" {
 				if s.newImportConflict {
-					http.Error(w, `{"code":"BPMProcessIdAlreadyExistsException","message":"Process id already exists"}`, http.StatusBadRequest)
+					http.Error(w, `{"code":"BPMProcessIdAlreadyExistsException","message":"Ja existe um Processo cadastrado com o código informado!"}`, http.StatusBadRequest)
 					return
 				}
 				s.newImportedXML = body
@@ -150,11 +150,12 @@ func (s *workflowStub) server(t *testing.T) *httptest.Server {
 		}
 	})
 	// Documentos do GED (a checagem de formId do publish --new usa o GET por ID:
-	// ID em existingDocs responde 200, qualquer outro responde 404).
+	// ID em existingDocs responde 200 com o tipo informado, qualquer outro
+	// responde 404).
 	mux.HandleFunc("/content-management/api/v2/documents/", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(path.Base(r.URL.Path))
-		if s.existingDocs[id] {
-			fmt.Fprintf(w, `{"documentId":%d,"description":"doc %d"}`, id, id)
+		if typ, ok := s.existingDocs[id]; ok {
+			fmt.Fprintf(w, `{"documentId":%d,"description":"doc %d","type":%q}`, id, id, typ)
 			return
 		}
 		http.NotFound(w, r)

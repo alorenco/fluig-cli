@@ -130,6 +130,10 @@ func TestWorkflowPublishNewJaExiste(t *testing.T) {
 	if env.Error == nil || !strings.Contains(env.Error.Message, "já existe") {
 		t.Errorf("mensagem deveria dizer que o processo já existe: %+v", env.Error)
 	}
+	// A mensagem da CLI mantém o texto do servidor.
+	if env.Error == nil || !strings.Contains(env.Error.Message, "Ja existe um Processo") {
+		t.Errorf("mensagem deveria manter o texto do servidor: %+v", env.Error)
+	}
 	if stub.newImportCalls != 0 {
 		t.Error("import recusado não podia contar como chamado")
 	}
@@ -182,9 +186,9 @@ func TestWorkflowPublishNewFormIDMissing(t *testing.T) {
 	}
 }
 
-// --form-id reescreve o valor e passa na checagem quando o doc existe.
+// --form-id reescreve o valor e passa na checagem quando o doc é formulário.
 func TestWorkflowPublishNewFormIDFlag(t *testing.T) {
-	stub := &workflowStub{existingDocs: map[int]bool{999: true}}
+	stub := &workflowStub{existingDocs: map[int]string{999: "CardIndex"}}
 	proj := workflowProject(t, stub.server(t).URL)
 	escrevePublishScripts(t, proj, map[string]string{
 		"NovoProc.beforeTaskSave.js": "function beforeTaskSave(){ /* novo */ }",
@@ -200,6 +204,31 @@ func TestWorkflowPublishNewFormIDFlag(t *testing.T) {
 	}
 	if stub.releaseCalls != 1 {
 		t.Errorf("release chamado %d vezes, quer 1", stub.releaseCalls)
+	}
+}
+
+// formId de pasta (não formulário): recusa com exit 4 antes do import.
+func TestWorkflowPublishNewFormIDNotForm(t *testing.T) {
+	stub := &workflowStub{existingDocs: map[int]string{555: "Folder"}}
+	proj := workflowProject(t, stub.server(t).URL)
+	escrevePublishScripts(t, proj, map[string]string{
+		"NovoProc.beforeTaskSave.js": "function beforeTaskSave(){}",
+	})
+	xmlPath := writeBaseXML(t, "rest_process_export_full.xml")
+	code, stdout := runMain(t, "workflow", "publish", "NovoProc", "--new", "--file", xmlPath,
+		"--form-id", "555", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, quer %d\n%s", code, output.ExitNotFound, stdout)
+	}
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("envelope JSON inválido: %v", err)
+	}
+	if env.Error == nil || !strings.Contains(env.Error.Message, "não é um formulário") {
+		t.Errorf("mensagem deveria dizer que não é formulário: %+v", env.Error)
+	}
+	if stub.newImportCalls != 0 {
+		t.Error("nada podia ter sido importado")
 	}
 }
 

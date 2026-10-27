@@ -371,6 +371,9 @@ func processAPIError(status int, body []byte, processID, op string) error {
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Message != "" {
+		if parsed.Code == "BPMProcessIdAlreadyExistsException" {
+			return fmt.Errorf("%w: %s", ErrProcessAlreadyExists, parsed.Message)
+		}
 		return fmt.Errorf("%w: %s", errServerRejected, parsed.Message)
 	}
 	return &HTTPError{StatusCode: status, URL: op, Body: truncate(string(body), 512)}
@@ -489,6 +492,7 @@ func RewriteProcessFormID(xmlData []byte, formID int) []byte {
 
 // RewriteProcessDescription troca o conteúdo da tag <processDescription> do
 // XML exportado. O XML base traz o nome do processo no ambiente de origem.
+// O texto sai escapado para XML: & < > quebram o import.
 func RewriteProcessDescription(xmlData []byte, description string) []byte {
 	const (
 		open  = "<processDescription>"
@@ -504,7 +508,9 @@ func RewriteProcessDescription(xmlData []byte, description string) []byte {
 		return xmlData
 	}
 	j += i + len(open)
-	return []byte(s[:i+len(open)] + description + s[j:])
+	var esc bytes.Buffer
+	_ = xml.EscapeText(&esc, []byte(description))
+	return []byte(s[:i+len(open)] + esc.String() + s[j:])
 }
 
 // ApplyProcessEventScripts substitui, no XML exportado do processo, o código
