@@ -56,7 +56,7 @@ func TestUnitParseMesclaDefaults(t *testing.T) {
 	if ev.Call != "validateForm" || len(ev.Args) != 1 || string(ev.Args[0]) != `"$form"` || ev.Scripts[0].Name != "forms/Compras/events/validateForm.js" {
 		t.Errorf("evento de formulário: %+v", ev)
 	}
-	if *ev.Setup.WK["WKNumState"] != "9" || *ev.Setup.WK["WKNextState"] != "5" {
+	if string(ev.Setup.WK["WKNumState"]) != `"9"` || string(ev.Setup.WK["WKNextState"]) != `"5"` {
 		t.Errorf("wk mescla chave a chave: %v", ev.Setup.WK)
 	}
 	// A fixture resolve {{today}} com o today do caso e {{actors.eu.login}} com o user.
@@ -116,6 +116,33 @@ func TestUnitParseErros(t *testing.T) {
 	_, err := parseUnit(t, root, `{"scripts": ["forms/nao/existe.js"], "cases": [{"name": "a", "call": "f", "expect": {"throws": true}}]}`)
 	if !errors.Is(err, ErrMissing) {
 		t.Errorf("script ausente = ErrMissing: %v", err)
+	}
+}
+
+// wk aceita texto, número, booleano e null; WK booleana do fluig.d.ts como
+// texto gera aviso (no servidor é java.lang.Boolean).
+func TestUnitWKTipos(t *testing.T) {
+	root := unitProj(t)
+	f, err := parseUnit(t, root, `{"scripts": ["forms/Compras/events/inputFields.js"],
+	  "defaults": {"wk": {"WKMobile": "false", "WKNumState": 23}},
+	  "cases": [
+	    {"name": "a", "call": "calc", "wk": {"WKManagerMode": true, "WKUser": null}, "expect": {"throws": true}},
+	    {"name": "b", "call": "calc", "expect": {"throws": true}}
+	  ]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wk := f.Cases[0].Setup.WK
+	if string(wk["WKManagerMode"]) != "true" || string(wk["WKNumState"]) != "23" || string(wk["WKUser"]) != "null" {
+		t.Errorf("wk: %v", wk)
+	}
+	if len(f.Warnings) != 2 || !strings.Contains(f.Warnings[0], "wk.WKMobile é texto, mas no servidor é java.lang.Boolean") {
+		t.Errorf("avisos (um por caso): %v", f.Warnings)
+	}
+	_, err = parseUnit(t, root, `{"scripts": ["forms/Compras/events/inputFields.js"],
+	  "cases": [{"name": "a", "call": "calc", "wk": {"WKUser": ["x"]}, "expect": {"throws": true}}]}`)
+	if !errors.Is(err, ErrUsage) || !strings.Contains(err.Error(), "wk.WKUser espera texto, número, true/false ou null") {
+		t.Errorf("lista no wk: %v", err)
 	}
 }
 
@@ -296,7 +323,7 @@ func TestRunUnitPlano(t *testing.T) {
 		t.Errorf("scripts do plano: %+v", plan.Scripts)
 	}
 	s := plan.Cases[1].Setup
-	if s.Call != "inputFields" || *s.WK["WKNumState"] != "23" || len(s.Today) != 6 || len(s.HAPIMembers) < 15 || len(s.FormMembers) < 15 {
+	if s.Call != "inputFields" || string(s.WK["WKNumState"]) != `"23"` || len(s.Today) != 6 || len(s.HAPIMembers) < 15 || len(s.FormMembers) < 15 {
 		t.Errorf("setup do caso: %+v", s)
 	}
 	cs := rep.Files[0].Cases

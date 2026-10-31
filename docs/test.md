@@ -687,7 +687,7 @@ O caso sobrescreve os `defaults` campo a campo. As chaves `wk`, `datasets`,
 | `form.fields` | Os campos do card. Eles vencem a fixture. Linha de tabela filha: `campo___N`. |
 | `form.children` | Os índices das tabelas filhas: `{ "tabela": [1, 2] }`. |
 | `form.mode`, `form.mobile` | O retorno do `getFormMode()` (padrão `ADD`) e do `getMobile()`. |
-| `wk` | As variáveis do `getValue("WK…")`. Uma chave ausente devolve `null`. |
+| `wk` | As variáveis do `getValue("WK…")`. O tipo segue o JSON: texto, `true`/`false` ou número. Uma chave ausente devolve `null`. |
 | `user` | O usuário do `fluigAPI.getUserService().getCurrent()`: `login`, `code`, `fullName`, `email`. |
 | `today` | O relógio do `new Date()` e do `Date.now()`: `AAAA-MM-DD` ou `AAAA-MM-DDTHH:MM`. |
 | `datasets` | O retorno do `DatasetFactory.getDataset`, por nome (veja abaixo). |
@@ -697,6 +697,13 @@ Os falsos devolvem os mesmos tipos do servidor:
 
 - O `form.getValue`, o `hAPI.getCardValue` e o `getValue` devolvem
   `java.lang.String`. Um campo ausente devolve `null`.
+- No `wk`, `true`/`false` viram `java.lang.Boolean`, e um número inteiro vira
+  `java.lang.Integer`. O `fluig.d.ts` declara como booleanas a `WKMobile`, a
+  `WKManagerMode`, a `WKIsTransfer`, a `WKIsService` e a `WKPrivateDocument`.
+  Informe essas variáveis com `true`/`false`, porque no Rhino `"false" ==
+  false` é falso. Se uma delas vier como texto, o comando avisa. Atenção: um
+  `java.lang.Boolean` com `false` é verdadeiro num `if (x)`, como a String
+  Java vazia. O `x == false` funciona.
 - O `getChildrenIndexes` devolve `Integer[]`.
 - O `dataset.values` é um `Object[][]` Java. O `values[0].coluna` quebra, como
   no servidor (regra `RHINO004` do `audit`). Use `getValue(linha, "coluna")`.

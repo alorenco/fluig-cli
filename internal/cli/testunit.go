@@ -271,6 +271,9 @@ func renderUnitReport(p *output.Printer, r *testrun.UnitReport, verbose, selfChe
 		if f.Description != "" {
 			p.Infof("%s", f.Description)
 		}
+		for _, w := range f.Warnings {
+			p.Warnf("%s", w)
+		}
 		rows := make([][]string, 0, len(f.Cases))
 		status := make([]string, len(f.Cases))
 		for i, c := range f.Cases {

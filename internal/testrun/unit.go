@@ -26,6 +26,16 @@ type UnitFile struct {
 	Path        string
 	Description string
 	Cases       []*UnitCase
+	// Warnings são avisos de fidelidade da carga (ex.: WK booleana como texto).
+	Warnings []string
+}
+
+// wkBoolean são as variáveis do getValue que o fluig.d.ts declara como
+// boolean (getValuePropertiesBoolean). No servidor elas chegam como
+// java.lang.Boolean: o texto "false" NÃO é == false no Rhino. Lacuna achada
+// pelo projeto Fluig em 2026-10-31 (beforeTaskSave com WKMobile).
+var wkBoolean = map[string]bool{
+	"WKIsTransfer": true, "WKMobile": true, "WKIsService": true, "WKManagerMode": true, "WKPrivateDocument": true,
 }
 
 // ScriptRef é um script carregado no escopo do caso. Name aparece nas
@@ -50,7 +60,7 @@ type UnitCase struct {
 // UnitSetup é o estado dos falsos de um caso (contrato com o prelúdio JS).
 type UnitSetup struct {
 	Today     []int                      `json:"today,omitempty"` // ano, mês, dia, hora, min, seg
-	WK        map[string]*string         `json:"wk,omitempty"`
+	WK        map[string]json.RawMessage `json:"wk,omitempty"`
 	User      *UnitUser                  `json:"user,omitempty"`
 	Fields    map[string]string          `json:"fields,omitempty"`
 	Children  map[string][]int           `json:"children,omitempty"`
@@ -117,7 +127,7 @@ type rawUnitFile struct {
 type rawUnitCommon struct {
 	Scripts   []string                   `json:"scripts"`
 	Today     *string                    `json:"today"`
-	WK        map[string]*string         `json:"wk"`
+	WK        map[string]json.RawMessage `json:"wk"`
 	User      *UnitUser                  `json:"user"`
 	Form      *rawUnitForm               `json:"form"`
 	Datasets  map[string]json.RawMessage `json:"datasets"`
@@ -220,7 +230,7 @@ func ParseUnitFile(path, root string, data []byte) (*UnitFile, error) {
 			return nil, usageErr("%s: nome repetido", where)
 		}
 		names[c.Name] = true
-		uc, err := buildUnitCase(&c, &defs, raw.Scripts, where, path, root, fixtures)
+		uc, err := buildUnitCase(&c, &defs, raw.Scripts, where, path, root, fixtures, &uf.Warnings)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +240,7 @@ func ParseUnitFile(path, root string, data []byte) (*UnitFile, error) {
 }
 
 func buildUnitCase(c *rawUnitCase, d *rawUnitCommon, fileScripts []string, where, path, root string,
-	fixtures map[string]map[string]string) (*UnitCase, error) {
+	fixtures map[string]map[string]string, warns *[]string) (*UnitCase, error) {
 	uc := &UnitCase{Name: c.Name}
 
 	// Chamada: call+args OU event.
@@ -297,7 +307,21 @@ func buildUnitCase(c *rawUnitCase, d *rawUnitCommon, fileScripts []string, where
 		}
 		st.Today = t
 	}
-	st.WK = mergePtrMap(d.WK, c.WK)
+	st.WK = mergeRawMap(d.WK, c.WK)
+	for k, v := range st.WK {
+		var val any
+		if err := json.Unmarshal(v, &val); err != nil {
+			return nil, usageErr("%s: wk.%s: %v", where, k, err)
+		}
+		switch val.(type) {
+		case nil, string, bool, float64:
+		default:
+			return nil, usageErr("%s: wk.%s espera texto, número, true/false ou null", where, k)
+		}
+		if _, ok := val.(string); ok && wkBoolean[k] {
+			*warns = appendOnce(*warns, fmt.Sprintf("%s: wk.%s é texto, mas no servidor é java.lang.Boolean (fluig.d.ts); use true/false, porque \"false\" == false é falso no Rhino", where, k))
+		}
+	}
 	st.User = d.User
 	if c.User != nil {
 		st.User = c.User
@@ -401,18 +425,13 @@ func parseToday(s string) ([]int, error) {
 	return out, nil
 }
 
-func mergePtrMap(a, b map[string]*string) map[string]*string {
-	if a == nil && b == nil {
-		return nil
+func appendOnce(xs []string, x string) []string {
+	for _, y := range xs {
+		if y == x {
+			return xs
+		}
 	}
-	out := map[string]*string{}
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
-	}
-	return out
+	return append(xs, x)
 }
 
 func mergeRawMap(a, b map[string]json.RawMessage) map[string]json.RawMessage {

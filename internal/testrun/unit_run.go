@@ -64,6 +64,7 @@ type UnitReport struct {
 type UnitFileResult struct {
 	Path        string           `json:"path"`
 	Description string           `json:"description,omitempty"`
+	Warnings    []string         `json:"warnings"`
 	Cases       []UnitCaseResult `json:"cases"`
 }
 
@@ -238,7 +239,10 @@ func RunUnit(ctx context.Context, files []*UnitFile, exec UnitExecutor, dir stri
 
 	rep := &UnitReport{}
 	for fi, f := range files {
-		fr := UnitFileResult{Path: f.Path, Description: f.Description}
+		fr := UnitFileResult{Path: f.Path, Description: f.Description, Warnings: f.Warnings}
+		if fr.Warnings == nil {
+			fr.Warnings = []string{}
+		}
 		for ci, c := range f.Cases {
 			o, ok := obs[[2]int{fi, ci}]
 			var cr UnitCaseResult

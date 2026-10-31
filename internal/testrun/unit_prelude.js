@@ -119,10 +119,26 @@ function __fluigcliSetup(json) {
     G.hAPI = hAPI;
 
     // getValue("WK…"): variáveis do processo.
+    // O tipo segue o JSON: texto = java.lang.String, true/false =
+    // java.lang.Boolean (WKMobile e as outras WK booleanas do fluig.d.ts),
+    // número inteiro = java.lang.Integer. Ausente = null.
     var wk = C.wk || {};
     G.getValue = function (k) {
         k = String(k);
-        return has(wk, k) ? J(wk[k]) : null;
+        if (!has(wk, k) || wk[k] == null) {
+            return null;
+        }
+        var v = wk[k];
+        if (typeof v === 'boolean') {
+            return new java.lang.Boolean(v);
+        }
+        if (typeof v === 'number') {
+            if (v % 1 !== 0) {
+                return new java.lang.Double(v);
+            }
+            return Math.abs(v) > 2147483647 ? new java.lang.Long(v) : new java.lang.Integer(v);
+        }
+        return J(v);
     };
 
     // log

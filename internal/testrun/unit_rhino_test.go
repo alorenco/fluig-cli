@@ -58,6 +58,7 @@ function hoje() { var d = new Date(); return [d.getFullYear(), d.getMonth() + 1,
 function semFalso() { return getCardValue('x'); }
 function comentario() { hAPI.setTaskComments('jsilva', 7, 0, 'ok'); hAPI.setCardValue('status', 'A'); return hAPI.getCardValue('status'); }
 function validar(form) { if (!form.getValue('fornecedor')) { throw "<b>Campo obrigatório:</b><br>- Fornecedor"; } }
+function mobile() { var m = getValue('WKMobile'); var r = []; if (m != null && m == true) { r.push('app'); } if (m == null || m == false) { r.push('web'); } return r.concat([typeof getValue('WKNumState'), getValue('WKNumState') == 23]); }
 function usuario() { return fluigAPI.getUserService().getCurrent().getLogin(); }
 function mostrar(form, customHTML) { customHTML.append('<script>var x = 1;</script>'); form.setVisibleById('div1', false); }
 `
@@ -81,6 +82,9 @@ func TestRhinoFalsosEDefeitos(t *testing.T) {
 	      "calls": [{"method": "hAPI.setTaskComments", "args": ["jsilva", 7, 0, "ok"]}]}},
 	    {"name": "validateForm lança HTML", "call": "validar", "args": ["$form"], "expect": {"throws": "Campo obrigatório: - Fornecedor"}},
 	    {"name": "usuário", "call": "usuario", "expect": {"return": "jsilva"}},
+	    {"name": "WKMobile true", "call": "mobile", "wk": {"WKMobile": true, "WKNumState": 23}, "expect": {"return": ["app", "object", true]}},
+	    {"name": "WKMobile false", "call": "mobile", "wk": {"WKMobile": false, "WKNumState": 23}, "expect": {"return": ["web", "object", true]}},
+	    {"name": "WKMobile ausente", "call": "mobile", "wk": {"WKNumState": 23}, "expect": {"return": ["web", "object", true]}},
 	    {"name": "displayFields", "event": "displayFields", "scripts": ["s.js"], "expect": {"html": ["var x = 1"],
 	      "calls": [{"method": "form.setVisibleById", "args": ["div1", false]}]}},
 	    {"name": "const irmão não compila", "call": "f", "scripts": ["ruim.js"], "expect": {"throws": true}}
@@ -89,7 +93,11 @@ func TestRhinoFalsosEDefeitos(t *testing.T) {
 		t.Fatal(err)
 	}
 	// displayFields: o caso chama a função "displayFields"; o script tem "mostrar".
-	f.Cases[9].Call = "mostrar"
+	for _, c := range f.Cases {
+		if c.Name == "displayFields" {
+			c.Call = "mostrar"
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	rep, err := RunUnit(ctx, []*UnitFile{f}, realExecutor(t), t.TempDir())
