@@ -8,7 +8,7 @@ import (
 // Sondas do --self-check (SPEC-TEST-D §6). O esperado é o comportamento
 // MEDIDO no servidor Fluig Voyager 2: o canário ES6 de 2026-07-22 e o da
 // String Java de 2026-07-30 (projeto Fluig), mais os defeitos confirmados no
-// Gate D (2026-10-31). Um motor que diverge aqui dá falso positivo no teste
+// Gate D e no canário D0.4-b (2026-10-31). Um motor que diverge aqui dá falso positivo no teste
 // de unidade.
 type selfProbe struct {
 	Name, Src, Want string
@@ -27,6 +27,9 @@ var selfProbes = []selfProbe{
 	{"Array.includes/find", "[1, 2].includes(2) + ',' + [1, 2].find(x => x > 1)", "true,2"},
 	{"padStart/startsWith/repeat", "'5'.padStart(3, '0') + 'a'.repeat(2) + 'ab'.startsWith('a')", "005aatrue"},
 	{"Object.assign", "Object.assign({}, {z: 1}).z", "1"},
+	// Medida no canário D0.4-b (2026-10-31): o shorthand SOZINHO funciona no
+	// servidor; o computed não (sonda abaixo, junto com o shorthand).
+	{"shorthand sozinho", "(function(){ var valor = 1; return ({ valor }).valor; })()", "1"},
 	{"SyntaxError: parâmetro default", "(function(x, y = 10){ return y; })(1)", "E"},
 	{"SyntaxError: spread em array", "(function(){ var a = [1]; return [...a, 3].length; })()", "E"},
 	{"SyntaxError: shorthand + computed", "(function(){ var valor = 1, chave = 'c'; return { valor, [chave]: 1 }; })()", "E"},

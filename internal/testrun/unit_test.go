@@ -345,7 +345,7 @@ func TestRunUnitPlano(t *testing.T) {
 
 func TestSelfCheckFile(t *testing.T) {
 	f := SelfCheckFile()
-	if len(f.Cases) != 20 {
+	if len(f.Cases) != 21 {
 		t.Fatalf("sondas: %d", len(f.Cases))
 	}
 	for _, c := range f.Cases {

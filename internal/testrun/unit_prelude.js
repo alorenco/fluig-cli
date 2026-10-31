@@ -133,6 +133,9 @@ function __fluigcliSetup(json) {
             return new java.lang.Boolean(v);
         }
         if (typeof v === 'number') {
+            if (k === 'WKCompany') {
+                return new java.lang.Long(v); // canário D0.4-b: java.lang.Long
+            }
             if (v % 1 !== 0) {
                 return new java.lang.Double(v);
             }
@@ -191,12 +194,16 @@ function __fluigcliSetup(json) {
             getRowsCount: function () { return rows.length; },
             getColumnsCount: function () { return cols.length; },
             getColumnsName: function () { return names; },
+            // Canário D0.4-b (2026-10-31): linha fora do intervalo lança
+            // IndexOutOfBoundsException (a exceção Java real, com a mesma
+            // mensagem); coluna inexistente devolve null; a caixa não importa.
             getValue: function (r, col) {
+                var row = java.util.Arrays.asList(values).get(r);
                 var ix = colIndex(col);
-                if (r < 0 || r >= rows.length || ix < 0 || ix >= cols.length) {
+                if (ix < 0 || ix >= cols.length) {
                     return null;
                 }
-                return values[r][ix];
+                return row[ix];
             }
         };
     };

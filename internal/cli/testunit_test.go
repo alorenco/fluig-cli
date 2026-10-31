@@ -209,7 +209,7 @@ func TestTestUnitSelfCheck(t *testing.T) {
 	if code != output.ExitGeneric || !strings.Contains(env.Error.Message, "o motor diverge do Rhino do servidor") {
 		t.Fatalf("self-check divergente: exit=%d %+v", code, env.Error)
 	}
-	if data["summary"].(map[string]any)["cases"].(float64) != 20 {
-		t.Errorf("20 sondas: %v", data["summary"])
+	if data["summary"].(map[string]any)["cases"].(float64) != 21 {
+		t.Errorf("21 sondas: %v", data["summary"])
 	}
 }

@@ -53,6 +53,8 @@ const rhinoScript = `
 function loopConst() { var o = ''; for (var i = 0; i < 3; i++) { const x = i * 10; o += x + ';'; } return o; }
 function vazio() { var s = getValue('WKVazio'); return s ? 'truthy' : 'falsy'; }
 function linhaPorNome() { var d = DatasetFactory.getDataset('ds', null, null, null); return d.values[0].B; }
+function linhaFora() { var d = DatasetFactory.getDataset('ds', null, null, null); return d.getValue(5, 'B'); }
+function empresa() { var c = getValue('WKCompany'); return [String(c.getClass().getName()), c == 1]; }
 function linhaPorIndice() { var d = DatasetFactory.getDataset('ds', null, null, null); return [d.values.length, d.values[0][1], d.getValue(0, 'B'), d.getValue(0, 'ZZ')]; }
 function hoje() { var d = new Date(); return [d.getFullYear(), d.getMonth() + 1, d.getDate(), new Date(2020, 0, 2).getFullYear(), d instanceof Date]; }
 function semFalso() { return getCardValue('x'); }
@@ -76,6 +78,8 @@ func TestRhinoFalsosEDefeitos(t *testing.T) {
 	    {"name": "String Java vazia truthy", "call": "vazio", "wk": {"WKVazio": ""}, "expect": {"return": "truthy"}},
 	    {"name": "linha por nome quebra", "call": "linhaPorNome", "expect": {"throws": "has no public instance field or method named \"B\""}},
 	    {"name": "linha por índice", "call": "linhaPorIndice", "expect": {"return": [1, "2", "2", null], "returnType": "array"}},
+	    {"name": "linha fora lança", "call": "linhaFora", "expect": {"throws": "Index 5 out of bounds for length 1"}},
+	    {"name": "WKCompany é Long", "call": "empresa", "wk": {"WKCompany": 1}, "expect": {"return": ["java.lang.Long", true]}},
 	    {"name": "relógio fixo", "call": "hoje", "expect": {"return": [2026, 11, 3, 2020, true]}},
 	    {"name": "global sem falso", "call": "semFalso", "expect": {"return": null}},
 	    {"name": "hAPI grava", "call": "comentario", "expect": {"return": "A", "returnType": "java-string", "card": {"status": "A"},

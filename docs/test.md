@@ -581,8 +581,11 @@ conhecidos do Rhino do Fluig também aparecem no teste:
 - A String Java vazia é verdadeira num `if`.
 - O `===` entre uma String Java e um texto JS dá `false`.
 
-O servidor usa uma compilação da TOTVS da mesma versão. As sondas do
-`--self-check` reproduzem o comportamento medido no servidor.
+O servidor usa uma compilação da TOTVS da mesma versão. Um dataset-canário
+na homologação confirmou a configuração do servidor: ES6 (versão de linguagem
+200), modo interpretado (`-opt -1`) e a WrapFactory padrão do Rhino. O
+`test unit` usa a mesma configuração. As sondas do `--self-check` reproduzem o
+comportamento medido no servidor.
 
 O jar não vem dentro do `fluigcli`. Na 1ª execução, o comando baixa o
 `rhino-1.7.15.1.jar` do Maven Central, confere o SHA-256 e guarda o jar no cache
@@ -705,8 +708,13 @@ Os falsos devolvem os mesmos tipos do servidor:
   `java.lang.Boolean` com `false` é verdadeiro num `if (x)`, como a String
   Java vazia. O `x == false` funciona.
 - O `getChildrenIndexes` devolve `Integer[]`.
-- O `dataset.values` é um `Object[][]` Java. O `values[0].coluna` quebra, como
-  no servidor (regra `RHINO004` do `audit`). Use `getValue(linha, "coluna")`.
+- O `dataset.values` é um `Object[][]` Java, e cada célula é `java.lang.String`.
+  O `values[0].coluna` e o `values[0]["coluna"]` quebram, como no servidor
+  (regra `RHINO004` do `audit`). Use `getValue(linha, "coluna")`.
+- O `getValue(linha, "coluna")` ignora a caixa do nome da coluna. Uma coluna
+  inexistente devolve `null`. Uma linha fora do intervalo lança
+  `IndexOutOfBoundsException`, como no servidor.
+- O `wk.WKCompany` numérico vira `java.lang.Long`, como no servidor.
 - O `hAPI` e o `form` têm os métodos do `fluig.d.ts`. Um método fora da lista
   dá `TypeError`, como no servidor. Os métodos sem falso próprio gravam a
   chamada (asserção `calls`) e devolvem `null` ou o valor de `returns`.
@@ -758,8 +766,8 @@ mensagem do Rhino e a linha. Por exemplo: `TypeError: redeclaration of const y`.
 
 ### A conferência do motor (`--self-check`)
 
-O `--self-check` não roda casos. Ele roda 20 sondas no motor local e compara com
-o comportamento medido no servidor: 12 construções ES6 que funcionam, 4 que dão
+O `--self-check` não roda casos. Ele roda 21 sondas no motor local e compara com
+o comportamento medido no servidor: 13 construções ES6 que funcionam, 4 que dão
 `SyntaxError` e os 4 defeitos do Rhino. Use o `--self-check` depois de trocar o
 Java ou de informar um `--rhino-jar`. Uma divergência dá exit 1.
 
