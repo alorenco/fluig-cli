@@ -1,6 +1,7 @@
 package testrun
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 // Os exemplos COMPLETOS da documentação (um bloco ```json com "scenarios" ou
 // "cases") têm de carregar no parser real. Pessoas e agentes de IA copiam
 // esses exemplos; um exemplo quebrado ensina o formato errado.
-var jsonBlockRe = regexp.MustCompile("(?s)```json\\n(.*?)```")
+var jsonBlockRe = regexp.MustCompile("(?s)```json\\r?\\n(.*?)```")
 
 func TestExemplosDaDocumentacaoCarregam(t *testing.T) {
 	arquivos := map[string]int{ // arquivo → mínimo de exemplos completos
@@ -23,6 +24,12 @@ func TestExemplosDaDocumentacaoCarregam(t *testing.T) {
 		data, err := os.ReadFile(arq)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// O checkout do Windows troca LF por CRLF (o CI falhou assim em
+		// 2026-10-31): o extrator precisa achar os mesmos blocos.
+		crlf := bytes.ReplaceAll(data, []byte("\n"), []byte("\r\n"))
+		if a, b := len(jsonBlockRe.FindAll(data, -1)), len(jsonBlockRe.FindAll(crlf, -1)); a != b {
+			t.Errorf("%s: %d blocos com LF, %d com CRLF", arq, a, b)
 		}
 		n := 0
 		for i, m := range jsonBlockRe.FindAllSubmatch(data, -1) {
