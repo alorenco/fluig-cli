@@ -38,6 +38,8 @@ type Defaults struct {
 	Card    string
 	Cleanup []string
 	Actor   string
+	// UIViewport é o tamanho padrão da janela dos passos ui (nil = desktop).
+	UIViewport *UIViewport
 }
 
 // Scenario é uma sequência ordenada de passos sobre UMA solicitação.
@@ -85,6 +87,7 @@ type Step struct {
 	WaitStat  string            // wait
 	Timeout   string            // wait (duração Go, ex.: "3m")
 	Interval  string            // wait
+	UI        *UIStep           // ui
 
 	Expect *Expect
 }
@@ -98,6 +101,7 @@ type Expect struct {
 	Card      []CardExpect // na ordem do arquivo
 	Path      *PathExpect
 	Assignee  *string
+	UI        *UIExpect // asserções de tela (só no passo ui)
 }
 
 // ErrorExpect é a asserção de erro esperado.
@@ -149,6 +153,11 @@ type rawDefaults struct {
 	Card    string            `json:"card"`
 	Cleanup []json.RawMessage `json:"cleanup"`
 	Actor   string            `json:"actor"`
+	UI      *rawUIDefaults    `json:"ui"`
+}
+
+type rawUIDefaults struct {
+	Viewport json.RawMessage `json:"viewport"`
 }
 
 type rawScenario struct {
@@ -174,6 +183,7 @@ type rawStep struct {
 	Check     json.RawMessage `json:"check"`
 	Wait      json.RawMessage `json:"wait"`
 	Cancel    json.RawMessage `json:"cancel"`
+	UI        json.RawMessage `json:"ui"`
 
 	Expect json.RawMessage `json:"expect"`
 }
@@ -219,6 +229,7 @@ type rawExpect struct {
 	Observation json.RawMessage `json:"observation"`
 	DB          json.RawMessage `json:"db"`
 	Dataset     json.RawMessage `json:"dataset"`
+	rawUIExpect
 }
 
 // strict decodifica recusando chave desconhecida. O caminho entra na mensagem:
@@ -304,6 +315,13 @@ func ParseSuite(path string, data []byte, opts LoadOptions) (*Suite, error) {
 			return nil, err
 		}
 		s.Defaults.Cleanup = cl
+		if rs.Defaults.UI != nil && !isNull(rs.Defaults.UI.Viewport) {
+			vp, err := parseViewport(rs.Defaults.UI.Viewport, path+".defaults.ui.viewport")
+			if err != nil {
+				return nil, err
+			}
+			s.Defaults.UIViewport = vp
+		}
 	}
 	if len(rs.Scenarios) == 0 {
 		return nil, usageErr("%s: a suíte precisa de pelo menos um cenário em \"scenarios\"", path)
@@ -511,6 +529,7 @@ func parseStep(raw json.RawMessage, path string) (*Step, error) {
 	}{
 		{ActStart, rs.Start}, {ActMove, rs.Move}, {ActAssume, rs.Assume}, {ActManager, rs.Manager},
 		{ActSetFields, rs.SetFields}, {ActCheck, rs.Check}, {ActWait, rs.Wait}, {ActCancel, rs.Cancel},
+		{ActUI, rs.UI},
 	}
 	var achada json.RawMessage
 	for _, a := range acoes {
@@ -523,7 +542,7 @@ func parseStep(raw json.RawMessage, path string) (*Step, error) {
 		st.Action, achada = a.nome, a.raw
 	}
 	if st.Action == "" {
-		return nil, usageErr("%s: passo sem ação; informe uma das chaves start, move, assume, manager, setFields, check, wait ou cancel", path)
+		return nil, usageErr("%s: passo sem ação; informe uma das chaves start, move, assume, manager, setFields, check, wait, cancel ou ui", path)
 	}
 	ap := path + "." + st.Action
 	switch st.Action {
@@ -634,6 +653,12 @@ func parseStep(raw json.RawMessage, path string) (*Step, error) {
 			}
 		}
 		st.WaitState, st.WaitStat, st.Timeout, st.Interval = m.State, strings.ToUpper(m.Status), m.Timeout, m.Interval
+	case ActUI:
+		u, err := parseUIStep(achada, ap)
+		if err != nil {
+			return nil, err
+		}
+		st.UI = u
 	case ActCancel:
 		obj, err := trueOrObject(achada, ap, st.Action)
 		if err != nil {
@@ -653,6 +678,18 @@ func parseStep(raw json.RawMessage, path string) (*Step, error) {
 			return nil, err
 		}
 		st.Expect = e
+	}
+	if st.Expect != nil && st.Expect.UI != nil && st.Action != ActUI {
+		return nil, usageErr("%s.expect: as asserções de tela (visible, hidden, enabled, disabled, value, text, css, "+
+			"message, changed, unchanged) só valem num passo \"ui\"", path)
+	}
+	if st.Action == ActUI && st.Expect != nil {
+		if st.Expect.Error != nil {
+			return nil, usageErr("%s.expect.error: num passo ui, a recusa aparece na tela; use \"message\"", path)
+		}
+		if st.Expect.UI != nil && st.Expect.UI.Message != nil && st.UI.Send == 0 && !st.UI.Save {
+			return nil, usageErr("%s.expect.message: a mensagem só existe depois de \"send\" ou \"save\"", path)
+		}
 	}
 	if st.Name == "" {
 		st.Name = defaultStepName(st)
@@ -676,6 +713,21 @@ func defaultStepName(st *Step) string {
 		if st.Target > 0 {
 			return fmt.Sprintf("start → %d", st.Target)
 		}
+	case ActUI:
+		u := st.UI
+		switch {
+		case u.Open != "":
+			return "ui open " + u.Open
+		case u.Send > 0:
+			return fmt.Sprintf("ui send → %d", u.Send)
+		case u.Save:
+			return "ui save"
+		case u.Click != "":
+			return "ui click " + u.Click
+		case len(u.Fill) > 0:
+			return "ui fill"
+		}
+		return "ui"
 	case ActWait:
 		var partes []string
 		if st.WaitState > 0 {
@@ -700,6 +752,13 @@ func parseExpect(raw json.RawMessage, path string) (*Expect, error) {
 		}
 	}
 	e := &Expect{State: re.State, StateName: re.StateName, Assignee: re.Assignee}
+	if !re.empty() {
+		u, err := parseUIExpect(&re.rawUIExpect, path)
+		if err != nil {
+			return nil, err
+		}
+		e.UI = u
+	}
 	if re.Status != nil {
 		up := strings.ToUpper(*re.Status)
 		if !validStatus(up) {
@@ -855,4 +914,17 @@ func parseCardOp(field string, v json.RawMessage, path string) (CardExpect, erro
 		}
 	}
 	return ce, nil
+}
+
+// HasUI informa se a suíte tem algum passo ui (o navegador só é procurado
+// quando tem).
+func (s *Suite) HasUI() bool {
+	for _, sc := range s.Scenarios {
+		for _, st := range sc.Steps {
+			if st.Action == ActUI {
+				return true
+			}
+		}
+	}
+	return false
 }

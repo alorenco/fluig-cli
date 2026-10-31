@@ -414,3 +414,16 @@ func TestDryRun(t *testing.T) {
 		t.Errorf("aviso de transição não conferida: %v", sr.Warnings)
 	}
 }
+
+// A duração do passo chega ao relatório (o defer gravava depois do return e o
+// durationMs saía sempre vazio até 2026-10-31).
+func TestRunDuracaoDoPasso(t *testing.T) {
+	o := opts()
+	t0 := time.Date(2026, 10, 31, 10, 0, 0, 0, time.UTC)
+	n := 0
+	o.Now = func() time.Time { n++; return t0.Add(time.Duration(n) * 250 * time.Millisecond) }
+	r := run(t, newFake(), `{"process": "P", "scenarios": [{"name": "c", "steps": [{"start": true}]}]}`, o)
+	if r.Steps[0].DurationMs <= 0 {
+		t.Errorf("durationMs do passo: %d", r.Steps[0].DurationMs)
+	}
+}

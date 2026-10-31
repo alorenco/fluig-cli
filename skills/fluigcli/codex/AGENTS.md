@@ -139,7 +139,9 @@ percentual é do fluxo principal, o tratamento de erro fica à parte — com
 suíte com os TODO nas `description`; `test unit [tests/unit/]` roda funções de
 script no Rhino 1.7.15.1 local, sem servidor, com falsos de form/hAPI/
 DatasetFactory/getValue declarados em `*.unit.json` — requer Java 11+, exit 7
-sem ele; `--self-check` confere o motor), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
+sem ele; `--self-check` confere o motor; passo `ui` no `test run` abre a tarefa REAL
+num navegador headless e confere a tela — enabled/disabled, visible/hidden,
+text, css, message da recusa, changed do hidden enviado — exit 7 sem navegador), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
 FL005 = método do hAPI chamado como global em script de processo, ERRO;
 FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
 fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;

@@ -72,6 +72,9 @@ const (
 	// quem automatiza instala a peça antes de repetir.
 	CodeJavaNotFound     = "JAVA_NOT_FOUND"
 	CodeRhinoUnavailable = "RHINO_UNAVAILABLE"
+	// CodeBrowserNotFound marca a suíte com passo ui sem navegador
+	// (Chrome/Chromium/Edge) na máquina (ROADMAP §5.19). Exit 7, como o Java.
+	CodeBrowserNotFound = "BROWSER_NOT_FOUND"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -170,6 +173,11 @@ func MissingHelperf(format string, args ...any) *Error {
 // JavaNotFoundf: Java ausente ou antigo para o `test unit` (exit 7).
 func JavaNotFoundf(format string, args ...any) *Error {
 	return newError(CodeJavaNotFound, ExitMissingHelper, format, args...)
+}
+
+// BrowserNotFoundf: suíte com passo ui sem navegador na máquina (exit 7).
+func BrowserNotFoundf(format string, args ...any) *Error {
+	return newError(CodeBrowserNotFound, ExitMissingHelper, format, args...)
 }
 
 // RhinoUnavailablef: jar do Rhino indisponível para o `test unit` (exit 7).

@@ -23,7 +23,7 @@ uso por agentes de IA.
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)
 - [diff](diff.md) — compara artefatos locais com o servidor antes de publicar
 - [deploy](deploy.md) — executa um plano de release (manifesto JSON) na ordem
-- [test](test.md) — teste de processo por cenários. Abre solicitações reais na homologação, move e confere etapa, card, caminho e erros de evento. Mede a cobertura de caminhos do BPMN e gera o esqueleto de uma suíte a partir do diagrama. Roda também o teste de unidade dos scripts no Rhino local, com falsos e sem servidor
+- [test](test.md) — teste de processo por cenários. Abre solicitações reais na homologação, move e confere etapa, card, caminho e erros de evento. Mede a cobertura de caminhos do BPMN e gera o esqueleto de uma suíte a partir do diagrama. Roda também o teste de unidade dos scripts no Rhino local, com falsos e sem servidor, e confere a tela real da tarefa num navegador headless (passo `ui`)
 - [audit](audit.md) — linter do projeto: Style Guide 2.0, APIs de script (typos e usos frágeis), footguns do Rhino, o cruzamento formulário × etapas do processo (`--process`) e o baseline da dívida antiga (`--save-baseline`)
 - [watch](watch.md) — publica ao salvar (só dev/hml)
 - [dev](dev.md) — dev server local com live reload. Serve widgets sem deploy e dá preview de formulários com simulação de processo (só dev/hml)

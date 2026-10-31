@@ -75,6 +75,14 @@ func DryRunSuite(ctx context.Context, eng Engine, s *Suite, proc *ProcessInfo, o
 					erros = append(erros, fmt.Sprintf("não há transição da etapa %d (%s) para a %d; destinos possíveis: %s",
 						atual, proc.States[atual].Name, st.Target, joinInts(proc.States[atual].Transitions)))
 				}
+			case ActUI:
+				if st.UI.Send > 0 {
+					alvoExiste(st.UI.Send, "a etapa do send")
+					if atual != 0 && len(erros) == 0 && !hasTransition(proc, atual, st.UI.Send) {
+						erros = append(erros, fmt.Sprintf("não há transição da etapa %d (%s) para a %d; destinos possíveis: %s",
+							atual, proc.States[atual].Name, st.UI.Send, joinInts(proc.States[atual].Transitions)))
+					}
+				}
 			case ActAssume:
 				if atual != 0 {
 					est := proc.States[atual]
@@ -100,11 +108,14 @@ func DryRunSuite(ctx context.Context, eng Engine, s *Suite, proc *ProcessInfo, o
 			switch {
 			case st.Expect != nil && st.Expect.Error != nil:
 				// erro esperado: a solicitação fica onde estava
+			case st.Expect != nil && st.Expect.UI != nil && st.Expect.UI.Message != nil:
+				// recusa esperada na tela: idem
 			case st.Expect != nil && st.Expect.State != nil:
 				atual = *st.Expect.State
 			case st.Action == ActWait && st.WaitState > 0:
 				atual = st.WaitState
-			case st.Action == ActStart, st.Action == ActMove, st.Action == ActManager, st.Action == ActCancel:
+			case st.Action == ActStart, st.Action == ActMove, st.Action == ActManager, st.Action == ActCancel,
+				st.Action == ActUI && st.UI.Send > 0:
 				atual = 0
 			}
 			if len(erros) > 0 {

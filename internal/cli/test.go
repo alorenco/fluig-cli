@@ -12,7 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/alorenco/fluig-cli/internal/browser"
 	"github.com/alorenco/fluig-cli/internal/config"
+	"github.com/alorenco/fluig-cli/internal/fluig"
 	"github.com/alorenco/fluig-cli/internal/output"
 	"github.com/alorenco/fluig-cli/internal/project"
 	"github.com/alorenco/fluig-cli/internal/testrun"
@@ -48,6 +50,9 @@ func newTestRunCmd(app *App) *cobra.Command {
 		varFlags      []string
 		stepTimeout   time.Duration
 		passwordStdin bool
+		browserPath   string
+		headed        bool
+		uiArtifacts   string
 	)
 	cmd := &cobra.Command{
 		Use:   "run [arquivo.json|pasta]...",
@@ -70,7 +75,7 @@ func newTestRunCmd(app *App) *cobra.Command {
 			"        ] }\n" +
 			"    ]\n" +
 			"  }\n\n" +
-			"Passos: start, move, assume, manager, setFields, check, wait e cancel.\n" +
+			"Passos: start, move, assume, manager, setFields, check, wait, cancel e ui.\n" +
 			"Asserções (expect): state, stateName, status, error, card, path e\n" +
 			"assignee. Expressões: {{today}}, {{today(+N)}}, {{unique}},\n" +
 			"{{var.nome}}, {{actors.eu.login}}, {{actors.eu.code}}, {{requestId}} e\n" +
@@ -82,12 +87,18 @@ func newTestRunCmd(app *App) *cobra.Command {
 			"abertas para inspeção.\n\n" +
 			"Limites conhecidos: os eventos de formulário (validateForm,\n" +
 			"inputFields) rodam no start, no move e no setFields. O displayFields\n" +
-			"não roda. As service tasks rodam DEPOIS da resposta do move: use um\n" +
+			"não roda nos passos de API (o passo ui confere a tela). As service\n" +
+			"tasks rodam DEPOIS da resposta do move: use um\n" +
 			"passo wait antes de conferir a etapa seguinte a uma service task.\n\n" +
+			"Passo ui: abre a tarefa REAL num navegador headless (Chrome, Chromium ou\n" +
+			"Edge; a sessão do fluigcli vale no navegador) e confere a tela: visible,\n" +
+			"hidden, enabled, disabled, value, text, css, message (a recusa do envio) e\n" +
+			"changed/unchanged (hiddens). Ações: open (task|view), fill, click, send\n" +
+			"<etapa> e save. Um passo ui que falha grava um screenshot (--ui-artifacts).\n\n" +
 			"Exit codes: 0 = todos os cenários passaram; 1 = algum cenário falhou\n" +
 			"(TEST_FAILED, com o relatório completo no --json); 2 = suíte inválida ou\n" +
 			"servidor de produção; 3 = autenticação; 4 = arquivo, fixture ou processo\n" +
-			"inexistente.",
+			"inexistente; 7 = suíte com passo ui e nenhum navegador (BROWSER_NOT_FOUND).",
 		Example: "  # roda as suítes de tests/*/\n" +
 			"  fluigcli test run --server homologacao\n\n" +
 			"  # um cenário de um arquivo, com variável\n" +
@@ -99,6 +110,7 @@ func newTestRunCmd(app *App) *cobra.Command {
 			ts, err := app.setupTestRun(p, args, testRunFlags{
 				scenarios: scenarios, varFlags: varFlags, keep: keep, stepTimeout: stepTimeout,
 				passwordStdin: passwordStdin, readOnly: dryRun,
+				browser: browserPath, headed: headed, uiArtifacts: uiArtifacts,
 			})
 			if err != nil {
 				return err
@@ -115,6 +127,9 @@ func newTestRunCmd(app *App) *cobra.Command {
 	cmd.Flags().StringArrayVar(&varFlags, "var", nil, "variável de suíte chave=valor (pode repetir; vence o \"vars\" do arquivo)")
 	cmd.Flags().DurationVar(&stepTimeout, "step-timeout", 5*time.Minute, "tempo máximo de cada passo")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	cmd.Flags().StringVar(&browserPath, "browser", "", "navegador dos passos ui (default: $FLUIGCLI_BROWSER, Chrome/Chromium/Edge instalado ou o Chromium do Playwright)")
+	cmd.Flags().BoolVar(&headed, "headed", false, "mostra a janela do navegador nos passos ui (depuração)")
+	cmd.Flags().StringVar(&uiArtifacts, "ui-artifacts", "", "pasta dos screenshots de passo ui que falha (default: uma pasta temporária)")
 	return cmd
 }
 
@@ -127,6 +142,9 @@ type testRunFlags struct {
 	stepTimeout   time.Duration
 	passwordStdin bool
 	readOnly      bool // --dry-run: sem o piso de tempo limite da escrita
+	browser       string
+	headed        bool
+	uiArtifacts   string
 }
 
 // testRunSetup é o estado pronto para executar as suítes.
@@ -196,6 +214,19 @@ func (app *App) setupTestRun(p *output.Printer, args []string, f testRunFlags) (
 	opts := testrun.Options{
 		Today: today, SelfLogin: server.Username, SelfCode: code,
 		Keep: f.keep, StepTimeout: f.stepTimeout, Scenarios: f.scenarios,
+	}
+	// Passo ui: o navegador é conferido ANTES de abrir qualquer solicitação.
+	if !f.readOnly && suitesHaveUI(suites) {
+		path, err := findBrowser(f.browser)
+		if err != nil {
+			return nil, output.BrowserNotFoundf("%v. A suíte tem passo ui: instale o Chrome, o Chromium ou o Edge, ou informe --browser <caminho>", err)
+		}
+		dir := f.uiArtifacts
+		if dir == "" {
+			dir = filepath.Join(os.TempDir(), "fluigcli-ui-"+time.Now().Format("20060102-150405"))
+		}
+		opts.UI = newUIDriver(path, f.headed, client)
+		opts.UIArtifacts = dir
 	}
 
 	// Processo inexistente é erro de carga (exit 4), antes do primeiro
@@ -547,6 +578,9 @@ func renderTestReport(p *output.Printer, r *testrun.Report, verbose bool) {
 					}
 					p.Infof("    %s", testrun.FormatAssertion(a))
 				}
+				if st.Screenshot != "" {
+					p.Infof("    tela: %s", st.Screenshot)
+				}
 			}
 		}
 		p.Infof("")
@@ -570,3 +604,20 @@ func renderTestReport(p *output.Printer, r *testrun.Report, verbose bool) {
 		p.Infof("Solicitações mantidas (--keep): %s", strings.Join(abertas, ", "))
 	}
 }
+
+func suitesHaveUI(suites []*testrun.Suite) bool {
+	for _, s := range suites {
+		if s.HasUI() {
+			return true
+		}
+	}
+	return false
+}
+
+// findBrowser e newUIDriver são pontos de troca para os testes.
+var (
+	findBrowser = browser.Find
+	newUIDriver = func(path string, headed bool, client *fluig.Client) testrun.UIDriver {
+		return &testrun.BrowserDriver{ExecPath: path, Headed: headed, Base: client.BaseURL(), Jar: client.SessionJar()}
+	}
+)

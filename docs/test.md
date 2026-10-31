@@ -30,11 +30,12 @@ O teste de processo fica na camada do meio da pirâmide de testes:
 |---|---|---|
 | Unidade | uma função de script, com falsos, sem servidor | `fluigcli test unit` ([abaixo](#teste-de-unidade-test-unit)) |
 | **Processo** | **caminho no motor, gateways, eventos de processo, valores gravados no card** | **`fluigcli test`** |
-| Interface | `displayFields`, `form.js`, campos bloqueados na tela | fora do `fluigcli` |
+| Interface | `displayFields`, `form.js`, campos bloqueados na tela | passo `ui` do `fluigcli test run` ([abaixo](#a-tela-da-tarefa-passo-ui)) |
 
 Os eventos de processo rodam no servidor normalmente. Os eventos de formulário
 `inputFields` e `validateForm` também rodam no `start`, no `move` e no
-`setFields`. O `displayFields` não roda, porque ele só desenha a tela.
+`setFields`. O `displayFields` não roda nos passos de API, porque ele só desenha
+a tela. Para conferir a tela, use o passo `ui`.
 
 ## A pasta `tests/`
 
@@ -361,6 +362,9 @@ tempo limite), `skipped` (passo depois de uma falha) e `validated` (no
 | `--keep` | Não roda a limpeza. |
 | `--var <chave=valor>` | Define uma variável. Aceita repetição. Vence o `vars` do arquivo. |
 | `--step-timeout <duração>` | O tempo máximo de cada passo. O padrão é `5m`. |
+| `--browser <caminho>` | O navegador dos passos `ui`. |
+| `--headed` | Mostra a janela do navegador (depuração, só no desktop). |
+| `--ui-artifacts <pasta>` | A pasta dos screenshots de passo `ui` que falha. O padrão é uma pasta temporária. |
 
 ## Exit codes
 
@@ -371,10 +375,111 @@ tempo limite), `skipped` (passo depois de uma falha) e `validated` (no
 | Suíte inválida, expressão desconhecida, servidor de produção, problema no `--dry-run` | 2 | `USAGE_ERROR` |
 | Falha de autenticação antes do primeiro cenário | 3 | `AUTH_FAILED` |
 | Suíte, fixture ou processo inexistente | 4 | `NOT_FOUND` |
+| Suíte com passo `ui` e nenhum navegador na máquina | 7 | `BROWSER_NOT_FOUND` |
 
 Um erro de infraestrutura **durante** a execução não troca o exit code para 3
 ou 5. O cenário fica `errored`, e o exit é 1. Com `--json`, o envelope de falha
 traz o relatório completo em `data`.
+
+## A tela da tarefa (passo `ui`)
+
+O passo `ui` abre a tarefa num navegador sem janela (headless) e confere o que
+a tela mostra. Ele cobre o que a API não alcança:
+
+- o `displayFields`: os campos editáveis e bloqueados, os painéis visíveis;
+- o `form.js`: o `beforeSendValidate`, as máscaras e os campos de controle;
+- os textos e as cores de painel;
+- a largura de celular.
+
+A API leva a solicitação até a etapa em segundos. O navegador abre só no
+passo `ui`. A página é o render REAL da tarefa no servidor, não a simulação do
+`fluigcli dev`.
+
+```json
+{ "assume": true },
+{ "ui": { "open": "task" },
+  "expect": {
+    "visible": ["painelAprFinanceiro"],
+    "hidden": ["painelTblAnexos"],
+    "enabled": ["aprFinanceiro", "comentarioFinanceiro"],
+    "disabled": ["codColigada", "parcelaValor___1", "aprDiretoria"],
+    "text": { "aprovadoPorDiretoria": { "contains": "por " } },
+    "css": { "painelAprFinanceiro": { "display": "block" } } } },
+{ "ui": { "fill": { "aprFinanceiro": "reprovado", "comentarioFinanceiro": "" }, "send": 13 },
+  "expect": { "message": "obrigatório incluir um COMENTÁRIO", "changed": ["controleEnvio"], "state": 112 } },
+{ "ui": { "fill": { "comentarioFinanceiro": "sem verba" }, "send": 13 },
+  "expect": { "state": 13, "changed": ["controleEnvio"] } }
+```
+
+### O navegador
+
+O comando usa o Chrome, o Chromium ou o Edge instalado. Ele procura nesta
+ordem: `--browser`, `$FLUIGCLI_BROWSER`, os nomes conhecidos no PATH, os
+caminhos padrão do sistema e o Chromium do Playwright (`~/.cache/ms-playwright`).
+A suíte com passo `ui` e sem navegador recusa com exit 7 (`BROWSER_NOT_FOUND`)
+antes de abrir qualquer solicitação. A suíte sem passo `ui` não procura
+navegador.
+
+A sessão do `fluigcli` vale no navegador: o comando passa os cookies da sessão.
+Por isso, o navegador não pede login nem 2FA. O comando também bloqueia a
+pesquisa de satisfação (NPS) da TOTVS, porque o modal dela cobre a página.
+
+No Linux, o navegador abre com `--no-sandbox`. O Ubuntu 23.10 e as versões
+mais novas bloqueiam o sandbox do Chromium.
+
+Uma janela atende todos os passos `ui` de um cenário e fecha no fim dele.
+
+### As ações
+
+Um passo `ui` faz uma ação. A única combinação é `fill` com `send` ou `save`.
+
+| Ação | Efeito |
+|---|---|
+| `open: "task"` | Abre a tarefa corrente em modo de edição, como o usuário da sessão. Assuma a tarefa de pool antes (`assume`). |
+| `open: "view"` | Abre os detalhes da solicitação (modo de visualização). |
+| `fill: {campo: valor}` | Preenche os campos na ordem do arquivo: input, textarea, select (por valor), radio e checkbox (por valor). Dispara os eventos `input`, `change` e `blur`, então as máscaras e os eventos do `form.js` rodam. Um campo bloqueado recusa o passo. |
+| `click: "elemento"` | Clica num elemento do formulário (botão de tabela filha, aba). |
+| `send: <etapa>` | Clica em Enviar, escolhe a etapa (pela sequência) na janela "Movimentar Atividade" e confirma. |
+| `save: true` | Clica em Salvar. |
+| `viewport` | `"desktop"` (1366×900, o padrão), `"mobile"` (390×844, modo celular) ou `{ "w": 800, "h": 600 }`. Vale no passo ou em `defaults.ui.viewport`. |
+
+Um elemento é um nome de campo, um id ou `css:<seletor>`. O nome de campo vence
+o id.
+
+### As asserções da tela
+
+| Asserção | Confere |
+|---|---|
+| `visible` / `hidden` | O elemento aparece ou não. Um elemento ausente conta como oculto. |
+| `enabled` | O campo existe, aparece e aceita edição. |
+| `disabled` | O campo existe e não aceita edição: `disabled`, `readonly` ou bloqueado pelo `setEnabled(false)`. Um campo ausente reprova: um nome errado não passa como bloqueado. |
+| `value` | O valor do campo na tela, com os comparadores do `card`. |
+| `text` | O texto visível de um elemento, com os comparadores do `card`. |
+| `css` | Propriedades de CSS calculadas (`getComputedStyle`). O espaço e a caixa não contam. |
+| `message` | A mensagem de recusa do envio (`FLUIGC.message`), sem HTML e sem caixa. Vale para a recusa do `beforeSendValidate` (nada sai) e para a recusa do servidor (`validateForm`, `beforeTaskSave`). |
+| `changed` / `unchanged` | Um campo (inclusive hidden) mudou ou não. O "antes" é a tela no início do passo. No envio, o "depois" é o valor ENVIADO ao servidor. |
+
+As asserções da API (`state`, `status`, `card`, `path`, `assignee`) também
+valem no passo `ui`. O comando lê a solicitação pela API depois da ação. O
+`error` não vale no passo `ui`: use `message`.
+
+Uma recusa do envio sem `message` no `expect` reprova o passo com o texto da
+recusa.
+
+Como o Fluig desenha um campo bloqueado pelo `setEnabled(false)` no modo de
+edição: o valor vai num `input hidden` com o nome do campo, e a tela mostra uma
+cópia `_campo` somente leitura. O comando entende os dois.
+
+### O screenshot
+
+Um passo `ui` que falha grava a tela em PNG. O relatório mostra o caminho
+(`tela: ...`), e o `--json` traz `steps[].screenshot`. Escolha a pasta com
+`--ui-artifacts`.
+
+### O `--dry-run`
+
+O `--dry-run` valida a forma do passo `ui` e confere a etapa do `send` contra o
+diagrama. Ele não abre navegador.
 
 ## Cobertura de caminhos (`test coverage`)
 
@@ -816,8 +921,8 @@ com `cases[]` (`name`, `status` = `passed`/`failed`/`errored`, `durationMs`,
 
 ## Limites conhecidos
 
-- O `displayFields` não roda. Os campos que ele preenche na tela não chegam ao
-  card.
+- O `displayFields` não roda nos passos de API. Os campos que ele preenche na
+  tela não chegam ao card. O passo `ui` confere a tela.
 - O modo gestor (`manager`) não grava campos. Use `setFields` antes.
 - As service tasks rodam depois da resposta do `move`. Use `wait`.
 - O cancelamento não desfaz integração externa.
@@ -827,3 +932,6 @@ com `cases[]` (`name`, `status` = `passed`/`failed`/`errored`, `durationMs`,
 - O `test unit` não congela `java.util.Date`, `Calendar` nem `LocalDate`.
 - O `test unit` não executa SQL nem consulta banco: um dataset é testado como
   função, com falsos.
+- O passo `ui` não escolhe o responsável na janela de envio. Para uma etapa que
+  pede o responsável, use o `move` da API com `assignee`.
+- O passo `ui` não usa o zoom (`fluig-zoom`) com busca.

@@ -156,6 +156,8 @@ type StepResult struct {
 	Error      string      `json:"error,omitempty"`
 	ErrorCode  string      `json:"errorCode,omitempty"`
 	Assertions []Assertion `json:"assertions,omitempty"`
+	// Screenshot é o PNG da tela quando um passo ui não passa.
+	Screenshot string `json:"screenshot,omitempty"`
 }
 
 // CleanupResult é o resultado da limpeza do cenário.
@@ -178,6 +180,10 @@ type Options struct {
 	Sleep func(ctx context.Context, d time.Duration) error
 	// Progress, se não-nil, recebe cada cenário concluído (saída ao vivo).
 	Progress func(suite *Suite, r ScenarioResult)
+	// UI abre o navegador dos passos ui (nil = sem navegador; o passo ui
+	// falha com erro). UIArtifacts é a pasta dos screenshots de falha.
+	UI          UIDriver
+	UIArtifacts string
 }
 
 const (
@@ -249,6 +255,7 @@ type scenarioRun struct {
 	requestID int
 	formID    int
 	cardID    int
+	ui        UISession // janela do cenário (aberta no 1º passo ui)
 }
 
 func runScenario(ctx context.Context, eng Engine, s *Suite, sc *Scenario, proc *ProcessInfo, opts *Options) ScenarioResult {
@@ -276,6 +283,9 @@ func runScenario(ctx context.Context, eng Engine, s *Suite, sc *Scenario, proc *
 		}
 	}
 	res.RequestID = run.requestID
+	if run.ui != nil {
+		run.ui.Close()
+	}
 	res.Cleanup = run.cleanup(ctx)
 	res.DurationMs = opts.now().Sub(inicio).Milliseconds()
 	return res
@@ -321,9 +331,9 @@ func (r *scenarioRun) stepTimeout(st *Step) time.Duration {
 }
 
 // step executa um passo e avalia o expect.
-func (r *scenarioRun) step(parent context.Context, st *Step) StepResult {
+func (r *scenarioRun) step(parent context.Context, st *Step) (sr StepResult) {
 	t0 := r.opts.now()
-	sr := StepResult{Index: st.Index, Name: st.Name, Action: st.Action}
+	sr = StepResult{Index: st.Index, Name: st.Name, Action: st.Action}
 	ctx, cancel := context.WithTimeout(parent, r.stepTimeout(st))
 	defer cancel()
 	defer func() { sr.DurationMs = r.opts.now().Sub(t0).Milliseconds() }()
@@ -331,6 +341,10 @@ func (r *scenarioRun) step(parent context.Context, st *Step) StepResult {
 	if st.Action != ActStart && r.requestID == 0 {
 		sr.Result = ResFailed
 		sr.Error = "não existe solicitação neste cenário: o start não criou nenhuma"
+		return sr
+	}
+	if st.Action == ActUI {
+		r.uiStep(ctx, parent, st, &sr)
 		return sr
 	}
 
