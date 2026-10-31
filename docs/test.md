@@ -4,6 +4,10 @@ O comando testa um processo no motor BPM real. Ele usa a API do Fluig e não
 abre navegador. Uma **suíte** descreve **cenários**. Cada cenário abre uma
 solicitação, executa **passos** e confere o estado depois de cada passo.
 
+> Primeira vez? Comece pelo guia [Como escrever testes](./test-guia): ele
+> mostra o fluxo de trabalho, exemplos completos e as armadilhas. Esta página é
+> a referência de cada chave.
+
 Use o comando para repetir um roteiro de teste manual. Por exemplo: "abra a
 solicitação, aprove na revisão, reprove na diretoria e confira que ela volta
 para o solicitante". Escreva o roteiro uma vez. Depois rode a suíte a cada

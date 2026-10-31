@@ -14,6 +14,16 @@ export default defineConfig({
   srcExclude: ['README.md', 'interno/**'],
   cleanUrls: true,
   lastUpdated: true,
+  // O Vue interpreta {{...}} até dentro de código inline: `{{today}}` sumia da
+  // página e `{{today(+N)}}` derrubava o build (docs/test.md). O código inline
+  // sai com v-pre, como os blocos de código já saem.
+  markdown: {
+    config: (md) => {
+      const inline = md.renderer.rules.code_inline!
+      md.renderer.rules.code_inline = (tokens, idx, options, env, self) =>
+        inline(tokens, idx, options, env, self).replace(/^<code/, '<code v-pre')
+    },
+  },
 
   themeConfig: {
     nav: [
@@ -44,7 +54,8 @@ export default defineConfig({
           { text: 'layout — layouts WCM', link: '/layout' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
           { text: 'deploy — release por manifesto', link: '/deploy' },
-          { text: 'test — teste de processo por cenários', link: '/test' },
+          { text: 'test — teste de processo, unidade e tela', link: '/test' },
+          { text: 'Como escrever testes (guia)', link: '/test-guia' },
           { text: 'audit — conformidade com o style guide', link: '/audit' },
           { text: 'watch — publicar ao salvar', link: '/watch' },
           { text: 'dev — dev server com live reload', link: '/dev' },

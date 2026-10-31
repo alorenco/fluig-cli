@@ -30,7 +30,7 @@ lê um envelope JSON e decide pelo **exit code** — não pelo texto.
    | 4 | recurso não encontrado | conferir o id/nome |
    | 5 | erro do servidor Fluig | ler `error.message`; pode ser transitório |
    | 6 | falha parcial (lote) | inspecionar `data` item a item |
-   | 7 | dependência ausente no servidor | rodar `fluigcli server install-helper` |
+   | 7 | dependência ausente | `HELPER_NOT_INSTALLED`: rodar `fluigcli server install-helper`; `JAVA_NOT_FOUND`/`RHINO_UNAVAILABLE` (`test unit`): Java 11+ na máquina; `BROWSER_NOT_FOUND` (passo `ui`): Chrome/Chromium/Edge na máquina |
 
    Tabela completa e formato do envelope: [`reference/contract.md`](reference/contract.md).
 3. **Nunca** ponha senha em argumento de linha de comando (vaza em `ps`/histórico).
@@ -104,6 +104,17 @@ fluigcli dataset export --help
    nenhum outro comando acusa.
 4. `fluigcli <recurso> export <arquivo|pasta> --json` → publicar (local → servidor).
 5. Conferir `ok`/exit code; em lote, tratar exit 6 (parcial) olhando `data`.
+
+## Testes de processo
+
+Para testar um processo, um formulário ou um script, leia
+[`reference/testing.md`](reference/testing.md) **antes** de escrever qualquer
+arquivo de teste. Ele diz qual camada usar (`test unit` para os ramos de
+script, `test run` para o motor BPM, passo `ui` para a tela), o fluxo
+(`test new` → sanitizar a fixture → completar os `TODO` → `--dry-run` → `run` →
+`coverage`), modelos JSON completos e as armadilhas medidas num servidor real.
+Nunca rode a pasta `integracao/` de uma suíte sem OK humano: ela grava no
+sistema externo.
 
 ## Comandos para execução manual
 
