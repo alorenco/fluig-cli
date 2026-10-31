@@ -27,8 +27,9 @@ func TestExemplosDaDocumentacaoCarregam(t *testing.T) {
 		}
 		// O checkout do Windows troca LF por CRLF (o CI falhou assim em
 		// 2026-10-31): o extrator precisa achar os mesmos blocos.
-		crlf := bytes.ReplaceAll(data, []byte("\n"), []byte("\r\n"))
-		if a, b := len(jsonBlockRe.FindAll(data, -1)), len(jsonBlockRe.FindAll(crlf, -1)); a != b {
+		lf := bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+		crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
+		if a, b := len(jsonBlockRe.FindAll(lf, -1)), len(jsonBlockRe.FindAll(crlf, -1)); a != b {
 			t.Errorf("%s: %d blocos com LF, %d com CRLF", arq, a, b)
 		}
 		n := 0
