@@ -16,7 +16,7 @@ const (
 	ExitNotFound      = 4 // recurso não encontrado (dataset, form, processo, servidor)
 	ExitServer        = 5 // erro retornado pelo servidor Fluig
 	ExitPartial       = 6 // sucesso parcial em operação em lote
-	ExitMissingHelper = 7 // dependência ausente no servidor (fluigcliHelper)
+	ExitMissingHelper = 7 // dependência ausente: fluigcliHelper no servidor, ou Java/Rhino na máquina (test unit)
 )
 
 // Códigos de erro estáveis, em inglês. Fazem parte do contrato
@@ -65,6 +65,13 @@ const (
 	// exit é o 2, e não o 4: o recurso foi encontrado. Repetir não adianta — o
 	// conserto é apontar outro id.
 	CodeProtectedDataset = "PROTECTED_DATASET"
+	// CodeJavaNotFound e CodeRhinoUnavailable marcam a dependência LOCAL
+	// ausente do `test unit` (ROADMAP §5.18): Java ausente ou < 11, e o jar do
+	// Rhino que não está no cache nem pôde ser baixado (ou veio com hash
+	// diferente). O exit é o 7, o mesmo do helper ausente: falta uma peça, e
+	// quem automatiza instala a peça antes de repetir.
+	CodeJavaNotFound     = "JAVA_NOT_FOUND"
+	CodeRhinoUnavailable = "RHINO_UNAVAILABLE"
 )
 
 // Error é o erro tipado da CLI: carrega o código estável (inglês), a mensagem
@@ -158,6 +165,16 @@ func Partialf(format string, args ...any) *Error {
 
 func MissingHelperf(format string, args ...any) *Error {
 	return newError(CodeMissingHelper, ExitMissingHelper, format, args...)
+}
+
+// JavaNotFoundf: Java ausente ou antigo para o `test unit` (exit 7).
+func JavaNotFoundf(format string, args ...any) *Error {
+	return newError(CodeJavaNotFound, ExitMissingHelper, format, args...)
+}
+
+// RhinoUnavailablef: jar do Rhino indisponível para o `test unit` (exit 7).
+func RhinoUnavailablef(format string, args ...any) *Error {
+	return newError(CodeRhinoUnavailable, ExitMissingHelper, format, args...)
 }
 
 // ExitCodeFor traduz qualquer erro para o exit code do contrato:

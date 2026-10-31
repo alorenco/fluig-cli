@@ -24,17 +24,19 @@ import (
 func newTestCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test",
-		Short: "Teste de processo por cenários (abre, move e confere solicitações reais)",
+		Short: "Teste de processo por cenários e teste de unidade dos scripts",
 		Long: "Testa um processo no motor BPM real, pela API e sem navegador.\n\n" +
 			"Uma suíte JSON descreve cenários. Cada cenário abre uma solicitação,\n" +
 			"executa passos (move, assume, modo gestor, gravação de campos) e confere\n" +
 			"o estado depois de cada passo: etapa, status, campos do card, caminho\n" +
 			"percorrido e mensagens de erro dos eventos.\n\n" +
 			"O test coverage mede quais transições do diagrama os testes percorreram.\n" +
-			"O test new gera o esqueleto de uma suíte a partir do diagrama.\n\n" +
+			"O test new gera o esqueleto de uma suíte a partir do diagrama.\n" +
+			"O test unit roda funções de script no Rhino local, sem servidor, com\n" +
+			"falsos do form, do hAPI e do DatasetFactory.\n\n" +
 			"O test run NUNCA roda em servidor de produção.",
 	}
-	cmd.AddCommand(newTestRunCmd(app), newTestCoverageCmd(app), newTestNewCmd(app))
+	cmd.AddCommand(newTestRunCmd(app), newTestCoverageCmd(app), newTestNewCmd(app), newTestUnitCmd(app))
 	return cmd
 }
 

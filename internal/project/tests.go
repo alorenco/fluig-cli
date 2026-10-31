@@ -18,6 +18,13 @@ const TestsDir = "tests"
 // TestFixturesDir é a subpasta de fixtures. Ela nunca é lida como suíte.
 const TestFixturesDir = "fixtures"
 
+// UnitTestsDir é a pasta dos testes de unidade (tests/unit/*.unit.json). O
+// test run a ignora: ela não é pasta de processo.
+const UnitTestsDir = "unit"
+
+// unitSuffix é a extensão dos testes de unidade; o test run não os lê.
+const unitSuffix = ".unit.json"
+
 // SuitesInDir lista os arquivos *.json de uma pasta, em ordem alfabética, sem
 // recursão. A subpasta fixtures/ fica de fora naturalmente.
 func SuitesInDir(dir string) ([]string, error) {
@@ -27,7 +34,8 @@ func SuitesInDir(dir string) ([]string, error) {
 	}
 	var out []string
 	for _, e := range entries {
-		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".json") {
+		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".json") ||
+			strings.HasSuffix(strings.ToLower(e.Name()), unitSuffix) {
 			continue
 		}
 		out = append(out, filepath.Join(dir, e.Name()))
@@ -46,7 +54,7 @@ func DefaultSuites(root string) ([]string, error) {
 	}
 	var dirs []string
 	for _, e := range entries {
-		if e.IsDir() && e.Name() != TestFixturesDir {
+		if e.IsDir() && e.Name() != TestFixturesDir && e.Name() != UnitTestsDir {
 			dirs = append(dirs, filepath.Join(base, e.Name()))
 		}
 	}

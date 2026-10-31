@@ -337,5 +337,8 @@ func show(v any) string {
 		}
 		return "[" + strings.Join(p, ", ") + "]"
 	}
+	if b, err := json.Marshal(v); err == nil {
+		return string(b)
+	}
 	return fmt.Sprint(v)
 }

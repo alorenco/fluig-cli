@@ -1,4 +1,4 @@
-# fluigcli test — teste de processo por cenários
+# fluigcli test — teste de processo e de unidade
 
 O comando testa um processo no motor BPM real. Ele usa a API do Fluig e não
 abre navegador. Uma **suíte** descreve **cenários**. Cada cenário abre uma
@@ -16,9 +16,10 @@ fluigcli test run tests/Compras/ --dry-run          # valida, sem abrir solicita
 fluigcli test run --scenario "aprovação simples"    # roda um cenário
 fluigcli test coverage tests/Compras/               # roda e mede a cobertura de caminhos
 fluigcli test new Compras                           # gera o esqueleto de uma suíte
+fluigcli test unit                                  # roda os testes de unidade de tests/unit/
 ```
 
-> ⚠️ O comando **nunca** roda em servidor de produção. Um servidor com
+> ⚠️ O `test run` **nunca** roda em servidor de produção. Um servidor com
 > `--env prod` recusa o comando com exit 2. Não existe opção para liberar.
 
 ## O que o teste cobre
@@ -27,7 +28,7 @@ O teste de processo fica na camada do meio da pirâmide de testes:
 
 | Camada | O que testa | Onde fica |
 |---|---|---|
-| Unidade | um script isolado | fora do `fluigcli` |
+| Unidade | uma função de script, com falsos, sem servidor | `fluigcli test unit` ([abaixo](#teste-de-unidade-test-unit)) |
 | **Processo** | **caminho no motor, gateways, eventos de processo, valores gravados no card** | **`fluigcli test`** |
 | Interface | `displayFields`, `form.js`, campos bloqueados na tela | fora do `fluigcli` |
 
@@ -47,7 +48,9 @@ tests/
         └── card_base.json    ← fixture (valores do formulário)
 ```
 
-- Sem alvo, o comando roda todas as suítes de `tests/*/`.
+- Sem alvo, o comando roda todas as suítes de `tests/*/`. A pasta
+  `tests/unit/` e os arquivos `*.unit.json` ficam de fora: eles são do
+  `test unit`.
 - Com uma pasta, o comando lê os arquivos `*.json` da pasta, sem recursão. A
   subpasta `fixtures/` fica de fora.
 - Com um arquivo, o comando roda só aquele arquivo.
@@ -548,6 +551,254 @@ Exit codes: 0 = gerado; 1 = falha ao gravar (`LOCAL_IO_ERROR`); 2 = arquivo
 existente, opção incompatível ou solicitação de outro processo; 4 = processo,
 versão ou solicitação inexistente.
 
+## Teste de unidade (`test unit`)
+
+O `test unit` roda uma função de script Fluig na sua máquina, sem servidor. O
+`form`, o `hAPI`, o `DatasetFactory`, o `getValue`, o `fluigAPI` e o `log` são
+**falsos**. O arquivo de teste declara o que cada falso devolve. Cada caso leva
+milissegundos.
+
+Use o `test unit` para a lógica com muitos ramos. Por exemplo: um
+`validateForm` com dezenas de regras, ou um cálculo de prazo. No `test run`,
+cada ramo custa uma solicitação real. No `test unit`, cada ramo custa um caso
+no arquivo.
+
+```sh
+fluigcli test unit                                   # roda tests/unit/
+fluigcli test unit tests/unit/compras.unit.json      # roda um arquivo
+fluigcli test unit --filter fornecedor               # roda os casos com "fornecedor" no nome
+fluigcli test unit --self-check                      # confere o motor
+```
+
+### O motor
+
+O servidor Fluig roda os scripts no Rhino 1.7.15.1. O `test unit` usa o
+**Rhino 1.7.15.1 oficial**, a mesma versão, em modo ES6. Por isso, os defeitos
+conhecidos do Rhino do Fluig também aparecem no teste:
+
+- O `const` no corpo de um laço guarda o valor da 1ª volta.
+- O `const` com o mesmo nome em blocos irmãos não compila.
+- A String Java vazia é verdadeira num `if`.
+- O `===` entre uma String Java e um texto JS dá `false`.
+
+O servidor usa uma compilação da TOTVS da mesma versão. As sondas do
+`--self-check` reproduzem o comportamento medido no servidor.
+
+O jar não vem dentro do `fluigcli`. Na 1ª execução, o comando baixa o
+`rhino-1.7.15.1.jar` do Maven Central, confere o SHA-256 e guarda o jar no cache
+local. As execuções seguintes não usam a rede. Para usar outro jar, informe
+`--rhino-jar <arquivo>`. Neste caso, o comando não confere o hash. O jar
+precisa ter o shell do Rhino (`org.mozilla.javascript.tools.shell.Main`).
+
+O comando precisa do **Java 11** ou mais novo. Ele procura o Java nesta ordem:
+`--java`, `$FLUIGCLI_JAVA`, `$JAVA_HOME/bin/java` e `java` no PATH. O fuso do
+teste é `America/Sao_Paulo`.
+
+### A pasta `tests/unit/`
+
+```
+tests/
+└── unit/
+    ├── compras.unit.json      ← arquivo de teste de unidade
+    └── fixtures/
+        └── card_vazio.json    ← fixture (valores do formulário)
+```
+
+- Sem alvo, o comando lê os `*.unit.json` de `tests/unit/` e das subpastas.
+- Os caminhos de `scripts` são relativos à raiz do projeto.
+- Os caminhos de fixture (`form.card`) são relativos ao arquivo de teste.
+
+### O arquivo de teste
+
+```json
+{
+  "description": "Pagamentos: urgência e validação",
+  "scripts": ["forms/Pagamentos/events/inputFields.js"],
+  "defaults": {
+    "today": "2026-11-03T10:00",
+    "wk": { "WKNumState": "23" },
+    "user": { "login": "jsilva", "code": "jsilva", "fullName": "João Silva" },
+    "form": { "children": { "tabelaParcelas": [1] } }
+  },
+  "cases": [
+    {
+      "name": "vence amanhã: urgente",
+      "call": "calcularUrgencia",
+      "args": ["$form", "$children:tabelaParcelas"],
+      "form": { "fields": { "vencimento___1": "04/11/2026" } },
+      "datasets": {
+        "ds_dias_uteis": { "columns": ["STATUS", "DIAS"], "rows": [["OK", "1"]] }
+      },
+      "expect": { "return": { "urgente": true, "dias": "1" } }
+    },
+    {
+      "name": "abertura sem fornecedor",
+      "scripts": ["forms/Pagamentos/events/validateForm.js"],
+      "event": "validateForm",
+      "wk": { "WKNumState": "4", "WKNextState": "5" },
+      "form": { "card": "fixtures/card_vazio.json" },
+      "expect": { "throws": ["campos não foram preenchidos", "Fornecedor"] }
+    }
+  ]
+}
+```
+
+O arquivo tem três chaves: `scripts` (os scripts carregados em cada caso),
+`defaults` (os falsos comuns) e `cases`. O comando recusa chave desconhecida
+com exit 2. Por isso, um erro de digitação não vira um caso que passa sem
+conferir nada.
+
+Cada caso roda num escopo novo. O comando carrega os scripts de novo em cada
+caso. Por isso, um caso não vê o estado de outro. Os scripts de um caso dividem
+o mesmo escopo, como os scripts de um processo no servidor.
+
+### A chamada
+
+Cada caso tem `call` ou `event`:
+
+| Chave | Efeito |
+|---|---|
+| `call` + `args` | Chama a função `call` com os argumentos `args`. |
+| `event: "validateForm"`, `"inputFields"`, `"enableFields"` | Chama o evento com `(form)`. |
+| `event: "displayFields"` | Chama o evento com `(form, customHTML)`. |
+| outro `event` + `eventArgs` | Chama o evento de processo com os argumentos `eventArgs`. Por exemplo: `beforeTaskSave` com `["jsilva", 5, []]`. |
+
+Os textos especiais em `args` e em `eventArgs`:
+
+| Texto | Valor |
+|---|---|
+| `"$form"` | O falso do `form`. |
+| `"$hAPI"` | O falso do `hAPI`. |
+| `"$customHTML"` | O falso do `customHTML`. |
+| `"$children:<tabela>"` | O `Integer[]` da tabela filha, como o `getChildrenIndexes`. |
+| `{ "$java": "texto" }` | Um `java.lang.String`. |
+| `"$$texto"` | O texto `"$texto"`. |
+
+Os outros valores JSON viram valores JS. Um texto em `args` vira texto JS.
+
+### Os falsos
+
+O caso sobrescreve os `defaults` campo a campo. As chaves `wk`, `datasets`,
+`returns` e `form.fields` se mesclam chave a chave.
+
+| Chave | Falso |
+|---|---|
+| `form.card` | A fixture do card: um JSON plano, no mesmo formato do `test new --from-request`. |
+| `form.fields` | Os campos do card. Eles vencem a fixture. Linha de tabela filha: `campo___N`. |
+| `form.children` | Os índices das tabelas filhas: `{ "tabela": [1, 2] }`. |
+| `form.mode`, `form.mobile` | O retorno do `getFormMode()` (padrão `ADD`) e do `getMobile()`. |
+| `wk` | As variáveis do `getValue("WK…")`. Uma chave ausente devolve `null`. |
+| `user` | O usuário do `fluigAPI.getUserService().getCurrent()`: `login`, `code`, `fullName`, `email`. |
+| `today` | O relógio do `new Date()` e do `Date.now()`: `AAAA-MM-DD` ou `AAAA-MM-DDTHH:MM`. |
+| `datasets` | O retorno do `DatasetFactory.getDataset`, por nome (veja abaixo). |
+| `returns` | O retorno de outros métodos: `{ "hAPI.getActiveStates": [5] }`. |
+
+Os falsos devolvem os mesmos tipos do servidor:
+
+- O `form.getValue`, o `hAPI.getCardValue` e o `getValue` devolvem
+  `java.lang.String`. Um campo ausente devolve `null`.
+- O `getChildrenIndexes` devolve `Integer[]`.
+- O `dataset.values` é um `Object[][]` Java. O `values[0].coluna` quebra, como
+  no servidor (regra `RHINO004` do `audit`). Use `getValue(linha, "coluna")`.
+- O `hAPI` e o `form` têm os métodos do `fluig.d.ts`. Um método fora da lista
+  dá `TypeError`, como no servidor. Os métodos sem falso próprio gravam a
+  chamada (asserção `calls`) e devolvem `null` ou o valor de `returns`.
+- O `hAPI.getCardValue` lê o mesmo card do `form`.
+
+A fixture aceita `{{today}}`, `{{today(+N)}}` e `{{actors.eu.login}}` /
+`{{actors.eu.code}}`. O "hoje" é o `today` do caso, e o "eu" é o `user`.
+
+O comando **não** congela `java.util.Date`, `Calendar` nem `LocalDate`. Eles
+usam o relógio real da máquina.
+
+#### O falso de dataset
+
+| Valor | `getDataset` devolve |
+|---|---|
+| `null` | `null` |
+| `{ "columns": [...], "rows": [[...]] }` | um dataset com essas linhas |
+| `[{ "when": {...}, ... }, ...]` | a 1ª regra cujo `when` casa com as constraints |
+| `{ "null": true }` ou `{ "error": "texto" }` numa regra | `null`, ou lança o erro |
+
+O `when` compara o valor inicial de cada constraint: `{ "dataFinal":
+"05/11/2026" }`. Um dataset sem falso, ou sem regra que case, faz o caso
+terminar com erro: "falso ausente". Assim, uma chamada esquecida não passa
+despercebida.
+
+### As asserções (`expect`)
+
+O `expect` é obrigatório. O comando confere todas as asserções do caso, mesmo
+depois da 1ª falha.
+
+| Chave | Confere |
+|---|---|
+| `return` | O valor devolvido, em JSON. A comparação é profunda. Número e texto são diferentes: `1` ≠ `"1"`. |
+| `returnType` | O tipo devolvido: `js-string`, `java-string`, `number`, `boolean`, `null`, `undefined`, `array`, `java-array`, `object`, `java-object`, `date`. |
+| `throws` | A função lançou erro. Um texto ou uma lista de textos que a mensagem contém, sem HTML e sem caixa. `true` = qualquer erro. |
+| `form` | Os campos gravados pelo `form.setValue`. `"campo": null` exige que o campo NÃO tenha sido gravado. `"$only": true` exige que só os campos listados tenham sido gravados. |
+| `card` | Os campos gravados pelo `hAPI.setCardValue`, com as mesmas regras do `form`. |
+| `log` | As linhas de log: `[{ "level": "warn", "contains": "texto" }]`. |
+| `datasetCalls` | Os datasets chamados, em ordem: `[{ "name": "ds", "constraints": { "campo": "valor" } }]`. `[]` exige nenhuma chamada. |
+| `calls` | As chamadas a outros métodos: `[{ "method": "hAPI.setTaskComments", "args": [...] }]`. Sem `args`, basta a chamada. |
+| `html` | Os textos que o `customHTML.append` recebeu. |
+
+Sem `throws`, um erro na função reprova o caso. O relatório mostra a mensagem,
+o script e a linha. Uma variável global sem falso dá a dica "a global X não
+existe no teste".
+
+Um script que não compila faz o caso terminar com erro. O relatório mostra a
+mensagem do Rhino e a linha. Por exemplo: `TypeError: redeclaration of const y`.
+
+### A conferência do motor (`--self-check`)
+
+O `--self-check` não roda casos. Ele roda 20 sondas no motor local e compara com
+o comportamento medido no servidor: 12 construções ES6 que funcionam, 4 que dão
+`SyntaxError` e os 4 defeitos do Rhino. Use o `--self-check` depois de trocar o
+Java ou de informar um `--rhino-jar`. Uma divergência dá exit 1.
+
+### A saída
+
+```
+tests/unit/pagamentos.unit.json
+Pagamentos: urgência e validação
+┌───┬─────────────────────────┬───────────┬────────┐
+│ # │ Caso                    │ Resultado │ Tempo  │
+├───┼─────────────────────────┼───────────┼────────┤
+│ 1 │ vence amanhã: urgente   │ FALHOU    │ 4,1 ms │
+│ 2 │ abertura sem fornecedor │ passou    │ 3,6 ms │
+└───┴─────────────────────────┴───────────┴────────┘
+✗ 1 · vence amanhã: urgente
+    return: esperado {"dias":"1","urgente":true}, obtido {"dias":"1","urgente":false}
+
+Motor: Rhino 1.7.15.1 (oficial, do cache), ES6, Java 17.0.19
+Resumo: 1 passaram · 1 falharam · 0 com erro (0,8 s)
+```
+
+Com `--json`, o `data` traz `engine` (versão, origem do jar, Java), `files[]`
+com `cases[]` (`name`, `status` = `passed`/`failed`/`errored`, `durationMs`,
+`error`, `assertions[]`, `logs[]`) e `summary`.
+
+### Opções do `test unit`
+
+| Opção | Efeito |
+|---|---|
+| `--filter <texto>` | Roda só os casos cujo nome contém o texto, sem caixa. Repetível. |
+| `--java <caminho>` | O executável do Java. |
+| `--rhino-jar <arquivo>` | O jar do motor. Dispensa o download e não confere o hash. |
+| `--self-check` | Confere o motor e não roda casos. |
+| `--timeout <duração>` | O limite da execução inteira. O padrão é 60 s. Um laço infinito vira erro nos casos sem resultado. |
+
+### Exit codes do `test unit`
+
+| Situação | Exit | Código |
+|---|---|---|
+| Todos os casos passaram | 0 | — |
+| Um caso falhou ou terminou com erro; `--self-check` divergente | 1 | `TEST_FAILED` |
+| Arquivo inválido, opção inválida, `--filter` sem caso | 2 | `USAGE_ERROR` |
+| Arquivo de teste, script, fixture ou `tests/unit/` ausente | 4 | `NOT_FOUND` |
+| Java ausente ou anterior ao 11 | 7 | `JAVA_NOT_FOUND` |
+| Jar fora do cache e sem download, hash diferente ou jar sem o shell | 7 | `RHINO_UNAVAILABLE` |
+
 ## Limites conhecidos
 
 - O `displayFields` não roda. Os campos que ele preenche na tela não chegam ao
@@ -558,3 +809,6 @@ versão ou solicitação inexistente.
 - Nesta versão só existe o ator `eu`.
 - O `test coverage` não mediu ramo paralelo: a homologação usada no
   desenvolvimento não tem processo com gateway paralelo.
+- O `test unit` não congela `java.util.Date`, `Calendar` nem `LocalDate`.
+- O `test unit` não executa SQL nem consulta banco: um dataset é testado como
+  função, com falsos.

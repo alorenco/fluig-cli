@@ -136,7 +136,10 @@ diagrama sem escrever; limpeza cancela; NUNCA em produção; exit 1 =
 o passo `wait`; `test coverage` mede a cobertura de ARESTAS do diagrama — o
 percentual é do fluxo principal, o tratamento de erro fica à parte — com
 `--requests n,n --process p` só lê; `test new <processId>` gera o esqueleto da
-suíte com os TODO nas `description`), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
+suíte com os TODO nas `description`; `test unit [tests/unit/]` roda funções de
+script no Rhino 1.7.15.1 local, sem servidor, com falsos de form/hAPI/
+DatasetFactory/getValue declarados em `*.unit.json` — requer Java 11+, exit 7
+sem ele; `--self-check` confere o motor), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
 FL005 = método do hAPI chamado como global em script de processo, ERRO;
 FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
 fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;

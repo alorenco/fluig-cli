@@ -2,6 +2,7 @@ package audit
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -217,4 +218,18 @@ func (c *APICatalog) NearestWKVar(name string) string {
 		}
 	}
 	return best
+}
+
+// CatalogMembers devolve os membros do objeto global no catálogo do
+// fluig.d.ts (ex.: "hAPI", "form"), em ordem alfabética. O teste de unidade
+// dos scripts (§5.18) usa a lista para montar os falsos: método fora dela não
+// existe no falso, como não existe no servidor.
+func CatalogMembers(obj string) []string {
+	m := apiCatalog().members[obj]
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
