@@ -14,6 +14,8 @@ fluigcli test run --server homologacao              # roda as suítes de tests/*
 fluigcli test run tests/Compras/aprovacao.json      # roda uma suíte
 fluigcli test run tests/Compras/ --dry-run          # valida, sem abrir solicitação
 fluigcli test run --scenario "aprovação simples"    # roda um cenário
+fluigcli test coverage tests/Compras/               # roda e mede a cobertura de caminhos
+fluigcli test new Compras                           # gera o esqueleto de uma suíte
 ```
 
 > ⚠️ O comando **nunca** roda em servidor de produção. Um servidor com
@@ -147,6 +149,7 @@ Chaves comuns a todo passo:
 | `name` | O rótulo do passo no relatório. Sem ele, o comando gera um rótulo (ex.: `move → 110`). |
 | `expect` | As asserções depois do passo. |
 | `id` | Um identificador para a expressão `{{steps.<id>.nextState}}`. |
+| `description` | Texto livre de orientação. Não muda a execução. O `test new` grava os TODO aqui. |
 
 ### `start` e `move`
 
@@ -370,6 +373,181 @@ Um erro de infraestrutura **durante** a execução não troca o exit code para 3
 ou 5. O cenário fica `errored`, e o exit é 1. Com `--json`, o envelope de falha
 traz o relatório completo em `data`.
 
+## Cobertura de caminhos (`test coverage`)
+
+O `test coverage` mostra quais **transições** do diagrama os testes
+percorreram, e quais nenhum teste percorreu. É cobertura de caminhos do BPMN,
+não de linhas de código.
+
+```sh
+fluigcli test coverage tests/Compras/                       # roda as suítes e mede
+fluigcli test coverage --from-result resultado.json         # mede um test run --json anterior
+fluigcli test coverage --process Compras --requests 1201,1202   # mede solicitações existentes
+fluigcli test coverage tests/Compras/ --min 80              # falha abaixo de 80%
+```
+
+### Arestas e etapas
+
+Uma **aresta** é uma seta do diagrama: origem → destino. Uma etapa pode ser
+visitada por um caminho e mesmo assim ter uma saída que nenhum teste usou. Por
+exemplo: todos os cenários passam pela etapa "Aprovação Diretoria", mas nenhum
+segue a seta "Aprovação Diretoria → Revisar Solicitação". A cobertura de etapas
+diz 100%, e a cobertura de arestas mostra a seta que falta. Por isso o
+percentual principal conta **arestas**. O relatório também mostra as **etapas
+humanas** que nenhum teste abriu.
+
+O comando lê o caminho de cada solicitação no histórico do banco
+(`HISTOR_PROCES`). Ele precisa do fluigcliHelper com a API de banco. Sem o
+helper, o comando sai com exit 7.
+
+### Fluxo principal e tratamento de erro
+
+As arestas têm duas categorias:
+
+- **`main`**: o fluxo principal.
+- **`error`**: o tratamento de erro. São as setas que saem do evento de erro de
+  uma service task e tudo que só é alcançável a partir dele (por exemplo, a
+  tarefa "Corrigir Integração" e a volta dela para a service task).
+
+O percentual principal conta só `main`. Motivo: um caminho de erro depende de
+provocar falha numa integração. Ele quase nunca entra numa suíte rápida, e
+somado ao percentual ele esconde o que importa. Use `--include-errors` para
+somar as duas categorias.
+
+> 💡 Um erro de service task não cria movimento no evento de erro. A
+> solicitação vai direto da service task para a tarefa de correção. Por isso o
+> relatório mostra essa aresta como "service task → tarefa de correção".
+
+### As fontes
+
+| Fonte | Como | Escreve no servidor? |
+|---|---|---|
+| executar | `<alvo>...` (como no `test run`) | sim: roda as suítes. Recusa produção. |
+| resultado | `--from-result <arquivo.json>` (`-` lê do stdin) | não |
+| lista | `--requests <n,n,...>` com `--process` | não |
+
+- As fontes de leitura aceitam servidor de produção. Neste caso, o comando avisa
+  no stderr. Medir os caminhos do uso real não escreve nada.
+- O comando mede **um processo por vez**. Suítes de processos diferentes são
+  erro de uso (exit 2).
+- A referência é a versão **ativa** do processo, ou a versão de `--version`.
+  Uma solicitação de outra versão conta, com um aviso. Uma transição que não
+  existe no diagrama de referência vai para a lista `unknown` e fica fora do
+  percentual.
+- Uma solicitação inexistente gera um aviso. Se todas forem inexistentes, o
+  comando sai com exit 4.
+
+### A saída
+
+```
+Cobertura de Compras (versão 12) · servidor: homologacao
+Fonte: 4 cenário(s) de tests/Compras/aprovacao.json (3 solicitações)
+
+Fluxo principal: 6 de 9 arestas (66,7%) · etapas humanas: 3 de 4
+┌──────────────────────┬──────────────────────┬─────────┬──────────────────────┐
+│ Origem               │ Destino              │ Coberta │ Cenários             │
+├──────────────────────┼──────────────────────┼─────────┼──────────────────────┤
+│ 5 Aprovar Gerente    │ 7 Revisar Pedido     │ NÃO     │                      │
+│ 9 Valor alto?        │ 12 Aprovar Diretoria │ NÃO     │                      │
+│   condição: valor > 5000                      │         │                      │
+│ 4 Início             │ 5 Aprovar Gerente    │ sim     │ 3 cenários           │
+└──────────────────────┴──────────────────────┴─────────┴──────────────────────┘
+Gateways:
+  9 Valor alto?: 12 ✗  15 ✔
+      → 12 quando valor > 5000
+Etapas humanas nunca abertas: 12 Aprovar Diretoria
+Tratamento de erro: 0 de 4 arestas (0,0%). Use --include-errors para somar.
+```
+
+- As arestas **não cobertas vêm primeiro**: a lista de trabalho fica no topo.
+- A seção "Gateways" mostra cada saída com a condição completa.
+- `--verbose` mostra também as arestas de erro.
+- Na fonte "executar", o relatório do `test run` vem antes da cobertura.
+
+Com `--json`, o `data` traz `process`, `version`, `source`, `summary` (`main`,
+`error`, `states`, `headline`, `includeErrors`), `edges` (com `category`,
+`conditions`, `covered` e `hits`), `gateways`, `uncoveredStates`, `unknown`,
+`warnings` e, na fonte "executar", o relatório do `test run` em `run`.
+
+### Exit codes do `test coverage`
+
+| Situação | Exit | Código |
+|---|---|---|
+| Cobertura calculada (e acima do `--min`, se informado) | 0 | — |
+| Algum cenário falhou (fonte "executar") | 1 | `TEST_FAILED` |
+| Abaixo do `--min` | 1 | `COVERAGE_BELOW_MIN` |
+| Fontes combinadas, `--process` faltando, processos misturados, `--min` fora de 0–100 | 2 | `USAGE_ERROR` |
+| Processo ou versão inexistente; todas as solicitações inexistentes | 4 | `NOT_FOUND` |
+| Helper sem a API de banco | 7 | `HELPER_NOT_INSTALLED` |
+
+O `TEST_FAILED` vence o `COVERAGE_BELOW_MIN`.
+
+## Gerar o esqueleto de uma suíte (`test new`)
+
+O `test new` gera o ponto de partida de uma suíte a partir do diagrama da
+versão ativa. Ele só lê o servidor.
+
+```sh
+fluigcli test new Compras                                       # grava tests/Compras/Compras.json
+fluigcli test new Compras --split-service integracao            # separa os cenários com service task
+fluigcli test new Compras --from-request 1201                   # grava também a fixture
+fluigcli test new Compras --stdout > rascunho.json              # imprime em vez de gravar
+```
+
+O gerador escolhe caminhos que, juntos, percorrem **todas as arestas do fluxo
+principal**. Ele usa poucos cenários e termina cada caminho no fim do processo
+ou numa etapa humana.
+
+- Um caminho que não precisa de service task para **antes** dela, numa etapa
+  humana. A limpeza cancela a solicitação.
+- Um caminho que precisa de service task segue até o fim. A `description` do
+  cenário avisa: "pode gravar em sistema externo". Com
+  `--split-service <subpasta>`, esses cenários vão para
+  `<pasta>/<subpasta>/<processId>.json`.
+- O mesmo diagrama gera sempre a mesma suíte.
+
+O esqueleto **não** é uma suíte pronta. O JSON não tem comentário, por isso a
+orientação vai na chave `description` do cenário e do passo. Um texto que
+começa com `TODO:` pede ação:
+
+- a condição de cada gateway: preencha os `fields` para cumprir a condição;
+- a etapa atribuída por campo do formulário: preencha o campo com
+  `{{actors.eu.code}}` na fixture, ou troque o passo por `setFields` + `manager`;
+- a etapa com outro mecanismo: confira quem é o responsável.
+
+O gerador já coloca o `assume` antes do `move` que sai de uma etapa de pool, e o
+`wait` depois de um movimento que entra numa service task.
+
+### A fixture (`--from-request`)
+
+Com `--from-request N`, o comando grava `fixtures/card_base.json` com o card da
+solicitação N. As linhas de tabela filha viram `campo___N`.
+
+- A data de abertura da solicitação vira `{{today}}`.
+- O seu código de usuário vira `{{actors.eu.code}}`, e o seu login vira
+  `{{actors.eu.login}}`.
+- Os campos de controle (`currentState`, `formMode` e os que começam com `WK`)
+  ficam de fora.
+
+> ⚠️ A fixture contém **dados reais** da solicitação. Revise o arquivo antes de
+> versionar.
+
+### Opções do `test new`
+
+| Opção | Efeito |
+|---|---|
+| `--version <N>` | A versão do diagrama. O padrão é a versão ativa. |
+| `--from-request <N>` | Grava também a fixture com o card da solicitação N. |
+| `--out <pasta>` | A pasta de saída. O padrão é `tests/<processId>/`. |
+| `--split-service <subpasta>` | Separa os cenários que passam por service task. |
+| `--max-scenarios <N>` | O limite de cenários. O padrão é 30. |
+| `--force` | Sobrescreve arquivos existentes. Sem ela, um arquivo existente é recusado (exit 2) e nada é gravado. |
+| `--stdout` | Imprime a suíte no stdout. Não combina com `--from-request`, `--split-service` nem `--json`. |
+
+Exit codes: 0 = gerado; 1 = falha ao gravar (`LOCAL_IO_ERROR`); 2 = arquivo
+existente, opção incompatível ou solicitação de outro processo; 4 = processo,
+versão ou solicitação inexistente.
+
 ## Limites conhecidos
 
 - O `displayFields` não roda. Os campos que ele preenche na tela não chegam ao
@@ -378,3 +556,5 @@ traz o relatório completo em `data`.
 - As service tasks rodam depois da resposta do `move`. Use `wait`.
 - O cancelamento não desfaz integração externa.
 - Nesta versão só existe o ator `eu`.
+- O `test coverage` não mediu ramo paralelo: a homologação usada no
+  desenvolvimento não tem processo com gateway paralelo.

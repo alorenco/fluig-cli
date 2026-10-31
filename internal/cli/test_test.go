@@ -29,6 +29,10 @@ type procStub struct {
 	moves     []map[string]any
 	canceled  bool
 	cardPut   map[string]any
+	noHelper  bool
+	// history: solicitação → linhas da HISTOR_PROCES (MOVTO, ANT, ESTADO,
+	// THREAD, VERSÃO, PROCESSO), na ordem do SQL do RequestHistory.
+	history map[int][][]string
 }
 
 func readTestTD(t *testing.T, name string) []byte {
@@ -76,7 +80,15 @@ func (s *procStub) server(t *testing.T) *httptest.Server {
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "/export/xml") {
+			if strings.Contains(r.URL.Path, "/process-versions/99/") {
+				http.Error(w, `{"code":"NotFound","message":"versão não encontrada"}`, http.StatusNotFound)
+				return
+			}
 			w.Write(readTestTD(t, "rest_process_export_full.xml"))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/process-versions") {
+			io.WriteString(w, `{"items":[{"version":24,"active":false},{"version":25,"active":true}],"hasNext":false}`)
 			return
 		}
 		var body map[string]any
@@ -143,6 +155,29 @@ func (s *procStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>`+
 			`<ns2:`+op+`Response xmlns:ns2="http://ws.workflow.ecm.technology.totvs.com/"><result>OK</result></ns2:`+op+
 			`Response></soap:Body></soap:Envelope>`)
+	}))
+	mux.HandleFunc("/fluigcliHelper/api/ping", count(func(w http.ResponseWriter, r *http.Request) {
+		if s.noHelper {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, "pong")
+	}))
+	mux.HandleFunc("/fluigcliHelper/api/version", count(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"name":"fluigcliHelper","version":"0.12.0"}`)
+	}))
+	mux.HandleFunc("/fluigcliHelper/api/db/query", count(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SQL    string   `json:"sql"`
+			Params []string `json:"params"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		id, _ := strconv.Atoi(body.Params[0])
+		s.mu.Lock()
+		rows := s.history[id]
+		s.mu.Unlock()
+		b, _ := json.Marshal(map[string]any{"columns": []any{}, "rows": rows, "rowCount": len(rows)})
+		w.Write(b)
 	}))
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

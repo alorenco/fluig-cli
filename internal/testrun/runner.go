@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/alorenco/fluig-cli/internal/fluig"
 )
 
 // Engine é o servidor visto pelo executor. A implementação real fica em
@@ -24,6 +26,10 @@ type Engine interface {
 	Cancel(ctx context.Context, requestID int, comment string) error
 	// SelfMembership devolve os papéis e grupos do ator "eu" (só no --dry-run).
 	SelfMembership(ctx context.Context) (roles, groups []string, err error)
+	// Diagram lê o diagrama de uma versão (0 = a versão ATIVA).
+	Diagram(ctx context.Context, processID string, version int) (*fluig.ProcessDetail, error)
+	// History lê os movimentos da solicitação (HISTOR_PROCES, via helper).
+	History(ctx context.Context, requestID int) ([]fluig.HistoryMove, error)
 }
 
 // MoveInput são os dados de start/move/manager.
@@ -77,6 +83,8 @@ type StateInfo struct {
 	Mechanism   string // ex.: "Pool Papel"
 	AssignKind  string // role|group|formField|...
 	AssignValue string
+	EventType   string // só evento: error|linkThrow|linkCatch|other
+	Parent      int    // evento de erro: a service task onde ele está preso
 }
 
 // EngineError é o erro que a Engine devolve já classificado.

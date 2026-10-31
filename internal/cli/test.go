@@ -30,9 +30,11 @@ func newTestCmd(app *App) *cobra.Command {
 			"executa passos (move, assume, modo gestor, gravação de campos) e confere\n" +
 			"o estado depois de cada passo: etapa, status, campos do card, caminho\n" +
 			"percorrido e mensagens de erro dos eventos.\n\n" +
-			"O comando NUNCA roda em servidor de produção.",
+			"O test coverage mede quais transições do diagrama os testes percorreram.\n" +
+			"O test new gera o esqueleto de uma suíte a partir do diagrama.\n\n" +
+			"O test run NUNCA roda em servidor de produção.",
 	}
-	cmd.AddCommand(newTestRunCmd(app))
+	cmd.AddCommand(newTestRunCmd(app), newTestCoverageCmd(app), newTestNewCmd(app))
 	return cmd
 }
 
@@ -92,79 +94,17 @@ func newTestRunCmd(app *App) *cobra.Command {
 			"  fluigcli test run tests/Compras/ --dry-run",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			vars, err := parseTestVars(varFlags)
+			ts, err := app.setupTestRun(p, args, testRunFlags{
+				scenarios: scenarios, varFlags: varFlags, keep: keep, stepTimeout: stepTimeout,
+				passwordStdin: passwordStdin, readOnly: dryRun,
+			})
 			if err != nil {
 				return err
 			}
-			if stepTimeout <= 0 {
-				return output.Usagef("--step-timeout deve ser maior que zero")
-			}
-			files, err := app.testTargets(args)
-			if err != nil {
-				return err
-			}
-			suites, err := loadTestSuites(files, vars)
-			if err != nil {
-				return err
-			}
-			if err := checkScenarioFilter(suites, scenarios); err != nil {
-				return err
-			}
-			if err := app.pickTestServer(suites); err != nil {
-				return err
-			}
-
-			// Guard de produção ANTES de autenticar, sem flag para liberar: uma
-			// suíte abre e move dezenas de solicitações e dispara integrações.
-			server, err := app.resolveServer("")
-			if err != nil {
-				return err
-			}
-			p.Server = server.Name
-			if server.Env == config.EnvProd {
-				return output.Usagef("o fluigcli test não roda em produção. Use um servidor de homologação (o servidor %q está marcado como produção)", server.Name)
-			}
-			if !dryRun {
-				app.raiseWriteTimeout()
-			}
-			ctx := context.Background()
-			client, err := app.authenticate(ctx, server, passwordStdin)
-			if err != nil {
-				return err
-			}
-			eng := &testrun.FluigEngine{Client: client, Login: server.Username}
-
-			code, err := client.ResolveUserCode(ctx)
-			if err != nil {
-				return app.mapErr(err)
-			}
-			today, err := testToday(ctx, client.ServerTime, vars["tz"])
-			if err != nil {
-				return err
-			}
-			opts := testrun.Options{
-				Today: today, SelfLogin: server.Username, SelfCode: code,
-				Keep: keep, StepTimeout: stepTimeout, Scenarios: scenarios,
-			}
-
-			// Processo inexistente é erro de carga (exit 4), antes do primeiro
-			// cenário: nada roda pela metade.
-			procs := make([]*testrun.ProcessInfo, len(suites))
-			for i, s := range suites {
-				pi, err := eng.Process(ctx, s.Process)
-				if err != nil {
-					return testEngineErr(err, fmt.Sprintf("suíte %s: processo %q", s.File, s.Process))
-				}
-				if len(pi.States) == 0 {
-					return output.NotFoundf("suíte %s: o processo %q não tem versão ativa", s.File, s.Process)
-				}
-				procs[i] = pi
-			}
-
 			if dryRun {
-				return runTestDryRun(ctx, p, eng, server.Name, suites, procs, opts, app.Verbose)
+				return runTestDryRun(ts.ctx, p, ts.eng, ts.server.Name, ts.suites, ts.procs, ts.opts, app.Verbose)
 			}
-			return runTestSuites(ctx, app, p, eng, server.Name, suites, procs, opts)
+			return runTestSuites(ts.ctx, app, p, ts.eng, ts.server.Name, ts.suites, ts.procs, ts.opts)
 		},
 	}
 	cmd.Flags().StringArrayVar(&scenarios, "scenario", nil, "roda só o cenário com este nome (comparação exata; pode repetir)")
@@ -174,6 +114,102 @@ func newTestRunCmd(app *App) *cobra.Command {
 	cmd.Flags().DurationVar(&stepTimeout, "step-timeout", 5*time.Minute, "tempo máximo de cada passo")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// testRunFlags são as opções comuns do test run e da fonte "executar" do
+// test coverage.
+type testRunFlags struct {
+	scenarios     []string
+	varFlags      []string
+	keep          bool
+	stepTimeout   time.Duration
+	passwordStdin bool
+	readOnly      bool // --dry-run: sem o piso de tempo limite da escrita
+}
+
+// testRunSetup é o estado pronto para executar as suítes.
+type testRunSetup struct {
+	ctx    context.Context
+	server *config.Server
+	eng    *testrun.FluigEngine
+	suites []*testrun.Suite
+	procs  []*testrun.ProcessInfo
+	opts   testrun.Options
+}
+
+// setupTestRun carrega e valida as suítes, aplica o guard de produção,
+// autentica e lê o diagrama de cada processo. Erro de carga sai antes de
+// qualquer escrita.
+func (app *App) setupTestRun(p *output.Printer, args []string, f testRunFlags) (*testRunSetup, error) {
+	vars, err := parseTestVars(f.varFlags)
+	if err != nil {
+		return nil, err
+	}
+	if f.stepTimeout <= 0 {
+		return nil, output.Usagef("--step-timeout deve ser maior que zero")
+	}
+	files, err := app.testTargets(args)
+	if err != nil {
+		return nil, err
+	}
+	suites, err := loadTestSuites(files, vars)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkScenarioFilter(suites, f.scenarios); err != nil {
+		return nil, err
+	}
+	if err := app.pickTestServer(suites); err != nil {
+		return nil, err
+	}
+
+	// Guard de produção ANTES de autenticar, sem flag para liberar: uma
+	// suíte abre e move dezenas de solicitações e dispara integrações.
+	server, err := app.resolveServer("")
+	if err != nil {
+		return nil, err
+	}
+	p.Server = server.Name
+	if server.Env == config.EnvProd {
+		return nil, output.Usagef("o fluigcli test não roda em produção. Use um servidor de homologação (o servidor %q está marcado como produção)", server.Name)
+	}
+	if !f.readOnly {
+		app.raiseWriteTimeout()
+	}
+	ctx := context.Background()
+	client, err := app.authenticate(ctx, server, f.passwordStdin)
+	if err != nil {
+		return nil, err
+	}
+	eng := &testrun.FluigEngine{Client: client, Login: server.Username}
+
+	code, err := client.ResolveUserCode(ctx)
+	if err != nil {
+		return nil, app.mapErr(err)
+	}
+	today, err := testToday(ctx, client.ServerTime, vars["tz"])
+	if err != nil {
+		return nil, err
+	}
+	opts := testrun.Options{
+		Today: today, SelfLogin: server.Username, SelfCode: code,
+		Keep: f.keep, StepTimeout: f.stepTimeout, Scenarios: f.scenarios,
+	}
+
+	// Processo inexistente é erro de carga (exit 4), antes do primeiro
+	// cenário: nada roda pela metade.
+	procs := make([]*testrun.ProcessInfo, len(suites))
+	for i, s := range suites {
+		pi, err := eng.Process(ctx, s.Process)
+		if err != nil {
+			return nil, testEngineErr(err, fmt.Sprintf("suíte %s: processo %q", s.File, s.Process))
+		}
+		if len(pi.States) == 0 {
+			return nil, output.NotFoundf("suíte %s: o processo %q não tem versão ativa", s.File, s.Process)
+		}
+		procs[i] = pi
+	}
+	return &testRunSetup{ctx: ctx, server: server, eng: eng, suites: suites, procs: procs, opts: opts}, nil
 }
 
 func parseTestVars(flags []string) (map[string]string, error) {
@@ -322,8 +358,10 @@ func testEngineErr(err error, subject string) error {
 
 // --- execução ---
 
-func runTestSuites(ctx context.Context, app *App, p *output.Printer, eng testrun.Engine, serverName string,
-	suites []*testrun.Suite, procs []*testrun.ProcessInfo, opts testrun.Options) error {
+// executeTestSuites roda as suítes, imprime o relatório humano e devolve o
+// Report (sem fechar o envelope: quem chama decide o resultado).
+func executeTestSuites(ctx context.Context, app *App, p *output.Printer, eng testrun.Engine, serverName string,
+	suites []*testrun.Suite, procs []*testrun.ProcessInfo, opts testrun.Options) *testrun.Report {
 	inicio := time.Now()
 	total := 0
 	for _, s := range suites {
@@ -354,13 +392,27 @@ func runTestSuites(ctx context.Context, app *App, p *output.Printer, eng testrun
 			}
 		}
 	}
-	sm := report.Summary
+	return &report
+}
+
+// testRunFailMessage devolve a mensagem do TEST_FAILED, ou "" se tudo passou.
+func testRunFailMessage(r *testrun.Report) string {
+	sm := r.Summary
 	if sm.Failed+sm.Errored == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d de %d cenário(s) não passaram (%d falharam, %d com erro)",
+		sm.Failed+sm.Errored, sm.Passed+sm.Failed+sm.Errored+sm.Skipped, sm.Failed, sm.Errored)
+}
+
+func runTestSuites(ctx context.Context, app *App, p *output.Printer, eng testrun.Engine, serverName string,
+	suites []*testrun.Suite, procs []*testrun.ProcessInfo, opts testrun.Options) error {
+	report := executeTestSuites(ctx, app, p, eng, serverName, suites, procs, opts)
+	msg := testRunFailMessage(report)
+	if msg == "" {
 		p.Done(report)
 		return nil
 	}
-	msg := fmt.Sprintf("%d de %d cenário(s) não passaram (%d falharam, %d com erro)",
-		sm.Failed+sm.Errored, sm.Passed+sm.Failed+sm.Errored+sm.Skipped, sm.Failed, sm.Errored)
 	p.FailData(report, output.CodeTestFailed, msg)
 	return output.TestFailedf("%s", msg)
 }

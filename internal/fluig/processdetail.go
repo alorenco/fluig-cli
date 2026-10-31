@@ -50,6 +50,14 @@ type ProcessStateDetail struct {
 	Conditions   []GatewayCondition `json:"conditions,omitempty"`   // só gateway
 	DeadlineTime int                `json:"deadlineTime,omitempty"` // prazo (segundos; 0 = sem prazo)
 	Instruction  string             `json:"instruction,omitempty"`
+	// EventType detalha o evento intermediário: error (43, preso a uma service
+	// task pelo ParentSequence), linkThrow (36), linkCatch (42) ou other.
+	EventType string `json:"eventType,omitempty"`
+	// ParentSequence é a etapa onde o evento de erro está preso (boundary).
+	// Medido na homologação (Gate C, 2026-10-31): o erro da service task NÃO
+	// cria movimento no evento; a solicitação vai direto da service task para
+	// a tarefa de correção.
+	ParentSequence int `json:"parentSequence,omitempty"`
 }
 
 // StateAssignment descreve quem atua numa etapa humana: o mecanismo
@@ -85,6 +93,9 @@ type GatewayCondition struct {
 	Order int           `json:"order"` // expressionOrder
 	To    int           `json:"to"`    // destinationSequenceId
 	Rules []GatewayRule `json:"rules,omitempty"`
+	// Expression é a condição por expressão (conditionType 0), por exemplo
+	// hAPI.getCardValue('urgente') == 'S'. Vazia na condição por regras.
+	Expression string `json:"expression,omitempty"`
 }
 
 // GatewayRule é uma regra automática de um gateway (field <op> value).
@@ -175,6 +186,7 @@ type xmlState struct {
 	AllocID      string `xml:"engineAllocationId"`
 	AllocConfig  string `xml:"engineAllocationConfiguration"`
 	BpmnType     int    `xml:"bpmnType"`
+	Parent       int    `xml:"parentSequence"`
 }
 
 type xmlLink struct {
@@ -186,9 +198,11 @@ type xmlLink struct {
 }
 
 type xmlCondition struct {
-	Sequence    int `xml:"conditionProcessStatePK>sequence"`
-	Order       int `xml:"conditionProcessStatePK>expressionOrder"`
-	Destination int `xml:"destinationSequenceId"`
+	Sequence    int    `xml:"conditionProcessStatePK>sequence"`
+	Order       int    `xml:"conditionProcessStatePK>expressionOrder"`
+	Destination int    `xml:"destinationSequenceId"`
+	Condition   string `xml:"condition"`
+	Type        int    `xml:"conditionType"`
 }
 
 type xmlRule struct {
@@ -246,6 +260,9 @@ func ParseProcessDetail(data []byte) (*ProcessDetail, error) {
 	for _, c := range ex.Conditions {
 		cond := GatewayCondition{Order: c.Order, To: c.Destination}
 		cond.Rules = rulesByCond[[2]int{c.Sequence, c.Order}]
+		if c.Type == 0 {
+			cond.Expression = strings.TrimSpace(c.Condition)
+		}
 		condBySeq[c.Sequence] = append(condBySeq[c.Sequence], cond)
 	}
 	svcBySeq := map[int]*StateService{}
@@ -289,6 +306,11 @@ func ParseProcessDetail(data []byte) (*ProcessDetail, error) {
 			}
 		case "service":
 			d.Service = svcBySeq[st.Sequence]
+		case "event":
+			d.EventType = eventType(st.BpmnType)
+			if d.EventType == "error" {
+				d.ParentSequence = st.Parent
+			}
 		case "gateway":
 			conds := condBySeq[st.Sequence]
 			sort.SliceStable(conds, func(i, j int) bool { return conds[i].Order < conds[j].Order })
@@ -327,11 +349,27 @@ func bpmnKind(bpmn int) string {
 		return "service"
 	case 120:
 		return "gateway"
-	case 43, 40, 41, 42, 44, 45, 46, 47, 48, 49:
-		return "event" // eventos intermediários (43 = erro; faixa 40s)
+	case 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49:
+		// Eventos intermediários. Vistos na homologação (Gate C, 2026-10-31):
+		// 32 (intermediário do Compras), 36 (link de envio), 42 (link de
+		// recebimento) e 43 (erro). Antes, o 36 saía como "unknown".
+		return "event"
 	default:
 		return "unknown"
 	}
+}
+
+// eventType detalha o evento intermediário pelo bpmnType.
+func eventType(bpmn int) string {
+	switch bpmn {
+	case 43:
+		return "error"
+	case 36:
+		return "linkThrow"
+	case 42:
+		return "linkCatch"
+	}
+	return "other"
 }
 
 // parseAssignment extrai o alvo do AssignmentController embutido na config.

@@ -133,7 +133,10 @@ cenários em JSON — abre solicitações reais, move/assume/modo gestor/grava c
 e confere etapa, card, caminho e erro de evento; `--dry-run` valida contra o
 diagrama sem escrever; limpeza cancela; NUNCA em produção; exit 1 =
 `TEST_FAILED` com o relatório em `data`; service task roda depois do move: use
-o passo `wait`), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
+o passo `wait`; `test coverage` mede a cobertura de ARESTAS do diagrama — o
+percentual é do fluxo principal, o tratamento de erro fica à parte — com
+`--requests n,n --process p` só lê; `test new <processId>` gera o esqueleto da
+suíte com os TODO nas `description`), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
 FL005 = método do hAPI chamado como global em script de processo, ERRO;
 FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
 fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/alorenco/fluig-cli/internal/fluig"
 )
 
 // fakeEngine simula um processo: start cai em 20 (pool), move segue a tabela
@@ -120,6 +122,14 @@ func (f *fakeEngine) Cancel(context.Context, int, string) error {
 
 func (f *fakeEngine) SelfMembership(context.Context) ([]string, []string, error) {
 	return []string{"revisor"}, []string{"ti"}, nil
+}
+
+func (f *fakeEngine) Diagram(context.Context, string, int) (*fluig.ProcessDetail, error) {
+	return nil, errors.New("sem diagrama no fake")
+}
+
+func (f *fakeEngine) History(context.Context, int) ([]fluig.HistoryMove, error) {
+	return nil, errors.New("sem histórico no fake")
 }
 
 func testProc() *ProcessInfo {

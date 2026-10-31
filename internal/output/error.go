@@ -36,6 +36,9 @@ const (
 	// reprovado ou com erro. Como no AUDIT_FAILED, o teste rodou: o código é o
 	// veredito, e o exit é o genérico 1. O relatório completo vai no data.
 	CodeTestFailed = "TEST_FAILED"
+	// CodeCoverageBelowMin marca `test coverage --min` não atingido. A
+	// cobertura foi calculada: o código é o veredito, e o exit é o 1.
+	CodeCoverageBelowMin = "COVERAGE_BELOW_MIN"
 	// CodeTimeout marca requisição que estourou o tempo limite do CLIENTE. O
 	// exit é o 5 (como qualquer falha de servidor), mas o código é próprio
 	// porque o caso é diferente: o resultado da operação é DESCONHECIDO. Numa
@@ -100,6 +103,12 @@ func AuditFailedf(format string, args ...any) *Error {
 // código próprio (o relatório vai via Printer.FailData).
 func TestFailedf(format string, args ...any) *Error {
 	return newError(CodeTestFailed, ExitGeneric, format, args...)
+}
+
+// CoverageBelowMinf sinaliza cobertura abaixo do --min: exit 1 com código
+// próprio (o relatório vai via Printer.FailData).
+func CoverageBelowMinf(format string, args ...any) *Error {
+	return newError(CodeCoverageBelowMin, ExitGeneric, format, args...)
 }
 
 func Usagef(format string, args ...any) *Error {

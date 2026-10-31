@@ -66,11 +66,14 @@ const (
 
 // Step é um passo do cenário, já normalizado (formas curtas expandidas).
 type Step struct {
-	Index  int    // 1-based
-	Name   string // rótulo do relatório (gerado quando ausente)
-	ID     string // referência em {{steps.<id>.nextState}}
-	As     string
-	Action string
+	Index int    // 1-based
+	Name  string // rótulo do relatório (gerado quando ausente)
+	// Description é orientação livre (o test new grava os TODO aqui). Não
+	// muda a execução.
+	Description string
+	ID          string // referência em {{steps.<id>.nextState}}
+	As          string
+	Action      string
 
 	Target    int               // start, move, manager, wait(state)
 	Fields    map[string]string // start, move, setFields
@@ -158,9 +161,10 @@ type rawScenario struct {
 }
 
 type rawStep struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
-	As   string `json:"as"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	As          string `json:"as"`
 
 	Start     json.RawMessage `json:"start"`
 	Move      json.RawMessage `json:"move"`
@@ -497,7 +501,7 @@ func parseStep(raw json.RawMessage, path string) (*Step, error) {
 	if err := strict(raw, &rs, path); err != nil {
 		return nil, err
 	}
-	st := &Step{Name: rs.Name, ID: rs.ID, As: rs.As}
+	st := &Step{Name: rs.Name, Description: rs.Description, ID: rs.ID, As: rs.As}
 	if err := checkActor(rs.As, path+".as"); err != nil {
 		return nil, err
 	}

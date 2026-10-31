@@ -48,25 +48,44 @@ func wrap(err error) error {
 
 // Process lê o diagrama da versão ativa.
 func (e *FluigEngine) Process(ctx context.Context, processID string) (*ProcessInfo, error) {
-	d, err := e.Client.ProcessDetail(ctx, processID, 0)
+	d, err := e.Diagram(ctx, processID, 0)
+	if err != nil {
+		return nil, err
+	}
+	return ProcessInfoFrom(d), nil
+}
+
+// Diagram lê o diagrama de uma versão. Com version 0, usa a versão ATIVA: o
+// export sem versão traz a ÚLTIMA, que pode ser uma versão em edição.
+func (e *FluigEngine) Diagram(ctx context.Context, processID string, version int) (*fluig.ProcessDetail, error) {
+	if version <= 0 {
+		vs, err := e.Client.ProcessVersions(ctx, processID)
+		if err != nil {
+			return nil, wrap(err)
+		}
+		for _, v := range vs {
+			if v.Active && v.Version > version {
+				version = v.Version
+			}
+		}
+	}
+	d, err := e.Client.ProcessDetail(ctx, processID, version)
 	if err != nil {
 		return nil, wrap(err)
 	}
-	p := &ProcessInfo{Version: d.Version, States: map[int]StateInfo{}}
-	for _, s := range d.States {
-		si := StateInfo{Name: s.Name, Kind: s.Kind}
-		for _, t := range s.Transitions {
-			si.Transitions = append(si.Transitions, t.To)
+	return d, nil
+}
+
+// History lê os movimentos da solicitação pela API de banco do helper.
+func (e *FluigEngine) History(ctx context.Context, requestID int) ([]fluig.HistoryMove, error) {
+	h, err := e.Client.RequestHistory(ctx, requestID)
+	if err != nil {
+		if errors.Is(err, fluig.ErrHelperMissing) || errors.Is(err, fluig.ErrHelperOutdated) {
+			return nil, &EngineError{Code: "HELPER_NOT_INSTALLED", Message: err.Error(), Err: err}
 		}
-		if s.Assignment != nil {
-			si.Mechanism, si.AssignKind, si.AssignValue = s.Assignment.Mechanism, s.Assignment.Kind, s.Assignment.Value
-		}
-		p.States[s.Sequence] = si
-		if s.Kind == "start" {
-			p.Start = append(p.Start, s.Sequence)
-		}
+		return nil, wrap(err)
 	}
-	return p, nil
+	return h, nil
 }
 
 func toMoveOutput(r *fluig.MoveResult) *MoveOutput {
