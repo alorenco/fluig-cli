@@ -213,9 +213,10 @@ Semântica (validada na homologação):
   **versão nova do registro** (1000 → 2000...).
 - O servidor acrescenta campos de controle (`anonymization_date`,
   `anonymization_user_id`) automaticamente.
-- Os **eventos do formulário não rodam** neste caminho. Os dados entram como
-  enviados, sem validateForm. Para testar as validações, use o processo
-  (`request start`) ou o preview do `fluigcli dev`.
+- O servidor **roda o `validateForm`** no update (medido na homologação em
+  2026-10-31). O `validateForm` vê o card enviado, não o card mesclado. Por
+  isso um update parcial pode falhar por campo obrigatório ou por tabela filha
+  ausente. Neste caso, envie o card inteiro (inclusive as linhas `campo___N`).
 
 ### Segurança do `delete`
 

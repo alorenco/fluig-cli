@@ -1,0 +1,3 @@
+{Erro ao salvar dados de formulário: 
+
+<b style='color:red; margin-bottom: 20px !important;'>Os seguintes campos não foram preenchidos:<br>- Tipo de Pagamento / Documento.<br>- Diretor para aprovação.<br>- Coligada.<br>- Filial.<br>- Fornecedor.</b></b>}

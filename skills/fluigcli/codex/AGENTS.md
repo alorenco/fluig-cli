@@ -128,7 +128,12 @@ o campo `hint` traz o `form link` pronto, não conclua que o artefato falta lá)
 `event`/`mechanism`/`form`/`widget`/`layout`/`workflow` (publish)/`db`; para no 1º erro e marca o
 resto `skipped`, retome com `--from N`; `--dry-run` valida tudo sem escrever —
 inclusive se cada evento local EXISTE no processo; audita todos os scripts antes
-de começar), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
+de começar), `test` (`test run [tests/<processo>/]`: teste de processo por
+cenários em JSON — abre solicitações reais, move/assume/modo gestor/grava campos
+e confere etapa, card, caminho e erro de evento; `--dry-run` valida contra o
+diagrama sem escrever; limpeza cancela; NUNCA em produção; exit 1 =
+`TEST_FAILED` com o relatório em `data`; service task roda depois do move: use
+o passo `wait`), `audit` (linter: Style Guide 2.0 (SG*), APIs (FL*;
 FL005 = método do hAPI chamado como global em script de processo, ERRO;
 FL006 = getDataset(...).values encadeado sem guarda, aviso; FL007 = caractere
 fora do CP-1252 vira "?" no banco, aviso) e footguns do Rhino (RHINO*;

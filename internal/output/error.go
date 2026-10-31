@@ -32,6 +32,10 @@ const (
 	// CodeAuditFailed marca auditoria reprovada por --fail-on: não é um erro
 	// de execução (a auditoria rodou), é o veredito — o exit é o genérico 1.
 	CodeAuditFailed = "AUDIT_FAILED"
+	// CodeTestFailed marca execução do `fluigcli test run` com cenário
+	// reprovado ou com erro. Como no AUDIT_FAILED, o teste rodou: o código é o
+	// veredito, e o exit é o genérico 1. O relatório completo vai no data.
+	CodeTestFailed = "TEST_FAILED"
 	// CodeTimeout marca requisição que estourou o tempo limite do CLIENTE. O
 	// exit é o 5 (como qualquer falha de servidor), mas o código é próprio
 	// porque o caso é diferente: o resultado da operação é DESCONHECIDO. Numa
@@ -90,6 +94,12 @@ func Genericf(format string, args ...any) *Error {
 // próprio no envelope (o data com os achados vai via Printer.FailData).
 func AuditFailedf(format string, args ...any) *Error {
 	return newError(CodeAuditFailed, ExitGeneric, format, args...)
+}
+
+// TestFailedf sinaliza cenário reprovado no `fluigcli test run`: exit 1 com
+// código próprio (o relatório vai via Printer.FailData).
+func TestFailedf(format string, args ...any) *Error {
+	return newError(CodeTestFailed, ExitGeneric, format, args...)
 }
 
 func Usagef(format string, args ...any) *Error {

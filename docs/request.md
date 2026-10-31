@@ -60,21 +60,28 @@ preenche o formulário com os `--field`. Os eventos do **processo** rodam no
 servidor normalmente. Um `throw` de evento volta como mensagem de erro
 (exit 5).
 
-### ⚠️ Os eventos do formulário não rodam
+### Os eventos do formulário
 
-A CLI grava o card pela API REST. Neste caminho, o servidor **não executa os
-eventos do formulário**. O `displayFields` e o `validateForm` ficam de fora. O
-`beforeSendValidate` é client-side e também não roda. Os eventos do processo,
-esses sim, rodam.
+O servidor executa os eventos de formulário `inputFields` e `validateForm` no
+`request start`. Uma recusa do `validateForm` volta como mensagem de erro
+(exit 5). Exemplo real: "Erro ao salvar dados de formulário: Os seguintes campos
+não foram preenchidos: ...".
 
-O card recebe só os valores que você enviou. **Uma solicitação com os campos
-obrigatórios vazios é aceita sem crítica.** Por isso, não use este comando para
-testar a validação do formulário. O teste passa e você conclui, errado, que a
-validação está correta. Para exercitar a validação, use o navegador ou o
-`fluigcli dev`.
+- Um campo que você **não envia** chega **nulo** aos eventos, não vazio. Um
+  evento que chama um método nesse valor (por exemplo, `.match()`) quebra com
+  `TypeError`. Neste caso, envie o campo vazio.
+- O `displayFields` **não roda**, porque ele só desenha a tela. Os campos que ele
+  preenche não chegam ao card.
+- O `beforeSendValidate` roda no navegador. Ele também fica de fora.
+- Um card vazio pode passar quando o `validateForm` do formulário não confere a
+  etapa inicial.
 
-O mesmo vale para o `request move` e para o `form records create` e
-`form records update` (ver [form](form.md)).
+O mesmo vale para o `request move` (ver [form](form.md) para o
+`form records update`). Para testar um processo por cenários, use o
+[`fluigcli test`](test.md).
+
+> Correção de 2026-10-31: até a v0.9.8, esta página dizia que os eventos do
+> formulário não rodavam. A medição na homologação mostrou o contrário.
 
 | Flag | Uso |
 |---|---|
@@ -181,8 +188,8 @@ Este comando conclui a tarefa corrente e envia a solicitação adiante. Sem
 `--target-state`, `--assignee`, `--comment`, `--field` (atualiza campos do
 formulário no movimento) e `--movement`.
 
-⚠️ Como no `request start`, os eventos do formulário não rodam neste caminho.
-Os eventos do processo rodam.
+Como no `request start`, o `inputFields` e o `validateForm` rodam. O
+`displayFields` não roda. Os eventos do processo rodam.
 
 ```sh
 fluigcli request move 196542 --target-state 5 --comment "enviado via CLI"

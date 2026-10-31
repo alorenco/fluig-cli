@@ -270,8 +270,9 @@ func newFormRecordsCreateCmd(app *App) *cobra.Command {
 		Use:   "create <documentId|nome>",
 		Short: "Cria um registro no formulário",
 		Long: "Cria um registro com os valores dados (--field campo=valor ou\n" +
-			"--fields-file JSON plano; \"-\" lê do stdin). Os eventos do formulário\n" +
-			"NÃO rodam neste caminho — os dados entram como enviados.",
+			"--fields-file JSON plano; \"-\" lê do stdin). O servidor pode rodar o\n" +
+			"validateForm do formulário nesta gravação. O update roda (medido na\n" +
+			"homologação em 2026-10-31).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)

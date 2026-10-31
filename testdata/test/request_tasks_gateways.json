@@ -1,0 +1,775 @@
+{
+ "items": [
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 1,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:30:36.402-0400",
+   "endDate": "2026-10-31T12:30:38.321-0400",
+   "assignStartDate": "2026-10-31T12:30:36.402-0400",
+   "assignEndDate": "2026-10-31T12:30:37.446-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 98,
+    "stateName": "Passar por Revisão",
+    "stateDescription": "Passar por Revisão",
+    "stateType": "AUTOMATIC",
+    "bpmnType": "GATEWAY_EXCLUSIVE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 2,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:30:38.431-0400",
+   "endDate": "2026-10-31T12:30:38.572-0400",
+   "assignStartDate": "2026-10-31T12:30:38.431-0400",
+   "assignEndDate": "2026-10-31T12:30:38.552-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 20,
+    "stateName": "Revisar Despesa",
+    "stateDescription": "Revisar Despesa",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_NORMAL",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 3,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "Pool:Role:revisor_despesas",
+    "name": "Revisor de Despesas",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "deadlineDate": "2026-11-12T20:00:00.000-0400",
+   "status": "TRANSFERRED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:30:38.598-0400",
+   "endDate": "2026-10-31T12:31:51.426-0400",
+   "assignStartDate": "2026-10-31T12:30:38.598-0400",
+   "assignEndDate": "2026-10-31T12:31:49.635-0400",
+   "warningDate": "2026-11-02T10:42:00.000-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 20,
+    "stateName": "Revisar Despesa",
+    "stateDescription": "Revisar Despesa",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_NORMAL",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 3,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "deadlineDate": "2026-11-12T20:00:00.000-0400",
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:30:38.598-0400",
+   "endDate": "2026-10-31T12:31:51.426-0400",
+   "assignStartDate": "2026-10-31T12:31:49.612-0400",
+   "assignEndDate": "2026-10-31T12:31:50.704-0400",
+   "warningDate": "2026-11-02T10:42:00.000-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 76,
+    "stateName": "Aprovar Pagamento",
+    "stateDescription": "Aprovar Pagamento",
+    "stateType": "AUTOMATIC",
+    "bpmnType": "GATEWAY_EXCLUSIVE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 4,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:31:51.494-0400",
+   "endDate": "2026-10-31T12:31:51.637-0400",
+   "assignStartDate": "2026-10-31T12:31:51.494-0400",
+   "assignEndDate": "2026-10-31T12:31:51.617-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 23,
+    "stateName": "Aprovação Diretoria",
+    "stateDescription": "Aprovação Diretoria",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_NORMAL",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 5,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "deadlineDate": "2026-11-12T20:00:00.000-0400",
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:31:51.683-0400",
+   "endDate": "2026-10-31T12:32:33.760-0400",
+   "assignStartDate": "2026-10-31T12:31:51.683-0400",
+   "assignEndDate": "2026-10-31T12:32:33.018-0400",
+   "warningDate": "2026-11-04T15:06:00.000-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 110,
+    "stateName": "Pagamento Urgente?",
+    "stateDescription": "Pagamento Urgente?",
+    "stateType": "AUTOMATIC",
+    "bpmnType": "GATEWAY_EXCLUSIVE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 6,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:32:33.805-0400",
+   "endDate": "2026-10-31T12:32:33.898-0400",
+   "assignStartDate": "2026-10-31T12:32:33.805-0400",
+   "assignEndDate": "2026-10-31T12:32:33.882-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 28,
+    "stateName": "Integração Financeira",
+    "stateDescription": "Integração Financeira",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 7,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:32:33.920-0400",
+   "endDate": "2026-10-31T12:32:41.224-0400",
+   "assignStartDate": "2026-10-31T12:32:33.920-0400",
+   "assignEndDate": "2026-10-31T12:32:41.208-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 34,
+    "stateName": "Gerar Formulário",
+    "stateDescription": "Gerar Formulário",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 8,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:32:41.245-0400",
+   "endDate": "2026-10-31T12:32:57.395-0400",
+   "assignStartDate": "2026-10-31T12:32:41.245-0400",
+   "assignEndDate": "2026-10-31T12:32:57.368-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 40,
+    "stateName": "Mover Documentos",
+    "stateDescription": "Mover Documentos",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 9,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:32:57.426-0400",
+   "endDate": "2026-10-31T12:32:59.759-0400",
+   "assignStartDate": "2026-10-31T12:32:57.426-0400",
+   "assignEndDate": "2026-10-31T12:32:59.743-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 46,
+    "stateName": "Comunicar Solicitante",
+    "stateDescription": "Comunicar Solicitante",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 10,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:32:59.781-0400",
+   "endDate": "2026-10-31T12:33:00.899-0400",
+   "assignStartDate": "2026-10-31T12:32:59.781-0400",
+   "assignEndDate": "2026-10-31T12:33:00.882-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 83,
+    "stateName": "Atualizar Usuario",
+    "stateDescription": "Atualizar Usuario",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 11,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:33:00.920-0400",
+   "endDate": "2026-10-31T12:33:01.515-0400",
+   "assignStartDate": "2026-10-31T12:33:00.920-0400",
+   "assignEndDate": "2026-10-31T12:33:01.500-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 91,
+    "stateName": "Cancelar Programações",
+    "stateDescription": "Cancelar Programações",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_SERVICE",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  },
+  {
+   "processInstanceId": 230841,
+   "movementSequence": 12,
+   "transferSequence": 1,
+   "assignee": {
+    "code": "System:Auto",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "status": "COMPLETED",
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T12:33:01.536-0400",
+   "endDate": "2026-10-31T12:33:01.989-0400",
+   "assignStartDate": "2026-10-31T12:33:01.536-0400",
+   "assignEndDate": "2026-10-31T12:33:01.975-0400",
+   "chosenAssignees": null,
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 31,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "sequence": 52,
+    "stateName": "Fim",
+    "stateDescription": "Fim",
+    "stateType": "END",
+    "bpmnType": "END_EVENT_NORMAL",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "threadSequence": 0,
+   "appDecisionInfo": null,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "form": null,
+   "approachingExpiration": false,
+   "_expandables": [
+    "form",
+    "processDiagram",
+    "chosenAssignees",
+    "appDecisionInfo",
+    "formFields",
+    "deadlineSpecification"
+   ]
+  }
+ ],
+ "hasNext": false
+}

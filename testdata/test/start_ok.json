@@ -1,0 +1,25 @@
+{
+ "possibleAssignees": null,
+ "toShowPossibleAssignees": false,
+ "jointActivity": false,
+ "reachedPercentageForJointActivity": null,
+ "highestTaskForJointActivity": null,
+ "highestAssigneeForJointActivity": null,
+ "nextState": 20,
+ "nextGateway": null,
+ "nextStateName": null,
+ "gatewayComment": null,
+ "gatewayCondition": 0,
+ "useManagerAssignees": false,
+ "conversionLog": null,
+ "conversionSequence": null,
+ "cardId": 1247334,
+ "cardVersion": 1000,
+ "subProcessRequests": [],
+ "processId": "financeiro_pagamentos_diversos",
+ "processVersion": 31,
+ "processInstanceId": 230841,
+ "_expandables": [
+  "possibleAssignees"
+ ]
+}

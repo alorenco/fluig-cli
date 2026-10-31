@@ -317,12 +317,11 @@ func newRequestStartCmd(app *App) *cobra.Command {
 			"formulário com os --field dados.\n\n" +
 			"Os eventos do PROCESSO rodam no servidor normalmente. Um throw de evento\n" +
 			"vira exit 5 com a mensagem do servidor.\n\n" +
-			"⚠️ Os eventos do FORMULÁRIO não rodam: displayFields e validateForm ficam\n" +
-			"de fora, porque a CLI grava o card pela API REST. O card recebe só os\n" +
-			"valores que você enviou. Uma solicitação com campos obrigatórios vazios é\n" +
-			"aceita sem crítica. Por isso não use este comando para testar a validação\n" +
-			"do formulário — use o navegador (fluigcli dev). O beforeSendValidate é\n" +
-			"client-side e também não roda.\n\n" +
+			"Os eventos do FORMULÁRIO inputFields e validateForm também rodam no\n" +
+			"servidor. Uma recusa do validateForm vira exit 5 com a mensagem. Um\n" +
+			"campo que você não envia chega NULO aos eventos, não vazio. O\n" +
+			"displayFields não roda, porque ele só desenha a tela. O\n" +
+			"beforeSendValidate roda no navegador e também fica de fora.\n\n" +
 			"Com --attach, os arquivos vão como anexos da solicitação — necessário nos\n" +
 			"processos que exigem anexo no início (a REST v2 não tem upload de anexo;\n" +
 			"nesse modo a CLI usa o SOAP startProcess, que exige --target-state).",
@@ -425,8 +424,9 @@ func newRequestMoveCmd(app *App) *cobra.Command {
 			"(NO_HUMAN_TASK). Sem --target-state, a CLI usa a única saída da etapa\n" +
 			"no diagrama; com mais de uma, ela lista as opções. Exige confirmação\n" +
 			"(--yes em modo não-interativo). Não aceita --field nem --assignee.\n\n" +
-			"⚠️ Como no request start, os eventos do FORMULÁRIO não rodam\n" +
-			"(displayFields, validateForm). Os eventos do processo rodam.",
+			"Como no request start, o inputFields e o validateForm rodam no\n" +
+			"servidor. O displayFields não roda. No modo gestor (--manager), os\n" +
+			"campos não vão no movimento: grave-os antes com form records update.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)

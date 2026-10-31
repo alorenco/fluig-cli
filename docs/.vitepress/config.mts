@@ -44,6 +44,7 @@ export default defineConfig({
           { text: 'layout — layouts WCM', link: '/layout' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
           { text: 'deploy — release por manifesto', link: '/deploy' },
+          { text: 'test — teste de processo por cenários', link: '/test' },
           { text: 'audit — conformidade com o style guide', link: '/audit' },
           { text: 'watch — publicar ao salvar', link: '/watch' },
           { text: 'dev — dev server com live reload', link: '/dev' },

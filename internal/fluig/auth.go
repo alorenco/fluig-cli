@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Endpoints de autenticação e sessão.
@@ -341,4 +342,29 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// ServerTime devolve o instante do servidor pelo cabeçalho HTTP Date do ping.
+// O `fluigcli test` usa a data do SERVIDOR como "hoje" ({{today}}): os scripts
+// calculam prazos com ela, não com o relógio da máquina de quem roda o teste.
+// O cabeçalho tem resolução de segundo, o que basta para uma data.
+func (c *Client) ServerTime(ctx context.Context) (time.Time, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url(pathPing), nil)
+	if err != nil {
+		return time.Time{}, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("falha ao ler a data do servidor %s: %w", c.base.Host, err)
+	}
+	_ = resp.Body.Close()
+	h := resp.Header.Get("Date")
+	if h == "" {
+		return time.Time{}, fmt.Errorf("o servidor %s não informou o cabeçalho Date", c.base.Host)
+	}
+	t, err := http.ParseTime(h)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("cabeçalho Date inválido %q: %w", h, err)
+	}
+	return t, nil
 }

@@ -1,0 +1,527 @@
+{
+ "cardId": 1247334,
+ "version": 3000,
+ "companyId": 1,
+ "parentDocumentId": 157153,
+ "activeVersion": true,
+ "values": [
+  {
+   "fieldId": "ANONYMIZATION_DATE",
+   "value": null
+  },
+  {
+   "fieldId": "ANONYMIZATION_USER_ID",
+   "value": null
+  },
+  {
+   "fieldId": "DataVencimentoBBanc",
+   "value": ""
+  },
+  {
+   "fieldId": "aprDiretoria",
+   "value": "aprovado"
+  },
+  {
+   "fieldId": "aprFinanceiro",
+   "value": ""
+  },
+  {
+   "fieldId": "aprNivel1",
+   "value": ""
+  },
+  {
+   "fieldId": "aprRevisor",
+   "value": "aprovado"
+  },
+  {
+   "fieldId": "aprovadorDiretoria",
+   "value": "00000000-0000-0000-0000-00000000js01"
+  },
+  {
+   "fieldId": "aprovadorDiretoriaEmail",
+   "value": "joao@empresa.com"
+  },
+  {
+   "fieldId": "aprovadorDiretoriaNome",
+   "value": "João Silva"
+  },
+  {
+   "fieldId": "aprovadorFinanceiro",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorFinanceiroEmail",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorFinanceiroNome",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorNivel1",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorNivel1Email",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorNivel1Nome",
+   "value": ""
+  },
+  {
+   "fieldId": "aprovadorRevisor",
+   "value": "00000000-0000-0000-0000-00000000js01"
+  },
+  {
+   "fieldId": "aprovadorRevisorEmail",
+   "value": "joao@empresa.com"
+  },
+  {
+   "fieldId": "aprovadorRevisorNome",
+   "value": "João Silva"
+  },
+  {
+   "fieldId": "codCfo",
+   "value": "00044464"
+  },
+  {
+   "fieldId": "codColCfo",
+   "value": "0"
+  },
+  {
+   "fieldId": "codColigada",
+   "value": "29"
+  },
+  {
+   "fieldId": "codFilial",
+   "value": "1"
+  },
+  {
+   "fieldId": "codFormaPagamento",
+   "value": ""
+  },
+  {
+   "fieldId": "codPgto",
+   "value": ""
+  },
+  {
+   "fieldId": "codTdo",
+   "value": "0221"
+  },
+  {
+   "fieldId": "colContaPadrao",
+   "value": "0"
+  },
+  {
+   "fieldId": "coligada",
+   "value": "HO - Empresa Exemplo SPE"
+  },
+  {
+   "fieldId": "coligadaCNPJ",
+   "value": "00.000.000/0001-00"
+  },
+  {
+   "fieldId": "coligadaFantasia",
+   "value": "HO - Empresa Exemplo SPE"
+  },
+  {
+   "fieldId": "coligadaMunicipio",
+   "value": "Cidade - UF"
+  },
+  {
+   "fieldId": "coligadaRazao",
+   "value": "EMPRESA EXEMPLO LTDA"
+  },
+  {
+   "fieldId": "comentarioDiretoria",
+   "value": ""
+  },
+  {
+   "fieldId": "comentarioFinanceiro",
+   "value": ""
+  },
+  {
+   "fieldId": "comentarioNivel1",
+   "value": ""
+  },
+  {
+   "fieldId": "comentarioRevisor",
+   "value": ""
+  },
+  {
+   "fieldId": "condicaoPagamento",
+   "value": "15 DIAS"
+  },
+  {
+   "fieldId": "contaPadrao",
+   "value": "0076"
+  },
+  {
+   "fieldId": "currentState",
+   "value": ""
+  },
+  {
+   "fieldId": "dataAprovacaoDiretoria",
+   "value": "31/10/2026 12:32"
+  },
+  {
+   "fieldId": "dataAprovacaoFinanceiro",
+   "value": ""
+  },
+  {
+   "fieldId": "dataAprovacaoNivel1",
+   "value": ""
+  },
+  {
+   "fieldId": "dataAprovacaoRevisor",
+   "value": "31/10/2026 12:31"
+  },
+  {
+   "fieldId": "dataEmissao",
+   "value": "31/10/2026"
+  },
+  {
+   "fieldId": "dataSolicitacao",
+   "value": "31/10/2026 12:30"
+  },
+  {
+   "fieldId": "descritorForm",
+   "value": "FORNECEDOR EXEMPLO"
+  },
+  {
+   "fieldId": "diasUteisVencimento",
+   "value": "9"
+  },
+  {
+   "fieldId": "diretorAprovador",
+   "value": "00000000-0000-0000-0000-00000000js01"
+  },
+  {
+   "fieldId": "exibeJustificativa",
+   "value": "0"
+  },
+  {
+   "fieldId": "filial",
+   "value": "Empresa Exemplo"
+  },
+  {
+   "fieldId": "filialCNPJ",
+   "value": "00.000.000/0001-00"
+  },
+  {
+   "fieldId": "filialMunicipio",
+   "value": "Cidade - UF"
+  },
+  {
+   "fieldId": "forPgtoAgencia",
+   "value": null
+  },
+  {
+   "fieldId": "forPgtoBanco",
+   "value": null
+  },
+  {
+   "fieldId": "forPgtoConta",
+   "value": null
+  },
+  {
+   "fieldId": "forPgtoDescricao",
+   "value": null
+  },
+  {
+   "fieldId": "forPgtoFavCNPJCPF",
+   "value": null
+  },
+  {
+   "fieldId": "forPgtoFavorecido",
+   "value": null
+  },
+  {
+   "fieldId": "formMode",
+   "value": ""
+  },
+  {
+   "fieldId": "formaPagamento",
+   "value": null
+  },
+  {
+   "fieldId": "formaPagamentoDescricao",
+   "value": ""
+  },
+  {
+   "fieldId": "formularioRecibo",
+   "value": "on"
+  },
+  {
+   "fieldId": "fornecedor",
+   "value": "FORNECEDOR EXEMPLO (000.000.000-00)"
+  },
+  {
+   "fieldId": "fornecedorCNPJCPF",
+   "value": "000.000.000-00"
+  },
+  {
+   "fieldId": "fornecedorEmail",
+   "value": "fornecedor@exemplo.com"
+  },
+  {
+   "fieldId": "fornecedorFantasia",
+   "value": "FORNECEDOR EXEMPLO"
+  },
+  {
+   "fieldId": "fornecedorMunicipio",
+   "value": "Cidade - UF"
+  },
+  {
+   "fieldId": "fornecedorNome",
+   "value": "FORNECEDOR EXEMPLO"
+  },
+  {
+   "fieldId": "idFolder",
+   "value": "1247338"
+  },
+  {
+   "fieldId": "idSolicitacao",
+   "value": "230841"
+  },
+  {
+   "fieldId": "justBloqueioFinanceiro",
+   "value": "teste automatizado fluigcli"
+  },
+  {
+   "fieldId": "liberadoIntegracao",
+   "value": ""
+  },
+  {
+   "fieldId": "nivel1Aprovador",
+   "value": ""
+  },
+  {
+   "fieldId": "numeroDocumento",
+   "value": "zzt6ae61798"
+  },
+  {
+   "fieldId": "pgtoHistorico",
+   "value": "zz_fluigcli_test Gate 0"
+  },
+  {
+   "fieldId": "pgtoUrgente",
+   "value": "N"
+  },
+  {
+   "fieldId": "sTipoAnexo",
+   "value": ""
+  },
+  {
+   "fieldId": "solicitante",
+   "value": "00000000-0000-0000-0000-00000000js01"
+  },
+  {
+   "fieldId": "solicitanteEmail",
+   "value": "joao@empresa.com"
+  },
+  {
+   "fieldId": "solicitanteNome",
+   "value": "João Silva"
+  },
+  {
+   "fieldId": "tAnexoDescricao",
+   "value": ""
+  },
+  {
+   "fieldId": "tAnexoFile",
+   "value": ""
+  },
+  {
+   "fieldId": "tParentId",
+   "value": "1247338"
+  },
+  {
+   "fieldId": "valorTotalPagamento",
+   "value": "50,00"
+  },
+  {
+   "fieldId": "vencimentoRetroativo",
+   "value": ""
+  }
+ ],
+ "children": [
+  {
+   "values": [
+    {
+     "fieldId": "rowId",
+     "value": "1"
+    },
+    {
+     "fieldId": "boletoValorDesconto___1",
+     "value": ""
+    },
+    {
+     "fieldId": "emailDestino___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaCliente___1",
+     "value": ""
+    },
+    {
+     "fieldId": "boletoCodBarras___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaPlano___1",
+     "value": "001/001"
+    },
+    {
+     "fieldId": "parcelaDesconto___1",
+     "value": "0,00"
+    },
+    {
+     "fieldId": "divContratoVendaParcela___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaJuros___1",
+     "value": "0,00"
+    },
+    {
+     "fieldId": "naturezaFinanceira___1",
+     "value": "Rescisões"
+    },
+    {
+     "fieldId": "masterid___1",
+     "value": "89353"
+    },
+    {
+     "fieldId": "boletoDataVencimento___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaIdPgto___1",
+     "value": "34"
+    },
+    {
+     "fieldId": "documentid___1",
+     "value": "1247334"
+    },
+    {
+     "fieldId": "rateioValor___1",
+     "value": "50,00"
+    },
+    {
+     "fieldId": "envioComprovanteEmail___1",
+     "value": "false"
+    },
+    {
+     "fieldId": "cardid___1",
+     "value": "157153"
+    },
+    {
+     "fieldId": "boletoValor___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaContrato___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaCodColLan___1",
+     "value": "29"
+    },
+    {
+     "fieldId": "parcelaNumVenda___1",
+     "value": ""
+    },
+    {
+     "fieldId": "ANONYMIZATION_USER_ID___1",
+     "value": ""
+    },
+    {
+     "fieldId": "codColCCusto___1",
+     "value": "29"
+    },
+    {
+     "fieldId": "ANONYMIZATION_DATE___1",
+     "value": ""
+    },
+    {
+     "fieldId": "codBarrasLinhaDigitavel___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaIdLan___1",
+     "value": "92314"
+    },
+    {
+     "fieldId": "companyid___1",
+     "value": "1"
+    },
+    {
+     "fieldId": "parcelaDadosBancarios___1",
+     "value": "PF - PIX (CPF) - FORNECEDOR EX."
+    },
+    {
+     "fieldId": "parcelaValor___1",
+     "value": "50,00"
+    },
+    {
+     "fieldId": "parcelaDataVencimento___1",
+     "value": "13/11/2026"
+    },
+    {
+     "fieldId": "codColNatFin___1",
+     "value": "0"
+    },
+    {
+     "fieldId": "codCcusto___1",
+     "value": "001.001.003.0013.0005"
+    },
+    {
+     "fieldId": "tableid___1",
+     "value": "tabelaRateios"
+    },
+    {
+     "fieldId": "codNatFin___1",
+     "value": "02.01.004"
+    },
+    {
+     "fieldId": "processoEnvioEmail___1",
+     "value": ""
+    },
+    {
+     "fieldId": "parcelaIdPgtoCodForma___1",
+     "value": "S"
+    },
+    {
+     "fieldId": "parcelaCodColVenda___1",
+     "value": ""
+    },
+    {
+     "fieldId": "qrCodeParcela___1",
+     "value": ""
+    },
+    {
+     "fieldId": "codMoeda___1",
+     "value": "R$"
+    },
+    {
+     "fieldId": "tableId",
+     "value": "tabelaDeItensValores"
+    },
+    {
+     "fieldId": "parcelaLiquido___1",
+     "value": "50,00"
+    },
+    {
+     "fieldId": "centroCusto___1",
+     "value": "Pavimentação"
+    },
+    {
+     "fieldId": "version___1",
+     "value": "3000"
+    }
+   ]
+  }
+ ]
+}

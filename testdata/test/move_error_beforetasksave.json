@@ -1,0 +1,7 @@
+{
+ "code": "BPMBeforeTaskSaveException",
+ "message": "Erro ao executar evento do processo, java.lang.Exception: <b style='color:red; margin-bottom: 20px !important;'>Decisão da aprovação é incompatível com a próxima etapa selecionada!</b>",
+ "detailedMessage": "Ocorreu uma exceção ao executar o evento. Confira o log do servidor para maiores informações e realize logs para que seja possível visualizar as variáveis e o fluxo envolvido no evento durante a depuração.",
+ "helpUrl": null,
+ "details": []
+}

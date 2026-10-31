@@ -132,6 +132,7 @@ fluigcli diff --json | jq '.data.counts'
 | `layout` | `list` `import` `export` | [docs/layout.md](docs/layout.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `deploy` | `deploy --plan <arquivo.json>`. Executa um plano de release na ordem (com `--dry-run` e `--from`) | [docs/deploy.md](docs/deploy.md) |
+| `test` | `run`. Teste de processo por cenários: abre solicitações reais, move e confere etapa, card, caminho e erros de evento (com `--dry-run`; nunca em produção) | [docs/test.md](docs/test.md) |
 | `audit` | linter do projeto: Style Guide 2.0, typos e usos frágeis de API, footguns do Rhino e, com `--process`, o cruzamento formulário × etapas do processo; `--save-baseline` congela a dívida antiga para o gate reprovar só o que é novo | [docs/audit.md](docs/audit.md) |
 | `watch` | publica ao salvar. | [docs/watch.md](docs/watch.md) |
 | `dev` | dev server com live reload. | [docs/dev.md](docs/dev.md) |

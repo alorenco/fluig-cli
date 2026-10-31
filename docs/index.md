@@ -61,6 +61,7 @@ em pt-BR.
 | [layout](./layout) | layouts WCM: listagem, import e deploy nativo |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
+| [test](./test) | teste de processo por cenários: abre e move solicitações reais e confere etapa, card, caminho e erros de evento |
 | [audit](./audit) | linter do projeto: Style Guide 2.0, APIs de script, footguns do Rhino, formulário × etapas do processo e baseline da dívida antiga |
 | [watch](./watch) | publicar automaticamente ao salvar (dev/hml) |
 | [dev](./dev) | dev server com live reload e preview de formulários |

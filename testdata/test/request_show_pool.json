@@ -1,0 +1,86 @@
+{
+ "processInstanceId": 230849,
+ "processId": "financeiro_pagamentos_diversos",
+ "processVersion": 32,
+ "active": false,
+ "requester": {
+  "code": "00000000-0000-0000-0000-00000000js01",
+  "name": "João Silva",
+  "mail": "joao@empresa.com",
+  "login": "jsilva",
+  "local": null,
+  "_expandables": [
+   "local"
+  ]
+ },
+ "formRecordId": 1247352,
+ "formId": 157153,
+ "parentRequestId": null,
+ "startDate": "2026-10-31T13:03:39.687-0400",
+ "endDate": "2026-10-31T13:03:48.562-0400",
+ "warningDate": null,
+ "deadlineDate": null,
+ "periodId": "Default",
+ "activities": null,
+ "currentMovements": [
+  {
+   "processInstanceId": 230849,
+   "movementSequence": 7,
+   "active": false,
+   "slaStatus": "ON_TIME",
+   "startDate": "2026-10-31T13:03:47.476-0400",
+   "endDate": "2026-10-31T13:03:48.573-0400",
+   "deadlineDate": "2026-11-04T20:00:00.000-0400",
+   "processId": "financeiro_pagamentos_diversos",
+   "requester": {
+    "code": "00000000-0000-0000-0000-00000000js01",
+    "name": "João Silva",
+    "mail": "joao@empresa.com",
+    "login": "jsilva",
+    "local": null,
+    "_expandables": [
+     "local"
+    ]
+   },
+   "processVersion": 32,
+   "processDescription": "Pagamentos Diversos",
+   "state": {
+    "processId": "financeiro_pagamentos_diversos",
+    "processVersion": 32,
+    "sequence": 112,
+    "stateName": "Aprovação Financeira",
+    "stateDescription": "Aprovação Financeira",
+    "stateType": "SIMPLE",
+    "bpmnType": "TASK_NORMAL",
+    "configuration": null,
+    "_expandables": [
+     "instructions",
+     "configuration"
+    ]
+   },
+   "tasks": null,
+   "threadSequence": 0,
+   "formFields": null,
+   "deadlineSpecification": null,
+   "taskInfo": null,
+   "_expandables": [
+    "tasks",
+    "taskInfo",
+    "deadlineSpecification",
+    "formFields"
+   ]
+  }
+ ],
+ "formRecord": null,
+ "formFields": null,
+ "slaStatus": "ON_TIME",
+ "status": "CANCELED",
+ "processDescription": "Pagamentos Diversos",
+ "deadlineSpecification": null,
+ "_expandables": [
+  "formRecord",
+  "activities",
+  "formFields",
+  "deadlineSpecification"
+ ]
+}
