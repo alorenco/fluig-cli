@@ -128,8 +128,13 @@ update|delete — substituto/delegação de tarefas; requer admin), `service`
 (list|show|create|update|delete|test|log|drivers|copy|export|apply — cadastro de serviços REST/SOAP/JDBC que os datasets
 chamam por serviceCode; nunca mostra segredo; senha basic só via
 FLUIGCLI_SERVICE_PASSWORD; headers custom só via --custom-headers-stdin ou
-FLUIGCLI_SERVICE_CUSTOM_HEADERS; `export`/`apply` levam o serviço entre ambientes
-por arquivo versionado sem segredo — o segredo vem da variável do `secretEnv`), `diff` (local
+FLUIGCLI_SERVICE_CUSTOM_HEADERS; OAuth 1/2 como JSON só via --oauth-stdin ou
+FLUIGCLI_SERVICE_OAUTH; `test` chama o caminho de teste PELO servidor (exit 5 se
+não 2xx); `log --download` grava os headers enviados (segredos) só em arquivo 0600;
+`copy --to` leva o serviço COM os segredos servidor a servidor sem expor
+(`unchanged` quando já igual); `export`/`apply` levam o serviço entre ambientes
+por arquivo versionado sem segredo — o segredo vem da variável do `secretEnv`;
+`apply <código>` lê services/<código>.json), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado; formulário com
 `status:"unlinked"` **existe no servidor com outro nome** e só falta o vínculo —

@@ -21,7 +21,8 @@ modo não-interativo, saída JSON e exit codes estáveis. A CLI cobre três
 frentes:
 
 - **Desenvolvimento.** Importe e publique datasets, formulários, eventos
-  globais, mecanismos de atribuição, scripts de processo e widgets. Gere
+  globais, mecanismos de atribuição, scripts de processo, widgets, layouts e
+  páginas do portal. Gere
   scaffolds com `new`. Clone um servidor existente para uma pasta vazia.
   Compare o local com o servidor com `diff`. Audite o projeto contra o Style
   Guide 2.0 e as APIs de script. Suba um dev server com live reload, preview de
@@ -29,7 +30,8 @@ frentes:
   logs.
 - **Operação.** Consulte, inicie e movimente solicitações. Veja a fila de
   tarefas. Navegue no GED. Leia os logs do servidor sem SSH.
-- **Administração.** Gerencie usuários, grupos, papéis e substitutos. Audite a
+- **Administração.** Gerencie usuários, grupos, papéis e substitutos. Cadastre
+  os serviços REST, SOAP e JDBC que os datasets chamam. Audite a
   atuação de um usuário por período. Consulte a saúde do servidor.
 
 A lista de recursos continua a crescer.

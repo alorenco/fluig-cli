@@ -3,7 +3,8 @@ name: fluigcli
 description: >-
   Use ao desenvolver ou implantar em servidores TOTVS Fluig com a CLI `fluigcli`:
   datasets, formulários, eventos globais, mecanismos de atribuição, scripts de
-  eventos de processo e widgets. A CLI é não-interativa e feita para agentes
+  eventos de processo, widgets, layouts, páginas do portal e serviços do Painel
+  de Controle. A CLI é não-interativa e feita para agentes
   (saída `--json` com envelope estável e exit codes 0–7). Ative quando o projeto
   tiver pasta `.fluigcli/`, `datasets/`, `forms/`, `events/`, `mechanisms/`,
   `workflow/` ou `wcm/`, ou quando o pedido envolver Fluig / fluigcli.

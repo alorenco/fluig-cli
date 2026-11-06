@@ -29,9 +29,9 @@ features:
     linkText: dev · watch · widget new
   - icon: 🗂️
     title: Operação no dia a dia
-    details: Inicie e movimente solicitações. Consulte a fila de tarefas. Navegue no GED. Administre usuários, grupos, papéis e substitutos. Faça tudo sem abrir o portal.
+    details: Inicie e movimente solicitações. Consulte a fila de tarefas. Navegue no GED. Administre usuários, grupos, papéis, substitutos e serviços. Faça tudo sem abrir o portal.
     link: /request
-    linkText: request · task · document · user
+    linkText: request · task · document · user · service
   - icon: 🤖
     title: Feita para agentes e CI
     details: Modo não-interativo, envelope --json estável e exit codes de 0 a 7 documentados. Uma Skill embutida para o Claude Code e o Codex. Nunca passe a senha em argumento. Use o keyring, uma env var ou o stdin.
@@ -74,6 +74,6 @@ em pt-BR.
 | [group](./group) | grupos e membros (requer admin) |
 | [role](./role) | papéis e usuários (requer admin) |
 | [replacement](./replacement) | substitutos de usuário / delegação (requer admin) |
-| [service](./service) | cadastro de serviços REST, SOAP e JDBC sem segredos; teste, log e export/apply entre ambientes |
+| [service](./service) | cadastro de serviços REST, SOAP e JDBC sem mostrar segredos; OAuth; teste, log, cópia entre servidores e export/apply entre ambientes |
 | [skill](./skill) | Skill para agentes de IA (Claude Code / Codex) |
 | [upgrade](./upgrade) | atualização da própria CLI |

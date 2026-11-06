@@ -55,6 +55,9 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver ou mudar quem está EM um papel/grupo | `role users <papel>` · `role add-user <papel> <login>` · idem `group` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
 | cadastrar o serviço REST (serviceCode) que um dataset chama via `getAuthorizeClientService` | `service list` · `service create <código> --url <base>` · `service update` |
+| testar um serviço cadastrado (URL, rede do servidor e autenticação de uma vez) ou ver as chamadas dele | `service test <código>` · `service log <código> [--enable --hours N]` |
+| copiar um serviço com os segredos para outro servidor, sem expor os segredos | `service copy <código> --to <servidor> [--as <novo>]` |
+| alterar uma página publicada (título, permissões, layout, mover ou tirar widget) | `page update` · `page permission` · `page move-widget` · `page remove-widget` → `page publish` |
 | levar serviço/página da homologação para a produção (versionado, sem segredo no arquivo) | `service export` / `page export` → commit → `service apply` / `page apply` (ou passos `service`/`page` no `deploy`) |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
