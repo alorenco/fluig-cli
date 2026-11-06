@@ -236,3 +236,94 @@ func TestDeleteServiceConfereExistencia(t *testing.T) {
 		t.Errorf("deletes inesperados: %v", stub.deleted)
 	}
 }
+
+func TestParseCustomHeaders(t *testing.T) {
+	text, names, err := ParseCustomHeaders("Authorization: Bearer x\r\nX-Api-Key: y\n\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Authorization: Bearer x\nX-Api-Key: y" || strings.Join(names, ",") != "Authorization,X-Api-Key" {
+		t.Errorf("normalização inesperada: %q %v", text, names)
+	}
+	ruins := map[string]string{
+		"vazio":           "  \n",
+		"sem dois-pontos": "Authorization Bearer x",
+		"nome com espaço": "Auth orization: x",
+		"sem valor":       "Authorization:   ",
+		"linha no meio":   "A: 1\n\nB: 2",
+	}
+	for nome, in := range ruins {
+		_, _, err := ParseCustomHeaders(in)
+		if err == nil {
+			t.Errorf("%s: esperava erro", nome)
+			continue
+		}
+		if strings.Contains(err.Error(), "Bearer") {
+			t.Errorf("%s: mensagem cita o valor: %v", nome, err)
+		}
+	}
+}
+
+func TestListServicesCustomSoNomes(t *testing.T) {
+	stub := &serviceStub{}
+	c := serviceClient(t, stub.server(t).URL)
+	s, err := c.GetService(context.Background(), "APIInfoBipWhatsApp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(s.CustomHeaders, ",") != "Authorization" {
+		t.Errorf("nomes custom inesperados: %v", s.CustomHeaders)
+	}
+	out, _ := json.Marshal(s)
+	if strings.Contains(string(out), "REDACTED") {
+		t.Errorf("valor custom vazou: %s", out)
+	}
+}
+
+func TestCreateServiceCustom(t *testing.T) {
+	stub := &serviceStub{}
+	c := serviceClient(t, stub.server(t).URL)
+	err := c.CreateService(context.Background(), "svc", ServiceInput{
+		URL: strp("https://x"), AuthType: strp(ServiceAuthCustom), Custom: strp("Authorization: Bearer zz"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := stub.created["oAuthVO"].(map[string]any)
+	if o["authenticationType"] != "custom" || o["custom"] != "Authorization: Bearer zz" {
+		t.Errorf("custom não enviado: %+v", o)
+	}
+}
+
+func TestUpdateServiceCustom(t *testing.T) {
+	stub := &serviceStub{}
+	c := serviceClient(t, stub.server(t).URL)
+	ctx := context.Background()
+	cur, _ := c.GetService(ctx, "APIInfoBipWhatsApp")
+	// Sem Custom: preserva o valor guardado.
+	if err := c.UpdateService(ctx, cur, ServiceInput{URL: strp("https://novo")}); err != nil {
+		t.Fatal(err)
+	}
+	if o := stub.updated["oAuthVO"].(map[string]any); o["custom"] != "Authorization: REDACTED" {
+		t.Errorf("update perdeu o custom: %+v", o)
+	}
+	// Troca para none: apaga o custom.
+	if err := c.UpdateService(ctx, cur, ServiceInput{AuthType: strp(ServiceAuthNone)}); err != nil {
+		t.Fatal(err)
+	}
+	if o := stub.updated["oAuthVO"].(map[string]any); o["custom"] != "" {
+		t.Errorf("troca para none manteve o custom: %+v", o)
+	}
+	// Troca de basic para custom: grava o custom e apaga a senha.
+	basic, _ := c.GetService(ctx, "APIInfoBip")
+	if err := c.UpdateService(ctx, basic, ServiceInput{AuthType: strp(ServiceAuthCustom), Custom: strp("X-Api-Key: zz")}); err != nil {
+		t.Fatal(err)
+	}
+	o := stub.updated["oAuthVO"].(map[string]any)
+	if o["custom"] != "X-Api-Key: zz" {
+		t.Errorf("custom não gravado: %+v", o)
+	}
+	if _, ok := o["password"]; ok {
+		t.Errorf("troca para custom manteve a senha basic: %+v", o)
+	}
+}

@@ -150,7 +150,7 @@
         "mediaType": null,
         "encoding": null,
         "timeoutService": null,
-        "custom": "REDACTED",
+        "custom": "Authorization: REDACTED",
         "headers": null,
         "useSSL": false,
         "logMessages": false

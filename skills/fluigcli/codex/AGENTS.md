@@ -122,7 +122,8 @@ papel/grupo (`role add-user <papel> <login>`), `replacement` (list|show|create|
 update|delete — substituto/delegação de tarefas; requer admin), `service`
 (list|show|create|update|delete — cadastro de serviços REST que os datasets
 chamam por serviceCode; nunca mostra segredo; senha basic só via
-FLUIGCLI_SERVICE_PASSWORD), `diff` (local
+FLUIGCLI_SERVICE_PASSWORD; headers custom só via --custom-headers-stdin ou
+FLUIGCLI_SERVICE_CUSTOM_HEADERS), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado; formulário com
 `status:"unlinked"` **existe no servidor com outro nome** e só falta o vínculo —

@@ -47,7 +47,7 @@ const (
 )
 
 // ServiceAuthWritable lista os tipos de autenticação que a CLI grava.
-var ServiceAuthWritable = []string{ServiceAuthNone, ServiceAuthBasic, ServiceAuthFluigAPI}
+var ServiceAuthWritable = []string{ServiceAuthNone, ServiceAuthBasic, ServiceAuthFluigAPI, ServiceAuthCustom}
 
 // ErrServiceExists indica código de serviço repetido no create
 // (HTTP 500 FDNDataServicePKException).
@@ -63,8 +63,11 @@ type Service struct {
 	TestPath    string `json:"testPath,omitempty"`
 	Swagger     string `json:"swagger,omitempty"`
 	Username    string `json:"username,omitempty"` // só basic; nunca a senha
-	Internal    bool   `json:"internal"`
-	LogRequests bool   `json:"logRequests"`
+	// CustomHeaders traz só os NOMES dos headers da autenticação custom. O
+	// valor (o segredo) nunca sai do pacote.
+	CustomHeaders []string `json:"customHeaders,omitempty"`
+	Internal      bool     `json:"internal"`
+	LogRequests   bool     `json:"logRequests"`
 
 	oauthID int
 	oauth   map[string]json.RawMessage // oAuthVO cru, com segredos: nunca serializar para saída
@@ -158,8 +161,11 @@ func parseServiceList(body []byte) ([]Service, error) {
 			}
 			s.AuthType = jsonString(it.OAuth, "authenticationType")
 			s.TestPath = jsonString(it.OAuth, "serviceTestUrl")
-			if s.AuthType == ServiceAuthBasic {
+			switch s.AuthType {
+			case ServiceAuthBasic:
 				s.Username = jsonString(it.OAuth, "username")
+			case ServiceAuthCustom:
+				s.CustomHeaders = customHeaderNames(jsonString(it.OAuth, "custom"))
 			}
 			var id int
 			if raw, ok := it.OAuth["id"]; ok && json.Unmarshal(raw, &id) == nil && id != 0 {
@@ -196,6 +202,7 @@ type ServiceInput struct {
 	Swagger     *string
 	Username    *string
 	Password    *string // só basic; vem de env/prompt, nunca de argumento
+	Custom      *string // só custom: "Nome: valor" por linha; vem de stdin/env
 }
 
 // CreateService cria um serviço REST (POST ecmservices/service).
@@ -212,6 +219,9 @@ func (c *Client) CreateService(ctx context.Context, code string, in ServiceInput
 		"domain":             deref(in.URL, ""),
 		"serviceTestUrl":     deref(in.TestPath, ""),
 		"custom":             "",
+	}
+	if auth == ServiceAuthCustom {
+		oauth["custom"] = deref(in.Custom, "")
 	}
 	if auth == ServiceAuthBasic {
 		pw := deref(in.Password, "")
@@ -258,12 +268,16 @@ func (c *Client) UpdateService(ctx context.Context, current *Service, in Service
 	set("domain", in.URL)
 	set("serviceTestUrl", in.TestPath)
 	set("authenticationType", in.AuthType)
-	// Troca para um tipo sem senha: não deixa a credencial antiga guardada.
+	// Troca de tipo: não deixa a credencial do tipo antigo guardada.
 	if in.AuthType != nil && *in.AuthType != ServiceAuthBasic {
 		for _, k := range []string{"username", "password", "passwordConfirmation"} {
 			delete(oauth, k)
 		}
 	}
+	if in.AuthType != nil && *in.AuthType != ServiceAuthCustom {
+		oauth["custom"] = ""
+	}
+	set("custom", in.Custom)
 	set("username", in.Username)
 	if in.Password != nil {
 		oauth["password"] = *in.Password
@@ -328,6 +342,65 @@ func checkServiceResponse(op string, body []byte, status int) error {
 		return &HTTPError{StatusCode: status, URL: op, Body: truncate(string(body), 512)}
 	}
 	return nil
+}
+
+// ParseCustomHeaders valida o texto da autenticação custom e devolve o texto
+// normalizado (LF, sem linhas vazias no fim) e os nomes dos headers. Regra:
+// uma linha por header, no formato "Nome: valor"; nome no padrão de token
+// HTTP; valor não vazio; sem linha vazia no meio. As mensagens de erro nunca
+// citam o valor.
+func ParseCustomHeaders(text string) (string, []string, error) {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.TrimRight(text, "\n")
+	if strings.TrimSpace(text) == "" {
+		return "", nil, errors.New("nenhum header informado; use uma linha \"Nome: valor\" por header")
+	}
+	lines := strings.Split(text, "\n")
+	names := make([]string, 0, len(lines))
+	for i, line := range lines {
+		n := i + 1
+		if strings.TrimSpace(line) == "" {
+			return "", nil, fmt.Errorf("linha %d vazia; use uma linha \"Nome: valor\" por header, sem linhas vazias", n)
+		}
+		name, value, ok := strings.Cut(line, ":")
+		if !ok {
+			return "", nil, fmt.Errorf("linha %d sem \":\"; o formato é \"Nome: valor\"", n)
+		}
+		if !validHeaderName(name) {
+			return "", nil, fmt.Errorf("linha %d: nome de header inválido (sem espaços; letras, números e - _ . apenas)", n)
+		}
+		if strings.TrimSpace(value) == "" {
+			return "", nil, fmt.Errorf("linha %d: header %q sem valor", n, name)
+		}
+		names = append(names, name)
+	}
+	return text, names, nil
+}
+
+// customHeaderNames extrai só os nomes do texto guardado no servidor, sem
+// validar (o cadastro pode ter vindo da interface).
+func customHeaderNames(text string) []string {
+	var names []string
+	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		if name, _, ok := strings.Cut(line, ":"); ok && strings.TrimSpace(name) != "" {
+			names = append(names, strings.TrimSpace(name))
+		}
+	}
+	return names
+}
+
+func validHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
+			strings.ContainsRune("!#$%&'*+-.^_`|~", r)
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func deref(p *string, def string) string {

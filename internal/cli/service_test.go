@@ -214,3 +214,95 @@ func TestServiceDelete(t *testing.T) {
 		t.Errorf("deletes inesperados: %v", stub.deleted)
 	}
 }
+
+func TestServiceCreateCustomPorStdin(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	old := serviceStdin
+	serviceStdin = strings.NewReader("Authorization: Bearer zz-falso\n")
+	t.Cleanup(func() { serviceStdin = old })
+	code, out, errOut := runMainStderr(t, "service", "create", "APIInfoBipWhatsApp", "--url", "https://x", "--auth", "custom",
+		"--custom-headers-stdin", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if o := stub.created["oAuthVO"].(map[string]any); o["custom"] != "Authorization: Bearer zz-falso" {
+		t.Errorf("custom não enviado: %+v", o)
+	}
+	if strings.Contains(out+errOut, "zz-falso") {
+		t.Errorf("saída vaza o valor do header: %s %s", out, errOut)
+	}
+	if !strings.Contains(out, `"customHeaders":["Authorization"]`) {
+		t.Errorf("envelope sem os nomes dos headers: %s", out)
+	}
+}
+
+func TestServiceCreateCustomPorEnv(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	t.Setenv(envServiceCustomHeaders, "X-Api-Key: zz-falso")
+	code, out := runMain(t, "service", "create", "APIInfoBipWhatsApp", "--url", "https://x", "--auth", "custom",
+		"--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if o := stub.created["oAuthVO"].(map[string]any); o["custom"] != "X-Api-Key: zz-falso" {
+		t.Errorf("custom não enviado: %+v", o)
+	}
+}
+
+func TestServiceCustomValidacoes(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	old := serviceStdin
+	t.Cleanup(func() { serviceStdin = old })
+	cases := map[string]struct {
+		stdin string
+		args  []string
+	}{
+		"custom sem headers":     {"", []string{"service", "create", "x", "--url", "https://x", "--auth", "custom"}},
+		"header inválido":        {"Authorization Bearer zz", []string{"service", "create", "x", "--url", "https://x", "--auth", "custom", "--custom-headers-stdin"}},
+		"stdin sem custom":       {"A: b", []string{"service", "create", "x", "--url", "https://x", "--custom-headers-stdin"}},
+		"dois leitores de stdin": {"A: b", []string{"service", "create", "x", "--url", "https://x", "--auth", "custom", "--custom-headers-stdin", "--password-stdin"}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			serviceStdin = strings.NewReader(c.stdin)
+			args := append(c.args, "--project", proj, "--server", "homolog", "--json")
+			code, out := runMain(t, args...)
+			if code != output.ExitUsage {
+				t.Errorf("exit=%d, esperava %d\n%s", code, output.ExitUsage, out)
+			}
+			if strings.Contains(out, "Bearer zz") {
+				t.Errorf("mensagem cita o valor: %s", out)
+			}
+		})
+	}
+	if stub.created != nil {
+		t.Errorf("validação falhou e o create foi enviado: %+v", stub.created)
+	}
+}
+
+func TestServiceUpdateCustomPreservaHeaders(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, "service", "update", "APIInfoBipWhatsApp", "--url", "https://novo", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if o := stub.updated["oAuthVO"].(map[string]any); o["custom"] != "Authorization: REDACTED" {
+		t.Errorf("update perdeu os headers guardados: %+v", o)
+	}
+}
+
+func TestServiceShowCustomMostraSoNomes(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, "service", "show", "APIInfoBipWhatsApp", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d", code)
+	}
+	if !strings.Contains(out, "Headers custom: Authorization (valores ocultos)") || strings.Contains(out, "REDACTED") {
+		t.Errorf("show inesperado:\n%s", out)
+	}
+}

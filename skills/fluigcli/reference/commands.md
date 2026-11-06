@@ -385,18 +385,23 @@ as flags, e inclui as vigências expiradas).
 O código do serviço é o `serviceCode` que o dataset passa a
 `fluigAPI.getAuthorizeClientService().invoke(...)`. A CLI **nunca** imprime
 senha/token do serviço (a API do Fluig devolve os segredos em claro; a CLI
-descarta). Senha basic só via `FLUIGCLI_SERVICE_PASSWORD` ou prompt.
+descarta; o custom aparece só com os NOMES dos headers em `customHeaders`).
+Senha basic só via `FLUIGCLI_SERVICE_PASSWORD` ou prompt; headers custom só
+via `--custom-headers-stdin` ou `FLUIGCLI_SERVICE_CUSTOM_HEADERS` (uma linha
+`Nome: valor` por header). ⚠️ O Fluig guarda esses segredos em claro (admin do
+Painel lê). O `invoke()` envia os headers custom em toda chamada: o dataset
+NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 
 | comando | efeito |
 |---|---|
 | `service list [--type rest\|soap\|jdbc] [--filter trecho]` | tabela código/tipo/URL base/autenticação |
 | `service show <código>` | um serviço, sem segredos (inexistente = exit 4) |
-| `service create <código> --url <base> [--auth none\|basic\|fluigAPI] [--username] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5) |
-| `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca para none/fluigAPI apaga usuário/senha) |
+| `service create <código> --url <base> [--auth none\|basic\|fluigAPI\|custom] [--username] [--custom-headers-stdin] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5) |
+| `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca de tipo apaga a credencial do tipo antigo) |
 | `service delete <código>... --yes` | exclui (datasets que usam o serviço quebram; inexistente = exit 4) |
 
-`oauth1`/`oauth2`/`custom` aparecem no list/show, mas a CLI não os grava
-(exit 2): configure pelo Painel de Controle. Escrita em produção pede `--yes`.
+`oauth1`/`oauth2` aparecem no list/show, mas a CLI não os grava (exit 2):
+configure pelo Painel de Controle. Escrita em produção pede `--yes`.
 
 ## document — GED (operação)
 

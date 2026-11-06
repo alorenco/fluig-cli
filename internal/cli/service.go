@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -17,6 +18,13 @@ import (
 // envServicePassword guarda a senha da autenticação basic de um serviço. A
 // senha nunca vem de argumento de linha de comando (regra 5 do projeto).
 const envServicePassword = "FLUIGCLI_SERVICE_PASSWORD"
+
+// envServiceCustomHeaders guarda os headers da autenticação custom (uma linha
+// "Nome: valor" por header). Alternativa: --custom-headers-stdin.
+const envServiceCustomHeaders = "FLUIGCLI_SERVICE_CUSTOM_HEADERS"
+
+// serviceStdin é a origem do --custom-headers-stdin (trocada nos testes).
+var serviceStdin io.Reader = os.Stdin
 
 func newServiceCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
@@ -68,7 +76,11 @@ func newServiceListCmd(app *App) *cobra.Command {
 			} else {
 				rows := make([][]string, 0, len(list))
 				for _, s := range list {
-					rows = append(rows, []string{s.Code, strings.ToUpper(s.Type), s.URL, s.AuthType})
+					auth := s.AuthType
+					if len(s.CustomHeaders) > 0 {
+						auth += ": " + strings.Join(s.CustomHeaders, ", ")
+					}
+					rows = append(rows, []string{s.Code, strings.ToUpper(s.Type), s.URL, auth})
 				}
 				// Padrão de listagem (ver CLAUDE.md).
 				p.Table(output.Table{
@@ -118,6 +130,9 @@ func newServiceShowCmd(app *App) *cobra.Command {
 			if s.Username != "" {
 				p.Successf("Usuário: %s", s.Username)
 			}
+			if len(s.CustomHeaders) > 0 {
+				p.Successf("Headers custom: %s (valores ocultos)", strings.Join(s.CustomHeaders, ", "))
+			}
 			if s.TestPath != "" {
 				p.Successf("Caminho de teste: %s", s.TestPath)
 			}
@@ -140,6 +155,7 @@ type serviceFlags struct {
 	testPath    string
 	swagger     string
 	username    string
+	customStdin bool
 }
 
 func (f *serviceFlags) register(cmd *cobra.Command, create bool) {
@@ -147,7 +163,7 @@ func (f *serviceFlags) register(cmd *cobra.Command, create bool) {
 	if create {
 		urlHelp += " (obrigatório)"
 	}
-	authHelp := "autenticação: none, basic ou fluigAPI"
+	authHelp := "autenticação: none, basic, fluigAPI ou custom"
 	if create {
 		authHelp += " (default: none)"
 	}
@@ -157,11 +173,12 @@ func (f *serviceFlags) register(cmd *cobra.Command, create bool) {
 	cmd.Flags().StringVar(&f.testPath, "test-path", "", "caminho de teste do serviço (ex.: /health)")
 	cmd.Flags().StringVar(&f.swagger, "swagger", "", "URL do swagger do serviço")
 	cmd.Flags().StringVar(&f.username, "username", "", "usuário da autenticação basic (a senha vem de "+envServicePassword+" ou do prompt)")
+	cmd.Flags().BoolVar(&f.customStdin, "custom-headers-stdin", false, "lê do stdin os headers da autenticação custom, uma linha \"Nome: valor\" por header (alternativa: "+envServiceCustomHeaders+")")
 }
 
 // input monta o ServiceInput só com as flags informadas. currentAuth é a
 // autenticação atual do serviço ("" no create).
-func (f *serviceFlags) input(app *App, cmd *cobra.Command, currentAuth string) (fluig.ServiceInput, error) {
+func (f *serviceFlags) input(app *App, cmd *cobra.Command, currentAuth string, passwordStdin bool) (fluig.ServiceInput, error) {
 	var in fluig.ServiceInput
 	changed := cmd.Flags().Changed
 	str := func(name, v string) *string {
@@ -185,7 +202,7 @@ func (f *serviceFlags) input(app *App, cmd *cobra.Command, currentAuth string) (
 	if in.AuthType != nil {
 		auth = *in.AuthType
 		if !slices.Contains(fluig.ServiceAuthWritable, auth) {
-			return in, output.Usagef("--auth %q não é suportado pela CLI; use none, basic ou fluigAPI. Os tipos oauth1, oauth2 e custom são configurados pelo Painel de Controle", auth)
+			return in, output.Usagef("--auth %q não é suportado pela CLI; use none, basic, fluigAPI ou custom. Os tipos oauth1 e oauth2 são configurados pelo Painel de Controle", auth)
 		}
 	}
 	if in.Username != nil && auth != fluig.ServiceAuthBasic {
@@ -205,6 +222,39 @@ func (f *serviceFlags) input(app *App, cmd *cobra.Command, currentAuth string) (
 				return in, err
 			}
 			in.Password = &pw
+		}
+	}
+	// Headers custom: obrigatórios ao passar para custom. Num serviço que já é
+	// custom, só são relidos com --custom-headers-stdin ou com a env var;
+	// fora disso, o update preserva o valor guardado.
+	envCustom := os.Getenv(envServiceCustomHeaders)
+	if auth != fluig.ServiceAuthCustom && f.customStdin {
+		return in, output.Usagef("--custom-headers-stdin só vale com --auth custom")
+	}
+	if auth == fluig.ServiceAuthCustom {
+		if f.customStdin && passwordStdin {
+			return in, output.Usagef("--custom-headers-stdin e --password-stdin leem o mesmo stdin; use %s para os headers", envServiceCustomHeaders)
+		}
+		switching := currentAuth != fluig.ServiceAuthCustom
+		if switching || f.customStdin || envCustom != "" {
+			var raw string
+			switch {
+			case f.customStdin:
+				b, err := io.ReadAll(io.LimitReader(serviceStdin, 64<<10))
+				if err != nil {
+					return in, output.Usagef("falha ao ler os headers do stdin: %v", err)
+				}
+				raw = string(b)
+			case envCustom != "":
+				raw = envCustom
+			default:
+				return in, output.Usagef("--auth custom exige os headers: use --custom-headers-stdin ou a variável %s (nunca em argumento de linha de comando)", envServiceCustomHeaders)
+			}
+			text, _, err := fluig.ParseCustomHeaders(raw)
+			if err != nil {
+				return in, output.Usagef("headers custom inválidos: %v", err)
+			}
+			in.Custom = &text
 		}
 	}
 	return in, nil
@@ -240,9 +290,13 @@ func newServiceCreateCmd(app *App) *cobra.Command {
 		Use:   "create <código>",
 		Short: "Cadastra um serviço REST",
 		Long: "Cadastra um serviço REST. O código é o serviceCode que os datasets usam.\n\n" +
-			"A CLI grava as autenticações none, basic e fluigAPI. Na basic, a senha\n" +
-			"vem da variável " + envServicePassword + " ou de um prompt oculto. Configure\n" +
-			"oauth1, oauth2 e custom pelo Painel de Controle.",
+			"A CLI grava as autenticações none, basic, fluigAPI e custom. Na basic, a\n" +
+			"senha vem da variável " + envServicePassword + " ou de um prompt oculto.\n" +
+			"Na custom, os headers (uma linha \"Nome: valor\" por header) vêm do\n" +
+			"--custom-headers-stdin ou da variável " + envServiceCustomHeaders + ".\n" +
+			"Configure oauth1 e oauth2 pelo Painel de Controle.\n\n" +
+			"Atenção: o Fluig guarda a senha basic e os headers custom em texto aberto.\n" +
+			"Quem acessa o Painel de Controle lê esses valores. A CLI só não os mostra.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
@@ -253,7 +307,7 @@ func newServiceCreateCmd(app *App) *cobra.Command {
 			if !cmd.Flags().Changed("auth") {
 				_ = cmd.Flags().Set("auth", fluig.ServiceAuthNone)
 			}
-			in, err := f.input(app, cmd, "")
+			in, err := f.input(app, cmd, "", passwordStdin)
 			if err != nil {
 				return err
 			}
@@ -294,16 +348,17 @@ func newServiceUpdateCmd(app *App) *cobra.Command {
 		Short: "Altera um serviço REST (só os campos informados)",
 		Long: "Altera um serviço REST. A CLI troca só os campos das flags informadas e\n" +
 			"mantém o resto, inclusive os segredos guardados no servidor.\n\n" +
-			"Para trocar a senha basic, defina " + envServicePassword + ".",
+			"Para trocar a senha basic, defina " + envServicePassword + ". Para trocar\n" +
+			"os headers custom, use --custom-headers-stdin ou " + envServiceCustomHeaders + ".",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
 			code := args[0]
 			changedAny := false
-			for _, n := range []string{"description", "url", "auth", "test-path", "swagger", "username"} {
+			for _, n := range []string{"description", "url", "auth", "test-path", "swagger", "username", "custom-headers-stdin"} {
 				changedAny = changedAny || cmd.Flags().Changed(n)
 			}
-			if !changedAny && os.Getenv(envServicePassword) == "" {
+			if !changedAny && os.Getenv(envServicePassword) == "" && os.Getenv(envServiceCustomHeaders) == "" {
 				return output.Usagef("informe ao menos uma alteração (--url, --description, --auth, --test-path, --swagger ou --username)")
 			}
 			ctx := context.Background()
@@ -318,7 +373,7 @@ func newServiceUpdateCmd(app *App) *cobra.Command {
 			if current.Type != fluig.ServiceTypeREST {
 				return output.Usagef("o serviço %q é %s; a CLI só altera serviços REST", code, strings.ToUpper(current.Type))
 			}
-			in, err := f.input(app, cmd, current.AuthType)
+			in, err := f.input(app, cmd, current.AuthType, passwordStdin)
 			if err != nil {
 				return err
 			}
