@@ -179,7 +179,7 @@ func newPageShowCmd(app *App) *cobra.Command {
 				if len(v.draft) == 0 {
 					p.Successf("Rascunho: sem widgets nos slots conhecidos")
 				} else {
-					p.Successf("Rascunho (ids valem até o publish):")
+					p.Successf("Rascunho (estes ids passam a valer no publish):")
 					p.Table(output.Table{Headers: []string{"Instância", "Widget", "Slot", "Ordem"}, Rows: widgetRows(v.draft, false), Style: output.BoldHeaderStyle(nil)})
 				}
 				p.Successf("Publique com: fluigcli page publish %s", pg.Code)
@@ -489,7 +489,7 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 				p.Infof("rascunho aberto a partir da versão publicada")
 			}
 			p.Successf("widget %q posta no slot %s do rascunho de %q", w.Widget, w.Slot, code)
-			p.Infof("Publique com: fluigcli page publish %s (a publicação troca o instanceId)", code)
+			p.Infof("Publique com: fluigcli page publish %s", code)
 			p.Done(map[string]any{"widget": w, "draftOpened": draftOpened, "slots": slots})
 			return nil
 		},

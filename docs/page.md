@@ -30,9 +30,10 @@ mostram o nome do dono. Para assumir o rascunho, repita o comando com
 `--take-over`. As mudanças do outro usuário continuam no rascunho. A tela do
 Fluig faz o mesmo quando você confirma a edição.
 
-A publicação troca o `instanceId` de todas as widgets da página. As
-preferências das widgets continuam iguais. Depois de publicar, consulte os ids
-novos com `page show`.
+O rascunho copia as widgets da versão publicada com `instanceId` novos. O
+`publish` torna os ids do rascunho os ids publicados. Os ids publicados antigos
+deixam de existir. As preferências das widgets continuam iguais. Por isso,
+consulte os ids com `page show` antes de usar um id.
 
 ## Fluxo típico
 
@@ -198,7 +199,7 @@ Se uma widget ficar num slot que o layout novo não tem, a CLI avisa.
 ## `fluigcli page publish <página> [--description <texto>]`
 
 Este comando publica o rascunho. Página sem rascunho termina com exit **2**.
-A saída traz as widgets publicadas, com os `instanceId` novos.
+A saída traz as widgets publicadas, com os `instanceId` que valem agora.
 
 ## `fluigcli page discard <página>`
 

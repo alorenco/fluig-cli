@@ -62,6 +62,11 @@ func TestServiceApply(t *testing.T) {
 	if code != output.ExitOK || !strings.Contains(out, "já está igual") || stub.updated != nil {
 		t.Fatalf("exit=%d updated=%v\n%s", code, stub.updated, out)
 	}
+	// Modo humano: uma linha só, sem "aplicado" nem lista de ações.
+	_, human := runMain(t, "service", "apply", same, "--project", proj, "--server", "homolog")
+	if !strings.Contains(human, `serviço "jusbrasil": já está igual`) || strings.Contains(human, "aplicado") || strings.Contains(human, "  - ") {
+		t.Errorf("saída humana do apply igual:\n%s", human)
+	}
 	// URL diferente: update só da URL.
 	diff := writeSpec(t, serviceSpec{Code: "jusbrasil", URL: "https://novo.example.com", Auth: "none"})
 	if code, out := runMain(t, "service", "apply", diff, "--project", proj, "--server", "homolog", "--json"); code != output.ExitOK {

@@ -386,7 +386,7 @@ func applyPageSpec(ctx context.Context, app *App, client *fluig.Client, spec *pa
 		}
 		actions = append(actions, prefActions...)
 		if len(actions) == 0 {
-			return []string{"página " + spec.Code + " já está igual à especificação"}, nil
+			return []string{specEqual}, nil
 		}
 		return actions, nil
 	}
@@ -430,7 +430,7 @@ func applyPageSpec(ctx context.Context, app *App, client *fluig.Client, spec *pa
 	}
 	actions = append(actions, prefActions...)
 	if len(actions) == 0 {
-		return []string{"página " + spec.Code + " já está igual à especificação"}, nil
+		return []string{specEqual}, nil
 	}
 	return actions, nil
 }
@@ -656,14 +656,7 @@ func newPageApplyCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			verb := "aplicada"
-			if dryRun {
-				verb = "plano (nada gravado)"
-			}
-			p.Successf("página %q: %s", spec.Code, verb)
-			for _, a := range actions {
-				p.Successf("  - %s", a)
-			}
+			printApplyResult(p, fmt.Sprintf("página %q", spec.Code), "aplicada", dryRun, actions)
 			p.Done(map[string]any{"code": spec.Code, "dryRun": dryRun, "actions": actions})
 			return nil
 		},

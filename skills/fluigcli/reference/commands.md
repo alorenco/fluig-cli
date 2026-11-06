@@ -475,8 +475,9 @@ sozinho); `publish` publica; `discard` descarta. Cada versão tem ids próprios
 `remove-widget` agem na versão do id: id do rascunho → rascunho; id publicado
 SEM rascunho → direto na publicada; id publicado COM rascunho = exit 2.
 `set-preferences` só na publicada e sem rascunho. ⚠️ O
-`publish` troca o `instanceId` de todas as widgets (preferências são
-copiadas): releia com `page show` antes de usar um id. Rascunho aberto por
+rascunho copia as widgets com `instanceId` novos, e o `publish` torna esses ids
+os publicados (os antigos somem; preferências são copiadas): releia com
+`page show` antes de usar um id. Rascunho aberto por
 OUTRO usuário (o `page show` mostra "Rascunho aberto por") = exit 5 nos
 comandos de rascunho; `--take-over` assume o rascunho (mantém as mudanças dele).
 

@@ -36,6 +36,26 @@ type serviceSpec struct {
 	SecretEnv   string `json:"secretEnv,omitempty"`
 }
 
+// specEqual abre a ação do apply quando o servidor já está igual à
+// especificação. O apply e o deploy mostram só essa linha.
+const specEqual = "já está igual à especificação, nada gravado"
+
+// printApplyResult mostra o resultado do apply no modo humano. Quando o
+// servidor já está igual, sai uma linha só, sem a lista de ações.
+func printApplyResult(p *output.Printer, subject, verb string, dryRun bool, actions []string) {
+	if len(actions) == 1 && strings.HasPrefix(actions[0], specEqual) {
+		p.Successf("%s: %s", subject, actions[0])
+		return
+	}
+	if dryRun {
+		verb = "plano (nada gravado)"
+	}
+	p.Successf("%s: %s", subject, verb)
+	for _, a := range actions {
+		p.Successf("  - %s", a)
+	}
+}
+
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // secretEnvName sugere o nome da variável do segredo para o código.
@@ -268,7 +288,7 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 		actions = append(actions, "segredo: valor novo da variável "+spec.SecretEnv)
 	}
 	if len(actions) == 0 {
-		return []string{"serviço " + spec.Code + " já está igual à especificação"}, nil
+		return []string{specEqual}, nil
 	}
 	if dryRun {
 		return actions, nil
@@ -357,7 +377,7 @@ func applySOAPJDBCSpec(ctx context.Context, client *fluig.Client, spec *serviceS
 		}
 	}
 	if len(actions) == 0 {
-		msg := "serviço " + spec.Code + " já está igual à especificação"
+		msg := specEqual
 		if spec.Type == fluig.ServiceTypeJDBC {
 			msg += " (a senha do JDBC não é conferida: o Fluig não a devolve)"
 		}
@@ -526,14 +546,7 @@ func newServiceApplyCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			verb := "aplicado"
-			if dryRun {
-				verb = "plano (nada gravado)"
-			}
-			p.Successf("serviço %q: %s", spec.Code, verb)
-			for _, a := range actions {
-				p.Successf("  - %s", a)
-			}
+			printApplyResult(p, fmt.Sprintf("serviço %q", spec.Code), "aplicado", dryRun, actions)
 			p.Done(map[string]any{"code": spec.Code, "dryRun": dryRun, "actions": actions})
 			return nil
 		},

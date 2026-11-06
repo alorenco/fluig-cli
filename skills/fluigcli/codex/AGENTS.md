@@ -83,7 +83,7 @@ nunca `widget export` com atalho de pasta),
 `page` (list|show|create|update|add-widget|move-widget|remove-widget|set-preferences|
 permission|publish|discard|delete|export|apply — páginas do portal; export/apply
 levam a página entre ambientes por arquivo versionado; página nova nasce em RASCUNHO: create →
-add-widget → publish; o `publish` troca o instanceId das widgets; `--view-group`
+add-widget → publish; o rascunho copia as widgets com instanceId novos, e o `publish` os torna os publicados; `--view-group`
 restringe quem vê; o Fluig não confere slot nem grupo, a CLI confere),
 `request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.
 `observe` registra observação SEM movimentar (laudo de agente; requer fluigcliHelper ≥ 0.11.0).
