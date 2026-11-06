@@ -49,8 +49,27 @@ nova.
 | `layout` | código do layout (`wcm/layout/<código>`) | `force` |
 | `workflow` | prefixo local dos scripts | `processId`, `noRelease` |
 | `db` | arquivo `.sql` | — (só leitura; o servidor recusa escrita) |
+| `service` | arquivo `services/<código>.json` | — (o segredo vem da variável do `secretEnv`) |
+| `page` | arquivo `wcm/page/<código>.json` | — |
 
 A chave `name` é um rótulo livre. Ela aparece no relatório e ajuda a ler o plano.
+
+### Os passos `service` e `page`
+
+O passo `service` aplica uma especificação de serviço, como o
+[`service apply`](service.md). O passo
+`page` aplica uma especificação de página e publica, como o
+[`page apply`](page.md). Os dois passos são
+idempotentes: num plano repetido, o passo diz "já está igual" e não grava
+nada. Gere os arquivos com `service export` e `page export` no ambiente de
+origem.
+
+O plano nunca contém segredo. O passo `service` lê a senha basic ou os headers
+custom da variável de ambiente nomeada no campo `secretEnv` do arquivo.
+Exporte a variável antes do `deploy`.
+
+Ponha o passo `service` antes do passo `page` quando a widget da página usa o
+serviço. Ponha a página-pai antes das subpáginas.
 
 ### O passo `form`
 
@@ -138,6 +157,9 @@ O `--dry-run` valida o plano **sem escrever nada**:
 - o layout tem `application.type=layout` e o código não colide com um widget
   (a guarda de [`layout export`](layout.md#guarda-de-colisão-com-widget));
 - cada script `.sql` tem instruções reconhecíveis, com a contagem;
+- cada passo `service` e `page` mostra as mudanças que faria. O `--dry-run`
+  confere também a variável do segredo, o layout, a página-pai, as widgets, os
+  grupos e os slots;
 - **cada evento local existe no processo**. O `--dry-run` baixa o XML do processo
   e aplica os scripts em memória, sem importar nada. Um evento que não existe no
   processo aparece aqui, e não no meio da publicação:

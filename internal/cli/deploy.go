@@ -53,6 +53,12 @@ type deployStep struct {
 	Workflow string `json:"workflow,omitempty"`
 	// Form é a pasta do formulário (forms/<pasta>).
 	Form string `json:"form,omitempty"`
+	// Page é o arquivo de especificação de página (wcm/page/<código>.json);
+	// aplica como o `page apply`.
+	Page string `json:"page,omitempty"`
+	// Service é o arquivo de especificação de serviço
+	// (services/<código>.json); aplica como o `service apply`.
+	Service string `json:"service,omitempty"`
 
 	// Opções por tipo (espelham as flags do comando equivalente).
 	New         bool   `json:"new,omitempty"`         // dataset
@@ -84,7 +90,7 @@ type deployStep struct {
 type deployStepResult struct {
 	Index  int    `json:"index"` // 1-based, como no --from
 	Name   string `json:"name,omitempty"`
-	Kind   string `json:"kind"`   // dataset | event | mechanism | form | widget | layout | workflow | db
+	Kind   string `json:"kind"`   // dataset | event | mechanism | form | widget | layout | workflow | db | service | page
 	Target string `json:"target"` // arquivo, pasta ou código
 	Status string `json:"status"` // ok | failed | skipped | validated
 	Action string `json:"action,omitempty"`
@@ -109,6 +115,7 @@ func (s deployStep) kindOf() (kind, target string, err error) {
 	pares := []struct{ kind, target string }{
 		{"dataset", s.Dataset}, {"event", s.Event}, {"mechanism", s.Mechanism},
 		{"widget", s.Widget}, {"layout", s.Layout}, {"db", s.DB}, {"workflow", s.Workflow}, {"form", s.Form},
+		{"service", s.Service}, {"page", s.Page},
 	}
 	for _, p := range pares {
 		if p.target == "" {
@@ -121,7 +128,7 @@ func (s deployStep) kindOf() (kind, target string, err error) {
 	}
 	if kind == "" {
 		return "", "", fmt.Errorf(
-			"passo sem tipo: informe uma das chaves dataset, event, mechanism, form, widget, layout, workflow ou db")
+			"passo sem tipo: informe uma das chaves dataset, event, mechanism, form, widget, layout, workflow, db, service ou page")
 	}
 	return kind, target, nil
 }
@@ -151,7 +158,9 @@ func newDeployCmd(app *App) *cobra.Command {
 			"      {\"dataset\": \"datasets/ds_processos.js\"},\n" +
 			"      {\"widget\": \"processos_judiciais\", \"build\": true},\n" +
 			"      {\"workflow\": \"Compras\"},\n" +
-			"      {\"form\": \"forms/frm_pedido\"}\n" +
+			"      {\"form\": \"forms/frm_pedido\"},\n" +
+			"      {\"service\": \"services/api_externa.json\"},\n" +
+			"      {\"page\": \"wcm/page/processos.json\"}\n" +
 			"    ]\n" +
 			"  }\n\n" +
 			"O comando PARA no primeiro erro. Os passos seguintes saem como\n" +
@@ -165,6 +174,9 @@ func newDeployCmd(app *App) *cobra.Command {
 			"locais e a libera (use \"noRelease\": true para não liberar). O alvo é o\n" +
 			"prefixo dos arquivos locais; use \"processId\" quando o processo no\n" +
 			"servidor tiver outro nome.\n\n" +
+			"O passo service aplica uma especificação de serviço (service apply). O\n" +
+			"segredo vem da variável nomeada em secretEnv, nunca do plano. O passo\n" +
+			"page aplica uma especificação de página (page apply) e publica.\n\n" +
 			"O passo form publica uma pasta de formulário. A criação exige\n" +
 			"\"new\": true mais \"parentId\" e \"datasetName\" — num plano não há\n" +
 			"pergunta. O vínculo pasta↔documentId é gravado no\n" +
@@ -471,6 +483,30 @@ func checkDeployStep(ctx context.Context, app *App, server *config.Server, clien
 		s.Action = "publicaria " + s.Kind + " " + project.ArtifactName(path)
 		return nil
 
+	case "service":
+		spec, err := readServiceSpec(resolveDeployPath(root, s.Target))
+		if err != nil {
+			return err
+		}
+		actions, err := applyServiceSpec(ctx, client, spec, true)
+		if err != nil {
+			return err
+		}
+		s.Action = strings.Join(actions, "; ")
+		return nil
+
+	case "page":
+		spec, err := readPageSpec(resolveDeployPath(root, s.Target))
+		if err != nil {
+			return err
+		}
+		actions, err := applyPageSpec(ctx, client, spec, true)
+		if err != nil {
+			return err
+		}
+		s.Action = strings.Join(actions, "; ")
+		return nil
+
 	case "widget":
 		dir := project.WidgetDir(root, s.Target)
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -681,6 +717,28 @@ func execDeployStep(ctx context.Context, app *App, p *output.Printer, server *co
 			return action, mapFluigError(err)
 		}
 		return "mecanismo " + id + " " + action, nil
+
+	case "service":
+		spec, err := readServiceSpec(resolveDeployPath(root, s.Target))
+		if err != nil {
+			return "failed", err
+		}
+		actions, err := applyServiceSpec(ctx, client, spec, false)
+		if err != nil {
+			return "failed", err
+		}
+		return "serviço " + spec.Code + ": " + strings.Join(actions, "; "), nil
+
+	case "page":
+		spec, err := readPageSpec(resolveDeployPath(root, s.Target))
+		if err != nil {
+			return "failed", err
+		}
+		actions, err := applyPageSpec(ctx, client, spec, false)
+		if err != nil {
+			return "failed", err
+		}
+		return "página " + spec.Code + ": " + strings.Join(actions, "; "), nil
 
 	case "widget":
 		if err := app.exportOneWidget(ctx, p, client, root, s.Target, step.Build, step.Force); err != nil {

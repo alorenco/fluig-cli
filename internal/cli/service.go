@@ -40,6 +40,8 @@ func newServiceCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServiceCreateCmd(app))
 	cmd.AddCommand(newServiceUpdateCmd(app))
 	cmd.AddCommand(newServiceDeleteCmd(app))
+	cmd.AddCommand(newServiceExportCmd(app))
+	cmd.AddCommand(newServiceApplyCmd(app))
 	return cmd
 }
 

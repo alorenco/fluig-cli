@@ -142,6 +142,15 @@ func (s *cliPageStub) server(t *testing.T) *httptest.Server {
 		s.mu.Unlock()
 		io.WriteString(w, `"{success: true}"`)
 	})
+	mux.HandleFunc("/page-management/api/v2/applications/", func(w http.ResponseWriter, r *http.Request) {
+		code := strings.TrimPrefix(r.URL.Path, "/page-management/api/v2/applications/")
+		if code == "nao_existe" {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, `{"code":"ApplicationNotFoundException","message":"not found"}`)
+			return
+		}
+		io.WriteString(w, `{"id":1,"code":"`+code+`","title":"W","internal":false,"type":"widget"}`)
+	})
 	mux.HandleFunc("/portal/api/rest/wcm/page/application/listWidgetsBySlotUnpublished/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/SlotA") {
 			io.WriteString(w, `[{"slot":"SlotA","order":1,"code":"financeiro_painel","id":9100,"pageId":212}]`)

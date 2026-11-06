@@ -26,6 +26,8 @@ const (
 	DatasetsDirName   = "datasets"
 	EventsDirName     = "events"
 	MechanismsDirName = "mechanisms"
+	// ServicesDirName guarda as especificações de serviço (service export/apply).
+	ServicesDirName = "services"
 )
 
 // ArtifactName deriva o nome do artefato a partir do caminho: basename sem .js.

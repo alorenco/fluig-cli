@@ -49,3 +49,7 @@ func ReadApplicationType(dir string) (string, error) {
 	}
 	return "", sc.Err()
 }
+
+// PagesDir é a pasta convencional das especificações de página
+// (page export/apply): wcm/page/<código>.json.
+var PagesDir = filepath.Join("wcm", "page")

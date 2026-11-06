@@ -13,7 +13,7 @@ uso por agentes de IA.
 - [workflow](workflow.md) — scripts de eventos de processo, publish nativo e **conversão de versão** das solicitações abertas
 - [widget](widget.md) — widgets
 - [layout](layout.md) — layouts WCM. Lista, importa (via fluigcliHelper) e publica pelo deploy nativo, com guarda de colisão com widget
-- [page](page.md) — páginas do portal. Cria, põe widget, grava preferências, define quem pode ver e publica
+- [page](page.md) — páginas do portal. Cria, altera, põe e move widget, grava preferências, define permissões e publica. Exporta para um arquivo versionável e aplica em outro ambiente
 - [request](request.md) — solicitações de workflow. Consulta, inicia, movimenta, **cancela**, trata anexos, **registra observação sem movimentar** (`observe`, via fluigcliHelper) e **destrava atividade automática travada** (`move --manager`)
 - [task](task.md) — tarefas de workflow. A sua fila, a dos outros, os pools, as **paradas em atividade automática** (`--automatic`) — e **assumir tarefa de pool**
 - [document](document.md) — GED. Navega (com árvore recursiva), **procura por nome**, mostra, **move**, baixa e publica documentos
@@ -22,7 +22,7 @@ uso por agentes de IA.
 - [group](group.md) — grupos da plataforma e membros (requer admin)
 - [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)
-- [service](service.md) — cadastro de serviços REST do Painel de Controle. Lista, mostra, cadastra, altera e exclui, sem mostrar segredos
+- [service](service.md) — cadastro de serviços REST do Painel de Controle. Lista, mostra, cadastra, altera e exclui, sem mostrar segredos. Exporta para um arquivo versionável e aplica em outro ambiente
 - [diff](diff.md) — compara artefatos locais com o servidor antes de publicar
 - [deploy](deploy.md) — executa um plano de release (manifesto JSON) na ordem
 - [test](test.md) — teste de processo por cenários. Abre solicitações reais na homologação, move e confere etapa, card, caminho e erros de evento. Mede a cobertura de caminhos do BPMN e gera o esqueleto de uma suíte a partir do diagrama. Roda também o teste de unidade dos scripts no Rhino local, com falsos e sem servidor, e confere a tela real da tarefa num navegador headless (passo `ui`)

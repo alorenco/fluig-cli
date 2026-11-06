@@ -205,9 +205,85 @@ CLI arquiva a página antes. O comando pede confirmação. Em modo
 não-interativo, confirme com `--yes`. Código inexistente termina com exit
 **4**.
 
+## Levar a página para outro ambiente
+
+Use um arquivo de especificação versionado no Git. O fluxo é este:
+
+1. Grave a especificação a partir do servidor de origem:
+
+   ```sh
+   fluigcli page export painel_vendas --server homolog
+   ```
+
+   O comando grava `wcm/page/painel_vendas.json`.
+2. Revise o arquivo e faça o commit. Confira as preferências das widgets:
+   elas podem conter URLs ou códigos do ambiente de origem.
+3. Aplique no servidor de destino:
+
+   ```sh
+   fluigcli page apply wcm/page/painel_vendas.json --server producao --dry-run
+   fluigcli page apply wcm/page/painel_vendas.json --server producao
+   ```
+
+Você também pode pôr o arquivo num plano de [`deploy`](deploy.md), com o passo
+`page`.
+
+### `fluigcli page export <página> [--output <arquivo>]`
+
+Este comando grava a especificação da versão **publicada** da página em
+`wcm/page/<código>.json`. Com `--output`, ele grava no arquivo informado.
+
+```json
+{
+  "code": "painel_vendas",
+  "title": "Painel de Vendas",
+  "layout": "layoutdefault",
+  "authorization": "AUTHENTICATED",
+  "permissions": [
+    {"permission": "pageView", "group": "vendas"},
+    {"permission": "pageUpdate", "user": "jsilva"},
+    {"permission": "pageRemove", "user": "jsilva"}
+  ],
+  "widgets": [
+    {"widget": "painel_vendas_widget", "slot": "SlotA", "preferences": {"titulo": "Vendas"}}
+  ]
+}
+```
+
+O arquivo traz só as widgets de conteúdo, nos slots do layout. As widgets de
+sistema ficam de fora, porque o layout as traz. Os campos opcionais são
+`description`, `friendlyUrl`, `parent` e `enabledChildren`. A ordem das
+widgets dentro de um slot é a ordem do arquivo. Uma página que nunca foi
+publicada termina com exit **2**.
+
+### `fluigcli page apply <arquivo.json> [--dry-run]`
+
+Este comando cria a página quando ela não existe. Quando ela existe, o comando
+alinha a página com a especificação: informações, permissões, layout, widgets
+de conteúdo e preferências. Quando algo muda, o comando publica. Rodar de novo
+não muda nada.
+
+Antes de gravar, a CLI confere o layout, a página-pai, as widgets, os grupos,
+os papéis, os usuários e os slots. Um problema termina com exit **2** ou
+**4**, e nada é gravado.
+
+Regras:
+
+- Uma página com rascunho aberto é recusada com exit **2**. O `apply` não
+  publica a mudança de outra pessoa.
+- Sem `permissions` no arquivo, a página nova recebe as permissões padrão, e a
+  página existente mantém as dela.
+- Quando as widgets diferem, o `apply` refaz as widgets de conteúdo no
+  rascunho e publica. As widgets de sistema não mudam.
+- As preferências são casadas pela posição (slot e ordem). Só as widgets com
+  `preferences` no arquivo são alteradas.
+
+Use `--dry-run` para ver as mudanças sem gravar.
+
 ## Produção
 
-Os comandos de escrita (`create`, `add-widget`, `remove-widget`,
-`set-preferences`, `permission`, `publish`, `discard` e `delete`) pedem
+Os comandos de escrita (`create`, `update`, `add-widget`, `move-widget`,
+`remove-widget`, `set-preferences`, `permission`, `publish`, `discard`,
+`apply` e `delete`) pedem
 confirmação num servidor de produção. Em modo não-interativo, confirme com
 `--yes`.

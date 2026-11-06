@@ -81,7 +81,8 @@ do widget com `application.type=layout`; o `import` exige o fluigcliHelper ≥ 0
 o `export` RECUSA com exit 2 se o código já existir como WIDGET; use `layout export`,
 nunca `widget export` com atalho de pasta),
 `page` (list|show|create|update|add-widget|move-widget|remove-widget|set-preferences|
-permission|publish|discard|delete — páginas do portal; página nova nasce em RASCUNHO: create →
+permission|publish|discard|delete|export|apply — páginas do portal; export/apply
+levam a página entre ambientes por arquivo versionado; página nova nasce em RASCUNHO: create →
 add-widget → publish; o `publish` troca o instanceId das widgets; `--view-group`
 restringe quem vê; o Fluig não confere slot nem grupo, a CLI confere),
 `request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.
@@ -127,7 +128,8 @@ update|delete — substituto/delegação de tarefas; requer admin), `service`
 (list|show|create|update|delete — cadastro de serviços REST que os datasets
 chamam por serviceCode; nunca mostra segredo; senha basic só via
 FLUIGCLI_SERVICE_PASSWORD; headers custom só via --custom-headers-stdin ou
-FLUIGCLI_SERVICE_CUSTOM_HEADERS), `diff` (local
+FLUIGCLI_SERVICE_CUSTOM_HEADERS; `export`/`apply` levam o serviço entre ambientes
+por arquivo versionado sem segredo — o segredo vem da variável do `secretEnv`), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado; formulário com
 `status:"unlinked"` **existe no servidor com outro nome** e só falta o vínculo —

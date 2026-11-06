@@ -55,6 +55,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver ou mudar quem está EM um papel/grupo | `role users <papel>` · `role add-user <papel> <login>` · idem `group` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
 | cadastrar o serviço REST (serviceCode) que um dataset chama via `getAuthorizeClientService` | `service list` · `service create <código> --url <base>` · `service update` |
+| levar serviço/página da homologação para a produção (versionado, sem segredo no arquivo) | `service export` / `page export` → commit → `service apply` / `page apply` (ou passos `service`/`page` no `deploy`) |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
 
@@ -129,7 +130,7 @@ inventário do servidor e importa os tipos selecionados — mesma semântica do
 
 | comando | efeito |
 |---|---|
-| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `form` (pasta; `new`+`parentId`+`datasetName` para criar — num plano NÃO há prompt; alvo por `documentId`/`formName`; grava o vínculo em `.fluigcli/forms.json`), `widget` (`build`, `force`), `layout` (`force`; exige `application.type=layout`), `workflow` (publica versão nova; `processId` aponta outro processo no servidor, `noRelease` não libera) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
+| `deploy --plan <arquivo.json>` | executa os passos do plano **na ordem**; PARA no primeiro erro e marca os seguintes como `skipped` (retome com `--from N`). Tipos de passo: `service` (arquivo `services/<código>.json`; segredo da variável do `secretEnv`), `page` (arquivo `wcm/page/<código>.json`; aplica e publica), `dataset` (opções `new`, `description`), `event`, `mechanism` (`description`), `form` (pasta; `new`+`parentId`+`datasetName` para criar — num plano NÃO há prompt; alvo por `documentId`/`formName`; grava o vínculo em `.fluigcli/forms.json`), `widget` (`build`, `force`), `layout` (`force`; exige `application.type=layout`), `workflow` (publica versão nova; `processId` aponta outro processo no servidor, `noRelease` não libera) e `db` (script `.sql` de LEITURA). O plano é JSON (o projeto não usa YAML) e NUNCA contém senha |
 | `deploy --plan <arquivo.json> --dry-run` | valida tudo sem escrever: arquivos presentes, audit dos scripts, criação × atualização de cada dataset, colisão de código da widget e do layout, contagem de instruções de cada `.sql` e **se cada evento local existe no processo** (read-only — pega o erro que hoje só aparece no meio do publish) |
 
 - Audita **todos** os scripts do plano ANTES de conectar: erro de audit aborta o
@@ -400,6 +401,8 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 | `service create <código> --url <base> [--auth none\|basic\|fluigAPI\|custom] [--username] [--custom-headers-stdin] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5) |
 | `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca de tipo apaga a credencial do tipo antigo) |
 | `service delete <código>... --yes` | exclui (datasets que usam o serviço quebram; inexistente = exit 4) |
+| `service export <código> [-o arquivo]` | grava `services/<código>.json` SEM segredo; basic/custom ganham `secretEnv` (NOME da variável, default `FLUIGCLI_SECRET_<CÓDIGO>`); SOAP/JDBC/OAuth = exit 2 |
+| `service apply <arquivo> [--dry-run]` | cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
 
 `oauth1`/`oauth2` aparecem no list/show, mas a CLI não os grava (exit 2):
 configure pelo Painel de Controle. Escrita em produção pede `--yes`.
@@ -486,6 +489,8 @@ comandos de rascunho; `--take-over` assume o rascunho (mantém as mudanças dele
 | `page publish <página> [--description]` | publica o rascunho (sem rascunho = exit 2) |
 | `page discard <página>` | descarta o rascunho |
 | `page delete <página>... --yes` | arquiva e exclui |
+| `page export <página> [-o arquivo]` | grava `wcm/page/<código>.json` da versão PUBLICADA: info, permissões, widgets de CONTEÚDO (slots do layout; sistema fica fora) com preferências; nunca publicada = exit 2 |
+| `page apply <arquivo> [--dry-run]` | cria ou alinha e PUBLICA (idempotente); confere layout/pai/widgets/grupos/slots antes (exit 2/4, nada gravado); rascunho aberto = exit 2; sem `permissions` mantém as atuais; preferências casadas por slot+ordem |
 
 Layouts: `layout list --all` (os nativos, como `layoutdefault`, só aparecem com `--all`).
 NÃO ponha widgets de sistema (menu, responsive_header, suggestsearch, alertpopover):

@@ -160,8 +160,69 @@ fluigcli service delete zz_servico_antigo --yes
 Código inexistente termina com exit **4**. Num lote, uma falha termina com
 exit **6**.
 
+## Levar o serviço para outro ambiente
+
+Use um arquivo de especificação versionado no Git. O fluxo é este:
+
+1. Grave a especificação a partir do servidor de origem:
+
+   ```sh
+   fluigcli service export sabia_agentos --server homolog
+   ```
+
+   O comando grava `services/sabia_agentos.json`.
+2. Revise o arquivo e faça o commit.
+3. Aplique no servidor de destino:
+
+   ```sh
+   export FLUIGCLI_SECRET_SABIA_AGENTOS="Authorization: Bearer $(cat token.txt)"
+   fluigcli service apply services/sabia_agentos.json --server producao
+   ```
+
+Você também pode pôr o arquivo num plano de [`deploy`](deploy.md), com o passo
+`service`.
+
+### `fluigcli service export <código> [--output <arquivo>]`
+
+Este comando grava a especificação de um serviço REST em
+`services/<código>.json`. Com `--output`, ele grava no arquivo informado.
+
+O arquivo **nunca** guarda segredo. Na autenticação basic ou custom, o campo
+`secretEnv` traz o **nome** da variável de ambiente que o `apply` lê. O nome
+sugerido é `FLUIGCLI_SECRET_<CÓDIGO>`. Você pode trocar o nome no arquivo.
+
+```json
+{
+  "code": "sabia_agentos",
+  "description": "AgentOS do SabIA",
+  "url": "https://agentos.empresa.com",
+  "auth": "custom",
+  "secretEnv": "FLUIGCLI_SECRET_SABIA_AGENTOS"
+}
+```
+
+O comando recusa serviço SOAP, JDBC, OAuth 1 e OAuth 2 com exit **2**.
+
+### `fluigcli service apply <arquivo.json> [--dry-run]`
+
+Este comando cria o serviço quando ele não existe. Quando ele existe, o
+comando altera só os campos que diferem da especificação. Rodar de novo não
+muda nada.
+
+O segredo segue estas regras:
+
+- Na criação com basic ou custom, a variável do `secretEnv` é obrigatória.
+  Sem ela, o comando para com exit **2** antes de gravar.
+- Na alteração sem a variável, o segredo guardado no servidor fica igual.
+- Na alteração com a variável, a CLI compara o valor com o segredo guardado,
+  sem mostrar nenhum dos dois. Ela só grava quando o valor mudou.
+
+Use `--dry-run` para ver as mudanças sem gravar. Um campo desconhecido no
+arquivo termina com exit **2**. Por isso, um campo `password` no arquivo é
+recusado.
+
 ## Produção
 
-Os comandos `create`, `update` e `delete` pedem confirmação num servidor de
+Os comandos `create`, `update`, `apply` e `delete` pedem confirmação num servidor de
 produção, como os outros comandos de escrita. Em modo não-interativo, confirme
 com `--yes`.

@@ -50,6 +50,8 @@ func newPageCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newPagePublishCmd(app))
 	cmd.AddCommand(newPageDiscardCmd(app))
 	cmd.AddCommand(newPageDeleteCmd(app))
+	cmd.AddCommand(newPageExportCmd(app))
+	cmd.AddCommand(newPageApplyCmd(app))
 	return cmd
 }
 

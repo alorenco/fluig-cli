@@ -73,6 +73,20 @@ type Service struct {
 	oauth   map[string]json.RawMessage // oAuthVO cru, com segredos: nunca serializar para saída
 }
 
+// SecretEquals diz se o segredo guardado no servidor é igual ao informado,
+// sem expor o valor: a senha na autenticação basic, o texto dos headers na
+// custom. Outros tipos devolvem false.
+func (s *Service) SecretEquals(secret string) bool {
+	switch s.AuthType {
+	case ServiceAuthBasic:
+		return jsonString(s.oauth, "password") == secret
+	case ServiceAuthCustom:
+		cur := strings.ReplaceAll(jsonString(s.oauth, "custom"), "\r\n", "\n")
+		return strings.TrimRight(cur, "\n") == strings.TrimRight(secret, "\n")
+	}
+	return false
+}
+
 // ServiceFilter filtra a listagem. Pattern é aplicado pelo servidor (trecho do
 // código); Types vazio traz todos os tipos.
 type ServiceFilter struct {

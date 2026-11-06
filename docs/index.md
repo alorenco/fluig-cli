@@ -59,7 +59,7 @@ em pt-BR.
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo, conversão de versão das solicitações |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [layout](./layout) | layouts WCM: listagem, import e deploy nativo |
-| [page](./page) | páginas do portal: criar, pôr widget, permissão e publicar |
+| [page](./page) | páginas do portal: criar, alterar, widgets, permissões e publicar; export/apply entre ambientes |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
 | [test](./test) | teste de processo por cenários: abre e move solicitações reais e confere etapa, card, caminho e erros de evento; **cobertura de caminhos do BPMN**; esqueleto de suíte a partir do diagrama; **teste de unidade dos scripts** no Rhino local, sem servidor; **tela real da tarefa** no navegador (passo `ui`). Comece pelo [guia](./test-guia) |
@@ -74,6 +74,6 @@ em pt-BR.
 | [group](./group) | grupos e membros (requer admin) |
 | [role](./role) | papéis e usuários (requer admin) |
 | [replacement](./replacement) | substitutos de usuário / delegação (requer admin) |
-| [service](./service) | cadastro de serviços REST: listar, mostrar, cadastrar, alterar e excluir, sem segredos |
+| [service](./service) | cadastro de serviços REST sem segredos; export/apply entre ambientes |
 | [skill](./skill) | Skill para agentes de IA (Claude Code / Codex) |
 | [upgrade](./upgrade) | atualização da própria CLI |
