@@ -119,7 +119,10 @@ usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
 + users|add-user|remove-user; requerem admin). Os vínculos têm DUAS portas para
 a mesma escrita: pelo usuário (`user add-role <login> <papel>`) ou pelo
 papel/grupo (`role add-user <papel> <login>`), `replacement` (list|show|create|
-update|delete — substituto/delegação de tarefas; requer admin), `diff` (local
+update|delete — substituto/delegação de tarefas; requer admin), `service`
+(list|show|create|update|delete — cadastro de serviços REST que os datasets
+chamam por serviceCode; nunca mostra segredo; senha basic só via
+FLUIGCLI_SERVICE_PASSWORD), `diff` (local
 vs. servidor, read-only — use antes de um export; artefato quebrado no servidor
 vira `status:"error"` no item e exit 6, o resto segue comparado; formulário com
 `status:"unlinked"` **existe no servidor com outro nome** e só falta o vínculo —

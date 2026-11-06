@@ -53,6 +53,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | ver ou mudar os papéis/grupos DE uma pessoa | `user roles <login>` · `user add-role <login> <papel>` · idem `groups`/`add-group` |
 | ver ou mudar quem está EM um papel/grupo | `role users <papel>` · `role add-user <papel> <login>` · idem `group` |
 | definir substituto / delegar tarefas de um usuário | `replacement` |
+| cadastrar o serviço REST (serviceCode) que um dataset chama via `getAuthorizeClientService` | `service list` · `service create <código> --url <base>` · `service update` |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
 | conferir acesso e saúde do servidor | `server test` · `server status` |
 
@@ -377,6 +378,25 @@ ignorado). Alias: `substitute`.
 `--workflow-tasks` (default true) e `--ged-tasks` (default false) definem o
 escopo. `list` vem da REST v2 (sem as flags de escopo); `show` vem do SOAP (com
 as flags, e inclui as vigências expiradas).
+
+
+## service — cadastro de serviços (Painel de Controle > Serviços)
+
+O código do serviço é o `serviceCode` que o dataset passa a
+`fluigAPI.getAuthorizeClientService().invoke(...)`. A CLI **nunca** imprime
+senha/token do serviço (a API do Fluig devolve os segredos em claro; a CLI
+descarta). Senha basic só via `FLUIGCLI_SERVICE_PASSWORD` ou prompt.
+
+| comando | efeito |
+|---|---|
+| `service list [--type rest\|soap\|jdbc] [--filter trecho]` | tabela código/tipo/URL base/autenticação |
+| `service show <código>` | um serviço, sem segredos (inexistente = exit 4) |
+| `service create <código> --url <base> [--auth none\|basic\|fluigAPI] [--username] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5) |
+| `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca para none/fluigAPI apaga usuário/senha) |
+| `service delete <código>... --yes` | exclui (datasets que usam o serviço quebram; inexistente = exit 4) |
+
+`oauth1`/`oauth2`/`custom` aparecem no list/show, mas a CLI não os grava
+(exit 2): configure pelo Painel de Controle. Escrita em produção pede `--yes`.
 
 ## document — GED (operação)
 

@@ -73,5 +73,6 @@ em pt-BR.
 | [group](./group) | grupos e membros (requer admin) |
 | [role](./role) | papéis e usuários (requer admin) |
 | [replacement](./replacement) | substitutos de usuário / delegação (requer admin) |
+| [service](./service) | cadastro de serviços REST: listar, mostrar, cadastrar, alterar e excluir, sem segredos |
 | [skill](./skill) | Skill para agentes de IA (Claude Code / Codex) |
 | [upgrade](./upgrade) | atualização da própria CLI |

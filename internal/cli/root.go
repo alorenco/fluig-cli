@@ -348,7 +348,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newDbCmd(app),
 	)
 	addToGroup(groupOps, newRequestCmd(app), newTaskCmd(app), newDocumentCmd(app), newLogCmd(app))
-	addToGroup(groupAdmin, newUserCmd(app), newGroupCmd(app), newRoleCmd(app), newReplacementCmd(app))
+	addToGroup(groupAdmin, newUserCmd(app), newGroupCmd(app), newRoleCmd(app), newReplacementCmd(app), newServiceCmd(app))
 	addToGroup(groupConfig, newServerCmd(app))
 	// Sem grupo (aparecem em "Comandos adicionais:").
 	root.AddCommand(newVersionCmd(app))

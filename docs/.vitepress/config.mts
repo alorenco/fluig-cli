@@ -77,6 +77,7 @@ export default defineConfig({
           { text: 'group — grupos', link: '/group' },
           { text: 'role — papéis', link: '/role' },
           { text: 'replacement — substitutos', link: '/replacement' },
+          { text: 'service — serviços', link: '/service' },
         ],
       },
       {
