@@ -938,7 +938,7 @@ func newServiceCopyCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			verb := map[string]string{"created": "criado", "updated": "alinhado"}[action]
+			verb := map[string]string{"created": "criado", "updated": "alinhado", "unchanged": "já estava igual, nada gravado"}[action]
 			p.Successf("serviço %q de %s → %q em %s: %s (autenticação %s)", code, srcServer.Name, dest, dstServer.Name, verb, srcSvc.AuthType)
 			p.Done(map[string]any{"from": srcServer.Name, "to": dstServer.Name, "code": code, "as": dest, "action": action, "authType": srcSvc.AuthType})
 			return nil

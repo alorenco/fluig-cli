@@ -199,7 +199,7 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 		if needsSecret && !hasSecret {
 			return nil, output.Usagef("o serviço %q não existe e a autenticação %s exige o segredo: defina a variável %s", spec.Code, spec.Auth, spec.SecretEnv)
 		}
-		actions := []string{fmt.Sprintf("criar o serviço %s (%s, autenticação %s)", spec.Code, spec.URL, spec.Auth)}
+		actions := []string{fmt.Sprintf("criação do serviço %s (%s, autenticação %s)", spec.Code, spec.URL, spec.Auth)}
 		if dryRun {
 			return actions, nil
 		}
@@ -265,7 +265,7 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 		default:
 			in.OAuth, _ = fluig.ParseOAuthSecret(spec.Auth, secret)
 		}
-		actions = append(actions, "segredo atualizado (valor da variável "+spec.SecretEnv+")")
+		actions = append(actions, "segredo: valor novo da variável "+spec.SecretEnv)
 	}
 	if len(actions) == 0 {
 		return []string{"serviço " + spec.Code + " já está igual à especificação"}, nil
@@ -318,7 +318,7 @@ func applySOAPJDBCSpec(ctx context.Context, client *fluig.Client, spec *serviceS
 		if spec.hasSecret() && !hasSecret {
 			return nil, output.Usagef("o serviço %q não existe e o %s exige a senha: defina a variável %s", spec.Code, kind, spec.SecretEnv)
 		}
-		actions := []string{fmt.Sprintf("criar o serviço %s (%s, %s)", spec.Code, kind, spec.URL)}
+		actions := []string{fmt.Sprintf("criação do serviço %s (%s, %s)", spec.Code, kind, spec.URL)}
 		if dryRun {
 			return actions, nil
 		}
@@ -345,7 +345,7 @@ func applySOAPJDBCSpec(ctx context.Context, client *fluig.Client, spec *serviceS
 		diff("pacote SOAP", cur.SOAPPackage, spec.SOAPPackage)
 		diff("autenticação", orDefault(cur.AuthType, fluig.ServiceAuthNone), spec.Auth)
 		if spec.Auth == fluig.ServiceAuthBasic && hasSecret && !cur.SecretEquals(secret) {
-			actions = append(actions, "senha atualizada (valor da variável "+spec.SecretEnv+")")
+			actions = append(actions, "senha: valor novo da variável "+spec.SecretEnv)
 		}
 		if spec.Auth == fluig.ServiceAuthBasic && cur.AuthType != fluig.ServiceAuthBasic && !hasSecret {
 			return nil, output.Usagef("a troca para basic exige a senha: defina a variável %s", spec.SecretEnv)
@@ -442,6 +442,24 @@ func newServiceExportCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// resolveSpecPath devolve o arquivo da especificação. O argumento pode ser
+// um caminho ou só o código. Um código (sem ".json" e sem separador de
+// pasta) vira <projeto>/<dir>/<código>.json, o mesmo arquivo do export.
+// Um arquivo que existe com o nome exato do argumento tem prioridade.
+func (a *App) resolveSpecPath(arg, dir string) (string, error) {
+	if strings.HasSuffix(strings.ToLower(arg), ".json") || strings.ContainsAny(arg, `/\`) {
+		return arg, nil
+	}
+	if st, err := os.Stat(arg); err == nil && !st.IsDir() {
+		return arg, nil
+	}
+	root, err := a.projectRootForFiles()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, dir, arg+".json"), nil
+}
+
 // writeServiceSpec grava a especificação no --output ou em
 // services/<código>.json do projeto.
 func (a *App) writeServiceSpec(p *output.Printer, code, outPath string, spec serviceSpec) error {
@@ -472,7 +490,7 @@ func newServiceApplyCmd(app *App) *cobra.Command {
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
-		Use:   "apply <arquivo.json>",
+		Use:   "apply <código | arquivo.json>",
 		Short: "Cria ou alinha o serviço com a especificação do arquivo (idempotente)",
 		Long: "Cria o serviço quando ele não existe, ou altera só os campos que diferem\n" +
 			"da especificação. Rodar de novo não muda nada.\n\n" +
@@ -480,11 +498,17 @@ func newServiceApplyCmd(app *App) *cobra.Command {
 			"secretEnv. Na criação, a variável é obrigatória. Na alteração, sem a\n" +
 			"variável, o segredo guardado no servidor fica igual. Com a variável, a\n" +
 			"CLI compara o valor sem mostrá-lo e só grava quando ele mudou.\n\n" +
+			"Informe o caminho do arquivo ou só o código. O código lê o arquivo\n" +
+			"services/<código>.json do projeto, o mesmo que o export grava.\n\n" +
 			"Use --dry-run para ver as mudanças sem gravar.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			spec, err := readServiceSpec(args[0])
+			path, err := app.resolveSpecPath(args[0], project.ServicesDirName)
+			if err != nil {
+				return err
+			}
+			spec, err := readServiceSpec(path)
 			if err != nil {
 				return err
 			}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/alorenco/fluig-cli/internal/output"
+	"github.com/alorenco/fluig-cli/internal/project"
 )
 
 func writeSpec(t *testing.T, v any) string {
@@ -186,5 +187,26 @@ func TestPageExport(t *testing.T) {
 	}
 	if spec.Layout != "portais" || len(spec.Permissions) == 0 {
 		t.Errorf("export sem layout/permissões: %+v", spec)
+	}
+}
+
+func TestResolveSpecPath(t *testing.T) {
+	root := t.TempDir()
+	app := &App{Project: root}
+	casos := map[string]string{
+		"sabia_agentos":         filepath.Join(root, "services", "sabia_agentos.json"),
+		"services/x.json":       "services/x.json",
+		"outro.JSON":            "outro.JSON",
+		filepath.Join("a", "b"): filepath.Join("a", "b"),
+	}
+	for arg, want := range casos {
+		got, err := app.resolveSpecPath(arg, project.ServicesDirName)
+		if err != nil || got != want {
+			t.Errorf("resolveSpecPath(%q) = %q, %v; esperava %q", arg, got, err, want)
+		}
+	}
+	got, _ := app.resolveSpecPath("painel", project.PagesDir)
+	if want := filepath.Join(root, "wcm", "page", "painel.json"); got != want {
+		t.Errorf("página: %q; esperava %q", got, want)
 	}
 }

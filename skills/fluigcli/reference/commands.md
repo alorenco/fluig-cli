@@ -406,9 +406,9 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 | `service drivers [--all]` | drivers JDBC do servidor (só os disponíveis servem para `create --type jdbc`) |
 | `service create <código> --type soap\|jdbc --url ... [--soap-package p] [--driver d --username u]` | SOAP: url = WSDL, `--auth` none/basic, criação leva segundos (gera classes). JDBC: url `jdbc:`, `--driver` (disponível) e `--username` obrigatórios, senha por `FLUIGCLI_SERVICE_PASSWORD`/prompt. Flags de REST (`--test-path` etc.) = exit 2 |
 | `service update <código>` (SOAP/JDBC) | SOAP basic mantém a senha guardada; ⚠️ JDBC: o Fluig NÃO devolve a senha → toda alteração EXIGE a senha (exit 2 sem ela). `service test` no JDBC = teste de conexão; SOAP não tem teste |
-| `service copy <código> --to <servidor> [--as novo]` | origem = `--server`; cria ou alinha no destino com os SEGREDOS de qualquer tipo (basic/custom/OAuth 1/OAuth 2), servidor a servidor, sem expor; destino produção pede `--yes`; sem `--password-stdin` (dois servidores) |
+| `service copy <código> --to <servidor> [--as novo]` | origem = `--server`; cria ou alinha no destino com os SEGREDOS de qualquer tipo (basic/custom/OAuth 1/OAuth 2), servidor a servidor, sem expor; destino igual (inclusive segredos) = `unchanged`, nada gravado; destino produção pede `--yes`; sem `--password-stdin` (dois servidores) |
 | `service export <código> [-o arquivo]` | grava `services/<código>.json` SEM segredo; basic/custom ganham `secretEnv` (NOME da variável, default `FLUIGCLI_SECRET_<CÓDIGO>`); SOAP/JDBC/OAuth = exit 2 |
-| `service apply <arquivo> [--dry-run]` | cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
+| `service apply <código\|arquivo> [--dry-run]` | código = `services/<código>.json` do projeto; cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
 
 OAuth 1/2: o `show` lista só os NOMES dos campos preenchidos (`oauthFields`). Escrita em produção pede `--yes`.
 
@@ -495,7 +495,7 @@ comandos de rascunho; `--take-over` assume o rascunho (mantém as mudanças dele
 | `page discard <página>` | descarta o rascunho |
 | `page delete <página>... --yes` | arquiva e exclui |
 | `page export <página> [-o arquivo]` | grava `wcm/page/<código>.json` da versão PUBLICADA: info, permissões, widgets de CONTEÚDO (slots do layout; sistema fica fora) com preferências; nunca publicada = exit 2 |
-| `page apply <arquivo> [--dry-run]` | cria ou alinha e PUBLICA (idempotente); confere layout/pai/widgets/grupos/slots antes (exit 2/4, nada gravado); rascunho aberto = exit 2; sem `permissions` mantém as atuais; preferências casadas por slot+ordem |
+| `page apply <código\|arquivo> [--dry-run]` | código = `wcm/page/<código>.json` do projeto; cria ou alinha e PUBLICA (idempotente); confere layout/pai/widgets/grupos/slots antes (exit 2/4, nada gravado); rascunho aberto = exit 2; sem `permissions` mantém as atuais; preferências casadas por slot+ordem |
 
 Layouts: `layout list --all` (os nativos, como `layoutdefault`, só aparecem com `--all`).
 NÃO ponha widgets de sistema (menu, responsive_header, suggestsearch, alertpopover):

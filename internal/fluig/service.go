@@ -742,11 +742,31 @@ func (c *Client) CopyServiceTo(ctx context.Context, src *Service, code string) (
 	if cur.Type != ServiceTypeREST {
 		return "", fmt.Errorf("o serviço %q no destino é %s; a cópia só trata REST", code, cur.Type)
 	}
+	if sameServiceCopy(src, cur) {
+		return "unchanged", nil
+	}
 	if cur.oauthID == 0 {
 		return "", fmt.Errorf("o destino não devolveu o id do cliente OAuth do serviço %q", code)
 	}
 	oauth["id"] = cur.oauthID
 	return "updated", c.postServiceWrite(ctx, "update", payload)
+}
+
+// sameServiceCopy diz se o destino já tem os mesmos campos e segredos da
+// origem. Neste caso, a cópia não grava nada.
+func sameServiceCopy(src, cur *Service) bool {
+	if src.Description != cur.Description || src.URL != cur.URL ||
+		src.TestPath != cur.TestPath || src.Swagger != cur.Swagger ||
+		src.AuthType != cur.AuthType || cur.oauth == nil {
+		return false
+	}
+	keys := append([]string{"custom"}, serviceAuthFields[src.AuthType]...)
+	for _, k := range keys {
+		if jsonString(src.oauth, k) != jsonString(cur.oauth, k) {
+			return false
+		}
+	}
+	return true
 }
 
 // JDBCDriver é um driver JDBC do servidor (GET ecmservices/drivers).

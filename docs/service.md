@@ -314,6 +314,9 @@ fluigcli service copy sabia_agentos --server homolog --to producao
 fluigcli service copy sabia_agentos --server homolog --to homolog --as sabia_agentos_v2
 ```
 
+Quando o destino já é igual à origem, inclusive nos segredos, a cópia não
+grava nada. Neste caso, o resultado é `unchanged`.
+
 A cópia trata só serviços REST. Para SOAP e JDBC, use o `export` e o
 `apply`.
 
@@ -362,11 +365,16 @@ O export também trata SOAP e JDBC. O arquivo ganha o campo `type`, mais
 }
 ```
 
-### `fluigcli service apply <arquivo.json> [--dry-run]`
+### `fluigcli service apply <código | arquivo.json> [--dry-run]`
 
 Este comando cria o serviço quando ele não existe. Quando ele existe, o
 comando altera só os campos que diferem da especificação. Rodar de novo não
 muda nada.
+
+Informe o caminho do arquivo ou só o código. O código lê o arquivo
+`services/<código>.json` do projeto. É o mesmo arquivo que o `export` grava.
+Por exemplo, `fluigcli service apply sabia_agentos` lê
+`services/sabia_agentos.json`.
 
 O segredo segue estas regras:
 

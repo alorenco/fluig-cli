@@ -252,14 +252,14 @@ func applyPageSpec(ctx context.Context, app *App, client *fluig.Client, spec *pa
 	public := spec.Authorization == "PUBLIC"
 
 	if cur == nil {
-		actions := []string{fmt.Sprintf("criar a página %s (layout %s)", spec.Code, spec.Layout)}
+		actions := []string{fmt.Sprintf("criação da página %s (layout %s)", spec.Code, spec.Layout)}
 		for _, w := range specWidgetsSorted(spec.Widgets) {
-			actions = append(actions, fmt.Sprintf("pôr a widget %s no %s", w.Widget, w.Slot))
+			actions = append(actions, fmt.Sprintf("widget %s no slot %s", w.Widget, w.Slot))
 		}
 		if spec.FriendlyURL != "" || spec.EnabledChildren {
-			actions = append(actions, "ajustar URL amigável/subpáginas")
+			actions = append(actions, "URL amigável e subpáginas")
 		}
-		actions = append(actions, "publicar")
+		actions = append(actions, "publicação")
 		if slots == nil && len(spec.Widgets) > 0 {
 			actions = append(actions, "aviso: slots do layout não conferidos (nenhuma página publicada com o layout)")
 		}
@@ -377,7 +377,7 @@ func applyPageSpec(ctx context.Context, app *App, client *fluig.Client, spec *pa
 	}
 	structural := infoChanged || layoutChanged || widgetsChanged
 	if structural {
-		actions = append(actions, "publicar")
+		actions = append(actions, "publicação")
 	}
 	if dryRun {
 		prefActions, err := applySpecPreferences(ctx, client, spec, contentSlots, true)
@@ -617,7 +617,7 @@ func newPageApplyCmd(app *App) *cobra.Command {
 		passwordStdin bool
 	)
 	cmd := &cobra.Command{
-		Use:   "apply <arquivo.json>",
+		Use:   "apply <código | arquivo.json>",
 		Short: "Cria ou alinha a página com a especificação do arquivo e publica (idempotente)",
 		Long: "Cria a página quando ela não existe, ou alinha a página existente com a\n" +
 			"especificação: informações, permissões, layout, widgets de conteúdo e\n" +
@@ -628,11 +628,17 @@ func newPageApplyCmd(app *App) *cobra.Command {
 			"ou descarte o rascunho antes.\n\n" +
 			"Sem \"permissions\" no arquivo, a página nova recebe as permissões padrão\n" +
 			"e a página existente mantém as dela.\n\n" +
+			"Informe o caminho do arquivo ou só o código. O código lê o arquivo\n" +
+			"wcm/page/<código>.json do projeto, o mesmo que o export grava.\n\n" +
 			"Use --dry-run para ver as mudanças sem gravar.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := app.printerFor(cmd)
-			spec, err := readPageSpec(args[0])
+			path, err := app.resolveSpecPath(args[0], project.PagesDir)
+			if err != nil {
+				return err
+			}
+			spec, err := readPageSpec(path)
 			if err != nil {
 				return err
 			}

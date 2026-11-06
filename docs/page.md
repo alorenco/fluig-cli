@@ -263,12 +263,15 @@ sistema ficam de fora, porque o layout as traz. Os campos opcionais são
 widgets dentro de um slot é a ordem do arquivo. Uma página que nunca foi
 publicada termina com exit **2**.
 
-### `fluigcli page apply <arquivo.json> [--dry-run]`
+### `fluigcli page apply <código | arquivo.json> [--dry-run]`
 
 Este comando cria a página quando ela não existe. Quando ela existe, o comando
 alinha a página com a especificação: informações, permissões, layout, widgets
 de conteúdo e preferências. Quando algo muda, o comando publica. Rodar de novo
 não muda nada.
+
+Informe o caminho do arquivo ou só o código. O código lê o arquivo
+`wcm/page/<código>.json` do projeto. É o mesmo arquivo que o `export` grava.
 
 Antes de gravar, a CLI confere o layout, a página-pai, as widgets, os grupos,
 os papéis, os usuários e os slots. Um problema termina com exit **2** ou

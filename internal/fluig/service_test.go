@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -358,6 +359,35 @@ func TestCopyServiceToLevaSegredosSemTenant(t *testing.T) {
 	}
 	if u := dst.updated["oAuthVO"].(map[string]any); u["id"] != float64(11) {
 		t.Errorf("update sem o id do destino: %+v", u["id"])
+	}
+}
+
+func TestCopyServiceToIgualNaoGrava(t *testing.T) {
+	stub := &serviceStub{}
+	c := serviceClient(t, stub.server(t).URL)
+	svc, err := c.GetService(context.Background(), "APIInfoBipWhatsApp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Mesmo servidor, mesmo código: o destino já é igual à origem.
+	action, err := c.CopyServiceTo(context.Background(), svc, "APIInfoBipWhatsApp")
+	if err != nil || action != "unchanged" {
+		t.Fatalf("copy igual: %s, %v", action, err)
+	}
+	if stub.updated != nil || stub.created != nil {
+		t.Errorf("a cópia igual gravou: update=%v create=%v", stub.updated, stub.created)
+	}
+	// Segredo diferente no destino: alinha.
+	other := *svc
+	other.oauth = maps.Clone(svc.oauth)
+	other.oauth["custom"] = json.RawMessage(`"Authorization: outro"`)
+	if sameServiceCopy(&other, svc) {
+		t.Error("segredo diferente deveria contar como diferença")
+	}
+	other = *svc
+	other.Description = "outra"
+	if sameServiceCopy(&other, svc) {
+		t.Error("descrição diferente deveria contar como diferença")
 	}
 }
 
