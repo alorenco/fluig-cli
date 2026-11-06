@@ -500,7 +500,7 @@ func checkDeployStep(ctx context.Context, app *App, server *config.Server, clien
 		if err != nil {
 			return err
 		}
-		actions, err := applyPageSpec(ctx, client, spec, true)
+		actions, err := applyPageSpec(ctx, app, client, spec, true)
 		if err != nil {
 			return err
 		}
@@ -734,7 +734,7 @@ func execDeployStep(ctx context.Context, app *App, p *output.Printer, server *co
 		if err != nil {
 			return "failed", err
 		}
-		actions, err := applyPageSpec(ctx, client, spec, false)
+		actions, err := applyPageSpec(ctx, app, client, spec, false)
 		if err != nil {
 			return "failed", err
 		}

@@ -31,6 +31,7 @@ type cliPageStub struct {
 	moved    map[string]any
 	layout   string // layout trocado (PUT /layouts/{code})
 	noKids   bool   // a página "financeiro" não aceita subpáginas
+	noRender bool   // nenhuma página publicada do layout (slots desconhecidos)
 }
 
 func (s *cliPageStub) server(t *testing.T) *httptest.Server {
@@ -62,13 +63,17 @@ func (s *cliPageStub) server(t *testing.T) *httptest.Server {
 		case "portais":
 			io.WriteString(w, `{"id":346,"code":"portais","title":"Portais","internal":false}`)
 		case "portais/pages":
+			if s.noRender {
+				io.WriteString(w, `{"items":[],"hasNext":false}`)
+				return
+			}
 			io.WriteString(w, `{"items":[{"code":"financeiro","title":"Painel Financeiro","status":"PUBLISHED"}],"hasNext":false}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
 	mux.HandleFunc("/portal/p/1/financeiro", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `<html><head><title>Empresa - Painel Financeiro</title></head><body><div id="SlotA"></div><div id="SlotB"></div></body></html>`)
+		io.WriteString(w, `<html><head><title>Empresa - Painel Financeiro</title></head><body><div id="SlotA" editableSlot="true"></div><div id="SlotB" editableSlot="true"></div><div id="SlotUsePolicy" slot="true"></div></body></html>`)
 	})
 	mux.HandleFunc("/page-management/api/v2/pages", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(td("page_list.json"))
@@ -488,5 +493,22 @@ func TestPagePermissionEdit(t *testing.T) {
 	}
 	if views == 0 || upd != 1 || rem != 1 {
 		t.Errorf("permissões inesperadas: views=%d upd=%d rem=%d", views, upd, rem)
+	}
+}
+
+func TestPageSlotsDoLayoutLocal(t *testing.T) {
+	stub := &cliPageStub{noRender: true}
+	proj := mechProject(t, stub.server(t).URL)
+	dir := filepath.Join(proj, "wcm", "layout", "portais", "src", "main", "resources")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ftl := `<@wcm.renderSlot id="Slot001" editableSlot="true"/><@wcm.renderSlot id="SlotMenu"/>`
+	if err := os.WriteFile(filepath.Join(dir, "layout.ftl"), []byte(ftl), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runMain(t, pageArgs(proj, "page", "add-widget", "financeiro", "w", "--slot", "SlotA", "--json")...)
+	if code != output.ExitUsage || !strings.Contains(out, "Slot001") || strings.Contains(out, "SlotMenu") {
+		t.Fatalf("exit=%d\n%s", code, out)
 	}
 }

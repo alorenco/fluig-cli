@@ -169,7 +169,7 @@ func sameWidgetLayout(cur []fluig.PageWidget, spec []pageSpecWidget) bool {
 
 // validatePageSpecRefs confere no servidor o que o Fluig não confere:
 // layout, página-pai, widgets, grupos/papéis/usuários e slots.
-func validatePageSpecRefs(ctx context.Context, client *fluig.Client, spec *pageSpec) ([]string, *fluig.Page, error) {
+func validatePageSpecRefs(ctx context.Context, app *App, client *fluig.Client, spec *pageSpec) ([]string, *fluig.Page, error) {
 	if _, err := client.FindLayout(ctx, spec.Layout); err != nil {
 		if errors.Is(err, fluig.ErrNotFound) {
 			return nil, nil, output.NotFoundf("layout %q não existe no servidor", spec.Layout)
@@ -218,7 +218,7 @@ func validatePageSpecRefs(ctx context.Context, client *fluig.Client, spec *pageS
 	if err := pr.validate(ctx, client); err != nil {
 		return nil, nil, err
 	}
-	slots, err := client.LayoutSlots(ctx, spec.Layout)
+	slots, err := app.layoutSlots(ctx, client, spec.Layout)
 	if err != nil {
 		return nil, nil, mapFluigError(err)
 	}
@@ -240,8 +240,8 @@ func uniq(in []string) []string {
 // applyPageSpec cria ou alinha a página com a especificação e publica. Com
 // dryRun, só descreve. Página com rascunho aberto é recusada: o apply não
 // publica mudança de outra pessoa.
-func applyPageSpec(ctx context.Context, client *fluig.Client, spec *pageSpec, dryRun bool) ([]string, error) {
-	slots, parent, err := validatePageSpecRefs(ctx, client, spec)
+func applyPageSpec(ctx context.Context, app *App, client *fluig.Client, spec *pageSpec, dryRun bool) ([]string, error) {
+	slots, parent, err := validatePageSpecRefs(ctx, app, client, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -496,6 +496,28 @@ func applySpecPreferences(ctx context.Context, client *fluig.Client, spec *pageS
 	return actions, nil
 }
 
+// layoutSlots devolve os slots de conteúdo do layout. Primeiro pela página
+// publicada que usa o layout (servidor); sem ela, pelo layout.ftl do projeto
+// (wcm/layout/<código>/src/main/resources/layout.ftl). nil = desconhecidos.
+func (a *App) layoutSlots(ctx context.Context, client *fluig.Client, layout string) ([]string, error) {
+	slots, err := client.LayoutSlots(ctx, layout)
+	if err != nil || slots != nil {
+		return slots, err
+	}
+	root, rerr := a.projectRootForFiles()
+	if rerr != nil {
+		return nil, nil
+	}
+	ftl, rerr := os.ReadFile(filepath.Join(project.LayoutDir(root, layout), "src", "main", "resources", "layout.ftl"))
+	if rerr != nil {
+		return nil, nil
+	}
+	if local := fluig.ParseLayoutSlots(string(ftl)); len(local) > 0 {
+		return local, nil
+	}
+	return nil, nil
+}
+
 // --- page export ---
 
 func newPageExportCmd(app *App) *cobra.Command {
@@ -534,7 +556,7 @@ func newPageExportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			slots, err := client.LayoutSlots(ctx, pg.Layout)
+			slots, err := app.layoutSlots(ctx, client, pg.Layout)
 			if err != nil {
 				return mapFluigError(err)
 			}
@@ -624,7 +646,7 @@ func newPageApplyCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			actions, err := applyPageSpec(ctx, client, spec, dryRun)
+			actions, err := applyPageSpec(ctx, app, client, spec, dryRun)
 			if err != nil {
 				return err
 			}

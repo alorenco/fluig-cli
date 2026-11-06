@@ -110,7 +110,7 @@ func (s *pageStub) server(t *testing.T) *httptest.Server {
 		io.WriteString(w, `{"items":[{"code":"rascunho","title":"R","status":"DRAFT"},{"code":"financeiro","title":"Painel Financeiro","status":"PUBLISHED"}],"hasNext":false}`)
 	})
 	mux.HandleFunc("/portal/p/1/financeiro", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `<html><head><title>Empresa - Painel Financeiro</title></head><body><div id="SlotA"></div><div id="SlotUsePolicy"></div><div id="SlotA"></div></body></html>`)
+		io.WriteString(w, `<html><head><title>Empresa - Painel Financeiro</title></head><body><div id="SlotA" slot="true" editableSlot="true" class="slotint"></div><div id="SlotUsePolicy" slot="true" class="slotint"></div><div id="SlotA" slot="true" editableSlot="true"></div></body></html>`)
 	})
 	mux.HandleFunc("/portal/api/rest/wcm/page/create", func(w http.ResponseWriter, r *http.Request) {
 		s.log(r)
@@ -299,7 +299,8 @@ func TestLayoutSlotsPelaPaginaRenderizada(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(slots, ",") != "SlotA,SlotUsePolicy" {
+	// SlotUsePolicy é do tema (sem editableSlot) e fica de fora.
+	if strings.Join(slots, ",") != "SlotA" {
 		t.Errorf("slots inesperados: %v", slots)
 	}
 }
@@ -312,5 +313,14 @@ func TestSetWidgetPreferences(t *testing.T) {
 	}
 	if stub.prefs["a"] != "1" {
 		t.Errorf("preferências não enviadas: %+v", stub.prefs)
+	}
+}
+
+func TestParseLayoutSlots(t *testing.T) {
+	ftl := `<div><@wcm.renderSlot id="Slot002" decorator="false" editableSlot="true" />
+<@wcm.renderSlot id="SlotMenu" decorator="false"/>
+<@wcm.renderSlot id="Slot001" editableSlot="true"/><@wcm.renderSlot id="Slot001" editableSlot="true"/></div>`
+	if got := strings.Join(ParseLayoutSlots(ftl), ","); got != "Slot001,Slot002" {
+		t.Errorf("slots inesperados: %s", got)
 	}
 }

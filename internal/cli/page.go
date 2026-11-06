@@ -139,7 +139,7 @@ func newPageShowCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			v, err := loadPageVersions(ctx, client, pg)
+			v, err := loadPageVersions(ctx, app, client, pg)
 			if err != nil {
 				return err
 			}
@@ -458,7 +458,7 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 			if err := guardDraftOwner(ctx, p, client, pg, takeOver); err != nil {
 				return err
 			}
-			slots, err := client.LayoutSlots(ctx, pg.Layout)
+			slots, err := app.layoutSlots(ctx, client, pg.Layout)
 			if err != nil {
 				return mapFluigError(err)
 			}
@@ -552,7 +552,7 @@ type pageVersions struct {
 	slots     []string // slots do layout (nil = desconhecidos)
 }
 
-func loadPageVersions(ctx context.Context, client *fluig.Client, pg *fluig.Page) (*pageVersions, error) {
+func loadPageVersions(ctx context.Context, app *App, client *fluig.Client, pg *fluig.Page) (*pageVersions, error) {
 	v := &pageVersions{page: pg, hasDraft: pg.Status == fluig.PageStatusDraft}
 	pub, err := client.PageWidgets(ctx, pg.Code)
 	switch {
@@ -562,7 +562,7 @@ func loadPageVersions(ctx context.Context, client *fluig.Client, pg *fluig.Page)
 	default:
 		v.published, v.hasPub = pub, true
 	}
-	slots, err := client.LayoutSlots(ctx, pg.Layout)
+	slots, err := app.layoutSlots(ctx, client, pg.Layout)
 	if err != nil {
 		return nil, mapFluigError(err)
 	}
@@ -661,7 +661,7 @@ func newPageRemoveWidgetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			v, err := loadPageVersions(ctx, client, pg)
+			v, err := loadPageVersions(ctx, app, client, pg)
 			if err != nil {
 				return err
 			}
@@ -730,7 +730,7 @@ func newPageMoveWidgetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
-			v, err := loadPageVersions(ctx, client, pg)
+			v, err := loadPageVersions(ctx, app, client, pg)
 			if err != nil {
 				return err
 			}
@@ -897,7 +897,7 @@ func newPageUpdateCmd(app *App) *cobra.Command {
 				if err != nil {
 					return mapFluigError(err)
 				}
-				if v, err := loadPageVersions(ctx, client, pg2); err == nil && v.slots != nil {
+				if v, err := loadPageVersions(ctx, app, client, pg2); err == nil && v.slots != nil {
 					for _, w := range v.draft {
 						if !slices.Contains(v.slots, w.Slot) {
 							p.Warnf("a widget %q (instância %d) está no slot %s, que o layout %s não tem; mova com: fluigcli page move-widget %s %d --slot <slot>", w.Widget, w.InstanceID, w.Slot, layout, code, w.InstanceID)
@@ -970,7 +970,7 @@ func newPageSetPreferencesCmd(app *App) *cobra.Command {
 			if pg.Status == fluig.PageStatusDraft {
 				return output.Usagef("a página %q tem um rascunho aberto; publique (fluigcli page publish %s) ou descarte (fluigcli page discard %s) antes", code, code, code)
 			}
-			v, err := loadPageVersions(ctx, client, pg)
+			v, err := loadPageVersions(ctx, app, client, pg)
 			if err != nil {
 				return err
 			}

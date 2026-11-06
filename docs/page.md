@@ -105,10 +105,17 @@ Código repetido termina com exit **5**.
 Este comando põe uma widget num slot do rascunho. O slot default é `SlotA`.
 
 O Fluig não confere o slot e aceita qualquer nome. Por isso, a CLI confere o
-slot pelo layout da página. Para isso, ela abre uma página publicada com o
-mesmo layout e lê os slots dela. Slot inexistente termina com exit **2**, e a
-mensagem lista os slots do layout. Quando a CLI não acha uma página publicada
-com o layout, ela avisa e segue.
+slot pelo layout da página, nesta ordem:
+
+1. A CLI abre uma página publicada com o mesmo layout e lê os slots de
+   conteúdo dela (os slots marcados como editáveis).
+2. Sem essa página, a CLI lê os slots do `layout.ftl` do projeto
+   (`wcm/layout/<código>/src/main/resources/layout.ftl`): as chamadas
+   `<@wcm.renderSlot id="..." editableSlot="true"/>`.
+3. Sem nenhuma das duas fontes, a CLI avisa e segue.
+
+Slot inexistente termina com exit **2**, e a mensagem lista os slots do
+layout. Os slots do tema, como `SlotMenu` e `SlotUsePolicy`, não contam.
 
 Widget inexistente termina com exit **4**. Publique a widget antes com
 `fluigcli widget export`.

@@ -698,7 +698,13 @@ func (c *Client) SetWidgetPreferences(ctx context.Context, instanceID int, prefs
 }
 
 var (
-	slotIDRe   = regexp.MustCompile(`id="(Slot[A-Za-z0-9_]+)"`)
+	// slotTagRe acha a tag de um slot renderizado. Só conta o slot com
+	// editableSlot="true": os slots do tema (SlotUsePolicy, SlotMenu...) não
+	// têm a marca (medido em 2026-11-06).
+	slotTagRe  = regexp.MustCompile(`<[^>]*\bid="(Slot[A-Za-z0-9_]+)"[^>]*>`)
+	ftlSlotRe  = regexp.MustCompile(`<@wcm\.renderSlot\b[^>]*>`)
+	ftlIDRe    = regexp.MustCompile(`\bid="([^"]+)"`)
+	editableRe = regexp.MustCompile(`(?i)\beditableSlot="true"`)
 	htmlTitleR = regexp.MustCompile(`(?s)<title>(.*?)</title>`)
 )
 
@@ -755,13 +761,35 @@ func (c *Client) renderedSlots(ctx context.Context, code, title string) ([]strin
 	}
 	seen := map[string]bool{}
 	var slots []string
-	for _, s := range slotIDRe.FindAllSubmatch(body, -1) {
-		name := string(s[1])
-		if !seen[name] {
-			seen[name] = true
-			slots = append(slots, name)
+	for _, m := range slotTagRe.FindAllSubmatch(body, -1) {
+		name := string(m[1])
+		if !editableRe.Match(m[0]) || seen[name] {
+			continue
 		}
+		seen[name] = true
+		slots = append(slots, name)
 	}
 	sort.Strings(slots)
 	return slots, len(slots) > 0
+}
+
+// ParseLayoutSlots lê os slots de CONTEÚDO de um layout.ftl: as chamadas
+// <@wcm.renderSlot id="..." editableSlot="true" .../>. Serve quando nenhuma
+// página publicada usa o layout e o fonte está no projeto.
+func ParseLayoutSlots(ftl string) []string {
+	seen := map[string]bool{}
+	var slots []string
+	for _, tag := range ftlSlotRe.FindAllString(ftl, -1) {
+		if !editableRe.MatchString(tag) {
+			continue
+		}
+		m := ftlIDRe.FindStringSubmatch(tag)
+		if m == nil || seen[m[1]] {
+			continue
+		}
+		seen[m[1]] = true
+		slots = append(slots, m[1])
+	}
+	sort.Strings(slots)
+	return slots
 }
