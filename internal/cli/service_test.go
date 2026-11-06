@@ -20,6 +20,7 @@ type svcStub struct {
 	updated   map[string]any
 	deleted   []string
 	createErr bool
+	logBody   map[string]any
 }
 
 func (s *svcStub) server(t *testing.T) *httptest.Server {
@@ -59,6 +60,20 @@ func (s *svcStub) server(t *testing.T) *httptest.Server {
 		_ = json.Unmarshal(b, &s.updated)
 		s.mu.Unlock()
 		io.WriteString(w, `{"content":"OK"}`)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/getDataServiceSummary/", func(w http.ResponseWriter, r *http.Request) {
+		active := s.logBody != nil && s.logBody["logRequestActive"] == true
+		io.WriteString(w, `{"content":{"summary":{"total":"3","successRate":"66.7","success":"2","failed":"1"},"service":{"logExpirationTime":"06/11/2026 04:37","logRequestActive":`+map[bool]string{true: "true", false: "false"}[active]+`}}}`)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/updateLogActive", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		s.mu.Lock()
+		_ = json.Unmarshal(b, &s.logBody)
+		s.mu.Unlock()
+		io.WriteString(w, `{"content":{"logExpirationTime":"06/11/2026 04:37","logRequestActive":true}}`)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/downloadLog", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("PK\x03\x04zip-falso"))
 	})
 	mux.HandleFunc("/api/public/2.0/authorize/client/test", func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Query().Get("serviceCode") {
@@ -334,5 +349,36 @@ func TestServiceTest(t *testing.T) {
 	}
 	if code, _ := runMain(t, "service", "test", "nao_existe", "--project", proj, "--server", "homolog", "--json"); code != output.ExitNotFound {
 		t.Errorf("inexistente: exit=%d", code)
+	}
+}
+
+func TestServiceLog(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, "service", "log", "jusbrasil", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK || !strings.Contains(out, `"total":3`) || !strings.Contains(out, `"active":false`) {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	code, out = runMain(t, "service", "log", "jusbrasil", "--enable", "--hours", "5", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK || stub.logBody["logRequestActive"] != true || stub.logBody["expirationTime"] != float64(5) || stub.logBody["name"] != "jusbrasil" {
+		t.Fatalf("exit=%d corpo=%v\n%s", code, stub.logBody, out)
+	}
+	for name, args := range map[string][]string{
+		"horas demais":    {"service", "log", "jusbrasil", "--enable", "--hours", "25"},
+		"os dois":         {"service", "log", "jusbrasil", "--enable", "--disable"},
+		"horas sem ligar": {"service", "log", "jusbrasil", "--hours", "2"},
+		"sem código":      {"service", "log"},
+	} {
+		if code, _ := runMain(t, append(args, "--project", proj, "--server", "homolog", "--json")...); code != output.ExitUsage {
+			t.Errorf("%s: exit=%d", name, code)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "log.zip")
+	if code, out := runMain(t, "service", "log", "--download", "-o", path, "--project", proj, "--server", "homolog", "--json"); code != output.ExitOK {
+		t.Fatalf("download: exit=%d\n%s", code, out)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("arquivo do log: %v %v", info, err)
 	}
 }

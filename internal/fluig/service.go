@@ -71,6 +71,7 @@ type Service struct {
 
 	oauthID int
 	oauth   map[string]json.RawMessage // oAuthVO cru, com segredos: nunca serializar para saída
+	item    map[string]json.RawMessage // item cru do findByType (corpo do updateLogActive)
 }
 
 // SecretEquals diz se o segredo guardado no servidor é igual ao informado,
@@ -135,6 +136,10 @@ func (c *Client) ListServices(ctx context.Context, f ServiceFilter) ([]Service, 
 }
 
 func parseServiceList(body []byte) ([]Service, error) {
+	var rawItems struct {
+		Content []map[string]json.RawMessage `json:"content"`
+	}
+	_ = json.Unmarshal(body, &rawItems)
 	var resp struct {
 		Content []struct {
 			Name        string                     `json:"name"`
@@ -154,7 +159,7 @@ func parseServiceList(body []byte) ([]Service, error) {
 		return nil, fmt.Errorf("resposta inesperada de ecmservices/findByType: %w", err)
 	}
 	out := make([]Service, 0, len(resp.Content))
-	for _, it := range resp.Content {
+	for idx, it := range resp.Content {
 		s := Service{
 			Code:        it.Name,
 			Description: it.Description,
@@ -164,6 +169,9 @@ func parseServiceList(body []byte) ([]Service, error) {
 			Internal:    it.Internal,
 			LogRequests: it.DataService.LogRequestActive,
 			oauthID:     it.DataService.OAuthID,
+		}
+		if idx < len(rawItems.Content) {
+			s.item = rawItems.Content[idx]
 		}
 		if s.Type == "" {
 			s.Type = strconv.Itoa(it.Type)
@@ -471,4 +479,107 @@ func (c *Client) TestService(ctx context.Context, code string) (*ServiceTestResu
 		r.Error, r.Body = strings.TrimSpace(first), ""
 	}
 	return r, nil
+}
+
+// ServiceLogSummary é o resumo do log de requisições de um serviço.
+type ServiceLogSummary struct {
+	Code        string  `json:"code"`
+	Active      bool    `json:"active"`
+	ExpiresAt   string  `json:"expiresAt,omitempty"` // "DD/MM/AAAA HH:MM", horário do servidor
+	Total       int     `json:"total"`
+	Success     int     `json:"success"`
+	Failed      int     `json:"failed"`
+	SuccessRate float64 `json:"successRate"`
+}
+
+// GetServiceLogSummary lê o resumo do log (GET getDataServiceSummary).
+func (c *Client) GetServiceLogSummary(ctx context.Context, code string) (*ServiceLogSummary, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restServicesBase+"getDataServiceSummary/"+url.PathEscape(code)), nil)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, checkServiceResponse("ecmservices/getDataServiceSummary", body, status)
+	}
+	var resp struct {
+		Content struct {
+			Summary struct {
+				Total       string `json:"total"`
+				SuccessRate string `json:"successRate"`
+				Success     string `json:"success"`
+				Failed      string `json:"failed"`
+			} `json:"summary"`
+			Service struct {
+				LogExpirationTime string `json:"logExpirationTime"`
+				LogRequestActive  bool   `json:"logRequestActive"`
+			} `json:"service"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("resposta inesperada de getDataServiceSummary: %w", err)
+	}
+	sm := resp.Content.Summary
+	out := &ServiceLogSummary{Code: code, Active: resp.Content.Service.LogRequestActive, ExpiresAt: resp.Content.Service.LogExpirationTime}
+	out.Total, _ = strconv.Atoi(sm.Total)
+	out.Success, _ = strconv.Atoi(sm.Success)
+	out.Failed, _ = strconv.Atoi(sm.Failed)
+	out.SuccessRate, _ = strconv.ParseFloat(sm.SuccessRate, 64)
+	return out, nil
+}
+
+// SetServiceLog liga (por hours horas, de 1 a 24) ou desliga o log de
+// requisições do serviço (POST updateLogActive com o item da listagem, como
+// a tela faz). Devolve a hora de expiração informada pelo servidor.
+func (c *Client) SetServiceLog(ctx context.Context, s *Service, active bool, hours int) (string, error) {
+	if s.item == nil {
+		return "", fmt.Errorf("o serviço %q veio sem o item da listagem", s.Code)
+	}
+	if err := c.EnsureSession(ctx); err != nil {
+		return "", err
+	}
+	item := make(map[string]any, len(s.item)+2)
+	for k, v := range s.item {
+		item[k] = v
+	}
+	item["logRequestActive"] = active
+	item["expirationTime"] = hours
+	data, err := json.Marshal(item)
+	if err != nil {
+		return "", err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodPost, c.url(restServicesBase+"updateLogActive"), data)
+	if err != nil {
+		return "", err
+	}
+	if err := checkServiceResponse("ecmservices/updateLogActive", body, status); err != nil {
+		return "", err
+	}
+	var resp struct {
+		Content struct {
+			LogExpirationTime string `json:"logExpirationTime"`
+		} `json:"content"`
+	}
+	_ = json.Unmarshal(body, &resp)
+	return resp.Content.LogExpirationTime, nil
+}
+
+// DownloadServiceLog baixa o log de requisições de TODOS os serviços com log
+// ligado (GET downloadLog → zip com um .log). ⚠️ O log traz as mensagens
+// completas, inclusive os headers enviados (o segredo da autenticação
+// custom). Quem chama grava em arquivo, nunca no terminal.
+func (c *Client) DownloadServiceLog(ctx context.Context) ([]byte, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	body, status, err := c.doRaw(ctx, http.MethodGet, c.url(restServicesBase+"downloadLog"), nil, "", "*/*")
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, &HTTPError{StatusCode: status, URL: "ecmservices/downloadLog", Body: truncate(string(body), 512)}
+	}
+	return body, nil
 }

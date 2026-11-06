@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -41,6 +42,7 @@ func newServiceCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServiceUpdateCmd(app))
 	cmd.AddCommand(newServiceDeleteCmd(app))
 	cmd.AddCommand(newServiceTestCmd(app))
+	cmd.AddCommand(newServiceLogCmd(app))
 	cmd.AddCommand(newServiceExportCmd(app))
 	cmd.AddCommand(newServiceApplyCmd(app))
 	return cmd
@@ -509,5 +511,110 @@ func newServiceTestCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&full, "full", false, "mostra o corpo inteiro da resposta")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
+	return cmd
+}
+
+// --- service log ---
+
+func newServiceLogCmd(app *App) *cobra.Command {
+	var (
+		enable, disable, download bool
+		hours                     int
+		outPath                   string
+		passwordStdin             bool
+	)
+	cmd := &cobra.Command{
+		Use:   "log [<código>]",
+		Short: "Mostra, liga ou desliga o log de requisições de um serviço; baixa o log",
+		Long: "Sem flags, mostra o resumo do log de requisições do serviço: se o log\n" +
+			"está ligado, até quando, e as contagens de chamadas com sucesso e com\n" +
+			"falha.\n\n" +
+			"--enable liga o log por --hours horas (de 1 a 24; default 1). O Fluig\n" +
+			"desliga o log sozinho no fim do prazo. --disable desliga na hora.\n\n" +
+			"--download baixa o log de TODOS os serviços com log ligado (um .zip) para\n" +
+			"o arquivo do --output. O código é opcional com --download.\n\n" +
+			"Atenção: o log traz as mensagens completas, inclusive os headers\n" +
+			"enviados. Num serviço custom, o segredo está no arquivo. Por isso, a CLI\n" +
+			"grava o log só em arquivo. Guarde e apague o arquivo com cuidado.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			if enable && disable {
+				return output.Usagef("use --enable ou --disable, não os dois")
+			}
+			if hours < 1 || hours > 24 {
+				return output.Usagef("--hours aceita de 1 a 24 (veio %d)", hours)
+			}
+			if cmd.Flags().Changed("hours") && !enable {
+				return output.Usagef("--hours só vale com --enable")
+			}
+			if len(args) == 0 && !download {
+				return output.Usagef("informe o código do serviço (ou use --download)")
+			}
+			if download && len(args) == 1 && (enable || disable) {
+				return output.Usagef("--download não combina com --enable/--disable; rode em duas chamadas")
+			}
+			ctx := context.Background()
+			if download {
+				_, client, err := app.connect(ctx, passwordStdin)
+				if err != nil {
+					return err
+				}
+				data, err := client.DownloadServiceLog(ctx)
+				if err != nil {
+					return mapFluigError(err)
+				}
+				path := outPath
+				if path == "" {
+					path = "services-log-" + time.Now().Format("20060102-150405") + ".zip"
+				}
+				if err := os.WriteFile(path, data, 0o600); err != nil {
+					return output.LocalIOf("falha ao gravar %s: %v", path, err)
+				}
+				p.Successf("log de requisições gravado em %s (%d bytes, permissão 0600)", path, len(data))
+				p.Warnf("o arquivo pode conter segredos (headers enviados); apague quando não precisar mais")
+				p.Done(map[string]any{"path": path, "bytes": len(data)})
+				return nil
+			}
+			code := args[0]
+			var client *fluig.Client
+			var err error
+			if enable || disable {
+				_, client, err = app.connectWrite(ctx, passwordStdin, "alterar o log do serviço")
+			} else {
+				_, client, err = app.connect(ctx, passwordStdin)
+			}
+			if err != nil {
+				return err
+			}
+			s, err := client.GetService(ctx, code)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if enable || disable {
+				if _, err := client.SetServiceLog(ctx, s, enable, hours); err != nil {
+					return mapFluigError(err)
+				}
+			}
+			sum, err := client.GetServiceLogSummary(ctx, code)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if sum.Active {
+				p.Successf("log de %q: LIGADO até %s (horário do servidor)", code, sum.ExpiresAt)
+			} else {
+				p.Successf("log de %q: desligado", code)
+			}
+			p.Successf("Chamadas registradas: %d (sucesso %d, falha %d, taxa de sucesso %.1f%%)", sum.Total, sum.Success, sum.Failed, sum.SuccessRate)
+			p.Done(map[string]any{"log": sum})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&enable, "enable", false, "liga o log de requisições")
+	cmd.Flags().BoolVar(&disable, "disable", false, "desliga o log de requisições")
+	cmd.Flags().IntVar(&hours, "hours", 1, "horas de log ligado, de 1 a 24 (com --enable)")
+	cmd.Flags().BoolVar(&download, "download", false, "baixa o log de todos os serviços com log ligado (.zip)")
+	cmd.Flags().StringVarP(&outPath, "output", "o", "", "arquivo do --download (default: services-log-<data>.zip)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
 }

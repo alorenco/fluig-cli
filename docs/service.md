@@ -185,6 +185,34 @@ Sem caminho de teste, a chamada vai para a raiz da URL base, e o comando
 avisa. O Fluig não aceita outro caminho na hora do teste. Para testar outro
 caminho, troque o caminho com `service update <código> --test-path <caminho>`.
 
+## `fluigcli service log [<código>] [flags]`
+
+Este comando trata o log de requisições do serviço. Sem flags, ele mostra o
+resumo: se o log está ligado, até quando, e as contagens de chamadas com
+sucesso e com falha.
+
+| Flag | Uso |
+|---|---|
+| `--enable` | liga o log |
+| `--hours N` | horas de log ligado, de 1 a 24 (default 1). Só vale com `--enable`. |
+| `--disable` | desliga o log na hora |
+| `--download` | baixa o log de **todos** os serviços com log ligado, num `.zip`. O código é opcional. |
+| `--output <arquivo>` | arquivo do `--download` (default: `services-log-<data>.zip`) |
+
+```sh
+fluigcli service log sabia_agentos --enable --hours 2
+fluigcli service test sabia_agentos
+fluigcli service log --download -o log-servicos.zip
+fluigcli service log sabia_agentos --disable
+```
+
+O Fluig desliga o log sozinho no fim do prazo.
+
+> **Atenção.** O log traz as mensagens completas, inclusive os headers
+> enviados. Num serviço custom, o segredo está no arquivo. Por isso, a CLI
+> grava o log só em arquivo, com permissão 0600. Apague o arquivo quando não
+> precisar mais dele.
+
 ## Levar o serviço para outro ambiente
 
 Use um arquivo de especificação versionado no Git. O fluxo é este:

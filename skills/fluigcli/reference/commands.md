@@ -402,6 +402,7 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 | `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca de tipo apaga a credencial do tipo antigo) |
 | `service delete <código>... --yes` | exclui (datasets que usam o serviço quebram; inexistente = exit 4) |
 | `service test <código> [--full]` | chama o `--test-path` cadastrado PELO Fluig (com a autenticação do cadastro; é o botão "Testar"); 2xx = exit 0, outro status ou chamada que não saiu = exit 5; sem test-path chama a raiz da URL (aviso); não aceita outro caminho |
+| `service log [<código>] [--enable [--hours N] \| --disable] [--download -o arquivo]` | resumo do log de requisições (ligado/até quando, total/sucesso/falha); `--enable` liga por N horas (1–24, default 1); `--download` baixa o .zip de TODOS os serviços com log ligado para ARQUIVO 0600 — ⚠️ o log tem os headers enviados (segredo custom); nunca imprima o conteúdo |
 | `service export <código> [-o arquivo]` | grava `services/<código>.json` SEM segredo; basic/custom ganham `secretEnv` (NOME da variável, default `FLUIGCLI_SECRET_<CÓDIGO>`); SOAP/JDBC/OAuth = exit 2 |
 | `service apply <arquivo> [--dry-run]` | cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
 
