@@ -481,6 +481,10 @@ copiadas): releia com `page show` antes de usar um id.
 | `page delete <página>... --yes` | arquiva e exclui |
 
 Layouts: `layout list --all` (os nativos, como `layoutdefault`, só aparecem com `--all`).
+NÃO ponha widgets de sistema (menu, responsive_header, suggestsearch, alertpopover):
+o tema renderiza cabeçalho/menu/busca sozinho (medido no Voyager com layout
+`portais`). Páginas antigas podem listar essas instâncias em SlotMenu etc.; não
+copie isso para página nova.
 
 ## diff — conferir antes de publicar
 

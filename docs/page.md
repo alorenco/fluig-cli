@@ -90,6 +90,19 @@ com o layout, ela avisa e segue.
 Widget inexistente termina com exit **4**. Publique a widget antes com
 `fluigcli widget export`.
 
+### Widgets de sistema (cabeçalho, menu e busca)
+
+Não ponha as widgets de sistema na página. Por exemplo: `menu`,
+`responsive_header`, `suggestsearch` e `alertpopover`. O tema mostra o
+cabeçalho, o menu e a busca sozinho.
+
+Medido no Fluig 2.0 (Voyager): uma página criada pelo `page create` com o
+layout `portais` tem só a widget de conteúdo. Mesmo assim, ela mostra o
+cabeçalho e o menu. Algumas páginas antigas têm essas widgets como instâncias,
+em slots próprios (`SlotMenu`, `SlotHeaderResponsive`, `SlotGlobalAlert`...).
+O `page show` lista essas instâncias, mas elas não são obrigatórias numa
+página nova.
+
 ## `fluigcli page remove-widget <página> <instanceId>`
 
 Este comando tira uma widget da versão publicada. O efeito é imediato. A página
