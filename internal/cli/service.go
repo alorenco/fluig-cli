@@ -47,6 +47,7 @@ func newServiceCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServiceDeleteCmd(app))
 	cmd.AddCommand(newServiceTestCmd(app))
 	cmd.AddCommand(newServiceLogCmd(app))
+	cmd.AddCommand(newServiceDriversCmd(app))
 	cmd.AddCommand(newServiceCopyCmd(app))
 	cmd.AddCommand(newServiceExportCmd(app))
 	cmd.AddCommand(newServiceApplyCmd(app))
@@ -87,6 +88,9 @@ func newServiceListCmd(app *App) *cobra.Command {
 				rows := make([][]string, 0, len(list))
 				for _, s := range list {
 					auth := s.AuthType
+					if s.Type == fluig.ServiceTypeJDBC && s.Driver != "" {
+						auth = "driver " + s.Driver
+					}
 					if len(s.CustomHeaders) > 0 {
 						auth += ": " + strings.Join(s.CustomHeaders, ", ")
 					}
@@ -143,6 +147,12 @@ func newServiceShowCmd(app *App) *cobra.Command {
 			if len(s.CustomHeaders) > 0 {
 				p.Successf("Headers custom: %s (valores ocultos)", strings.Join(s.CustomHeaders, ", "))
 			}
+			if s.Driver != "" {
+				p.Successf("Driver: %s", s.Driver)
+			}
+			if s.SOAPPackage != "" {
+				p.Successf("Pacote SOAP: %s", s.SOAPPackage)
+			}
 			if len(s.OAuthFields) > 0 {
 				p.Successf("Campos OAuth preenchidos: %s (valores ocultos)", strings.Join(s.OAuthFields, ", "))
 			}
@@ -170,6 +180,9 @@ type serviceFlags struct {
 	username    string
 	customStdin bool
 	oauthStdin  bool
+	stype       string // só no create: rest | soap | jdbc
+	driver      string // jdbc
+	soapPackage string // soap
 }
 
 func (f *serviceFlags) register(cmd *cobra.Command, create bool) {
@@ -188,6 +201,11 @@ func (f *serviceFlags) register(cmd *cobra.Command, create bool) {
 	cmd.Flags().StringVar(&f.swagger, "swagger", "", "URL do swagger do serviço")
 	cmd.Flags().StringVar(&f.username, "username", "", "usuário da autenticação basic (a senha vem de "+envServicePassword+" ou do prompt)")
 	cmd.Flags().BoolVar(&f.customStdin, "custom-headers-stdin", false, "lê do stdin os headers da autenticação custom, uma linha \"Nome: valor\" por header (alternativa: "+envServiceCustomHeaders+")")
+	if create {
+		cmd.Flags().StringVar(&f.stype, "type", fluig.ServiceTypeREST, "tipo do serviço: rest, soap ou jdbc")
+	}
+	cmd.Flags().StringVar(&f.driver, "driver", "", "driver do serviço JDBC (veja: fluigcli service drivers)")
+	cmd.Flags().StringVar(&f.soapPackage, "soap-package", "", "pacote Java das classes geradas do WSDL (serviço SOAP)")
 	cmd.Flags().BoolVar(&f.oauthStdin, "oauth-stdin", false, "lê do stdin os campos OAuth (oauth1/oauth2) como objeto JSON (alternativa: "+envServiceOAuth+")")
 }
 
@@ -308,6 +326,150 @@ func (f *serviceFlags) input(app *App, cmd *cobra.Command, currentAuth string, p
 	return in, nil
 }
 
+// restOnlyFlags são as flags que só valem para serviço REST.
+var restOnlyFlags = []string{"test-path", "swagger", "custom-headers-stdin", "oauth-stdin"}
+
+func (f *serviceFlags) rejectFlags(cmd *cobra.Command, kind string, names ...string) error {
+	for _, n := range names {
+		if cmd.Flags().Changed(n) {
+			return output.Usagef("--%s não vale para serviço %s", n, strings.ToUpper(kind))
+		}
+	}
+	return nil
+}
+
+// soapInput monta o SOAPInput: base no serviço atual (cur nil = create) mais
+// as flags informadas.
+func (f *serviceFlags) soapInput(app *App, cmd *cobra.Command, code string, cur *fluig.Service) (fluig.SOAPInput, error) {
+	changed := cmd.Flags().Changed
+	if err := f.rejectFlags(cmd, fluig.ServiceTypeSOAP, append(restOnlyFlags, "driver")...); err != nil {
+		return fluig.SOAPInput{}, err
+	}
+	in := fluig.SOAPInput{Description: code, Auth: fluig.ServiceAuthNone}
+	if cur != nil {
+		in = fluig.SOAPInput{Description: cur.Description, WSDL: cur.URL, Package: cur.SOAPPackage, Auth: orDefault(cur.AuthType, fluig.ServiceAuthNone), Username: cur.Username}
+	}
+	if changed("description") {
+		in.Description = f.description
+	}
+	if changed("url") {
+		in.WSDL = f.url
+	}
+	if changed("soap-package") {
+		in.Package = f.soapPackage
+	}
+	if changed("auth") {
+		in.Auth = f.auth
+	}
+	if changed("username") {
+		in.Username = f.username
+	}
+	if !strings.HasPrefix(in.WSDL, "http://") && !strings.HasPrefix(in.WSDL, "https://") {
+		return in, output.Usagef("--url do SOAP é a URL do WSDL, com http:// ou https:// (veio %q)", in.WSDL)
+	}
+	if in.Auth != fluig.ServiceAuthNone && in.Auth != fluig.ServiceAuthBasic {
+		return in, output.Usagef("o serviço SOAP aceita --auth none ou basic (veio %q)", in.Auth)
+	}
+	if in.Auth != fluig.ServiceAuthBasic {
+		if changed("username") {
+			return in, output.Usagef("--username só vale com --auth basic")
+		}
+		in.Username = ""
+		return in, nil
+	}
+	if in.Username == "" {
+		return in, output.Usagef("--auth basic exige --username")
+	}
+	// Senha: obrigatória na criação, na troca para basic e na troca de
+	// usuário; fora disso o cliente reenvia a guardada (ou a da env var).
+	switching := cur == nil || cur.AuthType != fluig.ServiceAuthBasic
+	if switching || changed("username") || os.Getenv(envServicePassword) != "" {
+		pw, err := app.resolveServicePassword()
+		if err != nil {
+			return in, err
+		}
+		in.Password = pw
+	}
+	return in, nil
+}
+
+// jdbcInput monta o JDBCInput. A senha é SEMPRE pedida: o Fluig não devolve
+// a senha do JDBC, e reenviar vazio apagaria a guardada.
+func (f *serviceFlags) jdbcInput(app *App, cmd *cobra.Command, code string, cur *fluig.Service, drivers []fluig.JDBCDriver) (fluig.JDBCInput, error) {
+	changed := cmd.Flags().Changed
+	if err := f.rejectFlags(cmd, fluig.ServiceTypeJDBC, append(restOnlyFlags, "auth", "soap-package")...); err != nil {
+		return fluig.JDBCInput{}, err
+	}
+	in := fluig.JDBCInput{Description: code}
+	driver := ""
+	if cur != nil {
+		in = fluig.JDBCInput{Description: cur.Description, URL: cur.URL, Username: cur.Username}
+		driver = cur.Driver
+	}
+	if changed("description") {
+		in.Description = f.description
+	}
+	if changed("url") {
+		in.URL = f.url
+	}
+	if changed("username") {
+		in.Username = f.username
+	}
+	if changed("driver") {
+		driver = f.driver
+	}
+	if !strings.HasPrefix(in.URL, "jdbc:") {
+		return in, output.Usagef("--url do JDBC começa com jdbc: (veio %q)", in.URL)
+	}
+	if in.Username == "" {
+		return in, output.Usagef("o serviço JDBC exige --username")
+	}
+	if driver == "" {
+		return in, output.Usagef("informe o driver com --driver (veja: fluigcli service drivers)")
+	}
+	var names []string
+	for _, d := range drivers {
+		if d.Available {
+			names = append(names, d.Type)
+		}
+		if d.Available && (strings.EqualFold(d.Type, driver) || strings.EqualFold(d.Name, driver)) {
+			in.DriverType = d.Type
+		}
+	}
+	if in.DriverType == "" {
+		return in, output.Usagef("driver %q não está disponível no servidor; disponíveis: %s", driver, strings.Join(names, ", "))
+	}
+	pw, err := app.resolveServicePassword()
+	if err != nil {
+		return in, err
+	}
+	in.Password = pw
+	return in, nil
+}
+
+// saveSOAPOrJDBC grava o serviço SOAP/JDBC (cur nil = create).
+func (f *serviceFlags) saveSOAPOrJDBC(ctx context.Context, app *App, cmd *cobra.Command, client *fluig.Client, code, kind string, cur *fluig.Service) error {
+	switch kind {
+	case fluig.ServiceTypeSOAP:
+		in, err := f.soapInput(app, cmd, code, cur)
+		if err != nil {
+			return err
+		}
+		return client.SaveSOAPService(ctx, code, in, cur)
+	case fluig.ServiceTypeJDBC:
+		drivers, err := client.ListJDBCDrivers(ctx)
+		if err != nil {
+			return mapFluigError(err)
+		}
+		in, err := f.jdbcInput(app, cmd, code, cur, drivers)
+		if err != nil {
+			return err
+		}
+		return client.SaveJDBCService(ctx, code, in, cur != nil)
+	}
+	return output.Usagef("tipo de serviço inválido %q; use rest, soap ou jdbc", kind)
+}
+
 // resolveServicePassword lê a senha basic do serviço da env var ou, em modo
 // interativo, de um prompt oculto.
 func (a *App) resolveServicePassword() (string, error) {
@@ -336,8 +498,12 @@ func newServiceCreateCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "create <código>",
-		Short: "Cadastra um serviço REST",
-		Long: "Cadastra um serviço REST. O código é o serviceCode que os datasets usam.\n\n" +
+		Short: "Cadastra um serviço REST, SOAP ou JDBC",
+		Long: "Cadastra um serviço. O código é o serviceCode que os datasets usam.\n\n" +
+			"--type escolhe o tipo: rest (default), soap ou jdbc. No SOAP, --url é a URL\n" +
+			"do WSDL, e a autenticação é none ou basic. No JDBC, --url é a URL jdbc:,\n" +
+			"--driver escolhe o driver (fluigcli service drivers) e --username é\n" +
+			"obrigatório; a senha vem de " + envServicePassword + " ou do prompt.\n\n" +
 			"A CLI grava as autenticações none, basic, fluigAPI, custom, oauth1 e\n" +
 			"oauth2. Na basic, a senha vem da variável " + envServicePassword + "\n" +
 			"ou de um prompt oculto.\n" +
@@ -353,7 +519,34 @@ func newServiceCreateCmd(app *App) *cobra.Command {
 			p := app.printerFor(cmd)
 			code := args[0]
 			if !cmd.Flags().Changed("url") {
-				return output.Usagef("informe a URL base com --url")
+				return output.Usagef("informe a URL com --url")
+			}
+			kind := strings.ToLower(f.stype)
+			if kind != fluig.ServiceTypeREST {
+				if kind != fluig.ServiceTypeSOAP && kind != fluig.ServiceTypeJDBC {
+					return output.Usagef("--type aceita rest, soap ou jdbc (veio %q)", f.stype)
+				}
+				ctx := context.Background()
+				_, client, err := app.connectWrite(ctx, passwordStdin, "cadastrar serviço")
+				if err != nil {
+					return err
+				}
+				if err := f.saveSOAPOrJDBC(ctx, app, cmd, client, code, kind, nil); err != nil {
+					if errors.Is(err, fluig.ErrServiceExists) {
+						return output.ServerErrorf("o serviço %q já existe no servidor; altere com: fluigcli service update %s", code, code).WithCause(err)
+					}
+					return mapFluigError(err)
+				}
+				s, err := client.GetService(ctx, code)
+				if err != nil {
+					return mapFluigError(err)
+				}
+				p.Successf("serviço %q cadastrado (%s, %s)", s.Code, strings.ToUpper(s.Type), s.URL)
+				p.Done(map[string]any{"service": s})
+				return nil
+			}
+			if err := f.rejectFlags(cmd, "REST", "driver", "soap-package"); err != nil {
+				return err
 			}
 			if !cmd.Flags().Changed("auth") {
 				_ = cmd.Flags().Set("auth", fluig.ServiceAuthNone)
@@ -396,9 +589,11 @@ func newServiceUpdateCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "update <código>",
-		Short: "Altera um serviço REST (só os campos informados)",
-		Long: "Altera um serviço REST. A CLI troca só os campos das flags informadas e\n" +
+		Short: "Altera um serviço REST, SOAP ou JDBC (só os campos informados)",
+		Long: "Altera um serviço. A CLI troca só os campos das flags informadas e\n" +
 			"mantém o resto, inclusive os segredos guardados no servidor.\n\n" +
+			"Exceção: o Fluig não devolve a senha do JDBC. Por isso, toda alteração de\n" +
+			"um serviço JDBC pede a senha (" + envServicePassword + " ou prompt).\n\n" +
 			"Para trocar a senha basic, defina " + envServicePassword + ". Para trocar\n" +
 			"os headers custom, use --custom-headers-stdin ou " + envServiceCustomHeaders + ".",
 		Args: cobra.ExactArgs(1),
@@ -406,7 +601,7 @@ func newServiceUpdateCmd(app *App) *cobra.Command {
 			p := app.printerFor(cmd)
 			code := args[0]
 			changedAny := false
-			for _, n := range []string{"description", "url", "auth", "test-path", "swagger", "username", "custom-headers-stdin", "oauth-stdin"} {
+			for _, n := range []string{"description", "url", "auth", "test-path", "swagger", "username", "custom-headers-stdin", "oauth-stdin", "driver", "soap-package"} {
 				changedAny = changedAny || cmd.Flags().Changed(n)
 			}
 			if !changedAny && os.Getenv(envServicePassword) == "" && os.Getenv(envServiceCustomHeaders) == "" && os.Getenv(envServiceOAuth) == "" {
@@ -422,7 +617,19 @@ func newServiceUpdateCmd(app *App) *cobra.Command {
 				return mapFluigError(err)
 			}
 			if current.Type != fluig.ServiceTypeREST {
-				return output.Usagef("o serviço %q é %s; a CLI só altera serviços REST", code, strings.ToUpper(current.Type))
+				if err := f.saveSOAPOrJDBC(ctx, app, cmd, client, code, current.Type, current); err != nil {
+					return mapFluigError(err)
+				}
+				s, err := client.GetService(ctx, code)
+				if err != nil {
+					return mapFluigError(err)
+				}
+				p.Successf("serviço %q alterado (%s, %s)", s.Code, strings.ToUpper(s.Type), s.URL)
+				p.Done(map[string]any{"service": s})
+				return nil
+			}
+			if err := f.rejectFlags(cmd, "REST", "driver", "soap-package"); err != nil {
+				return err
 			}
 			in, err := f.input(app, cmd, current.AuthType, passwordStdin)
 			if err != nil {
@@ -518,8 +725,19 @@ func newServiceTestCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if s.Type == fluig.ServiceTypeJDBC {
+				if err := client.TestJDBCConnection(ctx, code); err != nil {
+					data := map[string]any{"code": code, "type": s.Type, "connected": false}
+					msg := strings.TrimPrefix(err.Error(), "operação rejeitada pelo servidor Fluig: ")
+					p.FailData(data, output.CodeServerError, "a conexão falhou: "+msg)
+					return output.ServerErrorf("a conexão do serviço JDBC %q falhou: %s", code, msg)
+				}
+				p.Successf("conexão do serviço JDBC %q: OK", code)
+				p.Done(map[string]any{"code": code, "type": s.Type, "connected": true})
+				return nil
+			}
 			if s.Type != fluig.ServiceTypeREST {
-				return output.Usagef("o serviço %q é %s; o teste só existe para serviços REST", code, strings.ToUpper(s.Type))
+				return output.Usagef("o serviço %q é %s; o teste existe para serviços REST e JDBC", code, strings.ToUpper(s.Type))
 			}
 			if s.TestPath == "" {
 				p.Warnf("o serviço %q não tem caminho de teste; a chamada vai para a raiz de %s (cadastre com: fluigcli service update %s --test-path /health)", code, s.URL, code)
@@ -729,5 +947,58 @@ func newServiceCopyCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "servidor de destino (obrigatório)")
 	cmd.Flags().StringVar(&as, "as", "", "código do serviço no destino (default: o mesmo)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "não suportado: o copy autentica em dois servidores")
+	return cmd
+}
+
+// --- service drivers ---
+
+func newServiceDriversCmd(app *App) *cobra.Command {
+	var all, passwordStdin bool
+	cmd := &cobra.Command{
+		Use:   "drivers",
+		Short: "Lista os drivers JDBC do servidor (os disponíveis servem para service create --type jdbc)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			drivers, err := client.ListJDBCDrivers(ctx)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if !all {
+				kept := drivers[:0]
+				for _, d := range drivers {
+					if d.Available {
+						kept = append(kept, d)
+					}
+				}
+				drivers = kept
+			}
+			if len(drivers) == 0 {
+				p.Infof("Nenhum driver JDBC disponível. Use --all para ver os não habilitados.")
+			} else {
+				rows := make([][]string, 0, len(drivers))
+				for _, d := range drivers {
+					avail := "sim"
+					if !d.Available {
+						avail = "não"
+					}
+					rows = append(rows, []string{d.Type, avail, d.URL})
+				}
+				p.Table(output.Table{Headers: []string{"Driver", "Disponível", "Modelo de URL"}, Rows: rows, Style: output.BoldHeaderStyle(nil)})
+			}
+			if drivers == nil {
+				drivers = []fluig.JDBCDriver{}
+			}
+			p.Done(map[string]any{"drivers": drivers})
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "inclui os drivers não habilitados no servidor")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

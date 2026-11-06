@@ -69,8 +69,12 @@ type Service struct {
 	CustomHeaders []string `json:"customHeaders,omitempty"`
 	// OAuthFields traz só os NOMES dos campos OAuth preenchidos.
 	OAuthFields []string `json:"oauthFields,omitempty"`
-	Internal    bool     `json:"internal"`
-	LogRequests bool     `json:"logRequests"`
+	// Driver é o driver do JDBC (ex.: "sqlserver"); SOAPPackage é o pacote
+	// Java das classes geradas do WSDL.
+	Driver      string `json:"driver,omitempty"`
+	SOAPPackage string `json:"soapPackage,omitempty"`
+	Internal    bool   `json:"internal"`
+	LogRequests bool   `json:"logRequests"`
 
 	oauthID int
 	oauth   map[string]json.RawMessage // oAuthVO cru, com segredos: nunca serializar para saída
@@ -81,6 +85,12 @@ type Service struct {
 // sem expor o valor: a senha na autenticação basic, o texto dos headers na
 // custom. Outros tipos devolvem false.
 func (s *Service) SecretEquals(secret string) bool {
+	if s.Type == ServiceTypeSOAP {
+		// A senha do SOAP basic volta em dataService.userPass.
+		var ds map[string]json.RawMessage
+		_ = json.Unmarshal(s.item["dataService"], &ds)
+		return s.AuthType == ServiceAuthBasic && jsonString(ds, "userPass") == secret
+	}
 	switch s.AuthType {
 	case ServiceAuthBasic:
 		return jsonString(s.oauth, "password") == secret
@@ -166,6 +176,10 @@ func parseServiceList(body []byte) ([]Service, error) {
 				ExtraParameters  string `json:"extraParameters"`
 				LogRequestActive bool   `json:"logRequestActive"`
 				OAuthID          int    `json:"oauthId"`
+				UserName         string `json:"userName"`
+				Driver           string `json:"driver"`
+				WSPackage        string `json:"wsPackage"`
+				SOAPAuth         string `json:"soapAuthenticationType"`
 			} `json:"dataService"`
 		} `json:"content"`
 	}
@@ -189,6 +203,17 @@ func parseServiceList(body []byte) ([]Service, error) {
 		}
 		if s.Type == "" {
 			s.Type = strconv.Itoa(it.Type)
+		}
+		switch s.Type {
+		case ServiceTypeSOAP:
+			s.AuthType = it.DataService.SOAPAuth
+			s.SOAPPackage = it.DataService.WSPackage
+			if s.AuthType == ServiceAuthBasic {
+				s.Username = it.DataService.UserName
+			}
+		case ServiceTypeJDBC:
+			s.Username = it.DataService.UserName
+			s.Driver = strings.TrimSuffix(it.DataService.Driver, "Driver")
 		}
 		if s.Type == ServiceTypeREST && it.OAuth != nil {
 			s.oauth = it.OAuth
@@ -722,4 +747,121 @@ func (c *Client) CopyServiceTo(ctx context.Context, src *Service, code string) (
 	}
 	oauth["id"] = cur.oauthID
 	return "updated", c.postServiceWrite(ctx, "update", payload)
+}
+
+// JDBCDriver é um driver JDBC do servidor (GET ecmservices/drivers).
+type JDBCDriver struct {
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Available bool   `json:"available"`
+	URL       string `json:"urlTemplate"`
+}
+
+// ListJDBCDrivers lista os drivers JDBC. Só os "available" servem para
+// cadastrar serviço (a tela só oferece esses).
+func (c *Client) ListJDBCDrivers(ctx context.Context) ([]JDBCDriver, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restServicesBase+"drivers"), nil)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, checkServiceResponse("ecmservices/drivers", body, status)
+	}
+	var resp struct {
+		Content []struct {
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+			Available bool   `json:"available"`
+			JDBCURL   string `json:"jdbcUrl"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("resposta inesperada de ecmservices/drivers: %w", err)
+	}
+	out := make([]JDBCDriver, 0, len(resp.Content))
+	for _, d := range resp.Content {
+		out = append(out, JDBCDriver{Name: d.Name, Type: d.Type, Available: d.Available, URL: d.JDBCURL})
+	}
+	return out, nil
+}
+
+// SOAPInput descreve um serviço SOAP. Password só com Auth basic.
+type SOAPInput struct {
+	Description string
+	WSDL        string
+	Package     string
+	Auth        string // none | basic
+	Username    string
+	Password    string
+}
+
+// JDBCInput descreve um serviço JDBC. O Fluig NÃO devolve a senha do JDBC
+// na listagem: toda gravação precisa da senha.
+type JDBCInput struct {
+	Description string
+	URL         string
+	DriverType  string // o "type" do driver (ex.: SQLSERVER)
+	Username    string
+	Password    string
+}
+
+// SaveSOAPService cria (cur nil) ou altera (cur = o serviço atual) um serviço
+// SOAP. Na alteração de um basic sem senha nova, reenvia a senha guardada
+// (o Fluig devolve a senha do SOAP em dataService.userPass). Medido: a
+// criação leva alguns segundos, porque o servidor gera as classes do WSDL.
+func (c *Client) SaveSOAPService(ctx context.Context, code string, in SOAPInput, cur *Service) error {
+	update := cur != nil
+	if update && in.Auth == ServiceAuthBasic && in.Password == "" && cur.AuthType == ServiceAuthBasic {
+		var ds map[string]json.RawMessage
+		_ = json.Unmarshal(cur.item["dataService"], &ds)
+		in.Password = jsonString(ds, "userPass")
+	}
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"name": code, "url": in.WSDL, "description": in.Description, "type": "1",
+		"fileName": "", "soapWsPackage": in.Package, "soapAuthenticationType": in.Auth,
+	}
+	if in.Auth == ServiceAuthBasic {
+		payload["username"], payload["password"] = in.Username, in.Password
+	}
+	op := "service"
+	if update {
+		op = "update"
+	}
+	return c.postServiceWrite(ctx, op, payload)
+}
+
+// SaveJDBCService cria (update=false) ou altera um serviço JDBC.
+func (c *Client) SaveJDBCService(ctx context.Context, code string, in JDBCInput, update bool) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"name": code, "url": in.URL, "description": in.Description, "type": "4",
+		"username": in.Username, "password": in.Password, "fileName": in.DriverType,
+	}
+	op := "service"
+	if update {
+		op = "update"
+	}
+	return c.postServiceWrite(ctx, op, payload)
+}
+
+// TestJDBCConnection abre uma conexão de teste com o banco do serviço JDBC
+// (GET ecmservices/connection/{code}; a tela usa no botão "Testar conexão").
+// Erro de conexão = errServerRejected com a mensagem do driver.
+func (c *Client) TestJDBCConnection(ctx context.Context, code string) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restServicesBase+"connection/"+url.PathEscape(code)), nil)
+	if err != nil {
+		return err
+	}
+	return checkServiceResponse("ecmservices/connection", body, status)
 }

@@ -15,6 +15,14 @@ fluigAPI.getAuthorizeClientService().invoke({
 O código do serviço (`serviceCode`) precisa existir no servidor. Use este grupo
 para cadastrar o serviço na implantação, sem abrir a interface.
 
+O grupo trata os três tipos de serviço do Fluig:
+
+| Tipo | Uso | O que a CLI faz |
+|---|---|---|
+| `rest` | API REST externa, chamada pelo `getAuthorizeClientService()` | tudo: cadastro, autenticações, teste, log, cópia, export/apply |
+| `soap` | web service SOAP, chamado pelo `ServiceManager` | cadastro (WSDL, pacote, autenticação none ou basic), export/apply |
+| `jdbc` | banco de dados externo | cadastro (URL, driver, usuário e senha), teste de conexão, export/apply |
+
 O usuário precisa de acesso à tela Painel de Controle > Serviços.
 
 ## Segredos
@@ -119,13 +127,14 @@ fluigcli service show sabia_agentos
 fluigcli service show sabia_agentos --json
 ```
 
-## `fluigcli service create <código> --url <URL base> [flags]`
+## `fluigcli service create <código> --url <URL> [flags]`
 
-Este comando cadastra um serviço REST.
+Este comando cadastra um serviço. O tipo default é REST.
 
 | Flag | Uso |
 |---|---|
-| `--url <URL>` | URL base do serviço (**obrigatório**). Comece com `http://` ou `https://`. |
+| `--type <tipo>` | `rest` (default), `soap` ou `jdbc` |
+| `--url <URL>` | **obrigatório**. REST: URL base, com `http://` ou `https://`. SOAP: URL do WSDL. JDBC: URL `jdbc:`. |
 | `--description <texto>` | descrição do serviço (default: o código) |
 | `--auth <tipo>` | `none`, `basic`, `fluigAPI`, `custom`, `oauth1` ou `oauth2` (default: `none`) |
 | `--username <login>` | usuário da autenticação basic. Obrigatório com `--auth basic`. |
@@ -133,6 +142,13 @@ Este comando cadastra um serviço REST.
 | `--oauth-stdin` | lê do stdin os campos OAuth, como objeto JSON. Alternativa: `FLUIGCLI_SERVICE_OAUTH`. |
 | `--test-path <caminho>` | caminho de teste do serviço. Por exemplo: `/health`. |
 | `--swagger <URL>` | URL do swagger do serviço |
+| `--soap-package <pacote>` | SOAP: pacote Java das classes geradas do WSDL (opcional) |
+| `--driver <driver>` | JDBC: driver do banco (**obrigatório**). Veja os drivers com `service drivers`. |
+
+As flags `--test-path`, `--swagger`, `--custom-headers-stdin` e `--oauth-stdin`
+valem só para REST. No SOAP, `--auth` aceita `none` ou `basic`. No JDBC,
+`--username` é obrigatório e a senha vem de `FLUIGCLI_SERVICE_PASSWORD` ou do
+prompt.
 
 ```sh
 fluigcli service create sabia_agentos --url https://agentos.empresa.com --test-path /health
@@ -140,7 +156,13 @@ FLUIGCLI_SERVICE_PASSWORD=... fluigcli service create erp_api --url https://erp.
   --auth basic --username integracao
 printf 'Authorization: Bearer %s\n' "$(cat token.txt)" | \
   fluigcli service create painel_api --url https://painel.empresa.com --auth custom --custom-headers-stdin
+fluigcli service create erp_ws --type soap --url 'http://erp.empresa.com:8051/wsDataServer/MEX?wsdl'
+FLUIGCLI_SERVICE_PASSWORD=... fluigcli service create erp_db --type jdbc \
+  --url 'jdbc:sqlserver://db.empresa.com:1433;databaseName=erp' --driver sqlserver --username leitura
 ```
+
+A criação de um serviço SOAP leva alguns segundos, porque o servidor gera as
+classes do WSDL.
 
 O `--custom-headers-stdin` e o `--password-stdin` leem o mesmo stdin. Por isso,
 o comando recusa as duas flags juntas. Neste caso, use
@@ -150,9 +172,10 @@ Código repetido termina com exit **5**. Neste caso, use `service update`.
 
 ## `fluigcli service update <código> [flags]`
 
-Este comando altera um serviço REST. Ele usa as mesmas flags do `create`. O
-comando troca só os campos das flags informadas. Os outros campos ficam iguais.
-Por exemplo, a troca da URL mantém a senha guardada.
+Este comando altera um serviço REST, SOAP ou JDBC. Ele usa as mesmas flags do
+`create`, menos `--type`: o tipo não muda. O comando troca só os campos das
+flags informadas. Os outros campos ficam iguais. Por exemplo, a troca da URL
+mantém a senha guardada.
 
 ```sh
 fluigcli service update sabia_agentos --url https://agentos2.empresa.com
@@ -169,8 +192,20 @@ headers custom em três casos: na troca para `custom`, com
 definida. A troca de tipo apaga a credencial do tipo antigo. Por exemplo, a
 troca para `none` apaga o usuário, a senha e os headers custom.
 
-O comando recusa serviço SOAP ou JDBC com exit **2**. Código inexistente termina
-com exit **4**.
+No SOAP basic, a alteração mantém a senha guardada, como no REST.
+
+O JDBC é a exceção: o Fluig **não** devolve a senha do JDBC. Uma alteração
+sem a senha apagaria a senha guardada. Por isso, toda alteração de um serviço
+JDBC pede a senha (`FLUIGCLI_SERVICE_PASSWORD` ou prompt). Sem ela, o comando
+para com exit **2**.
+
+Código inexistente termina com exit **4**.
+
+## `fluigcli service drivers [--all]`
+
+Este comando lista os drivers JDBC do servidor: o tipo, se está disponível e o
+modelo de URL. Só um driver disponível serve para `service create --type jdbc`.
+Com `--all`, a lista inclui os drivers não habilitados no servidor.
 
 ## `fluigcli service delete <código>...`
 
@@ -187,7 +222,12 @@ exit **6**.
 
 ## `fluigcli service test <código> [--full]`
 
-Este comando chama o caminho de teste do serviço (`--test-path`) pelo próprio
+No serviço JDBC, este comando abre uma conexão de teste com o banco. É o botão
+"Testar conexão" do Painel de Controle. A conexão aceita termina com exit
+**0**. A conexão recusada termina com exit **5**, com a mensagem do driver. O
+serviço SOAP não tem teste (exit **2**).
+
+No serviço REST, este comando chama o caminho de teste do serviço (`--test-path`) pelo próprio
 servidor Fluig, com a autenticação do cadastro. É o botão "Testar" do Painel de
 Controle. Por isso, o teste confere a URL, a rede do servidor e a autenticação
 de uma vez.
@@ -274,6 +314,9 @@ fluigcli service copy sabia_agentos --server homolog --to producao
 fluigcli service copy sabia_agentos --server homolog --to homolog --as sabia_agentos_v2
 ```
 
+A cópia trata só serviços REST. Para SOAP e JDBC, use o `export` e o
+`apply`.
+
 Use `--as` para gravar com outro código. No destino de produção, a cópia pede
 confirmação. Em modo não-interativo, confirme com `--yes`. O comando não
 aceita `--password-stdin`, porque autentica em dois servidores. Use a sessão
@@ -301,8 +344,23 @@ sugerido é `FLUIGCLI_SECRET_<CÓDIGO>`. Você pode trocar o nome no arquivo.
 }
 ```
 
-O comando recusa serviço SOAP e JDBC com exit **2**. Na autenticação OAuth, a
-variável do `secretEnv` traz o objeto JSON dos campos OAuth.
+Na autenticação OAuth, a variável do `secretEnv` traz o objeto JSON dos campos
+OAuth.
+
+O export também trata SOAP e JDBC. O arquivo ganha o campo `type`, mais
+`soapPackage` (SOAP) ou `driver` (JDBC). No SOAP basic e no JDBC, o
+`secretEnv` nomeia a variável da senha.
+
+```json
+{
+  "code": "erp_db",
+  "type": "jdbc",
+  "driver": "sqlserver",
+  "url": "jdbc:sqlserver://db.empresa.com:1433;databaseName=erp",
+  "username": "leitura",
+  "secretEnv": "FLUIGCLI_SECRET_ERP_DB"
+}
+```
 
 ### `fluigcli service apply <arquivo.json> [--dry-run]`
 
@@ -318,6 +376,11 @@ O segredo segue estas regras:
 - Na alteração sem a variável, o segredo guardado no servidor fica igual.
 - Na alteração com a variável, a CLI compara o valor com o segredo guardado,
   sem mostrar nenhum dos dois. Ela só grava quando o valor mudou.
+
+No JDBC, a CLI não confere a senha, porque o Fluig não a devolve. Ela envia a
+senha na criação e quando outro campo muda. Neste caso, a variável é
+obrigatória. Sem outra mudança, o apply diz "já está igual" e avisa que a
+senha não foi conferida. O apply não troca o tipo de um serviço existente.
 
 Use `--dry-run` para ver as mudanças sem gravar. Um campo desconhecido no
 arquivo termina com exit **2**. Por isso, um campo `password` no arquivo é

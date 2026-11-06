@@ -21,6 +21,7 @@ type svcStub struct {
 	deleted   []string
 	createErr bool
 	logBody   map[string]any
+	lastWrite map[string]any // corpo do último service/update (SOAP/JDBC)
 }
 
 func (s *svcStub) server(t *testing.T) *httptest.Server {
@@ -35,12 +36,34 @@ func (s *svcStub) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/portal/p/api/servlet/ping", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"message":"pong"}`)
 	})
+	soapjdbc, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ecmservices_findByType_soapjdbc.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/findByType", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("offset") != "0" {
 			io.WriteString(w, `{"content":[]}`)
 			return
 		}
-		w.Write(fixture)
+		// Junta REST + SOAP/JDBC numa resposta só.
+		var a, b struct {
+			Content []json.RawMessage `json:"content"`
+		}
+		_ = json.Unmarshal(fixture, &a)
+		_ = json.Unmarshal(soapjdbc, &b)
+		out, _ := json.Marshal(map[string]any{"content": append(a.Content, b.Content...)})
+		w.Write(out)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/drivers", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"content":[{"name":"sqlserver","type":"SQLSERVER","available":true,"jdbcUrl":"jdbc:sqlserver://<host>:1433"},{"name":"oracle","type":"ORACLE","available":false,"jdbcUrl":"jdbc:oracle:thin:@<host>"}]}`)
+	})
+	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/connection/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/AppDS") {
+			io.WriteString(w, `{"content":"OK","message":null}`)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"content":"ERROR","message":{"message":"The TCP/IP connection to the host x has failed."}}`)
 	})
 	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/service", func(w http.ResponseWriter, r *http.Request) {
 		if s.createErr {
@@ -51,6 +74,7 @@ func (s *svcStub) server(t *testing.T) *httptest.Server {
 		b, _ := io.ReadAll(r.Body)
 		s.mu.Lock()
 		_ = json.Unmarshal(b, &s.created)
+		_ = json.Unmarshal(b, &s.lastWrite)
 		s.mu.Unlock()
 		io.WriteString(w, `{"content":"OK"}`)
 	})
@@ -58,6 +82,7 @@ func (s *svcStub) server(t *testing.T) *httptest.Server {
 		b, _ := io.ReadAll(r.Body)
 		s.mu.Lock()
 		_ = json.Unmarshal(b, &s.updated)
+		_ = json.Unmarshal(b, &s.lastWrite)
 		s.mu.Unlock()
 		io.WriteString(w, `{"content":"OK"}`)
 	})
@@ -405,5 +430,58 @@ func TestServiceCreateOAuthPorStdin(t *testing.T) {
 	serviceStdin = strings.NewReader("")
 	if code, _ := runMain(t, "service", "create", "x", "--url", "https://x", "--auth", "oauth1", "--project", proj, "--server", "homolog", "--json"); code != output.ExitUsage || stub.created != nil {
 		t.Errorf("oauth1 sem campos: exit=%d created=%v", code, stub.created)
+	}
+}
+
+func TestServiceSOAPeJDBC(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	run := func(args ...string) (int, string) {
+		return runMain(t, append(args, "--project", proj, "--server", "homolog", "--json")...)
+	}
+	// show do SOAP basic e do JDBC: nada de senha.
+	code, out := run("service", "show", "wsDataServer")
+	if code != output.ExitOK || !strings.Contains(out, `"soapPackage":"com.empresa.ws"`) || strings.Contains(out, "REDACTED") {
+		t.Fatalf("show soap: exit=%d\n%s", code, out)
+	}
+	code, out = run("service", "show", "AppDS")
+	if code != output.ExitOK || !strings.Contains(out, `"driver":"sqlserver"`) {
+		t.Fatalf("show jdbc: exit=%d\n%s", code, out)
+	}
+	// Update do SOAP basic sem senha nova: reenvia a guardada.
+	if code, out := run("service", "update", "wsDataServer", "--description", "novo"); code != output.ExitOK {
+		t.Fatalf("update soap: exit=%d\n%s", code, out)
+	}
+	if stub.lastWrite["password"] != "REDACTED" || stub.lastWrite["type"] != "1" || stub.lastWrite["soapWsPackage"] != "com.empresa.ws" {
+		t.Errorf("update soap perdeu campos: %+v", stub.lastWrite)
+	}
+	// Update do JDBC sem senha: recusa (o Fluig não devolve a senha).
+	stub.lastWrite = nil
+	if code, _ := run("service", "update", "AppDS", "--description", "novo"); code != output.ExitUsage || stub.lastWrite != nil {
+		t.Errorf("update jdbc sem senha: exit=%d write=%v", code, stub.lastWrite)
+	}
+	t.Setenv(envServicePassword, "s3nha")
+	if code, out := run("service", "update", "AppDS", "--description", "novo"); code != output.ExitOK {
+		t.Fatalf("update jdbc: exit=%d\n%s", code, out)
+	}
+	if stub.lastWrite["password"] != "s3nha" || stub.lastWrite["fileName"] != "SQLSERVER" || stub.lastWrite["type"] != "4" {
+		t.Errorf("update jdbc inesperado: %+v", stub.lastWrite)
+	}
+	// Create JDBC: driver indisponível e flag de REST são recusados.
+	if code, _ := run("service", "create", "x", "--type", "jdbc", "--url", "jdbc:x", "--driver", "oracle", "--username", "u"); code != output.ExitUsage {
+		t.Errorf("driver indisponível: exit=%d", code)
+	}
+	if code, _ := run("service", "create", "x", "--type", "soap", "--url", "http://x?wsdl", "--test-path", "/x"); code != output.ExitUsage {
+		t.Errorf("flag de REST no SOAP: exit=%d", code)
+	}
+	// Teste de conexão JDBC.
+	if code, out := run("service", "test", "AppDS"); code != output.ExitOK || !strings.Contains(out, `"connected":true`) {
+		t.Errorf("test jdbc: exit=%d\n%s", code, out)
+	}
+	if code, _ := run("service", "test", "wsDataServer"); code != output.ExitUsage {
+		t.Errorf("test soap: exit=%d", code)
+	}
+	if code, out := run("service", "drivers"); code != output.ExitOK || strings.Contains(out, "ORACLE") {
+		t.Errorf("drivers: exit=%d\n%s", code, out)
 	}
 }

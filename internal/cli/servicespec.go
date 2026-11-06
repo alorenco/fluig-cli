@@ -18,15 +18,18 @@ import (
 	"github.com/alorenco/fluig-cli/internal/project"
 )
 
-// serviceSpec é o arquivo versionável de um serviço REST
-// (services/<código>.json). O arquivo NUNCA guarda segredo: SecretEnv é o
-// NOME da variável de ambiente que traz a senha basic ou os headers custom
-// na hora do apply.
+// serviceSpec é o arquivo versionável de um serviço (services/<código>.json).
+// O arquivo NUNCA guarda segredo: SecretEnv é o NOME da variável de ambiente
+// que traz a senha, os headers custom ou os campos OAuth na hora do apply.
 type serviceSpec struct {
-	Code        string `json:"code"`
+	Code string `json:"code"`
+	// Type é rest (default), soap ou jdbc.
+	Type        string `json:"type,omitempty"`
+	Driver      string `json:"driver,omitempty"`      // jdbc
+	SOAPPackage string `json:"soapPackage,omitempty"` // soap
 	Description string `json:"description,omitempty"`
 	URL         string `json:"url"`
-	Auth        string `json:"auth"`
+	Auth        string `json:"auth,omitempty"`
 	Username    string `json:"username,omitempty"`
 	TestPath    string `json:"testPath,omitempty"`
 	Swagger     string `json:"swagger,omitempty"`
@@ -62,6 +65,18 @@ func readServiceSpec(path string) (*serviceSpec, error) {
 }
 
 func (s *serviceSpec) validate() error {
+	s.Type = strings.ToLower(s.Type)
+	switch s.Type {
+	case "", fluig.ServiceTypeREST:
+		s.Type = fluig.ServiceTypeREST
+		if s.Driver != "" || s.SOAPPackage != "" {
+			return errors.New("\"driver\" e \"soapPackage\" não valem para serviço REST")
+		}
+	case fluig.ServiceTypeSOAP, fluig.ServiceTypeJDBC:
+		return s.validateSOAPJDBC()
+	default:
+		return fmt.Errorf("\"type\" aceita rest, soap ou jdbc (veio %q)", s.Type)
+	}
 	switch {
 	case s.Code == "":
 		return errors.New("falta \"code\"")
@@ -83,8 +98,52 @@ func (s *serviceSpec) validate() error {
 	return nil
 }
 
+func (s *serviceSpec) validateSOAPJDBC() error {
+	switch {
+	case s.Code == "":
+		return errors.New("falta \"code\"")
+	case s.TestPath != "" || s.Swagger != "":
+		return fmt.Errorf("\"testPath\" e \"swagger\" não valem para serviço %s", strings.ToUpper(s.Type))
+	case s.SecretEnv != "" && !envNameRe.MatchString(s.SecretEnv):
+		return fmt.Errorf("\"secretEnv\" precisa ser um nome de variável de ambiente (veio %q)", s.SecretEnv)
+	}
+	if s.Type == fluig.ServiceTypeSOAP {
+		if s.Auth == "" {
+			s.Auth = fluig.ServiceAuthNone
+		}
+		switch {
+		case s.Driver != "":
+			return errors.New("\"driver\" não vale para serviço SOAP")
+		case !strings.HasPrefix(s.URL, "http://") && !strings.HasPrefix(s.URL, "https://"):
+			return fmt.Errorf("\"url\" do SOAP é a URL do WSDL, com http:// ou https:// (veio %q)", s.URL)
+		case s.Auth != fluig.ServiceAuthNone && s.Auth != fluig.ServiceAuthBasic:
+			return fmt.Errorf("o SOAP aceita \"auth\" none ou basic (veio %q)", s.Auth)
+		case s.Auth == fluig.ServiceAuthBasic && (s.Username == "" || s.SecretEnv == ""):
+			return errors.New("o SOAP basic exige \"username\" e \"secretEnv\"")
+		case s.Auth == fluig.ServiceAuthNone && (s.Username != "" || s.SecretEnv != ""):
+			return errors.New("\"username\" e \"secretEnv\" só valem com \"auth\": \"basic\"")
+		}
+		return nil
+	}
+	switch {
+	case s.Auth != "" || s.SOAPPackage != "":
+		return errors.New("\"auth\" e \"soapPackage\" não valem para serviço JDBC")
+	case !strings.HasPrefix(s.URL, "jdbc:"):
+		return fmt.Errorf("\"url\" do JDBC começa com jdbc: (veio %q)", s.URL)
+	case s.Driver == "" || s.Username == "" || s.SecretEnv == "":
+		return errors.New("o JDBC exige \"driver\", \"username\" e \"secretEnv\"")
+	}
+	return nil
+}
+
 // hasSecret diz se o tipo de autenticação guarda segredo.
 func (s *serviceSpec) hasSecret() bool {
+	if s.Type == fluig.ServiceTypeJDBC {
+		return true
+	}
+	if s.Type == fluig.ServiceTypeSOAP {
+		return s.Auth == fluig.ServiceAuthBasic
+	}
 	switch s.Auth {
 	case fluig.ServiceAuthBasic, fluig.ServiceAuthCustom, fluig.ServiceAuthOAuth1, fluig.ServiceAuthOAuth2:
 		return true
@@ -100,6 +159,9 @@ func (s *serviceSpec) secret() (string, bool, error) {
 	v := os.Getenv(s.SecretEnv)
 	if v == "" {
 		return "", false, nil
+	}
+	if s.Type != fluig.ServiceTypeREST {
+		return v, true, nil
 	}
 	switch s.Auth {
 	case fluig.ServiceAuthCustom:
@@ -128,6 +190,9 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 		return nil, mapFluigError(err)
 	}
 	str := func(v string) *string { return &v }
+	if spec.Type != fluig.ServiceTypeREST {
+		return applySOAPJDBCSpec(ctx, client, spec, cur, secret, hasSecret, dryRun)
+	}
 
 	if cur == nil {
 		needsSecret := spec.hasSecret()
@@ -160,7 +225,7 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 	}
 
 	if cur.Type != fluig.ServiceTypeREST {
-		return nil, output.Usagef("o serviço %q no servidor é %s; o apply só trata serviços REST", spec.Code, strings.ToUpper(cur.Type))
+		return nil, output.Usagef("o serviço %q no servidor é %s, e o arquivo diz rest; o apply não troca o tipo", spec.Code, strings.ToUpper(cur.Type))
 	}
 	var in fluig.ServiceInput
 	var actions []string
@@ -214,6 +279,108 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 	return actions, nil
 }
 
+// applySOAPJDBCSpec cria ou alinha um serviço SOAP/JDBC. A senha do JDBC
+// não é conferida (o Fluig não a devolve): ela só é enviada na criação e
+// quando outro campo muda (aí é obrigatória).
+func applySOAPJDBCSpec(ctx context.Context, client *fluig.Client, spec *serviceSpec, cur *fluig.Service, secret string, hasSecret, dryRun bool) ([]string, error) {
+	kind := strings.ToUpper(spec.Type)
+	driverType := ""
+	if spec.Type == fluig.ServiceTypeJDBC {
+		drivers, err := client.ListJDBCDrivers(ctx)
+		if err != nil {
+			return nil, mapFluigError(err)
+		}
+		for _, d := range drivers {
+			if d.Available && (strings.EqualFold(d.Type, spec.Driver) || strings.EqualFold(d.Name, spec.Driver)) {
+				driverType = d.Type
+			}
+		}
+		if driverType == "" {
+			return nil, output.Usagef("o driver %q não está disponível no servidor (veja: fluigcli service drivers)", spec.Driver)
+		}
+	}
+	desc := orDefault(spec.Description, spec.Code)
+	save := func(update bool) error {
+		if spec.Type == fluig.ServiceTypeSOAP {
+			in := fluig.SOAPInput{Description: desc, WSDL: spec.URL, Package: spec.SOAPPackage, Auth: spec.Auth, Username: spec.Username}
+			if hasSecret {
+				in.Password = secret
+			}
+			var c *fluig.Service
+			if update {
+				c = cur
+			}
+			return client.SaveSOAPService(ctx, spec.Code, in, c)
+		}
+		return client.SaveJDBCService(ctx, spec.Code, fluig.JDBCInput{Description: desc, URL: spec.URL, DriverType: driverType, Username: spec.Username, Password: secret}, update)
+	}
+	if cur == nil {
+		if spec.hasSecret() && !hasSecret {
+			return nil, output.Usagef("o serviço %q não existe e o %s exige a senha: defina a variável %s", spec.Code, kind, spec.SecretEnv)
+		}
+		actions := []string{fmt.Sprintf("criar o serviço %s (%s, %s)", spec.Code, kind, spec.URL)}
+		if dryRun {
+			return actions, nil
+		}
+		if err := save(false); err != nil {
+			return nil, mapFluigError(err)
+		}
+		return actions, nil
+	}
+	if cur.Type != spec.Type {
+		return nil, output.Usagef("o serviço %q no servidor é %s, e o arquivo diz %s; o apply não troca o tipo", spec.Code, strings.ToUpper(cur.Type), kind)
+	}
+	var actions []string
+	diff := func(label, from, to string) {
+		if from != to {
+			actions = append(actions, fmt.Sprintf("%s: %q → %q", label, from, to))
+		}
+	}
+	if spec.Description != "" {
+		diff("descrição", cur.Description, spec.Description)
+	}
+	diff("url", cur.URL, spec.URL)
+	diff("usuário", cur.Username, spec.Username)
+	if spec.Type == fluig.ServiceTypeSOAP {
+		diff("pacote SOAP", cur.SOAPPackage, spec.SOAPPackage)
+		diff("autenticação", orDefault(cur.AuthType, fluig.ServiceAuthNone), spec.Auth)
+		if spec.Auth == fluig.ServiceAuthBasic && hasSecret && !cur.SecretEquals(secret) {
+			actions = append(actions, "senha atualizada (valor da variável "+spec.SecretEnv+")")
+		}
+		if spec.Auth == fluig.ServiceAuthBasic && cur.AuthType != fluig.ServiceAuthBasic && !hasSecret {
+			return nil, output.Usagef("a troca para basic exige a senha: defina a variável %s", spec.SecretEnv)
+		}
+	} else {
+		diff("driver", strings.ToLower(cur.Driver), strings.ToLower(driverTypeName(spec.Driver, cur.Driver)))
+		if len(actions) > 0 && !hasSecret {
+			return nil, output.Usagef("a alteração do JDBC %q exige a senha (o Fluig não devolve a guardada): defina a variável %s", spec.Code, spec.SecretEnv)
+		}
+	}
+	if len(actions) == 0 {
+		msg := "serviço " + spec.Code + " já está igual à especificação"
+		if spec.Type == fluig.ServiceTypeJDBC {
+			msg += " (a senha do JDBC não é conferida: o Fluig não a devolve)"
+		}
+		return []string{msg}, nil
+	}
+	if dryRun {
+		return actions, nil
+	}
+	if err := save(true); err != nil {
+		return nil, mapFluigError(err)
+	}
+	return actions, nil
+}
+
+// driverTypeName normaliza o driver do arquivo para comparar com o nome
+// guardado (o servidor guarda "sqlserver"; o arquivo pode dizer "SQLSERVER").
+func driverTypeName(spec, cur string) string {
+	if strings.EqualFold(spec, cur) {
+		return cur
+	}
+	return spec
+}
+
 // --- service export ---
 
 func newServiceExportCmd(app *App) *cobra.Command {
@@ -224,7 +391,8 @@ func newServiceExportCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export <código>",
 		Short: "Grava a especificação do serviço num arquivo JSON versionável (sem segredo)",
-		Long: "Grava a especificação de um serviço REST em services/<código>.json (ou no\n" +
+		Long: "Grava a especificação de um serviço (REST, SOAP ou JDBC) em\n" +
+			"services/<código>.json (ou no\n" +
 			"--output). O arquivo vai para o Git e é aplicado em outro servidor com\n" +
 			"service apply ou com o passo \"service\" do deploy.\n\n" +
 			"O arquivo NUNCA guarda segredo. Na autenticação basic ou custom, o campo\n" +
@@ -243,8 +411,18 @@ func newServiceExportCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if s.Type == fluig.ServiceTypeSOAP || s.Type == fluig.ServiceTypeJDBC {
+				spec := serviceSpec{Code: s.Code, Type: s.Type, Description: s.Description, URL: s.URL, Username: s.Username, Driver: s.Driver, SOAPPackage: s.SOAPPackage}
+				if s.Type == fluig.ServiceTypeSOAP {
+					spec.Auth = orDefault(s.AuthType, fluig.ServiceAuthNone)
+				}
+				if spec.hasSecret() {
+					spec.SecretEnv = secretEnvName(code)
+				}
+				return app.writeServiceSpec(p, code, outPath, spec)
+			}
 			if s.Type != fluig.ServiceTypeREST {
-				return output.Usagef("o serviço %q é %s; o export só trata serviços REST", code, strings.ToUpper(s.Type))
+				return output.Usagef("o serviço %q é do tipo %s, que o export não trata", code, s.Type)
 			}
 			if !slices.Contains(fluig.ServiceAuthWritable, s.AuthType) {
 				return output.Usagef("o serviço %q usa a autenticação %s, que a CLI não conhece", code, s.AuthType)
@@ -256,28 +434,34 @@ func newServiceExportCmd(app *App) *cobra.Command {
 			if spec.hasSecret() {
 				spec.SecretEnv = secretEnvName(code)
 			}
-			path := outPath
-			if path == "" {
-				root, err := app.projectRootForFiles()
-				if err != nil {
-					return err
-				}
-				path = filepath.Join(root, project.ServicesDirName, code+".json")
-			}
-			if err := writeJSONFile(path, spec); err != nil {
-				return err
-			}
-			p.Successf("serviço %q exportado para %s", code, path)
-			if spec.SecretEnv != "" {
-				p.Infof("O segredo não foi gravado. No apply, defina a variável %s.", spec.SecretEnv)
-			}
-			p.Done(map[string]any{"path": path, "spec": spec})
-			return nil
+			return app.writeServiceSpec(p, code, outPath, spec)
 		},
 	}
 	cmd.Flags().StringVarP(&outPath, "output", "o", "", "arquivo de saída (default: services/<código>.json no projeto)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// writeServiceSpec grava a especificação no --output ou em
+// services/<código>.json do projeto.
+func (a *App) writeServiceSpec(p *output.Printer, code, outPath string, spec serviceSpec) error {
+	path := outPath
+	if path == "" {
+		root, err := a.projectRootForFiles()
+		if err != nil {
+			return err
+		}
+		path = filepath.Join(root, project.ServicesDirName, code+".json")
+	}
+	if err := writeJSONFile(path, spec); err != nil {
+		return err
+	}
+	p.Successf("serviço %q exportado para %s", code, path)
+	if spec.SecretEnv != "" {
+		p.Infof("O segredo não foi gravado. No apply, defina a variável %s.", spec.SecretEnv)
+	}
+	p.Done(map[string]any{"path": path, "spec": spec})
+	return nil
 }
 
 // --- service apply ---
