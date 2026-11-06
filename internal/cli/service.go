@@ -43,6 +43,7 @@ func newServiceCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServiceDeleteCmd(app))
 	cmd.AddCommand(newServiceTestCmd(app))
 	cmd.AddCommand(newServiceLogCmd(app))
+	cmd.AddCommand(newServiceCopyCmd(app))
 	cmd.AddCommand(newServiceExportCmd(app))
 	cmd.AddCommand(newServiceApplyCmd(app))
 	return cmd
@@ -616,5 +617,72 @@ func newServiceLogCmd(app *App) *cobra.Command {
 	cmd.Flags().BoolVar(&download, "download", false, "baixa o log de todos os serviços com log ligado (.zip)")
 	cmd.Flags().StringVarP(&outPath, "output", "o", "", "arquivo do --download (default: services-log-<data>.zip)")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
+	return cmd
+}
+
+// --- service copy ---
+
+func newServiceCopyCmd(app *App) *cobra.Command {
+	var (
+		to, as        string
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "copy <código> --to <servidor> [--as <código-novo>]",
+		Short: "Copia um serviço REST de um servidor para outro, com os segredos, sem mostrá-los",
+		Long: "Lê o serviço no servidor de origem (--server) e cria ou alinha o serviço\n" +
+			"no servidor de destino (--to). A cópia leva a URL, a descrição, o caminho de\n" +
+			"teste, o swagger, o tipo de autenticação e os segredos de qualquer tipo:\n" +
+			"basic, custom, OAuth 1 e OAuth 2. Os segredos vão de servidor para servidor\n" +
+			"e não aparecem na tela nem em arquivo.\n\n" +
+			"Use --as para gravar com outro código. No destino de produção, a cópia\n" +
+			"pede confirmação; em modo não-interativo, confirme com --yes.\n\n" +
+			"Para um fluxo versionado no Git, prefira service export + service apply.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			code := args[0]
+			if to == "" {
+				return output.Usagef("informe o servidor de destino com --to")
+			}
+			dest := code
+			if as != "" {
+				dest = as
+			}
+			if passwordStdin {
+				return output.Usagef("o copy autentica em dois servidores; use a sessão em cache ou a variável de senha em vez de --password-stdin")
+			}
+			ctx := context.Background()
+			srcServer, srcClient, err := app.connect(ctx, false)
+			if err != nil {
+				return err
+			}
+			srcSvc, err := srcClient.GetService(ctx, code)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if srcSvc.Type != fluig.ServiceTypeREST {
+				return output.Usagef("o serviço %q é %s; a cópia só trata serviços REST", code, strings.ToUpper(srcSvc.Type))
+			}
+			dstServer, dstClient, err := app.connectWriteServer(ctx, to, false, fmt.Sprintf("copiar o serviço %s", code))
+			if err != nil {
+				return err
+			}
+			if dstServer.Name == srcServer.Name && dest == code {
+				return output.Usagef("origem e destino são o mesmo serviço; use outro --to ou --as")
+			}
+			action, err := dstClient.CopyServiceTo(ctx, srcSvc, dest)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			verb := map[string]string{"created": "criado", "updated": "alinhado"}[action]
+			p.Successf("serviço %q de %s → %q em %s: %s (autenticação %s)", code, srcServer.Name, dest, dstServer.Name, verb, srcSvc.AuthType)
+			p.Done(map[string]any{"from": srcServer.Name, "to": dstServer.Name, "code": code, "as": dest, "action": action, "authType": srcSvc.AuthType})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&to, "to", "", "servidor de destino (obrigatório)")
+	cmd.Flags().StringVar(&as, "as", "", "código do serviço no destino (default: o mesmo)")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "não suportado: o copy autentica em dois servidores")
 	return cmd
 }

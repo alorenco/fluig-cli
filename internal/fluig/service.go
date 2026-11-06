@@ -583,3 +583,64 @@ func (c *Client) DownloadServiceLog(ctx context.Context) ([]byte, error) {
 	}
 	return body, nil
 }
+
+// serviceAuthFields são os campos do oAuthVO que a tela do Fluig envia para
+// cada tipo de autenticação (dataservicewizard). A cópia entre servidores
+// envia só estes: id, tenantId e datas da origem ficam de fora.
+var serviceAuthFields = map[string][]string{
+	ServiceAuthBasic:  {"username", "password", "passwordConfirmation"},
+	ServiceAuthOAuth1: {"consumerKey", "consumerSecret", "tokenAccess", "tokenSecret", "accessTokenURL", "requestTokenURL", "authorizationURL"},
+	ServiceAuthOAuth2: {"clientId", "clientSecret", "refreshToken", "tokenAccess", "refreshTokenURL"},
+}
+
+// CopyServiceTo cria ou alinha, no servidor de c, o serviço REST src (lido
+// de OUTRO servidor), com o código code. Copia a URL, a descrição, o
+// caminho de teste, o swagger, o tipo de autenticação e os segredos de
+// qualquer tipo (basic, custom, OAuth 1, OAuth 2), sem expor os valores.
+// Devolve "created" ou "updated".
+func (c *Client) CopyServiceTo(ctx context.Context, src *Service, code string) (string, error) {
+	if src.Type != ServiceTypeREST {
+		return "", fmt.Errorf("só serviços REST podem ser copiados (o serviço %q é %s)", src.Code, src.Type)
+	}
+	if src.oauth == nil {
+		return "", fmt.Errorf("o serviço %q veio sem os dados de autenticação", src.Code)
+	}
+	cur, err := c.GetService(ctx, code)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return "", err
+	}
+	oauth := map[string]any{
+		"code":               code,
+		"description":        src.Description,
+		"authenticationType": src.AuthType,
+		"domain":             src.URL,
+		"serviceTestUrl":     src.TestPath,
+		"custom":             jsonString(src.oauth, "custom"),
+	}
+	for _, k := range serviceAuthFields[src.AuthType] {
+		if v, ok := src.oauth[k]; ok {
+			oauth[k] = v
+		}
+	}
+	payload := map[string]any{
+		"name":        code,
+		"url":         src.Swagger,
+		"description": src.Description,
+		"type":        "3",
+		"oAuthVO":     oauth,
+	}
+	if cur == nil {
+		if err := c.EnsureSession(ctx); err != nil {
+			return "", err
+		}
+		return "created", c.postServiceWrite(ctx, "service", payload)
+	}
+	if cur.Type != ServiceTypeREST {
+		return "", fmt.Errorf("o serviço %q no destino é %s; a cópia só trata REST", code, cur.Type)
+	}
+	if cur.oauthID == 0 {
+		return "", fmt.Errorf("o destino não devolveu o id do cliente OAuth do serviço %q", code)
+	}
+	oauth["id"] = cur.oauthID
+	return "updated", c.postServiceWrite(ctx, "update", payload)
+}

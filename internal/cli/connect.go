@@ -137,6 +137,24 @@ func (a *App) connectWrite(ctx context.Context, passwordStdin bool, action strin
 	return server, client, nil
 }
 
+// connectWriteServer é o connectWrite para um servidor NOMEADO (ex.: o
+// destino do service copy), sem mexer no --server da execução.
+func (a *App) connectWriteServer(ctx context.Context, name string, passwordStdin bool, action string) (*config.Server, *fluig.Client, error) {
+	server, err := a.resolveServer(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := a.guardProdWrite(server, action); err != nil {
+		return nil, nil, err
+	}
+	a.raiseWriteTimeout()
+	client, err := a.authenticate(ctx, server, passwordStdin)
+	if err != nil {
+		return nil, nil, err
+	}
+	return server, client, nil
+}
+
 // guardProdWrite pede confirmação para escrever em servidor de produção,
 // respeitando --yes e o modo não-interativo (via App.confirm).
 func (a *App) guardProdWrite(server *config.Server, action string) error {

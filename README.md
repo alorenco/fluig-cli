@@ -155,7 +155,7 @@ fluigcli diff --json | jq '.data.counts'
 | `group` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/group.md](docs/group.md) |
 | `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/role.md](docs/role.md) |
 | `replacement` | `list` `show` `create` `update` `delete` | [docs/replacement.md](docs/replacement.md) |
-| `service` | `list` `show` `create` `update` `delete` `test` `log` `export` `apply` | [docs/service.md](docs/service.md) |
+| `service` | `list` `show` `create` `update` `delete` `test` `log` `copy` `export` `apply` | [docs/service.md](docs/service.md) |
 
 **Configuração**:
 

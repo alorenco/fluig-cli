@@ -235,6 +235,28 @@ Use um arquivo de especificação versionado no Git. O fluxo é este:
 Você também pode pôr o arquivo num plano de [`deploy`](deploy.md), com o passo
 `service`.
 
+### `fluigcli service copy <código> --to <servidor> [--as <código-novo>]`
+
+Este comando copia um serviço REST do servidor de origem (`--server`) para o
+servidor de destino (`--to`). Ele cria o serviço no destino ou alinha o
+serviço que já existe. A cópia leva a URL, a descrição, o caminho de teste, o
+swagger, o tipo de autenticação e os segredos de qualquer tipo: basic,
+custom, OAuth 1 e OAuth 2. Os segredos vão de servidor para servidor e não
+aparecem na tela nem em arquivo.
+
+```sh
+fluigcli service copy sabia_agentos --server homolog --to producao
+fluigcli service copy sabia_agentos --server homolog --to homolog --as sabia_agentos_v2
+```
+
+Use `--as` para gravar com outro código. No destino de produção, a cópia pede
+confirmação. Em modo não-interativo, confirme com `--yes`. O comando não
+aceita `--password-stdin`, porque autentica em dois servidores. Use a sessão
+em cache ou a variável de senha.
+
+Use o `copy` para uma cópia avulsa. Para um fluxo versionado no Git, use o
+`export` e o `apply`.
+
 ### `fluigcli service export <código> [--output <arquivo>]`
 
 Este comando grava a especificação de um serviço REST em

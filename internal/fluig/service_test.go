@@ -327,3 +327,36 @@ func TestUpdateServiceCustom(t *testing.T) {
 		t.Errorf("troca para custom manteve a senha basic: %+v", o)
 	}
 }
+
+func TestCopyServiceToLevaSegredosSemTenant(t *testing.T) {
+	src := &serviceStub{}
+	srcClient := serviceClient(t, src.server(t).URL)
+	svc, err := srcClient.GetService(context.Background(), "APIInfoBip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := &serviceStub{}
+	dstClient := serviceClient(t, dst.server(t).URL)
+	// Código novo no destino: cria.
+	action, err := dstClient.CopyServiceTo(context.Background(), svc, "novo_basic")
+	if err != nil || action != "created" {
+		t.Fatalf("copy: %s, %v", action, err)
+	}
+	o := dst.created["oAuthVO"].(map[string]any)
+	if o["code"] != "novo_basic" || o["password"] != "REDACTED" || o["username"] != "jsilva" || o["domain"] != "https://api.infobip.com/" {
+		t.Errorf("oAuthVO copiado inesperado: %+v", o)
+	}
+	for _, k := range []string{"id", "tenantId", "creationDate"} {
+		if _, ok := o[k]; ok {
+			t.Errorf("a cópia levou %q da origem", k)
+		}
+	}
+	// Código existente no destino: alinha com o id do destino.
+	action, err = dstClient.CopyServiceTo(context.Background(), svc, "jusbrasil")
+	if err != nil || action != "updated" {
+		t.Fatalf("copy update: %s, %v", action, err)
+	}
+	if u := dst.updated["oAuthVO"].(map[string]any); u["id"] != float64(11) {
+		t.Errorf("update sem o id do destino: %+v", u["id"])
+	}
+}
