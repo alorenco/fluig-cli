@@ -398,7 +398,7 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 |---|---|
 | `service list [--type rest\|soap\|jdbc] [--filter trecho]` | tabela código/tipo/URL base/autenticação |
 | `service show <código>` | um serviço, sem segredos (inexistente = exit 4) |
-| `service create <código> --url <base> [--auth none\|basic\|fluigAPI\|custom] [--username] [--custom-headers-stdin] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5) |
+| `service create <código> --url <base> [--auth none\|basic\|fluigAPI\|custom\|oauth1\|oauth2] [--username] [--custom-headers-stdin] [--oauth-stdin] [--description] [--test-path] [--swagger]` | cadastra serviço REST (auth default none; duplicado = exit 5). OAuth: objeto JSON por `--oauth-stdin`/`FLUIGCLI_SERVICE_OAUTH`; obrigatórios oauth2 = clientId+clientSecret+tokenAccess, oauth1 = os 7 campos (exit 2 antes de gravar) |
 | `service update <código> [mesmas flags]` | altera só os campos informados; preserva o segredo guardado (troca de tipo apaga a credencial do tipo antigo) |
 | `service delete <código>... --yes` | exclui (datasets que usam o serviço quebram; inexistente = exit 4) |
 | `service test <código> [--full]` | chama o `--test-path` cadastrado PELO Fluig (com a autenticação do cadastro; é o botão "Testar"); 2xx = exit 0, outro status ou chamada que não saiu = exit 5; sem test-path chama a raiz da URL (aviso); não aceita outro caminho |
@@ -407,8 +407,7 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 | `service export <código> [-o arquivo]` | grava `services/<código>.json` SEM segredo; basic/custom ganham `secretEnv` (NOME da variável, default `FLUIGCLI_SECRET_<CÓDIGO>`); SOAP/JDBC/OAuth = exit 2 |
 | `service apply <arquivo> [--dry-run]` | cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
 
-`oauth1`/`oauth2` aparecem no list/show, mas a CLI não os grava (exit 2):
-configure pelo Painel de Controle. Escrita em produção pede `--yes`.
+OAuth 1/2: o `show` lista só os NOMES dos campos preenchidos (`oauthFields`). Escrita em produção pede `--yes`.
 
 ## document — GED (operação)
 

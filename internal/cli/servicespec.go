@@ -68,19 +68,28 @@ func (s *serviceSpec) validate() error {
 	case !strings.HasPrefix(s.URL, "http://") && !strings.HasPrefix(s.URL, "https://"):
 		return fmt.Errorf("\"url\" precisa começar com http:// ou https:// (veio %q)", s.URL)
 	case !slices.Contains(fluig.ServiceAuthWritable, s.Auth):
-		return fmt.Errorf("\"auth\" aceita none, basic, fluigAPI ou custom (veio %q)", s.Auth)
+		return fmt.Errorf("\"auth\" aceita none, basic, fluigAPI, custom, oauth1 ou oauth2 (veio %q)", s.Auth)
 	case s.Auth == fluig.ServiceAuthBasic && s.Username == "":
 		return errors.New("\"auth\": \"basic\" exige \"username\"")
 	case s.Auth != fluig.ServiceAuthBasic && s.Username != "":
 		return errors.New("\"username\" só vale com \"auth\": \"basic\"")
-	case s.SecretEnv != "" && s.Auth != fluig.ServiceAuthBasic && s.Auth != fluig.ServiceAuthCustom:
-		return errors.New("\"secretEnv\" só vale com \"auth\": \"basic\" ou \"custom\"")
+	case s.SecretEnv != "" && !s.hasSecret():
+		return errors.New("\"secretEnv\" só vale com \"auth\": basic, custom, oauth1 ou oauth2")
 	case s.SecretEnv != "" && !envNameRe.MatchString(s.SecretEnv):
 		return fmt.Errorf("\"secretEnv\" precisa ser um nome de variável de ambiente (veio %q)", s.SecretEnv)
-	case (s.Auth == fluig.ServiceAuthBasic || s.Auth == fluig.ServiceAuthCustom) && s.SecretEnv == "":
+	case s.hasSecret() && s.SecretEnv == "":
 		return fmt.Errorf("\"auth\": %q exige \"secretEnv\" com o nome da variável que traz o segredo", s.Auth)
 	}
 	return nil
+}
+
+// hasSecret diz se o tipo de autenticação guarda segredo.
+func (s *serviceSpec) hasSecret() bool {
+	switch s.Auth {
+	case fluig.ServiceAuthBasic, fluig.ServiceAuthCustom, fluig.ServiceAuthOAuth1, fluig.ServiceAuthOAuth2:
+		return true
+	}
+	return false
 }
 
 // secret lê o segredo da variável. ok=false quando a variável está vazia.
@@ -92,12 +101,17 @@ func (s *serviceSpec) secret() (string, bool, error) {
 	if v == "" {
 		return "", false, nil
 	}
-	if s.Auth == fluig.ServiceAuthCustom {
+	switch s.Auth {
+	case fluig.ServiceAuthCustom:
 		text, _, err := fluig.ParseCustomHeaders(v)
 		if err != nil {
 			return "", false, output.Usagef("os headers da variável %s são inválidos: %v", s.SecretEnv, err)
 		}
 		return text, true, nil
+	case fluig.ServiceAuthOAuth1, fluig.ServiceAuthOAuth2:
+		if _, err := fluig.ParseOAuthSecret(s.Auth, v); err != nil {
+			return "", false, output.Usagef("os campos OAuth da variável %s são inválidos: %v", s.SecretEnv, err)
+		}
 	}
 	return v, true, nil
 }
@@ -116,7 +130,7 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 	str := func(v string) *string { return &v }
 
 	if cur == nil {
-		needsSecret := spec.Auth == fluig.ServiceAuthBasic || spec.Auth == fluig.ServiceAuthCustom
+		needsSecret := spec.hasSecret()
 		if needsSecret && !hasSecret {
 			return nil, output.Usagef("o serviço %q não existe e a autenticação %s exige o segredo: defina a variável %s", spec.Code, spec.Auth, spec.SecretEnv)
 		}
@@ -136,6 +150,8 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 			in.Username, in.Password = str(spec.Username), str(secret)
 		case fluig.ServiceAuthCustom:
 			in.Custom = str(secret)
+		case fluig.ServiceAuthOAuth1, fluig.ServiceAuthOAuth2:
+			in.OAuth, _ = fluig.ParseOAuthSecret(spec.Auth, secret)
 		}
 		if err := client.CreateService(ctx, spec.Code, in); err != nil {
 			return nil, mapFluigError(err)
@@ -171,15 +187,18 @@ func applyServiceSpec(ctx context.Context, client *fluig.Client, spec *serviceSp
 			actions = append(actions, fmt.Sprintf("usuário: %q → %q", cur.Username, spec.Username))
 		}
 	}
-	needsSecret := spec.Auth == fluig.ServiceAuthBasic || spec.Auth == fluig.ServiceAuthCustom
+	needsSecret := spec.hasSecret()
 	switch {
 	case needsSecret && authChanged && !hasSecret:
 		return nil, output.Usagef("a troca para a autenticação %s exige o segredo: defina a variável %s", spec.Auth, spec.SecretEnv)
 	case needsSecret && hasSecret && (authChanged || !cur.SecretEquals(secret)):
-		if spec.Auth == fluig.ServiceAuthBasic {
+		switch spec.Auth {
+		case fluig.ServiceAuthBasic:
 			in.Password = str(secret)
-		} else {
+		case fluig.ServiceAuthCustom:
 			in.Custom = str(secret)
+		default:
+			in.OAuth, _ = fluig.ParseOAuthSecret(spec.Auth, secret)
 		}
 		actions = append(actions, "segredo atualizado (valor da variável "+spec.SecretEnv+")")
 	}
@@ -228,13 +247,13 @@ func newServiceExportCmd(app *App) *cobra.Command {
 				return output.Usagef("o serviço %q é %s; o export só trata serviços REST", code, strings.ToUpper(s.Type))
 			}
 			if !slices.Contains(fluig.ServiceAuthWritable, s.AuthType) {
-				return output.Usagef("o serviço %q usa a autenticação %s, que a CLI não grava; mantenha esse serviço pelo Painel de Controle", code, s.AuthType)
+				return output.Usagef("o serviço %q usa a autenticação %s, que a CLI não conhece", code, s.AuthType)
 			}
 			spec := serviceSpec{
 				Code: s.Code, Description: s.Description, URL: s.URL, Auth: s.AuthType,
 				Username: s.Username, TestPath: s.TestPath, Swagger: s.Swagger,
 			}
-			if spec.Auth == fluig.ServiceAuthBasic || spec.Auth == fluig.ServiceAuthCustom {
+			if spec.hasSecret() {
 				spec.SecretEnv = secretEnvName(code)
 			}
 			path := outPath

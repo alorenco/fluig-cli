@@ -382,3 +382,28 @@ func TestServiceLog(t *testing.T) {
 		t.Errorf("arquivo do log: %v %v", info, err)
 	}
 }
+
+func TestServiceCreateOAuthPorStdin(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	old := serviceStdin
+	t.Cleanup(func() { serviceStdin = old })
+	serviceStdin = strings.NewReader(`{"clientId":"cid","clientSecret":"zz-segredo","tokenAccess":"tok"}`)
+	code, out, errOut := runMainStderr(t, "service", "create", "jusbrasil", "--url", "https://x", "--auth", "oauth2", "--oauth-stdin",
+		"--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if o := stub.created["oAuthVO"].(map[string]any); o["clientSecret"] != "zz-segredo" {
+		t.Errorf("oauth não enviado: %+v", o)
+	}
+	if strings.Contains(out+errOut, "zz-segredo") {
+		t.Errorf("saída vaza o segredo: %s %s", out, errOut)
+	}
+	// Sem os campos: recusa antes de gravar.
+	stub.created = nil
+	serviceStdin = strings.NewReader("")
+	if code, _ := runMain(t, "service", "create", "x", "--url", "https://x", "--auth", "oauth1", "--project", proj, "--server", "homolog", "--json"); code != output.ExitUsage || stub.created != nil {
+		t.Errorf("oauth1 sem campos: exit=%d created=%v", code, stub.created)
+	}
+}

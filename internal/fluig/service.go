@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -47,7 +48,7 @@ const (
 )
 
 // ServiceAuthWritable lista os tipos de autenticação que a CLI grava.
-var ServiceAuthWritable = []string{ServiceAuthNone, ServiceAuthBasic, ServiceAuthFluigAPI, ServiceAuthCustom}
+var ServiceAuthWritable = []string{ServiceAuthNone, ServiceAuthBasic, ServiceAuthFluigAPI, ServiceAuthCustom, ServiceAuthOAuth1, ServiceAuthOAuth2}
 
 // ErrServiceExists indica código de serviço repetido no create
 // (HTTP 500 FDNDataServicePKException).
@@ -66,8 +67,10 @@ type Service struct {
 	// CustomHeaders traz só os NOMES dos headers da autenticação custom. O
 	// valor (o segredo) nunca sai do pacote.
 	CustomHeaders []string `json:"customHeaders,omitempty"`
-	Internal      bool     `json:"internal"`
-	LogRequests   bool     `json:"logRequests"`
+	// OAuthFields traz só os NOMES dos campos OAuth preenchidos.
+	OAuthFields []string `json:"oauthFields,omitempty"`
+	Internal    bool     `json:"internal"`
+	LogRequests bool     `json:"logRequests"`
 
 	oauthID int
 	oauth   map[string]json.RawMessage // oAuthVO cru, com segredos: nunca serializar para saída
@@ -84,6 +87,17 @@ func (s *Service) SecretEquals(secret string) bool {
 	case ServiceAuthCustom:
 		cur := strings.ReplaceAll(jsonString(s.oauth, "custom"), "\r\n", "\n")
 		return strings.TrimRight(cur, "\n") == strings.TrimRight(secret, "\n")
+	case ServiceAuthOAuth1, ServiceAuthOAuth2:
+		fields, err := ParseOAuthSecret(s.AuthType, secret)
+		if err != nil {
+			return false
+		}
+		for _, k := range serviceAuthFields[s.AuthType] {
+			if jsonString(s.oauth, k) != fields[k] {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -188,6 +202,12 @@ func parseServiceList(body []byte) ([]Service, error) {
 				s.Username = jsonString(it.OAuth, "username")
 			case ServiceAuthCustom:
 				s.CustomHeaders = customHeaderNames(jsonString(it.OAuth, "custom"))
+			case ServiceAuthOAuth1, ServiceAuthOAuth2:
+				for _, k := range serviceAuthFields[s.AuthType] {
+					if jsonString(it.OAuth, k) != "" {
+						s.OAuthFields = append(s.OAuthFields, k)
+					}
+				}
 			}
 			var id int
 			if raw, ok := it.OAuth["id"]; ok && json.Unmarshal(raw, &id) == nil && id != 0 {
@@ -223,8 +243,9 @@ type ServiceInput struct {
 	TestPath    *string
 	Swagger     *string
 	Username    *string
-	Password    *string // só basic; vem de env/prompt, nunca de argumento
-	Custom      *string // só custom: "Nome: valor" por linha; vem de stdin/env
+	Password    *string           // só basic; vem de env/prompt, nunca de argumento
+	Custom      *string           // só custom: "Nome: valor" por linha; vem de stdin/env
+	OAuth       map[string]string // só oauth1/oauth2: campos de ParseOAuthSecret
 }
 
 // CreateService cria um serviço REST (POST ecmservices/service).
@@ -244,6 +265,9 @@ func (c *Client) CreateService(ctx context.Context, code string, in ServiceInput
 	}
 	if auth == ServiceAuthCustom {
 		oauth["custom"] = deref(in.Custom, "")
+	}
+	for k, v := range in.OAuth {
+		oauth[k] = v
 	}
 	if auth == ServiceAuthBasic {
 		pw := deref(in.Password, "")
@@ -300,6 +324,21 @@ func (c *Client) UpdateService(ctx context.Context, current *Service, in Service
 		oauth["custom"] = ""
 	}
 	set("custom", in.Custom)
+	if in.AuthType != nil {
+		for t, keys := range serviceAuthFields {
+			if t == *in.AuthType || t == ServiceAuthBasic {
+				continue
+			}
+			for _, k := range keys {
+				if !slices.Contains(serviceAuthFields[*in.AuthType], k) {
+					delete(oauth, k)
+				}
+			}
+		}
+	}
+	for k, v := range in.OAuth {
+		oauth[k] = v
+	}
 	set("username", in.Username)
 	if in.Password != nil {
 		oauth["password"] = *in.Password
@@ -423,6 +462,46 @@ func validHeaderName(name string) bool {
 		}
 	}
 	return true
+}
+
+// oauthRequired são os campos que o Fluig exige (medido em 2026-11-06,
+// tirando um campo por vez: sem eles o servidor responde "Erro ao
+// criar/atualizar cliente OAuth"). No oauth2, refreshToken e
+// refreshTokenURL são opcionais; no oauth1, todos são obrigatórios.
+var oauthRequired = map[string][]string{
+	ServiceAuthOAuth1: {"consumerKey", "consumerSecret", "tokenAccess", "tokenSecret", "accessTokenURL", "requestTokenURL", "authorizationURL"},
+	ServiceAuthOAuth2: {"clientId", "clientSecret", "tokenAccess"},
+}
+
+// ParseOAuthSecret valida o JSON dos segredos OAuth: objeto de textos, só os
+// campos que a tela do Fluig usa para o tipo, com o par principal
+// preenchido. As mensagens de erro nunca citam os valores.
+func ParseOAuthSecret(auth, text string) (map[string]string, error) {
+	allowed := serviceAuthFields[auth]
+	if auth != ServiceAuthOAuth1 && auth != ServiceAuthOAuth2 {
+		return nil, fmt.Errorf("tipo %q não é OAuth", auth)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(text), &raw); err != nil || raw == nil {
+		return nil, fmt.Errorf("os campos OAuth precisam ser um objeto JSON, por exemplo {\"%s\":\"...\"}", allowed[0])
+	}
+	out := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if !slices.Contains(allowed, k) {
+			return nil, fmt.Errorf("campo %q não existe no %s; use: %s", k, auth, strings.Join(allowed, ", "))
+		}
+		sv, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("o campo %q precisa ser texto", k)
+		}
+		out[k] = sv
+	}
+	for _, k := range oauthRequired[auth] {
+		if strings.TrimSpace(out[k]) == "" {
+			return nil, fmt.Errorf("o %s exige o campo %q", auth, k)
+		}
+	}
+	return out, nil
 }
 
 func deref(p *string, def string) string {

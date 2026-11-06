@@ -360,3 +360,43 @@ func TestCopyServiceToLevaSegredosSemTenant(t *testing.T) {
 		t.Errorf("update sem o id do destino: %+v", u["id"])
 	}
 }
+
+func TestParseOAuthSecret(t *testing.T) {
+	ok := `{"clientId":"a","clientSecret":"b","tokenAccess":"c"}`
+	f, err := ParseOAuthSecret(ServiceAuthOAuth2, ok)
+	if err != nil || f["clientId"] != "a" || f["tokenAccess"] != "c" {
+		t.Fatalf("oauth2 válido: %v, %v", f, err)
+	}
+	ruins := map[string][2]string{
+		"sem tokenAccess":   {ServiceAuthOAuth2, `{"clientId":"a","clientSecret":"b"}`},
+		"campo estranho":    {ServiceAuthOAuth2, `{"clientId":"a","clientSecret":"b","tokenAccess":"c","senha":"x"}`},
+		"não é objeto":      {ServiceAuthOAuth2, `["a"]`},
+		"valor não texto":   {ServiceAuthOAuth2, `{"clientId":1,"clientSecret":"b","tokenAccess":"c"}`},
+		"oauth1 incompleto": {ServiceAuthOAuth1, `{"consumerKey":"a","consumerSecret":"b"}`},
+		"tipo errado":       {ServiceAuthBasic, ok},
+	}
+	for nome, c := range ruins {
+		_, err := ParseOAuthSecret(c[0], c[1])
+		if err == nil {
+			t.Errorf("%s: esperava erro", nome)
+		} else if strings.Contains(err.Error(), `"b"`) {
+			t.Errorf("%s: mensagem cita valor: %v", nome, err)
+		}
+	}
+}
+
+func TestCreateServiceOAuth2(t *testing.T) {
+	stub := &serviceStub{}
+	c := serviceClient(t, stub.server(t).URL)
+	err := c.CreateService(context.Background(), "svc", ServiceInput{
+		URL: strp("https://x"), AuthType: strp(ServiceAuthOAuth2),
+		OAuth: map[string]string{"clientId": "a", "clientSecret": "b", "tokenAccess": "c"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := stub.created["oAuthVO"].(map[string]any)
+	if o["authenticationType"] != "oauth2" || o["clientId"] != "a" || o["clientSecret"] != "b" || o["tokenAccess"] != "c" {
+		t.Errorf("oauth2 não enviado: %+v", o)
+	}
+}

@@ -21,8 +21,9 @@ O usuário precisa de acesso à tela Painel de Controle > Serviços.
 
 A CLI **nunca** mostra senha, token ou outro segredo do serviço. A saída humana
 e o envelope `--json` trazem só o código, o tipo, a URL base, o tipo de
-autenticação, o caminho de teste, o swagger, o usuário da autenticação basic e
-os **nomes** dos headers da autenticação custom (campo `customHeaders`).
+autenticação, o caminho de teste, o swagger, o usuário da autenticação basic,
+os **nomes** dos headers da autenticação custom (campo `customHeaders`) e os
+**nomes** dos campos OAuth preenchidos (campo `oauthFields`).
 
 O segredo **nunca** vem de argumento de linha de comando:
 
@@ -30,9 +31,11 @@ O segredo **nunca** vem de argumento de linha de comando:
   interativo, a CLI pede a senha num prompt oculto.
 - Headers custom: envie pelo stdin com `--custom-headers-stdin` ou defina a
   variável `FLUIGCLI_SERVICE_CUSTOM_HEADERS`.
+- Campos OAuth: envie um objeto JSON pelo stdin com `--oauth-stdin` ou defina
+  a variável `FLUIGCLI_SERVICE_OAUTH`.
 
-> **Atenção.** O Fluig guarda a senha basic e os headers custom em **texto
-> aberto**. A API de listagem e a tela de edição do Painel de Controle mostram
+> **Atenção.** O Fluig guarda a senha basic, os headers custom e os campos
+> OAuth em **texto aberto**. A API de listagem e a tela de edição do Painel de Controle mostram
 > esses valores. Por isso, quem acessa o Painel de Controle lê o segredo. A CLI
 > só não mostra o valor.
 
@@ -45,8 +48,8 @@ O Fluig aceita seis tipos de autenticação em serviço REST:
 | `none` | sim | sem autenticação no cadastro. O dataset envia o token no header. |
 | `basic` | sim | usuário e senha no cadastro. |
 | `fluigAPI` | sim | chamada autenticada à API do próprio Fluig. |
-| `oauth1` | não | configure pelo Painel de Controle. |
-| `oauth2` | não | configure pelo Painel de Controle. |
+| `oauth1` | sim | OAuth 1. Os campos chegam como objeto JSON. |
+| `oauth2` | sim | OAuth 2. Os campos chegam como objeto JSON. |
 | `custom` | sim | headers fixos com segredo. O Fluig envia os headers em toda chamada. |
 
 A CLI lista e mostra os seis tipos. O `update` altera a URL e os outros campos
@@ -68,6 +71,27 @@ chamada do serviço. O dataset pode enviar outros headers na chamada. O dataset
 **não** deve repetir um header que o cadastro já tem. Neste caso, o Fluig envia
 o header duas vezes, e o servidor de destino pode recusar a chamada (medido:
 HTTP 400).
+
+### Autenticação OAuth 1 e OAuth 2
+
+Os campos OAuth chegam como um objeto JSON de textos. A CLI aceita só os
+campos que a tela do Fluig usa. Ela confere os campos obrigatórios antes de
+enviar:
+
+| Tipo | Campos | Obrigatórios |
+|---|---|---|
+| `oauth1` | `consumerKey`, `consumerSecret`, `tokenAccess`, `tokenSecret`, `accessTokenURL`, `requestTokenURL`, `authorizationURL` | todos |
+| `oauth2` | `clientId`, `clientSecret`, `tokenAccess`, `refreshToken`, `refreshTokenURL` | `clientId`, `clientSecret` e `tokenAccess` |
+
+```sh
+fluigcli service create crm_api --url https://crm.empresa.com --auth oauth2 --oauth-stdin <<'JSON'
+{"clientId":"...","clientSecret":"...","tokenAccess":"...","refreshTokenURL":"https://crm.empresa.com/oauth/token"}
+JSON
+```
+
+Sem um campo obrigatório, o Fluig responde "Erro ao criar/atualizar cliente
+OAuth". Por isso, a CLI para antes com exit **2**. Um campo desconhecido também
+termina com exit **2**.
 
 ## `fluigcli service list [flags]`
 
@@ -103,9 +127,10 @@ Este comando cadastra um serviço REST.
 |---|---|
 | `--url <URL>` | URL base do serviço (**obrigatório**). Comece com `http://` ou `https://`. |
 | `--description <texto>` | descrição do serviço (default: o código) |
-| `--auth <tipo>` | `none`, `basic`, `fluigAPI` ou `custom` (default: `none`) |
+| `--auth <tipo>` | `none`, `basic`, `fluigAPI`, `custom`, `oauth1` ou `oauth2` (default: `none`) |
 | `--username <login>` | usuário da autenticação basic. Obrigatório com `--auth basic`. |
 | `--custom-headers-stdin` | lê do stdin os headers da autenticação custom. Alternativa: `FLUIGCLI_SERVICE_CUSTOM_HEADERS`. |
+| `--oauth-stdin` | lê do stdin os campos OAuth, como objeto JSON. Alternativa: `FLUIGCLI_SERVICE_OAUTH`. |
 | `--test-path <caminho>` | caminho de teste do serviço. Por exemplo: `/health`. |
 | `--swagger <URL>` | URL do swagger do serviço |
 
@@ -276,7 +301,8 @@ sugerido é `FLUIGCLI_SECRET_<CÓDIGO>`. Você pode trocar o nome no arquivo.
 }
 ```
 
-O comando recusa serviço SOAP, JDBC, OAuth 1 e OAuth 2 com exit **2**.
+O comando recusa serviço SOAP e JDBC com exit **2**. Na autenticação OAuth, a
+variável do `secretEnv` traz o objeto JSON dos campos OAuth.
 
 ### `fluigcli service apply <arquivo.json> [--dry-run]`
 
@@ -286,7 +312,8 @@ muda nada.
 
 O segredo segue estas regras:
 
-- Na criação com basic ou custom, a variável do `secretEnv` é obrigatória.
+- Na criação com basic, custom, oauth1 ou oauth2, a variável do `secretEnv` é
+  obrigatória.
   Sem ela, o comando para com exit **2** antes de gravar.
 - Na alteração sem a variável, o segredo guardado no servidor fica igual.
 - Na alteração com a variável, a CLI compara o valor com o segredo guardado,
