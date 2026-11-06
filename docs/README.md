@@ -13,6 +13,7 @@ uso por agentes de IA.
 - [workflow](workflow.md) — scripts de eventos de processo, publish nativo e **conversão de versão** das solicitações abertas
 - [widget](widget.md) — widgets
 - [layout](layout.md) — layouts WCM. Lista, importa (via fluigcliHelper) e publica pelo deploy nativo, com guarda de colisão com widget
+- [page](page.md) — páginas do portal. Cria, põe widget, grava preferências, define quem pode ver e publica
 - [request](request.md) — solicitações de workflow. Consulta, inicia, movimenta, **cancela**, trata anexos, **registra observação sem movimentar** (`observe`, via fluigcliHelper) e **destrava atividade automática travada** (`move --manager`)
 - [task](task.md) — tarefas de workflow. A sua fila, a dos outros, os pools, as **paradas em atividade automática** (`--automatic`) — e **assumir tarefa de pool**
 - [document](document.md) — GED. Navega (com árvore recursiva), **procura por nome**, mostra, **move**, baixa e publica documentos

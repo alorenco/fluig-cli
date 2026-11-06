@@ -19,9 +19,9 @@ hero:
 features:
   - icon: 🧩
     title: Artefatos da plataforma
-    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo, widgets e layouts. Use import para trazer do servidor para o local. Use export para enviar do local para o servidor. Confira o diff antes de publicar.
+    details: Datasets, formulários, eventos globais, mecanismos de atribuição, scripts de processo, widgets, layouts e páginas. Use import para trazer do servidor para o local. Use export para enviar do local para o servidor. Confira o diff antes de publicar.
     link: /dataset
-    linkText: dataset · form · workflow · widget · layout
+    linkText: dataset · form · workflow · widget · layout · page
   - icon: ⚡
     title: Dev loop de verdade
     details: O fluigcli dev é um proxy local autenticado do portal. O JS e o CSS das widgets saem do disco. Os formulários têm preview com simulação de processo. O navegador recarrega ao salvar. O widget new gera scaffolds prontos em classic, Vue 3, React 19 e Vuetify 3.
@@ -59,6 +59,7 @@ em pt-BR.
 | [workflow](./workflow) | scripts de eventos de processo, publish nativo, conversão de versão das solicitações |
 | [widget](./widget) | widgets: scaffold, import e deploy nativo |
 | [layout](./layout) | layouts WCM: listagem, import e deploy nativo |
+| [page](./page) | páginas do portal: criar, pôr widget, permissão e publicar |
 | [diff](./diff) | comparar local × servidor antes de publicar |
 | [deploy](./deploy) | executar um plano de release (JSON) na ordem, com dry-run |
 | [test](./test) | teste de processo por cenários: abre e move solicitações reais e confere etapa, card, caminho e erros de evento; **cobertura de caminhos do BPMN**; esqueleto de suíte a partir do diagrama; **teste de unidade dos scripts** no Rhino local, sem servidor; **tela real da tarefa** no navegador (passo `ui`). Comece pelo [guia](./test-guia) |

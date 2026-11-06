@@ -1,0 +1,385 @@
+{
+  "items": [
+    {
+      "id": 210,
+      "code": "saobento",
+      "title": "São Bento",
+      "description": "Conjunto de widgets exclusivos da São Bento ",
+      "icon": "saobento.Logo 64x64px.png",
+      "iconFont": "",
+      "displayOrder": 122,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2026-07-28T19:28:08.431+0000",
+      "version": 10,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 211,
+      "code": "conferenciademateriais",
+      "title": "Conferência de Materiais ",
+      "description": "Conferência de Materiais ",
+      "icon": "conferenciademateriais.Construction.png",
+      "iconFont": "",
+      "displayOrder": 123,
+      "layout": {
+        "id": 119,
+        "code": "layoutsimple",
+        "title": "Meio a meio",
+        "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2026-07-28T19:33:09.657+0000",
+      "version": 6,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 212,
+      "code": "financeiro",
+      "title": "Painel Financeiro",
+      "description": "Painel Financeiro",
+      "icon": "financeiro.financeiro_2.png",
+      "iconFont": "flaticon-page-default",
+      "displayOrder": 124,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2025-02-14T20:31:03.615+0000",
+      "version": 21,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 214,
+      "code": "negociacao",
+      "title": "Negociação",
+      "description": "Negociação",
+      "icon": "negociacao.atendimento2.png",
+      "iconFont": "",
+      "displayOrder": 125,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2021-06-24T14:59:34.949+0000",
+      "version": 6,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "friendlyUrl": "",
+      "enabledPathParam": true,
+      "enabledChildren": false,
+      "disableChildLevel": true,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 215,
+      "code": "historicoatendimento",
+      "title": "Histórico do Cliente",
+      "description": "Histórico do Cliente",
+      "icon": "historicoatendimento.pngfind.com-history-icon-png-5899856.png",
+      "iconFont": "",
+      "displayOrder": 126,
+      "layout": {
+        "id": 54,
+        "code": "layouttabs",
+        "title": "Comunicativo",
+        "description": "Recomendado para páginas onde o público alvo terá acesso à um grande volume de informações. Através das abas disponíveis nesse layout, é possível segregar as informações, facilitando e otimizando a leitura do conteúdo.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2021-04-02T18:41:00.776+0000",
+      "version": 9,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 241,
+      "code": "compras",
+      "title": "Painel de Compras",
+      "description": "Painel de Compras",
+      "icon": "compras.compras_2.png",
+      "iconFont": "",
+      "displayOrder": 127,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2024-01-18T11:54:57.678+0000",
+      "version": 8,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 242,
+      "code": "debitos-municipais",
+      "title": "Débitos Municipais",
+      "description": "Débitos Municipais (IPTU)",
+      "icon": "debitos-municipais.debitos-municipais-2.png",
+      "iconFont": "",
+      "displayOrder": 128,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2025-10-20T18:00:13.637+0000",
+      "version": 5,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 243,
+      "code": "fluigpage",
+      "title": "Fluig",
+      "description": "Fluig",
+      "icon": "fluigpage.fluig_logo.png",
+      "iconFont": "fluigicon-brand",
+      "displayOrder": 13,
+      "layout": {
+        "id": 119,
+        "code": "layoutsimple",
+        "title": "Meio a meio",
+        "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2021-10-10T23:50:48.820+0000",
+      "version": 1,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 246,
+      "code": "centro-custo-natureza",
+      "title": "Centro de Custo x Natureza",
+      "description": "Consulta de relacionamento entre Centro de Custo e Natureza Financeira",
+      "icon": "centro-custo-natureza.exchange-bill-svgrepo-com.png",
+      "iconFont": "",
+      "displayOrder": 129,
+      "layout": {
+        "id": 346,
+        "code": "portais",
+        "title": "Portais Personalizados",
+        "description": "Portais Personalizados",
+        "icon": "icon.png",
+        "internal": false
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2022-07-08T19:35:58.272+0000",
+      "version": 2,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": true,
+      "disableChildLevel": false,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 253,
+      "code": "adms_alertas",
+      "title": "Alertas Administrativos ",
+      "description": "Tela de carregamento de alertas.",
+      "iconFont": "flaticon-alert",
+      "displayOrder": 130,
+      "layout": {
+        "id": 119,
+        "code": "layoutsimple",
+        "title": "Meio a meio",
+        "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2024-05-29T12:55:55.147+0000",
+      "version": 1,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": false,
+      "disableChildLevel": true,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 254,
+      "code": "controle_processos_judiciais",
+      "title": "Processos Judiciais",
+      "description": "Controle de processos.",
+      "iconFont": "flaticon-juridical",
+      "displayOrder": 131,
+      "layout": {
+        "id": 119,
+        "code": "layoutsimple",
+        "title": "Meio a meio",
+        "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2026-09-15T15:18:53.543+0000",
+      "version": 7,
+      "authorization": "AUTHENTICATED",
+      "status": "DRAFT",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": false,
+      "disableChildLevel": true,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    },
+    {
+      "id": 260,
+      "code": "credito",
+      "title": "Cartão de Crédito",
+      "description": "Cartão de crédito",
+      "iconFont": "flaticon-card-membership",
+      "displayOrder": 132,
+      "layout": {
+        "id": 119,
+        "code": "layoutsimple",
+        "title": "Meio a meio",
+        "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+        "icon": "icon.png",
+        "internal": true
+      },
+      "menuGroup": false,
+      "internal": false,
+      "updateDate": "2026-09-15T15:20:20.934+0000",
+      "version": 1,
+      "authorization": "AUTHENTICATED",
+      "status": "PUBLISHED",
+      "friendlyUrl": "",
+      "enabledPathParam": false,
+      "enabledChildren": false,
+      "disableChildLevel": true,
+      "_expandables": [
+        "children",
+        "theme",
+        "user"
+      ]
+    }
+  ],
+  "hasNext": false
+}

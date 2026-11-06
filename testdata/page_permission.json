@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "resource": "page.210",
+      "role": "admin"
+    },
+    {
+      "permission": "pageUpdate",
+      "description": "permission.page.update",
+      "resource": "page.210",
+      "role": "admin"
+    },
+    {
+      "permission": "pageRemove",
+      "description": "permission.page.remove",
+      "resource": "page.210",
+      "role": "admin"
+    },
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "resource": "page.210",
+      "group": "Diretoria"
+    },
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "resource": "page.210",
+      "group": "Negociação"
+    },
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "resource": "page.210",
+      "group": "Atendimento_Cliente"
+    },
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "resource": "page.210",
+      "group": "Setor_Cadastro"
+    }
+  ],
+  "hasNext": false
+}

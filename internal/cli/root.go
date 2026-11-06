@@ -339,6 +339,7 @@ func newRootCmd(app *App) *cobra.Command {
 		newWorkflowCmd(app),
 		newWidgetCmd(app),
 		newLayoutCmd(app),
+		newPageCmd(app),
 		newDiffCmd(app),
 		newAuditCmd(app),
 		newDeployCmd(app),

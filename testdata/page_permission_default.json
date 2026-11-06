@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "permission": "pageView",
+      "description": "permission.page.view",
+      "role": "user"
+    },
+    {
+      "permission": "pageUpdate",
+      "description": "permission.page.update",
+      "user": "jsilva"
+    },
+    {
+      "permission": "pageRemove",
+      "description": "permission.page.remove",
+      "user": "jsilva"
+    }
+  ],
+  "hasNext": false
+}

@@ -1,0 +1,63 @@
+{
+  "code": "financeiro",
+  "title": "Painel Financeiro",
+  "mobileEnabled": false,
+  "widgets": [
+    {
+      "id": 4225,
+      "slot": "SlotA",
+      "order": 1,
+      "code": "financeiro_painel",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4226,
+      "slot": "SlotGlobalAlert",
+      "order": 1,
+      "code": "alertpopover",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4227,
+      "slot": "SlotHeaderResponsive",
+      "order": 1,
+      "code": "responsive_header",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4228,
+      "slot": "SlotInstantSearch",
+      "order": 1,
+      "code": "suggestsearch",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4229,
+      "slot": "SlotLogin",
+      "order": 1,
+      "code": "sociallogin",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4230,
+      "slot": "SlotMenu",
+      "order": 1,
+      "code": "menu",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4231,
+      "slot": "SlotMenuResponsive",
+      "order": 1,
+      "code": "responsive_menu",
+      "mobileEnabled": false
+    },
+    {
+      "id": 4232,
+      "slot": "SlotUsePolicy",
+      "order": 1,
+      "code": "usepolicy",
+      "mobileEnabled": false
+    }
+  ]
+}

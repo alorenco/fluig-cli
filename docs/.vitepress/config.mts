@@ -52,6 +52,7 @@ export default defineConfig({
           { text: 'workflow — scripts e versões de processo', link: '/workflow' },
           { text: 'widget — widgets', link: '/widget' },
           { text: 'layout — layouts WCM', link: '/layout' },
+          { text: 'page — páginas do portal', link: '/page' },
           { text: 'diff — conferir antes de publicar', link: '/diff' },
           { text: 'deploy — release por manifesto', link: '/deploy' },
           { text: 'test — teste de processo, unidade e tela', link: '/test' },

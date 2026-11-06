@@ -17,6 +17,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | criar um artefato novo do zero (esqueleto local) | `dataset new` · `form new` · `event new` · `mechanism new` · `workflow new-script` |
 | publicar um artefato local (dataset/form/evento/mecanismo/widget/layout/script) | `<grupo> export` |
 | publicar um layout WCM (página-molde do portal, `wcm/layout/<código>`) | `layout export <código>` (NÃO `widget export` com atalho de pasta) |
+| pôr uma widget publicada numa página do portal (criar página, permissão, publicar) | `page create <código> --title --layout [--view-group]` → `page add-widget <página> <widget> [--slot]` → `page publish <página>` |
 | baixar do servidor p/ inspecionar ou editar | `<grupo> import` |
 | ver o que **mudaria** antes de publicar | `diff` |
 | executar um release inteiro na ordem (SQL + datasets + widget + layout), auditável | `deploy --plan release.json` |
@@ -455,6 +456,31 @@ com `WEB-INF` e `resources`). O `application.info` declara
 | `layout list` | — | lista os layouts customizados do servidor (API nativa de page-management); `--all` inclui os internos da plataforma e acrescenta a coluna `Origem` (`customizado`/`plataforma`). `--json`: `{layouts:[{code,title,internal}], all}` |
 | `layout import <código>... \| --all` | servidor → local | baixa layouts para `wcm/layout/<código>` pelo fluigcliHelper **≥ 0.12.0** (a API nativa não informa o arquivo `.war`, que nem sempre é `<código>.war`); sem helper ou helper antigo = exit 7 com a orientação; o `application.tenant.code=` que o servidor acrescenta é preservado |
 | `layout export <código>` | local → servidor | empacota `wcm/layout/<código>` em WAR e publica pelo deploy nativo (o mesmo do `widget export`; instalação assíncrona). Exige `application.info` com `application.type=layout` (ausente ou tipo diferente = exit 2, nada enviado; pasta inexistente = exit 4). **Recusa com exit 2 quando o código já existe no servidor como WIDGET** (espelho da guarda do `widget export`: o upload sobrescreveria o WAR do widget): renomeie ou publique com `--force`. Republicar um layout existente é a atualização normal, sem `--force`. A checagem falha em aberto |
+
+
+## page — páginas do portal
+
+Página tem versão PUBLICADA + rascunho (DRAFT). Página nova nasce em rascunho.
+`add-widget`/`permission` gravam no rascunho (o `add-widget` abre um sozinho);
+`publish` publica; `discard` descarta. `remove-widget`/`set-preferences` agem
+DIRETO na versão publicada e exigem página SEM rascunho (exit 2). ⚠️ O
+`publish` troca o `instanceId` de todas as widgets (preferências são
+copiadas): releia com `page show` antes de usar um id.
+
+| comando | efeito |
+|---|---|
+| `page list [--all] [--filter trecho]` | tabela código/título/layout/status/autorização (só customizadas; `--all` inclui nativas) |
+| `page show <página>` | layout, status, widgets PUBLICADAS (instanceId, slot, preferências) e permissões; `--json`: `{page, published, widgets, permissions}` |
+| `page create <código> --title T --layout L [--description] [--view-group g] [--view-role r] [--view-user u] [--public]` | cria em rascunho; sem `--view-*` = todo autenticado vê; o criador ganha editar/remover; grupo/papel/usuário/layout inexistente = exit 4 (a CLI confere; o Fluig não); duplicado = exit 5 |
+| `page add-widget <página> <widget> [--slot SlotA]` | põe widget no rascunho; slot conferido pelo layout (inválido = exit 2 com a lista; o Fluig aceitaria qualquer nome); widget inexistente = exit 4 |
+| `page remove-widget <página> <instanceId>` | tira da versão publicada (imediato) |
+| `page set-preferences <página> <instanceId>` | JSON objeto pelo stdin; SUBSTITUI todas as preferências (chave omitida some) |
+| `page permission <página> --view-group g...` | troca quem vê (editar/remover ficam); grava no rascunho → `publish` |
+| `page publish <página> [--description]` | publica o rascunho (sem rascunho = exit 2) |
+| `page discard <página>` | descarta o rascunho |
+| `page delete <página>... --yes` | arquiva e exclui |
+
+Layouts: `layout list --all` (os nativos, como `layoutdefault`, só aparecem com `--all`).
 
 ## diff — conferir antes de publicar
 

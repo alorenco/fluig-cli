@@ -130,6 +130,7 @@ fluigcli diff --json | jq '.data.counts'
 | `workflow` | `new-script` `list` `version` `versions` `import` `export` `publish` `diff` `convert` | [docs/workflow.md](docs/workflow.md) |
 | `widget` | `new` `list` `import` `export` | [docs/widget.md](docs/widget.md) |
 | `layout` | `list` `import` `export` | [docs/layout.md](docs/layout.md) |
+| `page` | `list` `show` `create` `add-widget` `remove-widget` `set-preferences` `permission` `publish` `discard` `delete` | [docs/page.md](docs/page.md) |
 | `diff` | `diff [<path>...]`. Compara o local com o servidor | [docs/diff.md](docs/diff.md) |
 | `deploy` | `deploy --plan <arquivo.json>`. Executa um plano de release na ordem (com `--dry-run` e `--from`) | [docs/deploy.md](docs/deploy.md) |
 | `test` | `run` `coverage` `new` `unit`. Teste de processo por cenários: abre solicitações reais, move e confere etapa, card, caminho e erros de evento (com `--dry-run`; nunca em produção); cobertura de caminhos do BPMN; esqueleto de suíte a partir do diagrama; teste de unidade dos scripts no Rhino local, com falsos e sem servidor; passo `ui` que confere a tela real da tarefa num navegador headless | [docs/test.md](docs/test.md) |

@@ -1,0 +1,149 @@
+{
+  "items": [
+    {
+      "id": 24,
+      "code": "layoutdefaultpublic",
+      "title": "Público",
+      "description": "Valoriza conteúdos amplos e permite um melhor detalhamento das informações, se necessário.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 31,
+      "code": "layoutarsocial",
+      "title": "Colaborativo",
+      "description": "Contando com slots de dois tamanhos, o layout colaborativo possibilita uma maior interação com o conteúdo de diversos widgets.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 54,
+      "code": "layouttabs",
+      "title": "Comunicativo",
+      "description": "Recomendado para páginas onde o público alvo terá acesso à um grande volume de informações. Através das abas disponíveis nesse layout, é possível segregar as informações, facilitando e otimizando a leitura do conteúdo.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 119,
+      "code": "layoutsimple",
+      "title": "Meio a meio",
+      "description": "Ideal para exibir indicadores do Fluig Analytics, o layout Simples conta com somente dois grandes slots.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 155,
+      "code": "layoutdefaultecmdashboard",
+      "title": "Básico",
+      "description": "Recomendado para páginas que não necessitam de muitos slots para exibição de conteúdo",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 158,
+      "code": "sociallayoutcommunity",
+      "title": "Detalhado",
+      "description": "Com o layout Detalhado é possível visualizar diversos conteúdos ao mesmo tempo, graças ao grande número de slots disponíveis.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 255,
+      "code": "layoutdefault",
+      "title": "Amplo",
+      "description": "Ideal para widgets que possuem informações detalhadas e necessitam de slots maiores para melhor visualização.",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": true
+    },
+    {
+      "id": 257,
+      "code": "layoutfixedslot",
+      "title": "Constante",
+      "description": "Para que informações importantes não sejam esquecidas, este layout conta com uma barra de slots fixas: conforme a navegação, os widgets da barra lateral sempre estarão visíveis.",
+      "icon": "icon.png",
+      "responsiveLayout": false,
+      "internal": true
+    },
+    {
+      "id": 329,
+      "code": "kit_layout",
+      "title": "Portal",
+      "description": "Quanto mais espaço, melhor. O conteúdo de sua intranet ou de seus portais ganha mais destaque, pois este layout não exibe menu lateral",
+      "icon": "icon.png",
+      "responsiveLayout": false,
+      "internal": false
+    },
+    {
+      "id": 333,
+      "code": "app_angular_thf",
+      "title": "Universo TOTVS APP THF",
+      "description": "Universo TOTVS APP THF",
+      "icon": "icon.png",
+      "responsiveLayout": false,
+      "internal": false
+    },
+    {
+      "id": 346,
+      "code": "portais",
+      "title": "Portais Personalizados",
+      "description": "Portais Personalizados",
+      "icon": "icon.png",
+      "responsiveLayout": false,
+      "internal": false
+    },
+    {
+      "id": 375,
+      "code": "homeSBI",
+      "title": "Home SBI Fluig",
+      "description": "Layout para a pagina incial do fluig",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": false
+    },
+    {
+      "id": 378,
+      "code": "home_sbi_3_colunas",
+      "title": "Home SBI 3 Col",
+      "description": "Layout inicial com 3 colunas",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": false
+    },
+    {
+      "id": 380,
+      "code": "intranet_saobento",
+      "title": "Intranet São Bento",
+      "description": "Intranet São Bento",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": false
+    },
+    {
+      "id": 385,
+      "code": "processos_judiciais",
+      "title": "Processos Judiciais",
+      "description": "Layout para utilizar na widget referente a processos Judiciais",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": false
+    },
+    {
+      "id": 405,
+      "code": "zz_fluigcli_test_layout",
+      "title": "ZZ fluigcli test layout",
+      "description": "Layout de teste do fluigcli (pode remover)",
+      "icon": "icon.png",
+      "responsiveLayout": true,
+      "internal": false
+    }
+  ],
+  "hasNext": false
+}

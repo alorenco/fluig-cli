@@ -1,0 +1,37 @@
+{
+  "id": 212,
+  "code": "financeiro",
+  "title": "Painel Financeiro",
+  "description": "Painel Financeiro",
+  "icon": "financeiro.financeiro_2.png",
+  "iconFont": "flaticon-page-default",
+  "parent": null,
+  "parentCode": null,
+  "displayOrder": 124,
+  "layout": {
+    "id": 346,
+    "code": "portais",
+    "title": "Portais Personalizados",
+    "description": "Portais Personalizados",
+    "icon": "icon.png",
+    "internal": false
+  },
+  "theme": {},
+  "children": [],
+  "menuGroup": false,
+  "internal": false,
+  "updateDate": "2025-02-14T20:31:03.615+0000",
+  "user": {},
+  "version": 21,
+  "authorization": "AUTHENTICATED",
+  "status": "PUBLISHED",
+  "friendlyUrl": "",
+  "enabledPathParam": false,
+  "enabledChildren": true,
+  "disableChildLevel": false,
+  "_expandables": [
+    "children",
+    "theme",
+    "user"
+  ]
+}
