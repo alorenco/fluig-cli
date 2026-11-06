@@ -40,6 +40,7 @@ func newServiceCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newServiceCreateCmd(app))
 	cmd.AddCommand(newServiceUpdateCmd(app))
 	cmd.AddCommand(newServiceDeleteCmd(app))
+	cmd.AddCommand(newServiceTestCmd(app))
 	cmd.AddCommand(newServiceExportCmd(app))
 	cmd.AddCommand(newServiceApplyCmd(app))
 	return cmd
@@ -434,5 +435,79 @@ func newServiceDeleteCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
+	return cmd
+}
+
+// --- service test ---
+
+func newServiceTestCmd(app *App) *cobra.Command {
+	var (
+		full          bool
+		passwordStdin bool
+	)
+	cmd := &cobra.Command{
+		Use:   "test <código>",
+		Short: "Chama o caminho de teste do serviço pelo próprio Fluig e mostra a resposta",
+		Long: "Chama o caminho de teste cadastrado no serviço (--test-path), pelo próprio\n" +
+			"servidor Fluig, com a autenticação do cadastro. É o botão \"Testar\" do\n" +
+			"Painel de Controle. Por isso, o teste confere a URL, a rede do servidor e a\n" +
+			"autenticação de uma vez.\n\n" +
+			"Sem caminho de teste, a chamada vai para a raiz da URL base. O Fluig não\n" +
+			"aceita outro caminho na hora do teste: troque com service update\n" +
+			"--test-path.\n\n" +
+			"Exit 0 quando o destino responde 2xx. Exit 5 nos outros casos. O corpo da\n" +
+			"resposta sai truncado em 2000 caracteres; use --full para o corpo inteiro.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p := app.printerFor(cmd)
+			code := args[0]
+			ctx := context.Background()
+			_, client, err := app.connect(ctx, passwordStdin)
+			if err != nil {
+				return err
+			}
+			s, err := client.GetService(ctx, code)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			if s.Type != fluig.ServiceTypeREST {
+				return output.Usagef("o serviço %q é %s; o teste só existe para serviços REST", code, strings.ToUpper(s.Type))
+			}
+			if s.TestPath == "" {
+				p.Warnf("o serviço %q não tem caminho de teste; a chamada vai para a raiz de %s (cadastre com: fluigcli service update %s --test-path /health)", code, s.URL, code)
+			}
+			r, err := client.TestService(ctx, code)
+			if err != nil {
+				return mapFluigError(err)
+			}
+			body := r.Body
+			truncated := false
+			if !full && len(body) > 2000 {
+				body, truncated = body[:2000], true
+			}
+			target := strings.TrimRight(s.URL, "/") + s.TestPath
+			data := map[string]any{"code": code, "url": target, "httpStatus": r.HTTPStatus, "body": body, "truncated": truncated}
+			if r.HTTPStatus == 0 {
+				data["error"] = r.Error
+				p.FailData(data, output.CodeServerError, "a chamada não saiu do Fluig: "+r.Error)
+				return output.ServerErrorf("a chamada do serviço %q não saiu do Fluig: %s", code, r.Error)
+			}
+			p.Successf("GET %s → HTTP %d", target, r.HTTPStatus)
+			if body != "" {
+				p.Successf("%s", body)
+			}
+			if truncated {
+				p.Infof("(corpo truncado em 2000 caracteres; use --full)")
+			}
+			if r.HTTPStatus < 200 || r.HTTPStatus >= 300 {
+				p.FailData(data, output.CodeServerError, fmt.Sprintf("o serviço respondeu HTTP %d", r.HTTPStatus))
+				return output.ServerErrorf("o serviço %q respondeu HTTP %d em %s", code, r.HTTPStatus, target)
+			}
+			p.Done(data)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&full, "full", false, "mostra o corpo inteiro da resposta")
+	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
 }

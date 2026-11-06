@@ -60,6 +60,16 @@ func (s *svcStub) server(t *testing.T) *httptest.Server {
 		s.mu.Unlock()
 		io.WriteString(w, `{"content":"OK"}`)
 	})
+	mux.HandleFunc("/api/public/2.0/authorize/client/test", func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("serviceCode") {
+		case "jusbrasil":
+			io.WriteString(w, `{"content":{"serviceCode":"jusbrasil","description":"jusbrasil:SUCCESS","httpStatusResult":200,"result":"{\"ok\":true}"},"message":{"message":"OK"}}`)
+		case "APIInfoBip":
+			io.WriteString(w, `{"content":{"serviceCode":"APIInfoBip","httpStatusResult":401,"result":"{\"erro\":\"token\"}"},"message":{"message":"OK"}}`)
+		default:
+			io.WriteString(w, `{"content":{"httpStatusResult":0,"result":"com.totvs.X: java.net.UnknownHostException: host.invalid\n\tat a.b.C(C.java:1)"},"message":{"message":"OK"}}`)
+		}
+	})
 	mux.HandleFunc("/ecm/api/rest/ecm/ecmservices/delete", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.deleted = append(s.deleted, r.URL.Query().Get("id"))
@@ -304,5 +314,25 @@ func TestServiceShowCustomMostraSoNomes(t *testing.T) {
 	}
 	if !strings.Contains(out, "Headers custom: Authorization (valores ocultos)") || strings.Contains(out, "REDACTED") {
 		t.Errorf("show inesperado:\n%s", out)
+	}
+}
+
+func TestServiceTest(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, "service", "test", "jusbrasil", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitOK || !strings.Contains(out, `"httpStatus":200`) {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	code, out = runMain(t, "service", "test", "APIInfoBip", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitServer || !strings.Contains(out, `"httpStatus":401`) {
+		t.Errorf("401: exit=%d\n%s", code, out)
+	}
+	code, out = runMain(t, "service", "test", "FluigRest", "--project", proj, "--server", "homolog", "--json")
+	if code != output.ExitServer || !strings.Contains(out, "UnknownHostException") || strings.Contains(out, "C.java") {
+		t.Errorf("status 0: exit=%d\n%s", code, out)
+	}
+	if code, _ := runMain(t, "service", "test", "nao_existe", "--project", proj, "--server", "homolog", "--json"); code != output.ExitNotFound {
+		t.Errorf("inexistente: exit=%d", code)
 	}
 }

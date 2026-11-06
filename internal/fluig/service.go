@@ -423,3 +423,52 @@ func deref(p *string, def string) string {
 	}
 	return *p
 }
+
+// ServiceTestResult é o resultado do teste de um serviço REST.
+type ServiceTestResult struct {
+	Code       string `json:"code"`
+	HTTPStatus int    `json:"httpStatus"` // 0 = a chamada não saiu
+	Body       string `json:"body"`
+	Error      string `json:"error,omitempty"`
+}
+
+// TestService chama o caminho de teste cadastrado no serviço, pelo próprio
+// Fluig (GET /api/public/2.0/authorize/client/test, a rota do botão
+// "Testar" do Painel de Controle; medido em 2026-11-06). O Fluig aplica a
+// autenticação do cadastro (inclusive os headers custom). Sem caminho de
+// teste, a chamada vai para a raiz da URL base. A rota não aceita outro
+// caminho por parâmetro.
+func (c *Client) TestService(ctx context.Context, code string) (*ServiceTestResult, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	endpoint := c.url("/api/public/2.0/authorize/client/test") + "?serviceCode=" + url.QueryEscape(code)
+	body, status, err := c.doJSON(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, &HTTPError{StatusCode: status, URL: "authorize/client/test", Body: truncate(string(body), 512)}
+	}
+	var resp struct {
+		Content struct {
+			HTTPStatusResult int    `json:"httpStatusResult"`
+			Result           string `json:"result"`
+			Description      string `json:"description"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("resposta inesperada de authorize/client/test: %w", err)
+	}
+	r := &ServiceTestResult{Code: code, HTTPStatus: resp.Content.HTTPStatusResult, Body: resp.Content.Result}
+	if r.HTTPStatus == 0 {
+		// Falha antes da chamada: o result traz um stack trace Java; fica só a
+		// primeira linha, sem o nome da classe da exceção.
+		first, _, _ := strings.Cut(r.Body, "\n")
+		if _, msg, ok := strings.Cut(first, ": "); ok {
+			first = msg
+		}
+		r.Error, r.Body = strings.TrimSpace(first), ""
+	}
+	return r, nil
+}

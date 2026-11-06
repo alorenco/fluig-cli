@@ -160,6 +160,31 @@ fluigcli service delete zz_servico_antigo --yes
 Código inexistente termina com exit **4**. Num lote, uma falha termina com
 exit **6**.
 
+## `fluigcli service test <código> [--full]`
+
+Este comando chama o caminho de teste do serviço (`--test-path`) pelo próprio
+servidor Fluig, com a autenticação do cadastro. É o botão "Testar" do Painel de
+Controle. Por isso, o teste confere a URL, a rede do servidor e a autenticação
+de uma vez.
+
+```sh
+fluigcli service test sabia_agentos
+```
+
+A saída mostra o status HTTP do destino e o corpo da resposta. O corpo sai
+truncado em 2000 caracteres. Use `--full` para o corpo inteiro.
+
+| Resultado | Exit |
+|---|---|
+| o destino respondeu 2xx | **0** |
+| o destino respondeu outro status | **5** |
+| a chamada não saiu do Fluig (por exemplo, host inexistente) | **5** |
+| código inexistente | **4** |
+
+Sem caminho de teste, a chamada vai para a raiz da URL base, e o comando
+avisa. O Fluig não aceita outro caminho na hora do teste. Para testar outro
+caminho, troque o caminho com `service update <código> --test-path <caminho>`.
+
 ## Levar o serviço para outro ambiente
 
 Use um arquivo de especificação versionado no Git. O fluxo é este:

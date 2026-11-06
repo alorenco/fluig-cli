@@ -125,7 +125,7 @@ usuário só via FLUIGCLI_NEW_USER_PASSWORD/prompt), `group` e `role` (CRUD
 a mesma escrita: pelo usuário (`user add-role <login> <papel>`) ou pelo
 papel/grupo (`role add-user <papel> <login>`), `replacement` (list|show|create|
 update|delete — substituto/delegação de tarefas; requer admin), `service`
-(list|show|create|update|delete — cadastro de serviços REST que os datasets
+(list|show|create|update|delete|test|export|apply — cadastro de serviços REST que os datasets
 chamam por serviceCode; nunca mostra segredo; senha basic só via
 FLUIGCLI_SERVICE_PASSWORD; headers custom só via --custom-headers-stdin ou
 FLUIGCLI_SERVICE_CUSTOM_HEADERS; `export`/`apply` levam o serviço entre ambientes
