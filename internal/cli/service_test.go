@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -424,8 +425,12 @@ func TestServiceLog(t *testing.T) {
 		t.Fatalf("download: exit=%d\n%s", code, out)
 	}
 	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("arquivo do log: %v %v", info, err)
+	if err != nil {
+		t.Fatalf("arquivo do log não gravado: %v", err)
+	}
+	// O Windows não tem permissão Unix: o Go devolve 0666 ou 0444 lá.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Errorf("permissão do log: %v, esperava 0600", info.Mode().Perm())
 	}
 }
 
