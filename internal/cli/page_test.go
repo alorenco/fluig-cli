@@ -28,6 +28,9 @@ type cliPageStub struct {
 	publish  int
 	editor   string // login do editor do rascunho (GET ?expand=user)
 	takeOver int
+	moved    map[string]any
+	layout   string // layout trocado (PUT /layouts/{code})
+	noKids   bool   // a página "financeiro" não aceita subpáginas
 }
 
 func (s *cliPageStub) server(t *testing.T) *httptest.Server {
@@ -88,7 +91,15 @@ func (s *cliPageStub) server(t *testing.T) *httptest.Server {
 			if s.editor != "" {
 				raw["user"] = map[string]any{"login": s.editor, "fullName": "Maria Souza"}
 			}
+			raw["enabledChildren"] = !s.noKids
 			_ = json.NewEncoder(w).Encode(raw)
+		case len(parts) == 2 && parts[1] == "application" && r.Method == http.MethodPut:
+			b, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(b, &s.moved)
+			w.Write(b)
+		case len(parts) == 3 && parts[1] == "layouts":
+			s.layout = parts[2]
+			w.WriteHeader(http.StatusNoContent)
 		case len(parts) == 2 && parts[1] == "change-edit-user":
 			s.takeOver++
 			w.WriteHeader(http.StatusNoContent)
@@ -130,6 +141,13 @@ func (s *cliPageStub) server(t *testing.T) *httptest.Server {
 		_ = json.Unmarshal(b, &s.created)
 		s.mu.Unlock()
 		io.WriteString(w, `"{success: true}"`)
+	})
+	mux.HandleFunc("/portal/api/rest/wcm/page/application/listWidgetsBySlotUnpublished/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/SlotA") {
+			io.WriteString(w, `[{"slot":"SlotA","order":1,"code":"financeiro_painel","id":9100,"pageId":212}]`)
+			return
+		}
+		io.WriteString(w, `[]`)
 	})
 	mux.HandleFunc("/portal/api/rest/wcm/page/findWidgetDataByInstanceId/", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"invdata":[{"key":"titulo","value":"Painel"}]}`)
@@ -355,5 +373,111 @@ func TestPageRascunhoDoProprioUsuario(t *testing.T) {
 	proj := mechProject(t, stub.server(t).URL)
 	if code, out := runMain(t, pageArgs(proj, "page", "publish", "financeiro", "--json")...); code != output.ExitOK || stub.takeOver != 0 {
 		t.Fatalf("exit=%d takeOver=%d\n%s", code, stub.takeOver, out)
+	}
+}
+
+func TestPageShowComRascunho(t *testing.T) {
+	stub := &cliPageStub{status: "DRAFT"}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "show", "financeiro", "--json")...)
+	if code != output.ExitOK || !strings.Contains(out, `"draftWidgets":[{"instanceId":9100`) {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+}
+
+func TestPageRemoveWidgetDoRascunho(t *testing.T) {
+	stub := &cliPageStub{status: "DRAFT"}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "remove-widget", "financeiro", "9100", "--json")...)
+	if code != output.ExitOK || !strings.Contains(out, `"draft":true`) || len(stub.removed) != 1 || stub.removed[0] != "9100" {
+		t.Fatalf("exit=%d removed=%v\n%s", code, stub.removed, out)
+	}
+}
+
+func TestPageMoveWidget(t *testing.T) {
+	stub := &cliPageStub{status: "DRAFT"}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "move-widget", "financeiro", "9100", "--slot", "SlotB", "--json")...)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if stub.moved["slot"] != "SlotB" || stub.moved["instanceId"] != float64(9100) || stub.moved["order"] != float64(1) {
+		t.Errorf("move inesperado: %+v", stub.moved)
+	}
+	if code, _ := runMain(t, pageArgs(proj, "page", "move-widget", "financeiro", "9100", "--slot", "SlotZZ", "--json")...); code != output.ExitUsage {
+		t.Errorf("slot inválido: exit=%d", code)
+	}
+	if code, _ := runMain(t, pageArgs(proj, "page", "move-widget", "financeiro", "4225", "--slot", "SlotB", "--json")...); code != output.ExitUsage {
+		t.Errorf("id publicado com rascunho aberto: exit=%d", code)
+	}
+}
+
+func TestPageUpdate(t *testing.T) {
+	stub := &cliPageStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "update", "financeiro", "--title", "Novo", "--friendly-url", "/painel", "--authorization", "public", "--layout", "portais", "--json")...)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if stub.put["title"] != "Novo" || stub.put["friendlyURL"] != "painel" || stub.put["authorization"] != "PUBLIC" {
+		t.Errorf("PUT inesperado: %+v", stub.put)
+	}
+	// Mesmo layout: não chama a troca.
+	if stub.layout != "" {
+		t.Errorf("trocou para o mesmo layout: %q", stub.layout)
+	}
+	for name, args := range map[string][]string{
+		"sem alteração":    {"page", "update", "financeiro"},
+		"autorização ruim": {"page", "update", "financeiro", "--authorization", "x"},
+		"url com barra":    {"page", "update", "financeiro", "--friendly-url", "a/b"},
+		"pai dela mesma":   {"page", "update", "financeiro", "--parent", "financeiro"},
+	} {
+		if code, out := runMain(t, pageArgs(proj, append(args, "--json")...)...); code != output.ExitUsage {
+			t.Errorf("%s: exit=%d\n%s", name, code, out)
+		}
+	}
+}
+
+func TestPageCreateComPai(t *testing.T) {
+	stub := &cliPageStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "create", "financeiro", "--title", "Filha", "--layout", "portais", "--parent", "financeiro", "--json")...)
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	fd := stub.created["formData"].(map[string]any)
+	if fd["parent"] != "212" || fd["parent-code"] != "financeiro" {
+		t.Errorf("pai não enviado: %+v", fd)
+	}
+	stub.noKids = true
+	stub.created = nil
+	if code, _ := runMain(t, pageArgs(proj, "page", "create", "x", "--title", "F", "--layout", "portais", "--parent", "financeiro", "--json")...); code != output.ExitUsage || stub.created != nil {
+		t.Errorf("pai sem subpáginas: exit=%d created=%v", code, stub.created)
+	}
+}
+
+func TestPagePermissionEdit(t *testing.T) {
+	stub := &cliPageStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	if code, out := runMain(t, pageArgs(proj, "page", "permission", "financeiro", "--edit-group", "equipe", "--json")...); code != output.ExitOK {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	var views, upd, rem int
+	for _, it := range stub.put["permissions"].([]any) {
+		m := it.(map[string]any)
+		switch m["permission"] {
+		case "pageView":
+			views++
+		case "pageUpdate":
+			upd++
+			if m["group"] != "equipe" {
+				t.Errorf("pageUpdate para quem não pediu: %+v", m)
+			}
+		case "pageRemove":
+			rem++
+		}
+	}
+	if views == 0 || upd != 1 || rem != 1 {
+		t.Errorf("permissões inesperadas: views=%d upd=%d rem=%d", views, upd, rem)
 	}
 }

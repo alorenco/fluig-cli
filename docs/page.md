@@ -10,12 +10,16 @@ Uma página tem uma **versão publicada** e, durante a edição, um **rascunho**
 Os usuários veem só a versão publicada.
 
 - A página nova nasce em rascunho.
-- O `add-widget` e o `permission` gravam no rascunho. O `add-widget` abre um
-  rascunho quando a página não tem um.
+- O `add-widget`, o `permission` e o `update` gravam no rascunho. O
+  `add-widget` abre um rascunho quando a página não tem um.
 - O `publish` torna o rascunho a nova versão publicada.
 - O `discard` descarta o rascunho e mantém a versão publicada.
-- O `remove-widget` e o `set-preferences` agem direto na versão publicada, sem
-  `publish`. Por isso, eles exigem que a página não tenha rascunho aberto.
+- Cada versão tem os próprios `instanceId`. O `page show` mostra as duas
+  versões. O `move-widget` e o `remove-widget` agem na versão do id
+  informado. Com rascunho aberto, use o id do rascunho. Sem rascunho, o id
+  publicado age direto na versão publicada, sem `publish`.
+- O `set-preferences` age direto na versão publicada. Por isso, ele exige que
+  a página não tenha rascunho aberto.
 
 ### Rascunho de outro usuário
 
@@ -56,11 +60,14 @@ O Fluig lista só as páginas que o usuário pode ver.
 
 ## `fluigcli page show <página>`
 
-Este comando mostra a página: layout, status, versão e autorização. Ele também
-mostra as widgets da versão publicada, com o `instanceId`, o slot e as
-preferências, e as permissões.
+Este comando mostra a página: layout, status, versão, autorização, URL
+amigável e página-pai. Ele também mostra as widgets da versão publicada, com
+o `instanceId`, o slot, a ordem e as preferências, e as permissões.
 
-Com rascunho aberto, as widgets mostradas são as da versão publicada.
+Com rascunho aberto, o comando mostra também as widgets do rascunho e o dono
+do rascunho. O Fluig só deixa ler o rascunho slot a slot. Por isso, a CLI lê
+os slots do layout e os slots já usados na versão publicada. No `--json`, o
+rascunho vem em `draftWidgets`.
 
 ## `fluigcli page create <código> --title <título> --layout <layout> [flags]`
 
@@ -74,12 +81,19 @@ Este comando cria uma página em rascunho.
 | `--view-group <grupo>` | grupo que pode ver a página. Repita a flag ou separe por vírgula. |
 | `--view-role <papel>` | papel que pode ver a página |
 | `--view-user <login>` | usuário que pode ver a página |
+| `--edit-group <grupo>` | grupo que pode editar e remover a página. Também existem `--edit-role` e `--edit-user`. |
+| `--parent <página>` | cria a página como subpágina da página informada |
 | `--public` | página pública, sem login. O default é só para usuários autenticados. |
 
 Sem `--view-*`, a página segue o padrão do Fluig: todos os usuários
 autenticados (papel `user`) veem. Com `--view-*`, só os grupos, papéis e
-usuários informados veem. Nos dois casos, o usuário que cria a página recebe as
-permissões de editar e remover.
+usuários informados veem. Sem `--edit-*`, o usuário que cria a página recebe
+as permissões de editar e remover. Com `--edit-*`, os grupos, papéis e
+usuários informados recebem essas permissões.
+
+Com `--parent`, a página-pai precisa aceitar subpáginas. Ligue a opção com
+`fluigcli page update <pai> --enable-children` e publique o pai. Sem isso, o
+comando para com exit **2**.
 
 O Fluig grava permissão para grupo inexistente sem erro. Por isso, a CLI
 confere antes se cada grupo, papel e usuário existe. Um nome inexistente
@@ -114,9 +128,22 @@ página nova.
 
 ## `fluigcli page remove-widget <página> <instanceId>`
 
-Este comando tira uma widget da versão publicada. O efeito é imediato. A página
-não pode ter rascunho aberto. Um id que não está na página termina com exit
-**4**.
+Este comando tira uma widget da página. Com o id do rascunho, a remoção fica
+no rascunho até o `publish`. Com o id publicado e sem rascunho aberto, o
+efeito é imediato. Um id publicado com rascunho aberto termina com exit
+**2**. Um id que não está na página termina com exit **4**.
+
+## `fluigcli page move-widget <página> <instanceId> --slot <slot> [--order N]`
+
+Este comando move uma widget para outro slot ou outra posição no slot. A
+regra das versões é a mesma do `remove-widget`. Sem `--order`, a widget vai
+para o fim do slot de destino. A CLI confere o slot pelo layout, como no
+`add-widget`.
+
+```sh
+fluigcli page move-widget painel_vendas 4816 --slot SlotB
+fluigcli page move-widget painel_vendas 4816 --slot SlotA --order 1
+```
 
 ## `fluigcli page set-preferences <página> <instanceId>`
 
@@ -133,11 +160,33 @@ A gravação **substitui** todas as preferências da instância. Uma chave que
 falta no JSON some. Para mudar uma chave, leia as atuais com `page show` e
 envie o objeto completo.
 
-## `fluigcli page permission <página> --view-group <grupo>...`
+## `fluigcli page permission <página> [--view-*] [--edit-*]`
 
 Este comando troca a lista de quem pode ver a página pelos `--view-*`
-informados. As permissões de editar e remover ficam iguais. O Fluig grava a
-mudança num rascunho. Publique depois com `page publish`.
+informados. Ele também troca a lista de quem pode editar e remover pelos
+`--edit-*` informados. A família que você não informa fica igual. O Fluig
+grava a mudança num rascunho. Publique depois com `page publish`.
+
+## `fluigcli page update <página> [flags]`
+
+Este comando altera as informações da página. Só os campos das flags
+informadas mudam. O Fluig grava a mudança num rascunho. Publique depois com
+`page publish`.
+
+| Flag | Uso |
+|---|---|
+| `--title <texto>` | título novo |
+| `--description <texto>` | descrição nova |
+| `--authorization <tipo>` | `public` (sem login) ou `authenticated` |
+| `--friendly-url <trecho>` | URL amigável. Ela é relativa à raiz do servidor. Por exemplo, `painel` abre em `http://<servidor>/painel`. `""` remove a URL. |
+| `--parent <página>` | página-pai nova. `""` tira a página de debaixo do pai. |
+| `--enable-children` | aceita subpáginas. `--enable-children=false` desliga. |
+| `--layout <código>` | layout novo |
+
+Na troca de layout, o Fluig remaneja as widgets para os slots do layout novo.
+Ele também acrescenta as widgets de sistema do layout, como o cabeçalho, a
+busca e os alertas. Confira o resultado com `page show` antes do `publish`.
+Se uma widget ficar num slot que o layout novo não tem, a CLI avisa.
 
 ## `fluigcli page publish <página> [--description <texto>]`
 

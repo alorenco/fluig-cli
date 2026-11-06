@@ -51,6 +51,42 @@ func TestIntegrationPageCycle(t *testing.T) {
 	if prefs, err := c.WidgetPreferences(ctx, ws[0].InstanceID); err != nil || prefs["zz"] != "1" {
 		t.Errorf("preferências: %+v, %v", prefs, err)
 	}
+	// Rascunho: ids próprios, move no rascunho, update, publish.
+	if err := c.CreatePageDraft(ctx, code); err != nil {
+		t.Fatalf("CreatePageDraft: %v", err)
+	}
+	draft, err := c.DraftWidgets(ctx, mustPageID(t, c, code), []string{"SlotA", "SlotB"})
+	if err != nil || len(draft) != 1 || draft[0].InstanceID == ws[0].InstanceID {
+		t.Fatalf("DraftWidgets: %+v, %v", draft, err)
+	}
+	if err := c.MovePageWidget(ctx, code, draft[0].InstanceID, "SlotB", 1); err != nil {
+		t.Fatalf("MovePageWidget: %v", err)
+	}
+	p, err := c.GetPage(ctx, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	perms, err := c.PagePermissions(ctx, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := "ZZ fluigcli test 2"
+	if err := c.UpdatePage(ctx, p, PageUpdate{Title: &title}, perms); err != nil {
+		t.Fatalf("UpdatePage: %v", err)
+	}
+	if err := c.PublishPage(ctx, code, "teste 2"); err != nil {
+		t.Fatalf("PublishPage 2: %v", err)
+	}
+	ws, err = c.PageWidgets(ctx, code)
+	if err != nil || len(ws) != 1 || ws[0].Slot != "SlotB" {
+		t.Fatalf("widgets depois do move: %+v, %v", ws, err)
+	}
+	if p, err = c.GetPage(ctx, code); err != nil || p.Title != title {
+		t.Errorf("título depois do update: %+v, %v", p, err)
+	}
+	if prefs, err := c.WidgetPreferences(ctx, ws[0].InstanceID); err != nil || prefs["zz"] != "1" {
+		t.Errorf("preferências não sobreviveram ao publish: %+v, %v", prefs, err)
+	}
 	if err := c.RemovePageWidget(ctx, code, ws[0].InstanceID); err != nil {
 		t.Fatalf("RemovePageWidget: %v", err)
 	}
@@ -60,4 +96,13 @@ func TestIntegrationPageCycle(t *testing.T) {
 	if _, err := c.GetPage(ctx, code); !errors.Is(err, ErrNotFound) {
 		t.Errorf("página ainda existe após delete: %v", err)
 	}
+}
+
+func mustPageID(t *testing.T, c *Client, code string) int {
+	t.Helper()
+	p, err := c.GetPage(context.Background(), code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.ID
 }

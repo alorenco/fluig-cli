@@ -461,9 +461,12 @@ com `WEB-INF` e `resources`). O `application.info` declara
 ## page — páginas do portal
 
 Página tem versão PUBLICADA + rascunho (DRAFT). Página nova nasce em rascunho.
-`add-widget`/`permission` gravam no rascunho (o `add-widget` abre um sozinho);
-`publish` publica; `discard` descarta. `remove-widget`/`set-preferences` agem
-DIRETO na versão publicada e exigem página SEM rascunho (exit 2). ⚠️ O
+`add-widget`/`permission`/`update` gravam no rascunho (o `add-widget` abre um
+sozinho); `publish` publica; `discard` descarta. Cada versão tem ids próprios
+(o `page show` lista as duas; rascunho em `draftWidgets`). `move-widget`/
+`remove-widget` agem na versão do id: id do rascunho → rascunho; id publicado
+SEM rascunho → direto na publicada; id publicado COM rascunho = exit 2.
+`set-preferences` só na publicada e sem rascunho. ⚠️ O
 `publish` troca o `instanceId` de todas as widgets (preferências são
 copiadas): releia com `page show` antes de usar um id. Rascunho aberto por
 OUTRO usuário (o `page show` mostra "Rascunho aberto por") = exit 5 nos
@@ -473,11 +476,13 @@ comandos de rascunho; `--take-over` assume o rascunho (mantém as mudanças dele
 |---|---|
 | `page list [--all] [--filter trecho]` | tabela código/título/layout/status/autorização (só customizadas; `--all` inclui nativas) |
 | `page show <página>` | layout, status, widgets PUBLICADAS (instanceId, slot, preferências) e permissões; `--json`: `{page, published, widgets, permissions}` |
-| `page create <código> --title T --layout L [--description] [--view-group g] [--view-role r] [--view-user u] [--public]` | cria em rascunho; sem `--view-*` = todo autenticado vê; o criador ganha editar/remover; grupo/papel/usuário/layout inexistente = exit 4 (a CLI confere; o Fluig não); duplicado = exit 5 |
+| `page create <código> --title T --layout L [--description] [--view-group/role/user] [--edit-group/role/user] [--parent pai] [--public]` | cria em rascunho; sem `--view-*` = todo autenticado vê; sem `--edit-*` o criador ganha editar/remover; `--parent` exige pai com subpáginas (`update --enable-children`), senão exit 2; grupo/papel/usuário/layout inexistente = exit 4 (a CLI confere; o Fluig não); duplicado = exit 5 |
+| `page update <página> [--title] [--description] [--authorization public\|authenticated] [--friendly-url trecho] [--parent pai\|""] [--enable-children] [--layout L]` | altera no rascunho; URL amigável é relativa à RAIZ do servidor (`/trecho`); na troca de layout o Fluig remaneja os slots e acrescenta widgets de sistema — confira com `page show` |
+| `page move-widget <página> <instanceId> --slot S [--order N]` | move de slot/posição (sem `--order` = fim do slot); slot conferido pelo layout |
 | `page add-widget <página> <widget> [--slot SlotA]` | põe widget no rascunho; slot conferido pelo layout (inválido = exit 2 com a lista; o Fluig aceitaria qualquer nome); widget inexistente = exit 4 |
-| `page remove-widget <página> <instanceId>` | tira da versão publicada (imediato) |
+| `page remove-widget <página> <instanceId>` | tira da versão do id (rascunho, ou publicada sem rascunho = imediato) |
 | `page set-preferences <página> <instanceId>` | JSON objeto pelo stdin; SUBSTITUI todas as preferências (chave omitida some) |
-| `page permission <página> --view-group g...` | troca quem vê (editar/remover ficam); grava no rascunho → `publish` |
+| `page permission <página> [--view-*] [--edit-*]` | troca quem vê e/ou quem edita+remove (família omitida fica); grava no rascunho → `publish` |
 | `page publish <página> [--description]` | publica o rascunho (sem rascunho = exit 2) |
 | `page discard <página>` | descarta o rascunho |
 | `page delete <página>... --yes` | arquiva e exclui |

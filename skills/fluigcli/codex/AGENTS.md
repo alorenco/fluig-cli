@@ -80,8 +80,8 @@ renomeie o widget ou publique com `--force`),
 do widget com `application.type=layout`; o `import` exige o fluigcliHelper ≥ 0.12.0;
 o `export` RECUSA com exit 2 se o código já existir como WIDGET; use `layout export`,
 nunca `widget export` com atalho de pasta),
-`page` (list|show|create|add-widget|remove-widget|set-preferences|permission|publish|
-discard|delete — páginas do portal; página nova nasce em RASCUNHO: create →
+`page` (list|show|create|update|add-widget|move-widget|remove-widget|set-preferences|
+permission|publish|discard|delete — páginas do portal; página nova nasce em RASCUNHO: create →
 add-widget → publish; o `publish` troca o instanceId das widgets; `--view-group`
 restringe quem vê; o Fluig não confere slot nem grupo, a CLI confere),
 `request` (list|show|start|move|cancel|assignees|attachments|observe|observations — solicitações de workflow.

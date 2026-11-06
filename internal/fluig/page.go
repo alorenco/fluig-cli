@@ -90,6 +90,10 @@ type Page struct {
 	// rascunho aberto, quem está editando o rascunho).
 	EditorLogin string `json:"editorLogin,omitempty"`
 	EditorName  string `json:"editorName,omitempty"`
+	// FriendlyURL é o caminho amigável. Interno = relativo à raiz do servidor
+	// (ex.: "/painel" abre em http://host/painel; medido em 2026-11-06).
+	FriendlyURL     string `json:"friendlyUrl,omitempty"`
+	EnabledChildren bool   `json:"enabledChildren"`
 
 	raw map[string]json.RawMessage
 }
@@ -190,6 +194,8 @@ func pageFromRaw(raw map[string]json.RawMessage) Page {
 	p.Status = jsonString(raw, "status")
 	p.Authorization = jsonString(raw, "authorization")
 	p.ParentCode = jsonString(raw, "parentCode")
+	p.FriendlyURL = jsonString(raw, "friendlyUrl")
+	_ = json.Unmarshal(raw["enabledChildren"], &p.EnabledChildren)
 	if u, ok := raw["user"]; ok {
 		var usr struct {
 			Login    string `json:"login"`
@@ -308,6 +314,9 @@ type PageCreateInput struct {
 	Layout      string // código do layout
 	Public      bool
 	Permissions []PagePermission
+	// Parent é a página-pai (opcional). O pai precisa aceitar subpáginas
+	// (EnabledChildren); sem isso o Fluig responde FDNCreateException.
+	Parent *Page
 }
 
 // CreatePage cria uma página em rascunho pela rota legada (a mesma da tela).
@@ -318,6 +327,10 @@ func (c *Client) CreatePage(ctx context.Context, in PageCreateInput) error {
 	auth := "1" // AUTHENTICATED (GET /portal/api/rest/wcm/page/authorization)
 	if in.Public {
 		auth = "0"
+	}
+	parentCode, parentID := "", ""
+	if in.Parent != nil {
+		parentCode, parentID = in.Parent.Code, strconv.Itoa(in.Parent.ID)
 	}
 	items := make([]map[string]any, 0, len(in.Permissions))
 	for _, p := range in.Permissions {
@@ -336,7 +349,7 @@ func (c *Client) CreatePage(ctx context.Context, in PageCreateInput) error {
 			"pageKey": "", "page": "", "layout": in.Layout, "hidePathIconPage": "",
 			"iconFont": "flaticon-page-default", "title": in.Title, "description": in.Description,
 			"code": in.Code, "isInternalFriendlyURL": false, "friendlyURL": "", "auth": auth,
-			"parent-code": "", "parent": "", "enabledChildren": false, "enableChildLevel": false,
+			"parent-code": parentCode, "parent": parentID, "enabledChildren": false, "enableChildLevel": false,
 			"menuGroup": false, "enablePathParam": false, "enableMobileApp": false,
 			"selectedItens": items,
 		},
@@ -471,11 +484,30 @@ func (c *Client) AddPageWidget(ctx context.Context, code, slot, widget string) (
 	return &PageWidget{InstanceID: w.ID, Widget: w.Code, Slot: w.Slot, Order: w.Order}, nil
 }
 
-// UpdatePagePermissions troca as permissões da página (PUT v2). O Fluig
-// abre um rascunho; a mudança vale depois do publish. O corpo repete os
-// campos atuais da página, como a tela de configuração faz (medido: sem eles
-// o PUT responde 400 "” must not be null").
+// PageUpdate descreve a alteração das informações de uma página. Campo nil
+// mantém o valor atual.
+type PageUpdate struct {
+	Title           *string
+	Description     *string
+	Public          *bool
+	FriendlyURL     *string // "" remove; sem barra inicial (interna)
+	ParentID        *int    // 0 tira a página do pai
+	EnabledChildren *bool
+}
+
+// UpdatePagePermissions troca as permissões da página (PUT v2). Atalho de
+// UpdatePage sem outras mudanças.
 func (c *Client) UpdatePagePermissions(ctx context.Context, p *Page, perms []PagePermission) error {
+	return c.UpdatePage(ctx, p, PageUpdate{}, perms)
+}
+
+// UpdatePage altera as informações e as permissões da página (PUT v2). O
+// Fluig abre um rascunho; a mudança vale depois do publish. O corpo repete
+// os campos atuais, como a tela de configuração faz (medido: sem eles o PUT
+// responde 400 "” must not be null"; `parentCode` é recusado pelo DTO).
+// perms é a lista COMPLETA de permissões (quem chama lê as atuais).
+// pageIcon/pageIconBase64 vazios PRESERVAM o ícone atual (medido).
+func (c *Client) UpdatePage(ctx context.Context, p *Page, u PageUpdate, perms []PagePermission) error {
 	if err := c.EnsureSession(ctx); err != nil {
 		return err
 	}
@@ -521,6 +553,28 @@ func (c *Client) UpdatePagePermissions(ctx context.Context, p *Page, perms []Pag
 		"pageIcon":            "",
 		"permissions":         items,
 	}
+	if u.Title != nil {
+		payload["title"] = *u.Title
+	}
+	if u.Description != nil {
+		payload["description"] = *u.Description
+	}
+	if u.Public != nil {
+		payload["authorization"] = "AUTHENTICATED"
+		if *u.Public {
+			payload["authorization"] = "PUBLIC"
+		}
+	}
+	if u.FriendlyURL != nil {
+		payload["friendlyURL"] = strings.TrimPrefix(*u.FriendlyURL, "/")
+		payload["internalFriendlyURL"] = true
+	}
+	if u.ParentID != nil {
+		payload["parent"] = *u.ParentID
+	}
+	if u.EnabledChildren != nil {
+		payload["enabledChildren"] = *u.EnabledChildren
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -533,6 +587,65 @@ func (c *Client) UpdatePagePermissions(ctx context.Context, p *Page, perms []Pag
 		return pageError("v2/pages/{code}", status, body)
 	}
 	return nil
+}
+
+// ChangePageLayout troca o layout da página (PUT /layouts/{layout}; abre
+// rascunho; medido 204). Medido: o Fluig remaneja as widgets para os slots
+// do layout novo (SlotB → SlotC ao ir para layoutsimple) e acrescenta as
+// widgets de sistema que o layout traz (widget_search, alertpopover,
+// responsive_header...).
+func (c *Client) ChangePageLayout(ctx context.Context, code, layout string) error {
+	return c.pageNoContent(ctx, http.MethodPut, "/"+url.PathEscape(code)+"/layouts/"+url.PathEscape(layout), nil, "v2/pages/{code}/layouts/{layout}")
+}
+
+// MovePageWidget move uma instância para outro slot/ordem (PUT
+// /application). Age na versão a que o id pertence: id do rascunho mexe no
+// rascunho; id publicado mexe direto na versão publicada (medido).
+func (c *Client) MovePageWidget(ctx context.Context, code string, instanceID int, slot string, order int) error {
+	data, _ := json.Marshal(map[string]any{"instanceId": instanceID, "slot": slot, "order": order})
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	body, status, err := c.doJSON(ctx, http.MethodPut, c.url(restPagesBase+"/"+url.PathEscape(code)+"/application"), data)
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK {
+		return pageError("v2/pages/{code}/application", status, body)
+	}
+	return nil
+}
+
+// DraftWidgets lista as widgets do RASCUNHO nos slots informados (API
+// legada listWidgetsBySlotUnpublished; o v2 só mostra a versão publicada).
+func (c *Client) DraftWidgets(ctx context.Context, pageID int, slots []string) ([]PageWidget, error) {
+	if err := c.EnsureSession(ctx); err != nil {
+		return nil, err
+	}
+	var out []PageWidget
+	for _, slot := range slots {
+		endpoint := c.url(legacyPageBase + "application/listWidgetsBySlotUnpublished/" + strconv.Itoa(pageID) + "/" + url.PathEscape(slot))
+		body, status, err := c.doJSON(ctx, http.MethodPost, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		if status != http.StatusOK {
+			return nil, &HTTPError{StatusCode: status, URL: "wcm/page/application/listWidgetsBySlotUnpublished", Body: truncate(string(body), 512)}
+		}
+		var items []struct {
+			ID    int    `json:"id"`
+			Slot  string `json:"slot"`
+			Order int    `json:"order"`
+			Code  string `json:"code"`
+		}
+		if err := json.Unmarshal(body, &items); err != nil {
+			return nil, fmt.Errorf("resposta inesperada de listWidgetsBySlotUnpublished: %w", err)
+		}
+		for _, w := range items {
+			out = append(out, PageWidget{InstanceID: w.ID, Widget: w.Code, Slot: w.Slot, Order: w.Order})
+		}
+	}
+	return out, nil
 }
 
 // WidgetPreferences lê as preferências de uma instância (API legada).
