@@ -68,6 +68,10 @@ var (
 	// ErrPageNotPublished indica página sem versão publicada (o GET de
 	// widgets responde 500 EJBException).
 	ErrPageNotPublished = errors.New("a página ainda não tem versão publicada")
+	// ErrPageConcurrentEdit indica rascunho aberto por OUTRO usuário
+	// (ConcurrentPageEditException). A tela do Fluig resolve com
+	// PUT /change-edit-user (TakeOverPageDraft) e repete a operação.
+	ErrPageConcurrentEdit = errors.New("outro usuário está editando o rascunho da página")
 )
 
 // Page é uma página do portal.
@@ -82,6 +86,10 @@ type Page struct {
 	Version       int    `json:"version"`
 	Internal      bool   `json:"internal"`
 	ParentCode    string `json:"parentCode,omitempty"`
+	// EditorLogin/EditorName: último usuário que editou a página (com
+	// rascunho aberto, quem está editando o rascunho).
+	EditorLogin string `json:"editorLogin,omitempty"`
+	EditorName  string `json:"editorName,omitempty"`
 
 	raw map[string]json.RawMessage
 }
@@ -121,6 +129,8 @@ func pageError(op string, status int, body []byte) error {
 		return ErrPageNoDraft
 	case "PageDraftCreateException":
 		return ErrPageDraftExists
+	case "ConcurrentPageEditException":
+		return ErrPageConcurrentEdit
 	}
 	if status == http.StatusNotFound {
 		return fmt.Errorf("%w: %s", ErrNotFound, op)
@@ -180,6 +190,14 @@ func pageFromRaw(raw map[string]json.RawMessage) Page {
 	p.Status = jsonString(raw, "status")
 	p.Authorization = jsonString(raw, "authorization")
 	p.ParentCode = jsonString(raw, "parentCode")
+	if u, ok := raw["user"]; ok {
+		var usr struct {
+			Login    string `json:"login"`
+			FullName string `json:"fullName"`
+		}
+		_ = json.Unmarshal(u, &usr)
+		p.EditorLogin, p.EditorName = usr.Login, usr.FullName
+	}
 	if l, ok := raw["layout"]; ok {
 		var lay struct {
 			Code string `json:"code"`
@@ -195,7 +213,7 @@ func (c *Client) GetPage(ctx context.Context, code string) (*Page, error) {
 	if err := c.EnsureSession(ctx); err != nil {
 		return nil, err
 	}
-	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restPagesBase+"/"+url.PathEscape(code))+"?expand=layout", nil)
+	body, status, err := c.doJSON(ctx, http.MethodGet, c.url(restPagesBase+"/"+url.PathEscape(code))+"?expand=layout&expand=user", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -367,6 +385,19 @@ func checkLegacyPageResponse(op string, body []byte, status int) error {
 // CreatePageDraft abre um rascunho a partir da versão publicada.
 func (c *Client) CreatePageDraft(ctx context.Context, code string) error {
 	return c.pageNoContent(ctx, http.MethodPost, "/"+url.PathEscape(code)+"/draft", nil, "v2/pages/{code}/draft")
+}
+
+// DraftHeldByOther diz se a página tem rascunho aberto por outro usuário
+// (a mesma regra da tela: status DRAFT e editor diferente do logado).
+func (c *Client) DraftHeldByOther(p *Page) bool {
+	return p.Status == PageStatusDraft && p.EditorLogin != "" && !strings.EqualFold(p.EditorLogin, c.opts.Username)
+}
+
+// TakeOverPageDraft faz do usuário logado o editor do rascunho aberto
+// (PUT /change-edit-user; medido: 204). É o "Confirmar" da tela quando o
+// rascunho é de outro usuário.
+func (c *Client) TakeOverPageDraft(ctx context.Context, code string) error {
+	return c.pageNoContent(ctx, http.MethodPut, "/"+url.PathEscape(code)+"/change-edit-user", nil, "v2/pages/{code}/change-edit-user")
 }
 
 // DiscardPageDraft descarta o rascunho aberto.

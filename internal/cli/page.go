@@ -167,6 +167,9 @@ func newPageShowCmd(app *App) *cobra.Command {
 				}
 				p.Table(output.Table{Headers: []string{"Instância", "Widget", "Slot", "Preferências"}, Rows: rows, Style: output.BoldHeaderStyle(nil)})
 			}
+			if pg.Status == fluig.PageStatusDraft && pg.EditorLogin != "" {
+				p.Successf("Rascunho aberto por: %s (%s)", pg.EditorName, pg.EditorLogin)
+			}
 			if pg.Status == fluig.PageStatusDraft && published {
 				p.Successf("Há um rascunho aberto. As widgets acima são da versão publicada. Publique com: fluigcli page publish %s", pg.Code)
 			}
@@ -372,6 +375,7 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 	var (
 		slot          string
 		passwordStdin bool
+		takeOver      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "add-widget <página> <widget>",
@@ -395,6 +399,9 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if err := guardDraftOwner(ctx, p, client, pg, takeOver); err != nil {
+				return err
+			}
 			slots, err := client.LayoutSlots(ctx, pg.Layout)
 			if err != nil {
 				return mapFluigError(err)
@@ -414,6 +421,9 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 				w, err = client.AddPageWidget(ctx, code, slot, widget)
 			}
 			if err != nil {
+				if errors.Is(err, fluig.ErrPageConcurrentEdit) {
+					return concurrentEditError(code, err)
+				}
 				if errors.Is(err, fluig.ErrNotFound) {
 					return output.NotFoundf("widget %q não existe no servidor (publique com: fluigcli widget export)", widget).WithCause(err)
 				}
@@ -428,9 +438,40 @@ func newPageAddWidgetCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&takeOver, "take-over", false, "assume o rascunho quando outro usuário o abriu")
 	cmd.Flags().StringVar(&slot, "slot", defaultPageSlot, "slot do layout que recebe a widget")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
+}
+
+// guardDraftOwner recusa mexer num rascunho aberto por outro usuário, a
+// menos que --take-over seja informado. Com --take-over, assume o rascunho
+// (PUT /change-edit-user), como o "Confirmar" da tela do Fluig.
+func guardDraftOwner(ctx context.Context, p *output.Printer, client *fluig.Client, pg *fluig.Page, takeOver bool) error {
+	if !client.DraftHeldByOther(pg) {
+		return nil
+	}
+	who := pg.EditorLogin
+	if pg.EditorName != "" {
+		who = pg.EditorName + " (" + pg.EditorLogin + ")"
+	}
+	if !takeOver {
+		return output.ServerErrorf("o rascunho da página %q está com %s; para assumir o rascunho, repita com --take-over (as mudanças dele continuam no rascunho)", pg.Code, who)
+	}
+	if err := client.TakeOverPageDraft(ctx, pg.Code); err != nil {
+		return mapFluigError(err)
+	}
+	p.Warnf("rascunho de %q assumido de %s", pg.Code, who)
+	return nil
+}
+
+// concurrentEditError traduz o ConcurrentPageEditException que escapar da
+// checagem prévia (corrida entre a leitura e a escrita).
+func concurrentEditError(code string, err error) error {
+	if errors.Is(err, fluig.ErrPageConcurrentEdit) {
+		return output.ServerErrorf("outro usuário passou a editar o rascunho da página %q; confira com fluigcli page show %s e repita com --take-over", code, code).WithCause(err)
+	}
+	return mapFluigError(err)
 }
 
 // parseInstanceID lê o instanceId do argumento.
@@ -587,6 +628,7 @@ func newPagePermissionCmd(app *App) *cobra.Command {
 	var (
 		view          viewFlags
 		passwordStdin bool
+		takeOver      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "permission <página>",
@@ -610,6 +652,9 @@ func newPagePermissionCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if err := guardDraftOwner(ctx, p, client, pg, takeOver); err != nil {
+				return err
+			}
 			if err := view.validate(ctx, client); err != nil {
 				return err
 			}
@@ -624,7 +669,7 @@ func newPagePermissionCmd(app *App) *cobra.Command {
 				}
 			}
 			if err := client.UpdatePagePermissions(ctx, pg, perms); err != nil {
-				return mapFluigError(err)
+				return concurrentEditError(code, err)
 			}
 			p.Successf("permissões de %q gravadas no rascunho: %s", code, formatPerms(perms))
 			p.Infof("Publique com: fluigcli page publish %s", code)
@@ -633,6 +678,7 @@ func newPagePermissionCmd(app *App) *cobra.Command {
 		},
 	}
 	view.register(cmd)
+	cmd.Flags().BoolVar(&takeOver, "take-over", false, "assume o rascunho quando outro usuário o abriu")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
 }
@@ -643,6 +689,7 @@ func newPagePublishCmd(app *App) *cobra.Command {
 	var (
 		description   string
 		passwordStdin bool
+		takeOver      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "publish <página>",
@@ -660,11 +707,14 @@ func newPagePublishCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if err := guardDraftOwner(ctx, p, client, pg, takeOver); err != nil {
+				return err
+			}
 			if pg.Status != fluig.PageStatusDraft {
 				return output.Usagef("a página %q não tem rascunho para publicar (status %s)", code, pg.Status)
 			}
 			if err := client.PublishPage(ctx, code, description); err != nil {
-				return mapFluigError(err)
+				return concurrentEditError(code, err)
 			}
 			widgets, err := client.PageWidgets(ctx, code)
 			if err != nil {
@@ -678,6 +728,7 @@ func newPagePublishCmd(app *App) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&takeOver, "take-over", false, "assume o rascunho quando outro usuário o abriu")
 	cmd.Flags().StringVar(&description, "description", "Publicado pelo fluigcli", "descrição da versão publicada")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
@@ -686,7 +737,7 @@ func newPagePublishCmd(app *App) *cobra.Command {
 // --- page discard ---
 
 func newPageDiscardCmd(app *App) *cobra.Command {
-	var passwordStdin bool
+	var passwordStdin, takeOver bool
 	cmd := &cobra.Command{
 		Use:   "discard <página>",
 		Short: "Descarta o rascunho aberto e volta à versão publicada",
@@ -703,6 +754,9 @@ func newPageDiscardCmd(app *App) *cobra.Command {
 			if err != nil {
 				return mapFluigError(err)
 			}
+			if err := guardDraftOwner(ctx, p, client, pg, takeOver); err != nil {
+				return err
+			}
 			if pg.Status != fluig.PageStatusDraft {
 				return output.Usagef("a página %q não tem rascunho aberto (status %s)", code, pg.Status)
 			}
@@ -710,13 +764,14 @@ func newPageDiscardCmd(app *App) *cobra.Command {
 				return output.Usagef("a página %q nunca foi publicada; para apagar, use: fluigcli page delete %s", code, code)
 			}
 			if err := client.DiscardPageDraft(ctx, code); err != nil {
-				return mapFluigError(err)
+				return concurrentEditError(code, err)
 			}
 			p.Successf("rascunho de %q descartado", code)
 			p.Done(map[string]any{"page": code})
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&takeOver, "take-over", false, "assume o rascunho quando outro usuário o abriu")
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha de AUTENTICAÇÃO do stdin")
 	return cmd
 }

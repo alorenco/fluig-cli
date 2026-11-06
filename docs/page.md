@@ -17,6 +17,15 @@ Os usuários veem só a versão publicada.
 - O `remove-widget` e o `set-preferences` agem direto na versão publicada, sem
   `publish`. Por isso, eles exigem que a página não tenha rascunho aberto.
 
+### Rascunho de outro usuário
+
+O rascunho pertence a quem o abriu. O `page show` mostra o dono do rascunho na
+linha "Rascunho aberto por". Quando o rascunho é de outro usuário, o
+`add-widget`, o `permission`, o `publish` e o `discard` param com exit **5** e
+mostram o nome do dono. Para assumir o rascunho, repita o comando com
+`--take-over`. As mudanças do outro usuário continuam no rascunho. A tela do
+Fluig faz o mesmo quando você confirma a edição.
+
 A publicação troca o `instanceId` de todas as widgets da página. As
 preferências das widgets continuam iguais. Depois de publicar, consulte os ids
 novos com `page show`.

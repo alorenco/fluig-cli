@@ -26,6 +26,8 @@ type cliPageStub struct {
 	added    map[string]string
 	removed  []string
 	publish  int
+	editor   string // login do editor do rascunho (GET ?expand=user)
+	takeOver int
 }
 
 func (s *cliPageStub) server(t *testing.T) *httptest.Server {
@@ -83,7 +85,13 @@ func (s *cliPageStub) server(t *testing.T) *httptest.Server {
 			if s.status != "" {
 				raw["status"] = s.status
 			}
+			if s.editor != "" {
+				raw["user"] = map[string]any{"login": s.editor, "fullName": "Maria Souza"}
+			}
 			_ = json.NewEncoder(w).Encode(raw)
+		case len(parts) == 2 && parts[1] == "change-edit-user":
+			s.takeOver++
+			w.WriteHeader(http.StatusNoContent)
 		case len(parts) == 1 && r.Method == http.MethodPut:
 			b, _ := io.ReadAll(r.Body)
 			_ = json.Unmarshal(b, &s.put)
@@ -322,5 +330,30 @@ func TestPageDeleteExigeYes(t *testing.T) {
 	}
 	if code, out := runMain(t, pageArgs(proj, "page", "delete", "financeiro", "--yes", "--json")...); code != output.ExitOK {
 		t.Errorf("exit=%d\n%s", code, out)
+	}
+}
+
+func TestPageRascunhoDeOutroUsuario(t *testing.T) {
+	stub := &cliPageStub{status: "DRAFT", editor: "msouza"}
+	proj := mechProject(t, stub.server(t).URL)
+	code, out := runMain(t, pageArgs(proj, "page", "publish", "financeiro", "--json")...)
+	if code != output.ExitServer || !strings.Contains(out, "Maria Souza (msouza)") || !strings.Contains(out, "--take-over") {
+		t.Fatalf("exit=%d\n%s", code, out)
+	}
+	if stub.publish != 0 || stub.takeOver != 0 {
+		t.Errorf("publicou sem --take-over: publish=%d takeOver=%d", stub.publish, stub.takeOver)
+	}
+	code, out = runMain(t, pageArgs(proj, "page", "publish", "financeiro", "--take-over", "--json")...)
+	if code != output.ExitOK || stub.takeOver != 1 || stub.publish != 1 {
+		t.Fatalf("exit=%d takeOver=%d publish=%d\n%s", code, stub.takeOver, stub.publish, out)
+	}
+}
+
+func TestPageRascunhoDoProprioUsuario(t *testing.T) {
+	// mechProject usa o usuário "u": rascunho dele não exige --take-over.
+	stub := &cliPageStub{status: "DRAFT", editor: "u"}
+	proj := mechProject(t, stub.server(t).URL)
+	if code, out := runMain(t, pageArgs(proj, "page", "publish", "financeiro", "--json")...); code != output.ExitOK || stub.takeOver != 0 {
+		t.Fatalf("exit=%d takeOver=%d\n%s", code, stub.takeOver, out)
 	}
 }

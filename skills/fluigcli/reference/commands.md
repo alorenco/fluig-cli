@@ -465,7 +465,9 @@ Página tem versão PUBLICADA + rascunho (DRAFT). Página nova nasce em rascunho
 `publish` publica; `discard` descarta. `remove-widget`/`set-preferences` agem
 DIRETO na versão publicada e exigem página SEM rascunho (exit 2). ⚠️ O
 `publish` troca o `instanceId` de todas as widgets (preferências são
-copiadas): releia com `page show` antes de usar um id.
+copiadas): releia com `page show` antes de usar um id. Rascunho aberto por
+OUTRO usuário (o `page show` mostra "Rascunho aberto por") = exit 5 nos
+comandos de rascunho; `--take-over` assume o rascunho (mantém as mudanças dele).
 
 | comando | efeito |
 |---|---|
