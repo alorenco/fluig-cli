@@ -217,7 +217,7 @@ func newDocumentDownloadCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, fileResult{ID: arg, DocumentID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("documento %s: %s", arg, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "documento %s: %s", arg, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, fileResult{
@@ -275,7 +275,7 @@ func newDocumentUploadCmd(app *App) *cobra.Command {
 					}
 					lastErr = output.NotFoundf("%s", msg)
 					results = append(results, itemResult{ID: name, Action: "failed", Success: false, Error: msg})
-					p.Warnf("%s", msg)
+					warnItem(p, len(args), "%s", msg)
 					continue
 				}
 				info, uerr := client.UploadGEDDocument(ctx, folder, name, content)
@@ -283,7 +283,7 @@ func newDocumentUploadCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(uerr)
 					results = append(results, itemResult{ID: name, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("arquivo %q: %s", name, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "arquivo %q: %s", name, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: strconv.FormatInt(info.ID, 10), Action: "published", Success: true})
@@ -362,7 +362,7 @@ func newDocumentDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: arg, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("documento %s: %s", arg, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "documento %s: %s", arg, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: arg, Action: "deleted", Success: true})
@@ -572,7 +572,7 @@ func newDocumentMoveCmd(app *App) *cobra.Command {
 					item["error"] = output.AsError(app.mapErr(err)).Message
 					failures++
 					single = app.mapErr(err)
-					p.Warnf("documento %d: %s", id, item["error"])
+					warnItem(p, len(ids), "documento %d: %s", id, item["error"])
 				} else {
 					p.Successf("documento %d movido para a pasta %d.", id, folder)
 				}

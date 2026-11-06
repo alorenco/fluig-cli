@@ -123,7 +123,7 @@ func newEventImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = output.NotFoundf("evento global %q não encontrado no servidor", id)
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("evento %q: não encontrado", id)
+					warnItem(p, len(ids), "evento %q: não encontrado", id)
 					continue
 				}
 				action, werr := writeArtifactFile(app, root, project.EventsDirName, id, ev.Code)
@@ -131,7 +131,7 @@ func newEventImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = werr
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(werr).Message})
-					p.Warnf("evento %q: %s", id, output.AsError(werr).Message)
+					warnItem(p, len(ids), "evento %q: %s", id, output.AsError(werr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
@@ -197,9 +197,7 @@ func newEventExportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = blockErr
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
-					if len(args) > 1 {
-						p.Warnf("evento %q: %s", id, blockErr.Message)
-					}
+					warnItem(p, len(args), "evento %q: %s", id, blockErr.Message)
 					continue
 				}
 				content, rerr := os.ReadFile(file)
@@ -211,7 +209,7 @@ func newEventExportCmd(app *App) *cobra.Command {
 					}
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: msg})
 					lastErr = output.NotFoundf("%s", msg)
-					p.Warnf("evento %q: %s", id, msg)
+					warnItem(p, len(args), "evento %q: %s", id, msg)
 					continue
 				}
 				action := "updated"
@@ -319,7 +317,7 @@ func newEventDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("evento %q: %s", id, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "evento %q: %s", id, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: "deleted", Success: true})

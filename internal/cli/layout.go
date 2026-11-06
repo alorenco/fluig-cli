@@ -168,14 +168,14 @@ func newLayoutImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = output.NotFoundf("layout %q não encontrado no servidor", code)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("layout %q: não encontrado", code)
+					warnItem(p, len(codes), "layout %q: não encontrado", code)
 					continue
 				}
 				if err := app.importOneLayout(ctx, client, root, l); err != nil {
 					failures++
 					lastErr = mapFluigError(err)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("layout %q: %s", code, output.AsError(lastErr).Message)
+					warnItem(p, len(codes), "layout %q: %s", code, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: code, Action: "imported", Success: true})

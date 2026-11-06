@@ -213,7 +213,7 @@ func runDbQueryFile(app *App, p *output.Printer, opts fluig.DbQueryOptions,
 			lastErr = mapFluigError(err)
 			item.Error = output.AsError(lastErr).Message
 			results = append(results, item)
-			p.Warnf("instrução %d (linha %d): %s", idx, st.Line, item.Error)
+			warnItem(p, len(selected), "instrução %d (linha %d): %s", idx, st.Line, item.Error)
 			continue
 		}
 		item.Success = true

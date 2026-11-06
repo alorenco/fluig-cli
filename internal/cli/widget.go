@@ -204,14 +204,14 @@ func newWidgetImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = output.NotFoundf("widget %q não encontrado no servidor", code)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("widget %q: não encontrado", code)
+					warnItem(p, len(codes), "widget %q: não encontrado", code)
 					continue
 				}
 				if err := app.importOneWidget(ctx, client, root, w); err != nil {
 					failures++
 					lastErr = mapFluigError(err)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("widget %q: %s", code, output.AsError(lastErr).Message)
+					warnItem(p, len(codes), "widget %q: %s", code, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: code, Action: "imported", Success: true})

@@ -689,7 +689,7 @@ func newRequestAttachmentsCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, fileResult{ID: name, Sequence: a.Sequence, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("anexo %q: %s", name, output.AsError(lastErr).Message)
+					warnItem(p, len(targets), "anexo %q: %s", name, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, fileResult{
@@ -1025,7 +1025,7 @@ func newRequestCancelCmd(app *App) *cobra.Command {
 					item["error"] = output.AsError(app.mapErr(err)).Message
 					failures++
 					single = app.mapErr(err)
-					p.Warnf("solicitação %d: %s", id, item["error"])
+					warnItem(p, len(ids), "solicitação %d: %s", id, item["error"])
 				} else {
 					p.Successf("solicitação %d cancelada.", id)
 				}

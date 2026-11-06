@@ -214,7 +214,7 @@ func newDatasetImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(err)
 					results = append(results, itemResult{ID: id, Action: action, Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("dataset %q: %s", id, output.AsError(lastErr).Message)
+					warnItem(p, len(ids), "dataset %q: %s", id, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
@@ -325,11 +325,7 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = blockErr
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
-					// Alvo único: o erro final já sai com este texto — avisar aqui
-					// seria imprimir a mesma frase duas vezes.
-					if len(args) > 1 {
-						p.Warnf("dataset %q: %s", id, blockErr.Message)
-					}
+					warnItem(p, len(args), "dataset %q: %s", id, blockErr.Message)
 					continue
 				}
 				action, err := app.exportOneDataset(ctx, client, file, id, description, markNew)
@@ -342,7 +338,7 @@ func newDatasetExportCmd(app *App) *cobra.Command {
 						lastErr = withExtraMessage(lastErr, compileFailureHint(gate, file))
 					}
 					results = append(results, itemResult{ID: id, Action: action, Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("dataset %q: %s", id, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "dataset %q: %s", id, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
@@ -446,7 +442,7 @@ func newDatasetToggleCmd(app *App, enable bool) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(terr)
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("dataset %q: %s", id, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "dataset %q: %s", id, output.AsError(lastErr).Message)
 					continue
 				}
 				act := "disabled"
@@ -849,6 +845,16 @@ func splitCSV(vals []string) []string {
 
 // finishBatch decide o exit code de uma operação em lote:
 // tudo ok → 0; falha em alvo único → erro real; falhas em lote → 6.
+// warnItem avisa a falha de um item do lote. Com um item só, o aviso não
+// sai: o finishBatch devolve o mesmo erro, e a CLI o imprime uma vez. Use só
+// em laço com no máximo uma falha por item e com o erro do item passado ao
+// finishBatch.
+func warnItem(p *output.Printer, total int, format string, args ...any) {
+	if total > 1 {
+		p.Warnf(format, args...)
+	}
+}
+
 func finishBatch(p *output.Printer, single error, data map[string]any, failures, total int) error {
 	if failures == 0 {
 		p.Done(data)

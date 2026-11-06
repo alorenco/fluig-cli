@@ -133,16 +133,21 @@ func newFormImportCmd(app *App) *cobra.Command {
 				}
 			}
 
+			// O total do lote conta também os formulários não encontrados.
+			total := len(targets)
+			if !all && len(args) > total {
+				total = len(args)
+			}
 			var results []itemResult
 			var lastErr error
-			failures := 0
+			failures := total - len(targets)
 			for _, f := range targets {
 				localFolder := resolveImportFolder(fmap, f, folderFlag)
 				if err := app.importOneForm(ctx, client, userCode, root, localFolder, f); err != nil {
 					failures++
 					lastErr = mapFluigError(err)
 					results = append(results, itemResult{ID: f.Description, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("formulário %q: %s", f.Description, output.AsError(lastErr).Message)
+					warnItem(p, total, "formulário %q: %s", f.Description, output.AsError(lastErr).Message)
 					continue
 				}
 				fmap.Upsert(project.FormLink{Folder: localFolder, DocumentID: f.DocumentID, Name: f.Description, DatasetName: f.DatasetName})
@@ -151,11 +156,6 @@ func newFormImportCmd(app *App) *cobra.Command {
 			}
 			if err := fmap.Save(); err != nil {
 				p.Warnf("não foi possível salvar .fluigcli/forms.json: %v", err)
-			}
-			total := len(targets)
-			if !all && len(args) > total {
-				failures += len(args) - total
-				total = len(args)
 			}
 			return finishBatch(p, lastErr, map[string]any{"results": results}, failures, total)
 		},

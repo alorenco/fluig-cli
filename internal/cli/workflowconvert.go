@@ -432,7 +432,7 @@ func convertRun(ctx context.Context, app *App, p *output.Printer, client *fluig.
 			failures++
 			lastErr = cerr
 			results = append(results, itemResult{ID: strconv.Itoa(id), Action: "failed", Success: false, Error: output.AsError(cerr).Message})
-			p.Warnf("solicitação %d: %s", id, output.AsError(cerr).Message)
+			warnItem(p, len(selected), "solicitação %d: %s", id, output.AsError(cerr).Message)
 			continue
 		}
 		results = append(results, itemResult{ID: strconv.Itoa(id), Action: "converted", Success: true})

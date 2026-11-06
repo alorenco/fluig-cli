@@ -389,7 +389,7 @@ func newFormRecordsDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: arg, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("registro %s: %s", arg, output.AsError(lastErr).Message)
+					warnItem(p, len(args)-1, "registro %s: %s", arg, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: arg, Action: "deleted", Success: true})

@@ -680,7 +680,7 @@ func newServiceDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("serviço %q: %s", code, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "serviço %q: %s", code, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: code, Action: "deleted", Success: true})

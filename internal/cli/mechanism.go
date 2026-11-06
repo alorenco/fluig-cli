@@ -119,7 +119,7 @@ func newMechanismImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = output.NotFoundf("mecanismo %q não encontrado no servidor", id)
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("mecanismo %q: não encontrado", id)
+					warnItem(p, len(ids), "mecanismo %q: não encontrado", id)
 					continue
 				}
 				action, werr := writeArtifactFile(app, root, project.MechanismsDirName, id, m.Code)
@@ -127,7 +127,7 @@ func newMechanismImportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = werr
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(werr).Message})
-					p.Warnf("mecanismo %q: %s", id, output.AsError(werr).Message)
+					warnItem(p, len(ids), "mecanismo %q: %s", id, output.AsError(werr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
@@ -189,9 +189,7 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = blockErr
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: blockErr.Message})
-					if len(args) > 1 {
-						p.Warnf("mecanismo %q: %s", id, blockErr.Message)
-					}
+					warnItem(p, len(args), "mecanismo %q: %s", id, blockErr.Message)
 					continue
 				}
 				action, werr := app.exportOneMechanism(ctx, client, byID, file, id, name, description)
@@ -199,7 +197,7 @@ func newMechanismExportCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = werr
 					results = append(results, itemResult{ID: id, Action: action, Success: false, Error: output.AsError(werr).Message})
-					p.Warnf("mecanismo %q: %s", id, output.AsError(werr).Message)
+					warnItem(p, len(args), "mecanismo %q: %s", id, output.AsError(werr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: action, Success: true})
@@ -277,7 +275,7 @@ func newMechanismDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: id, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("mecanismo %q: %s", id, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "mecanismo %q: %s", id, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: id, Action: "deleted", Success: true})

@@ -184,7 +184,7 @@ func (a *App) dumpProcessScripts(ctx context.Context, client *fluig.Client, p *o
 		if err != nil {
 			failures++
 			lastErr = mapFluigError(err)
-			p.Warnf("processo %q: %s", pid, output.AsError(lastErr).Message)
+			warnItem(p, len(pids), "processo %q: %s", pid, output.AsError(lastErr).Message)
 			continue
 		}
 		for _, ev := range selectedEventNames(events, want) {

@@ -1195,7 +1195,7 @@ func newPageDeleteCmd(app *App) *cobra.Command {
 					failures++
 					lastErr = mapFluigError(derr)
 					results = append(results, itemResult{ID: code, Action: "failed", Success: false, Error: output.AsError(lastErr).Message})
-					p.Warnf("página %q: %s", code, output.AsError(lastErr).Message)
+					warnItem(p, len(args), "página %q: %s", code, output.AsError(lastErr).Message)
 					continue
 				}
 				results = append(results, itemResult{ID: code, Action: "deleted", Success: true})

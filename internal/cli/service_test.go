@@ -265,6 +265,27 @@ func TestServiceDelete(t *testing.T) {
 	}
 }
 
+// §5.22: com um item só, a falha sai uma vez (só a linha "erro:"). Com
+// vários itens, cada falha sai como aviso, e o resumo sai no fim.
+func TestServiceDeleteFalhaSaiUmaVez(t *testing.T) {
+	stub := &svcStub{}
+	proj := mechProject(t, stub.server(t).URL)
+	code, _, errOut := runMainStderr(t, "service", "delete", "nao_existe", "--yes", "--project", proj, "--server", "homolog")
+	if code != output.ExitNotFound {
+		t.Fatalf("exit=%d, esperava %d\n%s", code, output.ExitNotFound, errOut)
+	}
+	if strings.Contains(errOut, "aviso:") || strings.Count(errOut, "nao_existe") != 1 {
+		t.Errorf("um item: a falha deveria sair uma vez só:\n%s", errOut)
+	}
+	code, _, errOut = runMainStderr(t, "service", "delete", "jusbrasil", "nao_existe", "--yes", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, esperava %d\n%s", code, output.ExitPartial, errOut)
+	}
+	if !strings.Contains(errOut, `aviso: serviço "nao_existe"`) || !strings.Contains(errOut, "1 de 2 itens falharam") {
+		t.Errorf("dois itens: faltou o aviso do item ou o resumo:\n%s", errOut)
+	}
+}
+
 func TestServiceCreateCustomPorStdin(t *testing.T) {
 	stub := &svcStub{}
 	proj := mechProject(t, stub.server(t).URL)

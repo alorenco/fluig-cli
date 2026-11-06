@@ -114,6 +114,24 @@ func TestFormImportWritesFilesAndEvents(t *testing.T) {
 	}
 }
 
+// §5.22: o total do form import conta o formulário não encontrado. O aviso
+// dele continua, porque é a única mensagem dessa falha.
+func TestFormImportNaoEncontradoContaNoTotal(t *testing.T) {
+	stub := &formStub{}
+	proj := formProject(t, stub.server(t).URL)
+	code, _, errOut := runMainStderr(t, "form", "import", "42", "nao_existe", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial {
+		t.Fatalf("exit=%d, esperava %d\n%s", code, output.ExitPartial, errOut)
+	}
+	if !strings.Contains(errOut, `formulário "nao_existe" não encontrado`) || !strings.Contains(errOut, "1 de 2 itens falharam") {
+		t.Errorf("faltou o aviso ou o resumo:\n%s", errOut)
+	}
+	code, _, errOut = runMainStderr(t, "form", "import", "nao_existe", "--project", proj, "--server", "homolog")
+	if code != output.ExitPartial || !strings.Contains(errOut, `formulário "nao_existe" não encontrado`) {
+		t.Errorf("um item não encontrado: exit=%d\n%s", code, errOut)
+	}
+}
+
 // Export de um formulário existente → update; anexo .html com nome do form = principal.
 func TestFormExportUpdateMarksPrincipal(t *testing.T) {
 	stub := &formStub{}
