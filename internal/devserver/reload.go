@@ -239,7 +239,8 @@ func within(root, sub, path string) bool {
 
 // widgetServerSidePath identifica arquivos de widget que o navegador não
 // carrega direto (viram parte do WAR renderizado no servidor): tudo que não
-// está sob src/main/webapp/resources — view/edit.ftl, .properties,
+// está sob a pasta de recursos estáticos (src/main/webapp/resources, ou
+// resources/ na estrutura plana) — view/edit.ftl, .properties,
 // application.info, WEB-INF etc. Devolve o nome da pasta da widget.
 func widgetServerSidePath(root, path string) (code string, serverSide bool) {
 	rel, err := filepath.Rel(filepath.Join(root, project.WidgetsDir), path)
@@ -251,7 +252,8 @@ func widgetServerSidePath(root, path string) (code string, serverSide bool) {
 		return "", false // a própria pasta da widget
 	}
 	code = parts[0]
-	staticPrefix := []string{"src", "main", "webapp", "resources"}
+	layout := project.DetectWARLayout(filepath.Join(root, project.WidgetsDir, code))
+	staticPrefix := strings.Split(filepath.ToSlash(filepath.Clean(layout.StaticRel())), "/")
 	for i, seg := range staticPrefix {
 		if len(parts)-1 <= i || parts[1+i] != seg {
 			return code, true

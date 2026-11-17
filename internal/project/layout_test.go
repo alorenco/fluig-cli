@@ -9,7 +9,7 @@ import (
 
 func writeInfo(t *testing.T, dir, content string) {
 	t.Helper()
-	p := filepath.Join(dir, ApplicationInfoRel)
+	p := filepath.Join(dir, ApplicationInfoRel(dir))
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -60,5 +60,24 @@ func TestLayoutDir(t *testing.T) {
 	want := filepath.Join("/proj", "wcm", "layout", "meu_layout")
 	if got != want {
 		t.Fatalf("LayoutDir=%q, quer %q", got, want)
+	}
+}
+
+// Estrutura plana: o application.info fica em WEB-INF/classes.
+func TestReadApplicationTypeEstruturaPlana(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "WEB-INF", "classes", "application.info")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("application.type=layout\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	typ, err := ReadApplicationType(dir)
+	if err != nil || typ != "layout" {
+		t.Fatalf("typ=%q err=%v, quer layout", typ, err)
+	}
+	if got := filepath.ToSlash(ApplicationInfoRel(dir)); got != "WEB-INF/classes/application.info" {
+		t.Errorf("ApplicationInfoRel=%q", got)
 	}
 }

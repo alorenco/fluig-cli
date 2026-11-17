@@ -451,15 +451,16 @@ inexistente → exit 4. Com `--json`, o tail devolve
 |---|---|---|
 | `widget new <code>` | local | cria o esqueleto de um widget em `wcm/widget/<code>` (`--title`, `--category`, `--template classic\|vue\|react`; código minúsculo `[a-z][a-z0-9_]*`; a pasta não pode existir; templates vue/react = SPA Vue 3/React 19 + Vite, build com `npm run build` antes do export; `--template vue --vuetify` = variante Vuetify 3 via npm, para converter widgets Vuetify antigas) |
 | `widget list` | — | lista os widgets do servidor (componente auxiliar; sem ele usa a API nativa, que pode omitir itens) |
-| `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto |
-| `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar). **Recusa com exit 2 quando o código já existe no servidor como LAYOUT** (o deploy nativo identifica o destino só pelo nome do `.war`, então o upload sobrescreveria o WAR do layout e pode derrubar o servidor): renomeie o widget ou publique com `--force`. A checagem falha em aberto — servidor sem resposta = aviso e publicação |
+| `widget import <code>... \| --all` | servidor → local | baixa widgets para o projeto. Pasta local que já usa a estrutura plana mantém a estrutura plana; pasta nova recebe `src/main` |
+| `widget export <NomeWidget>` | local → servidor | empacota e publica um widget (deploy nativo); `--build` roda `npm run build` antes (widgets vue/react; falha = exit 2 sem enviar). **Recusa com exit 2 quando o código já existe no servidor como LAYOUT** (o deploy nativo identifica o destino só pelo nome do `.war`, então o upload sobrescreveria o WAR do layout e pode derrubar o servidor): renomeie o widget ou publique com `--force`. A checagem falha em aberto — servidor sem resposta = aviso e publicação. **Aceita duas estruturas de pasta**: `src/main` (`src/main/resources` + `src/main/webapp`) e a plana (`WEB-INF/` e `resources/` direto na raiz do widget, gerada pelo Eclipse e pelo Fluig Studio antigo). A CLI detecta a estrutura sozinha; `src/main` com arquivos vence, e o comando avisa quando há arquivos nas duas. NÃO converta um widget plano para `src/main` só para publicar. Pasta sem arquivos em nenhuma das duas = exit 2 |
 
 ## layout
 
 Layouts WCM são as páginas-molde do portal (slots onde os widgets entram). A
 pasta local é `wcm/layout/<código>`, com a MESMA estrutura de um widget
 (`src/main/resources` com `application.info` + `layout.ftl`; `src/main/webapp`
-com `WEB-INF` e `resources`). O `application.info` declara
+com `WEB-INF` e `resources`). A estrutura plana (`WEB-INF/` e `resources/` na
+raiz) também vale, como no widget. O `application.info` declara
 `application.type=layout`. Não há `layout new` nesta versão.
 
 | comando | direção | efeito |

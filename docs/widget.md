@@ -11,6 +11,34 @@ wcm/widget/<NomeWidget>/
     └── webapp/resources/   # js, css, imagens
 ```
 
+A CLI também aceita a **estrutura plana**. O Eclipse e o Fluig Studio antigo
+geram esta estrutura. Nela, `WEB-INF/` e `resources/` ficam direto na raiz da
+pasta do widget:
+
+```
+wcm/widget/<NomeWidget>/
+├── WEB-INF/
+│   ├── classes/            # .ftl, .properties, application.info
+│   ├── jboss-web.xml
+│   └── web.xml
+└── resources/              # js, css, imagens
+```
+
+A CLI detecta a estrutura sozinha, por estas regras:
+
+- A pasta usa a estrutura `src/main` quando o `src/main` tem pelo menos um
+  arquivo empacotável.
+- A pasta usa a estrutura plana quando o `src/main` não tem arquivos e existe
+  `WEB-INF/` ou `resources/` com arquivos na raiz. Um `src/main` só com pastas
+  vazias não conta.
+- Não mantenha as duas estruturas com arquivos na mesma pasta. Neste caso o WAR
+  usa só o `src/main`, e o `widget export` avisa que os arquivos da raiz ficam
+  fora.
+
+O `widget export`, o `widget import`, o `deploy` e o `fluigcli dev` seguem a
+estrutura detectada. O `widget new` cria sempre a estrutura `src/main`. Os
+templates vue e react usam só a estrutura `src/main`.
+
 - **new** cria o esqueleto local. Nada vai ao servidor.
 - **export** envia o projeto local ao servidor (deploy). O comando é
   **nativo** (`uploadfile`).
@@ -131,6 +159,10 @@ este mapa:
 | `WEB-INF/<arq>` | `src/main/webapp/WEB-INF/<arq>` |
 | `pom.xml` | `pom.xml` |
 
+Uma pasta local que já usa a estrutura plana mantém a estrutura plana. Neste
+caso o comando grava `resources/**`, `WEB-INF/**` e `pom.xml` no mesmo caminho
+do WAR. Uma pasta nova recebe a estrutura `src/main`.
+
 O comando preserva os arquivos binários (imagens, fontes) byte a byte.
 
 ## `fluigcli widget export <NomeWidget>`
@@ -150,6 +182,13 @@ Empacotamento (local → WAR):
 | `src/main/webapp/WEB-INF/**` | `WEB-INF/**` |
 | `src/main/resources/**` | `WEB-INF/classes/**` |
 | `src/main/webapp/resources/**` | `resources/**` |
+
+Na estrutura plana, o comando empacota `WEB-INF/**` e `resources/**` no mesmo
+caminho. Os outros arquivos da raiz do widget ficam fora do WAR. Por exemplo:
+`pom.xml`, `README.md` e `.project`.
+
+Uma pasta sem arquivos em nenhuma das duas estruturas = exit code 2. Nada vai
+ao servidor.
 
 ### Guarda de colisão com layout
 

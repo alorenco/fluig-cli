@@ -498,7 +498,8 @@ func applySpecPreferences(ctx context.Context, client *fluig.Client, spec *pageS
 
 // layoutSlots devolve os slots de conteúdo do layout. Primeiro pela página
 // publicada que usa o layout (servidor); sem ela, pelo layout.ftl do projeto
-// (wcm/layout/<código>/src/main/resources/layout.ftl). nil = desconhecidos.
+// (layout.ftl em src/main/resources; na estrutura plana, em WEB-INF/classes).
+// nil = desconhecidos.
 func (a *App) layoutSlots(ctx context.Context, client *fluig.Client, layout string) ([]string, error) {
 	slots, err := client.LayoutSlots(ctx, layout)
 	if err != nil || slots != nil {
@@ -508,7 +509,8 @@ func (a *App) layoutSlots(ctx context.Context, client *fluig.Client, layout stri
 	if rerr != nil {
 		return nil, nil
 	}
-	ftl, rerr := os.ReadFile(filepath.Join(project.LayoutDir(root, layout), "src", "main", "resources", "layout.ftl"))
+	layoutDir := project.LayoutDir(root, layout)
+	ftl, rerr := os.ReadFile(filepath.Join(layoutDir, project.DetectWARLayout(layoutDir).ClassesRel(), "layout.ftl"))
 	if rerr != nil {
 		return nil, nil
 	}

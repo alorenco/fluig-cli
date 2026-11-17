@@ -407,3 +407,26 @@ func TestLayoutImportHelperAntigo(t *testing.T) {
 		t.Fatalf("exit=%d; saída: %s", code, out)
 	}
 }
+
+// Layout na estrutura plana: o application.info vem de WEB-INF/classes e o
+// WAR sai da raiz da pasta.
+func TestLayoutExportEstruturaPlana(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	base := writeFlatWidget(t, proj, "layout", "meu_layout")
+	info := filepath.Join(base, "WEB-INF", "classes", "application.info")
+	if err := os.WriteFile(info, []byte("application.type=layout\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runMain(t, "layout", "export", "meu_layout", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	entries := uploadedEntries(t, stub)
+	if _, ok := entries["WEB-INF/classes/application.info"]; !ok {
+		t.Errorf("application.info fora do WAR: %v", keysOf(entries))
+	}
+	if _, ok := entries["resources/js/relatorioGeral.js"]; !ok {
+		t.Errorf("resources/ fora do WAR: %v", keysOf(entries))
+	}
+}

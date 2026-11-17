@@ -110,6 +110,30 @@ func TestWidgetServerSidePath(t *testing.T) {
 			t.Errorf("%s: code=%q serverSide=%v; quer %q/%v", c.rel, code, ss, c.code, c.serverSide)
 		}
 	}
+	// Estrutura plana: só resources/ é estático; WEB-INF/ é server-side.
+	plana := []struct {
+		rel        string
+		serverSide bool
+	}{
+		{"wcm/widget/plana/resources/js/plana.js", false},
+		{"wcm/widget/plana/WEB-INF/classes/view.ftl", true},
+		{"wcm/widget/plana/WEB-INF/web.xml", true},
+	}
+	for _, c := range plana {
+		p := filepath.Join(root, filepath.FromSlash(c.rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range plana {
+		code, ss := widgetServerSidePath(root, filepath.Join(root, filepath.FromSlash(c.rel)))
+		if code != "plana" || ss != c.serverSide {
+			t.Errorf("%s: code=%q serverSide=%v; quer plana/%v", c.rel, code, ss, c.serverSide)
+		}
+	}
 	if _, ss := widgetServerSidePath(root, filepath.Join(root, "forms", "x.html")); ss {
 		t.Error("arquivo fora de wcm/widget não é server-side de widget")
 	}
@@ -496,5 +520,39 @@ func TestRewriteUpstreamURLs(t *testing.T) {
 		if got := rewriteUpstreamURLs(c.in, "fluig.x", origin); got != c.want {
 			t.Errorf("rewriteUpstreamURLs(%s) = %s, quer %s", c.in, got, c.want)
 		}
+	}
+}
+
+// Widget na estrutura plana (issue #7): o map-local serve resources/ da raiz
+// da pasta, o context-root vem de WEB-INF/jboss-web.xml e o view.ftl vem de
+// WEB-INF/classes.
+func TestMountTableEstruturaPlana(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("wcm/widget/relatorio/WEB-INF/jboss-web.xml",
+		`<?xml version="1.0"?><jboss-web><context-root>/rel</context-root></jboss-web>`)
+	write("wcm/widget/relatorio/WEB-INF/classes/application.info", "application.code=relatorioGeral\n")
+	write("wcm/widget/relatorio/WEB-INF/classes/view.ftl", "<div>${instanceId}</div>")
+	write("wcm/widget/relatorio/resources/js/relatorio.js", "// js local\n")
+	if err := os.MkdirAll(filepath.Join(root, "wcm", "widget", "relatorio", "src", "main", "webapp", "resources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	mt := newMountTable(root)
+	if p, ok := mt.resolve("/rel/resources/js/relatorio.js"); !ok || !strings.HasSuffix(p, "relatorio.js") {
+		t.Errorf("resolve na estrutura plana: ok=%v p=%q", ok, p)
+	}
+	m, ok := mt.byAppCode("relatorioGeral")
+	if !ok || !strings.HasSuffix(filepath.ToSlash(m.viewFTL), "WEB-INF/classes/view.ftl") {
+		t.Errorf("byAppCode na estrutura plana: ok=%v viewFTL=%q", ok, m.viewFTL)
 	}
 }

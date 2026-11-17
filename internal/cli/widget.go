@@ -242,7 +242,13 @@ func (a *App) importOneWidget(ctx context.Context, client *fluig.Client, root st
 // unpackWAR desempacota um WAR (widget ou layout — a estrutura é a mesma) na
 // pasta local, pelo mapa inverso de MapWidgetEntryToLocal. Entradas fora do
 // mapa (META-INF/, por exemplo) são ignoradas.
+//
+// A pasta local mantém a estrutura que já tem: uma pasta plana (WEB-INF/ e
+// resources/ na raiz) recebe os arquivos na estrutura plana. Pasta nova ou
+// vazia recebe a estrutura src/main. Sem isso, o import criaria um src/main
+// ao lado da estrutura plana, e o export seguinte passaria a ler o src/main.
 func unpackWAR(war []byte, dir string) error {
+	layout := project.DetectWARLayout(dir)
 	zr, err := zip.NewReader(bytes.NewReader(war), int64(len(war)))
 	if err != nil {
 		return err
@@ -251,7 +257,7 @@ func unpackWAR(war []byte, dir string) error {
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		rel := project.MapWidgetEntryToLocal(f.Name)
+		rel := project.MapWidgetEntryToLocal(layout, f.Name)
 		if rel == "" {
 			continue // entrada fora do mapa (ignora)
 		}
@@ -291,6 +297,10 @@ func newWidgetExportCmd(app *App) *cobra.Command {
 		Short: "Empacota e publica um widget no servidor (deploy nativo)",
 		Long: "Empacota a pasta local do widget em um WAR e publica no servidor pelo\n" +
 			"deploy nativo do WCM. A instalação é assíncrona no servidor.\n\n" +
+			"O comando aceita duas estruturas de pasta. A estrutura src/main tem\n" +
+			"src/main/resources e src/main/webapp. A estrutura plana tem WEB-INF/ e\n" +
+			"resources/ direto na raiz do widget. Quando o src/main tem arquivos, o\n" +
+			"WAR usa só o src/main.\n\n" +
 			"Antes de publicar, a CLI checa se o código do widget já existe no\n" +
 			"servidor como LAYOUT. O deploy nativo identifica o destino só pelo nome\n" +
 			"do arquivo (<código>.war), por isso publicar um widget com o código de um\n" +
@@ -406,6 +416,7 @@ func (a *App) exportOneWidget(ctx context.Context, p *output.Printer, client *fl
 		}
 	}
 
+	warnIgnoredFlatFiles(p, "widget", name, widgetDir)
 	war, err := packWAR(widgetDir)
 	if err != nil {
 		return err
@@ -419,16 +430,28 @@ func (a *App) exportOneWidget(ctx context.Context, p *output.Printer, client *fl
 	return nil
 }
 
-// packWAR monta o WAR em memória a partir de uma pasta no layout de widget
-// (src/main/resources, src/main/webapp). Serve ao widget export e ao layout
-// export: os dois artefatos têm a mesma estrutura e o mesmo deploy.
+// warnIgnoredFlatFiles avisa quando a pasta tem as duas estruturas com
+// arquivos. Neste caso o WAR sai só do src/main (project.DetectWARLayout), e
+// os arquivos de WEB-INF/ e resources/ na raiz ficam fora.
+func warnIgnoredFlatFiles(p *output.Printer, kind, name, dir string) {
+	if project.HasIgnoredFlatFiles(dir) {
+		p.Warnf("%s %q tem arquivos em src/main e também em WEB-INF/ ou resources/ na raiz. "+
+			"O WAR usa só o src/main. Os arquivos da raiz ficam fora — mantenha uma estrutura só.", kind, name)
+	}
+}
+
+// packWAR monta o WAR em memória a partir de uma pasta de widget, na
+// estrutura src/main ou na plana (ver project.DetectWARLayout). Serve ao
+// widget export e ao layout export: os dois artefatos têm a mesma estrutura e
+// o mesmo deploy.
 func packWAR(dir string) ([]byte, error) {
 	refs, err := project.CollectWidgetWARFiles(dir)
 	if err != nil {
 		return nil, err
 	}
 	if len(refs) == 0 {
-		return nil, output.Usagef("nada para empacotar em %s (esperado src/main/...)", dir)
+		return nil, output.Usagef("nada para empacotar em %s. A pasta precisa de arquivos em src/main/resources e src/main/webapp, "+
+			"ou em WEB-INF/ e resources/ na raiz (estrutura plana)", dir)
 	}
 	warFiles := make([]fluig.WARFile, 0, len(refs))
 	for _, ref := range refs {

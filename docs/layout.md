@@ -14,6 +14,11 @@ wcm/layout/<código>/
 A estrutura é a mesma de um widget. A diferença está no `application.info`:
 um layout declara `application.type=layout`.
 
+A CLI também aceita a estrutura plana: `WEB-INF/` e `resources/` direto na raiz
+da pasta do layout. Neste caso o `application.info` e o `layout.ftl` ficam em
+`WEB-INF/classes/`. As regras de detecção são as do
+[widget](widget.md).
+
 - **list** mostra os layouts do servidor. O comando usa a API nativa de
   page-management.
 - **import** traz o servidor para o projeto local. O comando usa o
@@ -43,7 +48,8 @@ fluigcli layout list --server homolog
 
 Este comando baixa e desempacota layouts em `wcm/layout/<código>/`. Ele segue
 o mesmo mapa do [`widget import`](widget.md#fluigcli-widget-import-code--all).
-O `layout.ftl` volta para `src/main/resources/`. Os arquivos binários
+O `layout.ftl` volta para `src/main/resources/`. Uma pasta local que já usa a
+estrutura plana mantém a estrutura plana. Os arquivos binários
 (imagens, fontes) são preservados byte a byte. A pasta `META-INF` do WAR fica
 de fora.
 
@@ -88,7 +94,8 @@ Empacotamento (local → WAR):
 Antes de empacotar, a CLI confere o `application.info`:
 
 - Pasta sem `src/main/resources/application.info` = exit code 2. O servidor
-  aceitaria o WAR e falharia depois, em silêncio.
+  aceitaria o WAR e falharia depois, em silêncio. Na estrutura plana, o
+  arquivo fica em `WEB-INF/classes/application.info`.
 - `application.type` diferente de `layout` = exit code 2. A mensagem aponta o
   `widget export`. Isso evita publicar um widget como layout por engano.
 

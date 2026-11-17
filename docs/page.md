@@ -111,7 +111,8 @@ slot pelo layout da página, nesta ordem:
 1. A CLI abre uma página publicada com o mesmo layout e lê os slots de
    conteúdo dela (os slots marcados como editáveis).
 2. Sem essa página, a CLI lê os slots do `layout.ftl` do projeto
-   (`wcm/layout/<código>/src/main/resources/layout.ftl`): as chamadas
+   (`wcm/layout/<código>/src/main/resources/layout.ftl`; na estrutura plana,
+   `WEB-INF/classes/layout.ftl`): as chamadas
    `<@wcm.renderSlot id="..." editableSlot="true"/>`.
 3. Sem nenhuma das duas fontes, a CLI avisa e segue.
 

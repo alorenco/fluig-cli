@@ -71,7 +71,8 @@ A página tem estas seções, de cima para baixo:
 
 Navegue no **portal real** pela porta local. A página, os dados, a sessão e o
 WCMAPI são os do servidor. Mas o dev serve o JS/CSS das widgets do projeto
-(`wcm/widget/<code>/src/main/webapp/resources/`) da sua máquina. Você salva, o
+(`wcm/widget/<code>/src/main/webapp/resources/`) da sua máquina. Na estrutura
+plana, o dev serve `wcm/widget/<code>/resources/`. Você salva, o
 navegador recarrega, a mudança aparece. Você **não faz deploy de WAR, não
 espera o servidor descompactar e não limpa o cache**. Isso também vale para as
 widgets-biblioteca. Estas widgets compartilham JS/CSS com outras widgets.

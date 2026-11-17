@@ -13,7 +13,8 @@ import (
 )
 
 // mount liga o context-root de uma widget (URL no servidor) à sua pasta
-// local de recursos estáticos (src/main/webapp) e ao view.ftl (render local).
+// local de recursos estáticos (a raiz do WAR: src/main/webapp, ou a própria
+// pasta da widget na estrutura plana) e ao view.ftl (render local).
 type mount struct {
 	contextRoot string // ex.: /ramais (com barra inicial, sem final)
 	dir         string // ex.: <root>/wcm/widget/ramais/src/main/webapp
@@ -98,12 +99,12 @@ func discoverMounts(root string) []mount {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		dir := filepath.Join(root, project.WidgetsDir, e.Name(), "src", "main", "webapp")
+		widgetDir := filepath.Join(root, project.WidgetsDir, e.Name())
+		dir := filepath.Join(widgetDir, project.DetectWARLayout(widgetDir).WebappRel())
 		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 			continue
 		}
 		cr := contextRootOf(dir, e.Name())
-		widgetDir := filepath.Join(root, project.WidgetsDir, e.Name())
 		code, viewFTL := appInfoOf(widgetDir, e.Name())
 		out = append(out, mount{contextRoot: cr, dir: dir, appCode: code, viewFTL: viewFTL})
 	}
@@ -144,7 +145,7 @@ func (t *mountTable) byViewFTL(path string) (mount, bool) {
 // de view não existe no disco.
 func appInfoOf(widgetDir, folderName string) (code, viewFTL string) {
 	code, viewFile := folderName, "view.ftl"
-	resources := filepath.Join(widgetDir, "src", "main", "resources")
+	resources := filepath.Join(widgetDir, project.DetectWARLayout(widgetDir).ClassesRel())
 	if b, err := os.ReadFile(filepath.Join(resources, "application.info")); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
 			k, v, ok := strings.Cut(strings.TrimSpace(line), "=")

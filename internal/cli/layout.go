@@ -24,7 +24,8 @@ func newLayoutCmd(app *App) *cobra.Command {
 		Long: "Layouts WCM são as páginas-molde do portal (slots onde os widgets\n" +
 			"entram). A pasta local é wcm/layout/<código>, com a mesma estrutura de um\n" +
 			"widget: src/main/resources (application.info, layout.ftl, .properties) e\n" +
-			"src/main/webapp (WEB-INF, resources).\n\n" +
+			"src/main/webapp (WEB-INF, resources). A estrutura plana também vale:\n" +
+			"WEB-INF/ e resources/ direto na raiz da pasta.\n\n" +
 			"O export publica pelo deploy nativo do WCM, o mesmo do widget export. O\n" +
 			"import baixa o WAR pelo fluigcliHelper (0.12.0 ou mais novo). Não há\n" +
 			"scaffold de layout nesta versão.",
@@ -219,8 +220,9 @@ func newLayoutExportCmd(app *App) *cobra.Command {
 		Long: "Empacota a pasta local do layout (wcm/layout/<code>) em um WAR e publica\n" +
 			"no servidor pelo deploy nativo do WCM, o mesmo caminho do widget export. A\n" +
 			"instalação é assíncrona no servidor.\n\n" +
-			"A pasta precisa ter src/main/resources/application.info com\n" +
-			"application.type=layout. Para publicar um widget, use widget export.\n\n" +
+			"A pasta precisa ter o application.info com application.type=layout. O\n" +
+			"arquivo fica em src/main/resources. Na estrutura plana ele fica em\n" +
+			"WEB-INF/classes. Para publicar um widget, use widget export.\n\n" +
 			"Antes de publicar, a CLI checa se o código já existe no servidor como\n" +
 			"WIDGET. O deploy nativo identifica o destino só pelo nome do arquivo\n" +
 			"(<código>.war), por isso publicar um layout com o código de um widget\n" +
@@ -263,7 +265,7 @@ func requireLayoutInfo(dir, code string) error {
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return output.Usagef("layout %q sem %s — um layout precisa do application.info com application.type=layout",
-			code, project.ApplicationInfoRel)
+			code, filepath.ToSlash(project.ApplicationInfoRel(dir)))
 	case err != nil:
 		return err
 	case typ == "":
@@ -318,6 +320,7 @@ func (a *App) exportOneLayout(ctx context.Context, p *output.Printer, client *fl
 	if err := requireLayoutInfo(dir, code); err != nil {
 		return err
 	}
+	warnIgnoredFlatFiles(p, "layout", code, dir)
 	war, err := packWAR(dir)
 	if err != nil {
 		return err

@@ -38,7 +38,8 @@ func newDevCmd(app *App) *cobra.Command {
 		Long: "Sobe um proxy local autenticado do servidor Fluig que serve do disco os\n" +
 			"arquivos que você está editando — sem publicar nada:\n\n" +
 			"  • Widgets: navegue no portal real pela porta local; o JS/CSS de\n" +
-			"    wcm/widget/*/src/main/webapp/resources/ é servido da sua máquina, e\n" +
+			"    wcm/widget/*/src/main/webapp/resources/ é servido da sua máquina (na\n" +
+			"    estrutura plana, o de wcm/widget/*/resources/), e\n" +
 			"    o markup do view.ftl é rerenderizado do arquivo local direto na\n" +
 			"    página (quando o template só usa ${instanceId} — FreeMarker real\n" +
 			"    mantém o render do servidor, com aviso). Salvou, recarregou, mudou —\n" +

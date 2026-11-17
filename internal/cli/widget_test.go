@@ -679,3 +679,154 @@ func TestWidgetExportBuildOK(t *testing.T) {
 		t.Errorf("upload=%q, quer spa2.war", stub.uploadedName)
 	}
 }
+
+// flatWidgetFiles são os arquivos de um widget na estrutura plana (issue #7).
+var flatWidgetFiles = map[string][]byte{
+	"resources/css/relatorioGeral.css":                []byte(".x{}"),
+	"resources/js/relatorioGeral.js":                  []byte("console.log(1)"),
+	"resources/img/logo.png":                          widgetBinary,
+	"WEB-INF/classes/application.info":                []byte("application.type=widget"),
+	"WEB-INF/classes/view.ftl":                        []byte("<div></div>"),
+	"WEB-INF/classes/relatorioGeral_pt_BR.properties": []byte("a=b"),
+	"WEB-INF/jboss-web.xml":                           []byte("<jboss-web/>"),
+	"WEB-INF/web.xml":                                 []byte("<web-app/>"),
+}
+
+func writeFlatWidget(t *testing.T, proj, kind, name string) string {
+	t.Helper()
+	base := filepath.Join(proj, "wcm", kind, name)
+	for rel, content := range flatWidgetFiles {
+		p := filepath.Join(base, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A sobra vazia que o Studio deixa: não pode mudar a detecção.
+	if err := os.MkdirAll(filepath.Join(base, "src", "main", "webapp", "resources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return base
+}
+
+func uploadedEntries(t *testing.T, stub *widgetStub) map[string][]byte {
+	t.Helper()
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	zr, err := zip.NewReader(bytes.NewReader(stub.uploadedWAR), int64(len(stub.uploadedWAR)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string][]byte{}
+	for _, f := range zr.File {
+		rc, _ := f.Open()
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		entries[f.Name] = b
+	}
+	return entries
+}
+
+// Issue #7: widget na estrutura plana (WEB-INF/ e resources/ na raiz) é
+// empacotado da raiz, com os mesmos caminhos no WAR.
+func TestWidgetExportEstruturaPlana(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	writeFlatWidget(t, proj, "widget", "relatorioGeral")
+
+	code, out := runMain(t, "widget", "export", "relatorioGeral", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	if stub.uploadedName != "relatorioGeral.war" {
+		t.Errorf("nome do WAR = %q", stub.uploadedName)
+	}
+	entries := uploadedEntries(t, stub)
+	for rel, want := range flatWidgetFiles {
+		if !bytes.Equal(entries[rel], want) {
+			t.Errorf("entrada %q ausente ou divergente; entradas: %v", rel, keysOf(entries))
+		}
+	}
+	if len(entries) != len(flatWidgetFiles) {
+		t.Errorf("o WAR tem %d entradas, quer %d: %v", len(entries), len(flatWidgetFiles), keysOf(entries))
+	}
+}
+
+// Pasta sem nenhuma das duas estruturas: erro de uso que cita as duas.
+func TestWidgetExportNadaParaEmpacotar(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	if err := os.MkdirAll(filepath.Join(proj, "wcm", "widget", "vazio", "src", "main", "webapp", "resources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runMain(t, "widget", "export", "vazio", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitUsage {
+		t.Fatalf("exit=%d, esperado %d; saída: %s", code, output.ExitUsage, out)
+	}
+	if !strings.Contains(out, "src/main") || !strings.Contains(out, "WEB-INF") {
+		t.Errorf("a mensagem não cita as duas estruturas: %s", out)
+	}
+	if stub.uploadedName != "" {
+		t.Errorf("WAR enviado sem arquivos (%q)", stub.uploadedName)
+	}
+}
+
+// As duas estruturas com arquivos: o WAR sai do src/main e o comando avisa.
+func TestWidgetExportDuasEstruturasAvisa(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetExportProject(t, stub, "meu_widget")
+	antigo := filepath.Join(proj, "wcm", "widget", "meu_widget", "resources", "js", "antigo.js")
+	if err := os.MkdirAll(filepath.Dir(antigo), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(antigo, []byte("// antigo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := runMainStderr(t, "widget", "export", "meu_widget", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	if !strings.Contains(errOut, "na raiz") {
+		t.Errorf("faltou o aviso dos arquivos ignorados no stderr: %s", errOut)
+	}
+	if _, ok := uploadedEntries(t, stub)["resources/js/antigo.js"]; ok {
+		t.Error("o arquivo da raiz entrou no WAR")
+	}
+}
+
+// Import sobre uma pasta plana mantém a estrutura plana: nada de src/main ao
+// lado, que passaria a vencer no export seguinte.
+func TestWidgetImportMantemEstruturaPlana(t *testing.T) {
+	stub := &widgetStub{}
+	proj := widgetProject(t, stub.server(t).URL)
+	base := filepath.Join(proj, "wcm", "widget", "meu_widget")
+	local := filepath.Join(base, "WEB-INF", "classes", "application.info")
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(local, []byte("antigo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runMain(t, "widget", "import", "meu_widget", "--json", "--project", proj, "--server", "homolog")
+	if code != output.ExitOK {
+		t.Fatalf("exit=%d; saída: %s", code, out)
+	}
+	checks := map[string][]byte{
+		"resources/js/app.js":              []byte("console.log(1)"),
+		"resources/img/logo.png":           widgetBinary,
+		"WEB-INF/classes/application.info": []byte("info"),
+		"WEB-INF/application.xml":          []byte("<application/>"),
+		"pom.xml":                          []byte("<project/>"),
+	}
+	for rel, want := range checks {
+		got, err := os.ReadFile(filepath.Join(base, filepath.FromSlash(rel)))
+		if err != nil || !bytes.Equal(got, want) {
+			t.Errorf("%s: ausente ou divergente (%v)", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(base, "src")); err == nil {
+		t.Error("o import criou src/ numa pasta de estrutura plana")
+	}
+}
