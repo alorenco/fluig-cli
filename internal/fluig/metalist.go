@@ -89,6 +89,22 @@ type MetaList struct {
 	Name        string           `json:"name"`
 	Description string           `json:"description"`
 	Columns     []MetaListColumn `json:"columns"`
+
+	// FieldsUnavailable marca a lista que o servidor devolveu sem fieldsVO.
+	// As colunas vieram só do findColumnNames (sem as desativadas, sem
+	// rótulo). Editar uma lista assim é arriscado.
+	FieldsUnavailable bool `json:"-"`
+}
+
+// MaxSeq devolve a maior sequência de coluna.
+func (m *MetaList) MaxSeq() int {
+	max := 0
+	for _, c := range m.Columns {
+		if c.Seq > max {
+			max = c.Seq
+		}
+	}
+	return max
 }
 
 // ActiveColumns devolve as colunas ativas (com Name), em ordem de sequência.
@@ -236,6 +252,7 @@ func (c *Client) GetMetaList(ctx context.Context, id int) (*MetaList, error) {
 	// para lista removida). Neste caso, as colunas ativas saem de
 	// findColumnNames.
 	if len(lf.FieldsVO) == 0 {
+		m.FieldsUnavailable = len(names) > 0
 		for _, n := range names {
 			m.Columns = append(m.Columns, MetaListColumn{
 				Name: n.ColumnNameID, Title: n.ColumnName, Seq: n.SeqNum,
@@ -408,43 +425,145 @@ func (c *Client) DeleteMetaListRecords(ctx context.Context, listID int, recordID
 	return c.metaListWrite(ctx, http.MethodDelete, "deleteRecord/", payload)
 }
 
-// MetaListNewColumn descreve uma coluna para CreateMetaList.
+// MetaListNewColumn descreve uma coluna nova (CreateMetaList e
+// UpdateMetaList).
 type MetaListNewColumn struct {
-	Title     string
-	Type      int
-	Label     bool
-	RefListID int // só para MetaListTypeMetaList
+	Title       string
+	Type        int
+	Label       bool
+	RefListID   int    // só para MetaListTypeMetaList
+	RefListName string // só para MetaListTypeMetaList
+}
+
+// MetaListColumnChange altera uma coluna existente. A API aceita mudar título
+// e tipo, mas isso corrompe a lista (medido: coluna duplicada no banco e
+// dado perdido). Por isso só rótulo e desativada mudam.
+type MetaListColumnChange struct {
+	Column   MetaListColumn // estado atual (de GetMetaList)
+	Label    bool
+	Disabled bool
 }
 
 // CreateMetaList cria uma lista (saveNewList). O servidor responde {} sem o
-// id: quem chama acha a lista nova pelo nome. Hoje só o teste de integração
-// usa esta função (a CLI ainda não expõe a criação de lista).
+// id: quem chama acha a lista nova pelo nome (o nome pode repetir).
+// ⚠️ Não é atômica em erro de DDL: um nome de coluna que o SQL recusa (ex.:
+// com "/") responde 500 e deixa a lista criada e quebrada. Valide os títulos
+// com MetaListColumnName antes.
 func (c *Client) CreateMetaList(ctx context.Context, name, description string, columns []MetaListNewColumn) error {
 	if err := c.EnsureSession(ctx); err != nil {
 		return err
 	}
+	payload := map[string]any{"name": name, "description": description, "fieldsVO": metaListNewFields(columns, 0)}
+	return c.metaListWrite(ctx, http.MethodPost, "saveNewList", payload)
+}
+
+// UpdateMetaList envia o updateList. O fieldsVO é parcial: as colunas fora
+// de changes e added ficam como estão (medido).
+// ⚠️ Não é atômica: com uma coluna recusada (palavra reservada), o nome e a
+// descrição mudam mesmo assim. Quem chama separa as duas coisas: primeiro as
+// colunas com o nome atual, depois o nome e a descrição sem colunas.
+// ⚠️ Reativa uma lista removida: confira a existência antes.
+// ⚠️ Coluna nova com nome igual ao de outra coluna é ignorada em silêncio.
+func (c *Client) UpdateMetaList(ctx context.Context, id int, name, description string, changes []MetaListColumnChange, added []MetaListNewColumn, maxSeq int) error {
+	if err := c.EnsureSession(ctx); err != nil {
+		return err
+	}
+	fields := make([]map[string]any, 0, len(changes)+len(added))
+	for _, ch := range changes {
+		col := ch.Column
+		var fkName any
+		if col.RefListName != "" {
+			fkName = col.RefListName
+		}
+		fields = append(fields, map[string]any{
+			"title": col.Title, "label": ch.Label, "type": col.Type, "idRow": col.Seq, "fieldSeq": col.Seq,
+			"metalistFKId": col.RefListID, "metalistFKName": fkName, "disabled": ch.Disabled, "newField": false,
+		})
+	}
+	fields = append(fields, metaListNewFields(added, maxSeq)...)
+	payload := map[string]any{"name": name, "description": description, "listId": id, "fieldsVO": fields}
+	return c.metaListWrite(ctx, http.MethodPost, "updateList", payload)
+}
+
+func metaListNewFields(columns []MetaListNewColumn, maxSeq int) []map[string]any {
 	fields := make([]map[string]any, 0, len(columns))
 	for i, col := range columns {
+		var fkName any
+		if col.RefListName != "" {
+			fkName = col.RefListName
+		}
 		fields = append(fields, map[string]any{
-			"fieldSeq": -1, "idRow": i + 1, "title": col.Title, "type": strconv.Itoa(col.Type),
-			"label": col.Label, "metalistFKName": nil, "metalistFKId": col.RefListID,
+			"fieldSeq": -1, "idRow": maxSeq + i + 1, "title": col.Title, "type": strconv.Itoa(col.Type),
+			"label": col.Label, "metalistFKName": fkName, "metalistFKId": col.RefListID,
 			"disabled": false, "newField": true,
 		})
 	}
-	payload := map[string]any{"name": name, "description": description, "fieldsVO": fields}
-	return c.metaListWrite(ctx, http.MethodPost, "saveNewList", payload)
+	return fields
 }
 
 // RemoveMetaList remove a lista (removeList). A remoção é lógica, e uma lista
 // referenciada por FK de outra lista não pode ser removida (medido: mesmo
-// depois de remover a lista que a referencia). Hoje só o teste de
-// integração usa esta função.
+// depois de remover a lista que a referencia).
 func (c *Client) RemoveMetaList(ctx context.Context, id int) error {
 	if err := c.EnsureSession(ctx); err != nil {
 		return err
 	}
 	payload := map[string]any{"listId": []string{strconv.Itoa(id)}}
 	return c.metaListWrite(ctx, http.MethodDelete, "removeList/", payload)
+}
+
+// MetaListColumnName calcula o nome da coluna (columnNameId) que o servidor
+// gera a partir do título. Regra medida em 2026-11-21: maiúsculas, sem
+// acento, dígitos do início removidos, cada espaço vira "_", "-", "º" e "ª"
+// somem. Outros símbolos são recusados aqui: o servidor manteria alguns
+// (ex.: "/") no nome e o SQL quebraria a lista. O nome tem até 30
+// caracteres. Palavras reservadas (ID, DATE, USER, VALUE, ORDER, SELECT...)
+// são recusadas pelo servidor antes de gravar.
+func MetaListColumnName(title string) (string, error) {
+	var b strings.Builder
+	for _, r := range foldPTBR.Replace(strings.ToLower(title)) {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r - 'a' + 'A')
+		case r >= '0' && r <= '9', r == '_':
+			b.WriteRune(r)
+		case r == ' ':
+			b.WriteRune('_')
+		case r == '-', r == 'º', r == 'ª':
+			// o servidor remove
+		default:
+			return "", fmt.Errorf("o título %q tem o caractere %q. Use só letras, dígitos, espaço, _ e -", title, r)
+		}
+	}
+	name := strings.TrimLeft(b.String(), "0123456789")
+	if strings.Trim(name, "_") == "" {
+		return "", fmt.Errorf("o título %q não tem letras para formar o nome da coluna", title)
+	}
+	if len(name) > 30 {
+		return "", fmt.Errorf("o título %q gera o nome %s, com mais de 30 caracteres", title, name)
+	}
+	return name, nil
+}
+
+// ParseMetaListType aceita o nome do tipo (texto, area-texto, inteiro, data,
+// numerico, metalista) ou o código 1–6.
+func ParseMetaListType(s string) (int, error) {
+	v := foldPTBR.Replace(strings.ToLower(strings.TrimSpace(s)))
+	switch v {
+	case "texto", "text", "1":
+		return MetaListTypeText, nil
+	case "area-texto", "area", "areatexto", "textarea", "2":
+		return MetaListTypeTextArea, nil
+	case "inteiro", "integer", "int", "3":
+		return MetaListTypeInteger, nil
+	case "data", "date", "4":
+		return MetaListTypeDate, nil
+	case "numerico", "numeric", "decimal", "5":
+		return MetaListTypeNumeric, nil
+	case "metalista", "metalist", "lista", "6":
+		return MetaListTypeMetaList, nil
+	}
+	return 0, fmt.Errorf("tipo %q inválido. Use texto, area-texto, inteiro, data, numerico ou metalista", s)
 }
 
 func metaListDataRecord(values []MetaListValue) []map[string]any {

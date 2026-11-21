@@ -128,3 +128,89 @@ func TestIntegrationMetaListCycle(t *testing.T) {
 		t.Errorf("lista inexistente: err = %v, quer ErrNotFound", err)
 	}
 }
+
+// Fase 2: cria, altera (colunas e, em separado, nome/descrição) e remove.
+func TestIntegrationMetaListSchema(t *testing.T) {
+	c, err := NewClient(integrationOptions(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	const name, renamed = "zz_fluigcli_test_schema", "zz_fluigcli_test_schema2"
+
+	findID := func(n string) int {
+		lists, err := c.ListMetaLists(ctx)
+		if err != nil {
+			t.Fatalf("ListMetaLists: %v", err)
+		}
+		for _, l := range lists {
+			if l.Name == n {
+				return l.ID
+			}
+		}
+		return 0
+	}
+	for _, n := range []string{name, renamed} {
+		if id := findID(n); id != 0 {
+			_ = c.RemoveMetaList(ctx, id)
+		}
+	}
+
+	if err := c.CreateMetaList(ctx, name, "", []MetaListNewColumn{
+		{Title: "Descrição", Type: MetaListTypeText, Label: true},
+		{Title: "qtd", Type: MetaListTypeInteger},
+	}); err != nil {
+		t.Fatalf("CreateMetaList: %v", err)
+	}
+	id := findID(name)
+	if id == 0 {
+		t.Fatal("lista criada não apareceu")
+	}
+	t.Cleanup(func() {
+		if err := c.RemoveMetaList(context.Background(), id); err != nil {
+			t.Errorf("RemoveMetaList(%d): %v", id, err)
+		}
+	})
+
+	m, err := c.GetMetaList(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var qtd MetaListColumn
+	for _, col := range m.Columns {
+		if col.Name == "QTD" {
+			qtd = col
+		}
+	}
+	// Passo 1: desativa qtd, inclui "Data Ref" como rótulo, com o nome atual.
+	err = c.UpdateMetaList(ctx, id, m.Name, m.Description,
+		[]MetaListColumnChange{{Column: qtd, Label: false, Disabled: true}},
+		[]MetaListNewColumn{{Title: "Data Ref", Type: MetaListTypeDate, Label: true}}, m.MaxSeq())
+	if err != nil {
+		t.Fatalf("UpdateMetaList (colunas): %v", err)
+	}
+	// Passo 2: nome e descrição, sem colunas.
+	if err := c.UpdateMetaList(ctx, id, renamed, "descrição nova", nil, nil, 0); err != nil {
+		t.Fatalf("UpdateMetaList (nome): %v", err)
+	}
+	m, err = c.GetMetaList(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Name != renamed || m.Description != "descrição nova" || m.FieldsUnavailable {
+		t.Errorf("lista = %+v", m)
+	}
+	got := map[string]MetaListColumn{}
+	for _, col := range m.Columns {
+		got[col.Title] = col
+	}
+	if !got["qtd"].Disabled || got["Data Ref"].Name != "DATA_REF" || !got["Data Ref"].Label || !got["Descrição"].Label || len(m.Columns) != 3 {
+		t.Errorf("colunas = %+v", m.Columns)
+	}
+
+	// Palavra reservada: o servidor recusa com texto puro.
+	err = c.UpdateMetaList(ctx, id, m.Name, m.Description, nil, []MetaListNewColumn{{Title: "select", Type: MetaListTypeText}}, m.MaxSeq())
+	if !errors.Is(err, errServerRejected) {
+		t.Errorf("palavra reservada: err = %v, quer errServerRejected", err)
+	}
+}

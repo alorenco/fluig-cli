@@ -75,6 +75,6 @@ em pt-BR.
 | [role](./role) | papéis e usuários (requer admin) |
 | [replacement](./replacement) | substitutos de usuário / delegação (requer admin) |
 | [service](./service) | cadastro de serviços REST, SOAP e JDBC sem mostrar segredos; OAuth; teste, log, cópia entre servidores e export/apply entre ambientes |
-| [metalist](./metalist) | listas customizadas do Painel de Controle: colunas e registros (consulta, filtro, inclusão, alteração e exclusão com validação por tipo) |
+| [metalist](./metalist) | listas customizadas do Painel de Controle: cria, altera e remove listas e colunas; registros com consulta, filtro, inclusão, alteração e exclusão validadas por tipo |
 | [skill](./skill) | Skill para agentes de IA (Claude Code / Codex) |
 | [upgrade](./upgrade) | atualização da própria CLI |

@@ -75,7 +75,7 @@ func (s *metaListStub) server(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write(testdata(t, "metalist_findRecord_inexistente.json"))
 	})
-	for _, op := range []string{"saveNewRecord", "updateRecord", "deleteRecord/", "saveNewList", "removeList/"} {
+	for _, op := range []string{"saveNewRecord", "updateRecord", "deleteRecord/", "saveNewList", "updateList", "removeList/"} {
 		op := op
 		mux.HandleFunc(base+op, func(w http.ResponseWriter, r *http.Request) {
 			b, _ := io.ReadAll(r.Body)
@@ -295,5 +295,92 @@ func TestNormalizeMetaListValue(t *testing.T) {
 		if (err != nil) != tc.wantErr || got != tc.out {
 			t.Errorf("NormalizeMetaListValue(%d, %q) = %q, %v; quer %q (erro=%v)", tc.typ, tc.in, got, err, tc.out, tc.wantErr)
 		}
+	}
+}
+
+func TestMetaListColumnName(t *testing.T) {
+	// Pares medidos na homologação (2026-11-21): título → columnNameId.
+	ok := map[string]string{
+		"Descrição":                      "DESCRICAO",
+		"Nº Pedido-X":                    "N_PEDIDOX",
+		"valor total":                    "VALOR_TOTAL",
+		"Data Ref":                       "DATA_REF",
+		"1abc":                           "ABC",
+		"x  y":                           "X__Y",
+		" lead":                          "_LEAD",
+		"abc1":                           "ABC1",
+		"ação ç":                         "ACAO_C",
+		"_x":                             "_X",
+		"1_a":                            "_A",
+		"12 3b":                          "_3B",
+		"ÀÉÎÕÜ ñ":                        "AEIOU_N",
+		"abcdefghijabcdefghijabcdefghij": "ABCDEFGHIJABCDEFGHIJABCDEFGHIJ",
+	}
+	for in, want := range ok {
+		got, err := MetaListColumnName(in)
+		if err != nil || got != want {
+			t.Errorf("MetaListColumnName(%q) = %q, %v; quer %q", in, got, err, want)
+		}
+	}
+	// "/" quebraria o SQL do servidor; vazio, só símbolo e > 30 são recusados.
+	for _, in := range []string{"São-Paulo/MS", "", "#@!", "123", "abcdefghijabcdefghijabcdefghijk"} {
+		if got, err := MetaListColumnName(in); err == nil {
+			t.Errorf("MetaListColumnName(%q) = %q, quer erro", in, got)
+		}
+	}
+}
+
+func TestParseMetaListType(t *testing.T) {
+	for in, want := range map[string]int{"texto": 1, "Área-Texto": 2, "inteiro": 3, "DATA": 4, "numérico": 5, "metalista": 6, "5": 5} {
+		got, err := ParseMetaListType(in)
+		if err != nil || got != want {
+			t.Errorf("ParseMetaListType(%q) = %d, %v; quer %d", in, got, err, want)
+		}
+	}
+	if _, err := ParseMetaListType("booleano"); err == nil {
+		t.Error("tipo inválido devia falhar")
+	}
+}
+
+func TestUpdateMetaListPayloadParcial(t *testing.T) {
+	stub := &metaListStub{}
+	c := metaListClient(t, stub.server(t).URL)
+	m, err := c.GetMetaList(context.Background(), 121)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var area MetaListColumn
+	for _, col := range m.Columns {
+		if col.Title == "area" {
+			area = col
+		}
+	}
+	err = c.UpdateMetaList(context.Background(), 121, m.Name, m.Description,
+		[]MetaListColumnChange{{Column: area, Label: false, Disabled: false}},
+		[]MetaListNewColumn{{Title: "ref", Type: MetaListTypeMetaList, RefListID: 120, RefListName: "zz_fluigcli_test_pai"}},
+		m.MaxSeq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.MaxSeq() != 7 {
+		t.Errorf("MaxSeq = %d, quer 7", m.MaxSeq())
+	}
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	got := stub.writes["updateList POST"]
+	if got["listId"] != float64(121) || got["name"] != "zz_fluigcli_test_filho2" {
+		t.Errorf("payload = %#v", got)
+	}
+	fields := got["fieldsVO"].([]any)
+	if len(fields) != 2 {
+		t.Fatalf("fieldsVO devia ser parcial (2 itens), veio %d", len(fields))
+	}
+	old := fields[0].(map[string]any)
+	if old["fieldSeq"] != float64(2) || old["newField"] != false || old["disabled"] != false || old["type"] != float64(2) {
+		t.Errorf("coluna existente = %#v", old)
+	}
+	nw := fields[1].(map[string]any)
+	if nw["fieldSeq"] != float64(-1) || nw["idRow"] != float64(8) || nw["type"] != "6" || nw["metalistFKId"] != float64(120) || nw["metalistFKName"] != "zz_fluigcli_test_pai" || nw["newField"] != true {
+		t.Errorf("coluna nova = %#v", nw)
 	}
 }

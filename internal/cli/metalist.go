@@ -19,14 +19,17 @@ import (
 func newMetalistCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "metalist",
-		Short: "Listas customizadas (metalist): consulta e registros",
-		Long: "Consulta as listas customizadas do Painel de Controle (Listas) e\n" +
-			"mantém os registros delas.\n\n" +
+		Short: "Listas customizadas (metalist): listas, colunas e registros",
+		Long: "Cria, altera e remove as listas customizadas do Painel de Controle\n" +
+			"(Listas) e mantém os registros delas.\n\n" +
 			"Uma lista é identificada pelo id ou pelo nome. Use metalist list para\n" +
 			"ver os dois.",
 	}
 	cmd.AddCommand(newMetalistListCmd(app))
 	cmd.AddCommand(newMetalistShowCmd(app))
+	cmd.AddCommand(newMetalistCreateCmd(app))
+	cmd.AddCommand(newMetalistUpdateCmd(app))
+	cmd.AddCommand(newMetalistDeleteCmd(app))
 	cmd.AddCommand(newMetalistRecordsCmd(app))
 	return cmd
 }
@@ -142,38 +145,42 @@ func newMetalistShowCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p.Successf("Lista %d: %s", m.ID, m.Name)
-			if m.Description != "" {
-				p.Successf("Descrição: %s", m.Description)
-			}
-			if len(m.Columns) == 0 {
-				p.Infof("A lista não tem colunas.")
-				p.Done(map[string]any{"list": m})
-				return nil
-			}
-			rows := make([][]string, 0, len(m.Columns))
-			for _, c := range m.Columns {
-				ref := ""
-				if c.Type == fluig.MetaListTypeMetaList {
-					ref = fmt.Sprintf("%s (%d)", c.RefListName, c.RefListID)
-				}
-				name := c.Name
-				if name == "" {
-					name = "-"
-				}
-				rows = append(rows, []string{name, c.Title, c.TypeName, simNao(c.Label), ref, simNao(c.Disabled)})
-			}
-			p.Table(output.Table{
-				Headers: []string{"Coluna", "Título", "Tipo", "Rótulo", "Referência", "Desativada"},
-				Rows:    rows,
-				Style:   output.BoldHeaderStyle(nil),
-			})
+			printMetaList(p, m)
 			p.Done(map[string]any{"list": m})
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "lê a senha do stdin")
 	return cmd
+}
+
+// printMetaList imprime o cabeçalho da lista e a tabela de colunas.
+func printMetaList(p *output.Printer, m *fluig.MetaList) {
+	p.Successf("Lista %d: %s", m.ID, m.Name)
+	if m.Description != "" {
+		p.Successf("Descrição: %s", m.Description)
+	}
+	if len(m.Columns) == 0 {
+		p.Infof("A lista não tem colunas.")
+		return
+	}
+	rows := make([][]string, 0, len(m.Columns))
+	for _, c := range m.Columns {
+		ref := ""
+		if c.Type == fluig.MetaListTypeMetaList {
+			ref = fmt.Sprintf("%s (%d)", c.RefListName, c.RefListID)
+		}
+		name := c.Name
+		if name == "" {
+			name = "-"
+		}
+		rows = append(rows, []string{name, c.Title, c.TypeName, simNao(c.Label), ref, simNao(c.Disabled)})
+	}
+	p.Table(output.Table{
+		Headers: []string{"Coluna", "Título", "Tipo", "Rótulo", "Referência", "Desativada"},
+		Rows:    rows,
+		Style:   output.BoldHeaderStyle(nil),
+	})
 }
 
 // --- metalist records ---

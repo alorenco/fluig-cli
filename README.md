@@ -158,7 +158,7 @@ fluigcli diff --json | jq '.data.counts'
 | `role` | `list` `show` `create` `update` `delete` `users` `add-user` `remove-user` | [docs/role.md](docs/role.md) |
 | `replacement` | `list` `show` `create` `update` `delete` | [docs/replacement.md](docs/replacement.md) |
 | `service` | `list` `show` `create` `update` `delete` `test` `log` `drivers` `copy` `export` `apply` | [docs/service.md](docs/service.md) |
-| `metalist` | `list` `show` `records` (`list` `show` `create` `update` `delete`) | [docs/metalist.md](docs/metalist.md) |
+| `metalist` | `list` `show` `create` `update` `delete` `records` (`list` `show` `create` `update` `delete`) | [docs/metalist.md](docs/metalist.md) |
 
 **Configuração**:
 

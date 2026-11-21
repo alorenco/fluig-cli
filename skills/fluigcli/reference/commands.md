@@ -58,6 +58,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | testar um serviço cadastrado (URL, rede do servidor e autenticação de uma vez) ou ver as chamadas dele | `service test <código>` · `service log <código> [--enable --hours N]` |
 | copiar um serviço com os segredos para outro servidor, sem expor os segredos | `service copy <código> --to <servidor> [--as <novo>]` |
 | consultar ou manter os registros de uma lista customizada (Painel de Controle > Listas) | `metalist show <lista>` (nomes das colunas) · `metalist records list <lista> [--where COL=VAL]` · `metalist records create/update/delete` |
+| criar uma lista customizada ou incluir/desativar colunas nela | `metalist create <nome> --column "Título:tipo"...` · `metalist update <lista> --add-column ... --disable-column ...` |
 | alterar uma página publicada (título, permissões, layout, mover ou tirar widget) | `page update` · `page permission` · `page move-widget` · `page remove-widget` → `page publish` |
 | levar serviço/página da homologação para a produção (versionado, sem segredo no arquivo) | `service export` / `page export` → commit → `service apply` / `page apply` (ou passos `service`/`page` no `deploy`) |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
@@ -430,13 +431,16 @@ CLI valida ANTES e recusa com exit 2 sem gravar. Tipos: `texto`, `area-texto`,
 |---|---|
 | `metalist list` | tabela id/nome, em ordem de nome |
 | `metalist show <lista>` | colunas: nome (para `--field`/`--where`), título, tipo, rótulo, lista referenciada, desativada (desativada não tem nome nem aceita valor) |
+| `metalist create <nome> --column "Título:tipo"... [--column "Título:metalista:LISTA"] [--label Título]... [--description d]` | cria; `data.list.id` traz o id (a API não devolve). O servidor gera o nome da coluna: MAIÚSCULAS sem acento, espaço→`_`, dígitos iniciais e `-`/`º`/`ª` saem, até 30 caracteres. Título com outro símbolo (ex.: `/`) = exit 2 (o servidor criaria a lista QUEBRADA). Nome de lista repetido e duas colunas com o mesmo nome gerado = exit 2. Palavra reservada (ID, DATE, USER, VALUE, ORDER, SELECT...) = exit 5 sem gravar. Coluna metalista não é rótulo |
+| `metalist update <lista> [--name] [--description] [--add-column "Título:tipo"]... [--label C] [--no-label C] [--disable-column C] [--enable-column C]` | altera; NÃO muda título nem tipo de coluna existente (a API aceita e corrompe a lista: desative e inclua outra). Coluna nova com nome gerado igual ao de outra (inclusive desativada) = exit 2 (a API ignoraria sem avisar). Grava em duas chamadas: colunas com o nome atual, depois nome/descrição (a API não é atômica) |
+| `metalist delete <lista>... --yes` | remove (lógica). Lista referenciada por coluna metalista de outra = exit 5, e o bloqueio fica mesmo após remover a outra: crie FK só quando for definitiva |
 | `metalist records list <lista> [--where COL=VAL]... [--columns a,b]` | todas as linhas (o servidor não pagina); `--where` compara o valor inteiro sem diferenciar maiúsculas, filtros combinados com E; coluna `metalista` mostra o RÓTULO |
 | `metalist records show <lista> <recordId>` | um registro; coluna `metalista` mostra o ID da referência (o valor que a escrita aceita); inexistente = exit 4 |
 | `metalist records create <lista> --field COL=VAL... \| --fields-file arq.json\|-` | inclui; `data.record.id` traz o id novo (a API não devolve: a CLI compara antes/depois) |
 | `metalist records update <lista> <recordId> --field COL=VAL...` | altera só as colunas informadas; id inexistente = exit 4 (a API responderia 200 sem gravar) |
 | `metalist records delete <lista> <recordId>... --yes` | exclui; confere antes e depois (a API ignora id inexistente em silêncio); id inexistente = falha no item, exit 6 em lote |
 
-Criar, alterar ou excluir a LISTA (as colunas) ainda é pela interface. Escrita em produção pede `--yes`.
+Escrita em produção pede `--yes`.
 
 ## document — GED (operação)
 

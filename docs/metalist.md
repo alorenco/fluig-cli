@@ -1,7 +1,7 @@
 # fluigcli metalist — listas customizadas
 
-O grupo `metalist` consulta as **listas customizadas** do Painel de Controle
-(menu Listas) e mantém os registros delas. Uma lista guarda dados que widgets,
+O grupo `metalist` cria, altera e remove as **listas customizadas** do Painel
+de Controle (menu Listas) e mantém os registros delas. Uma lista guarda dados que widgets,
 formulários e datasets usam. Por exemplo: uma tabela de cartórios ou de ramais.
 O Fluig cria uma tabela no banco para cada lista.
 
@@ -54,6 +54,108 @@ não tem nome e não aceita valores.
 ```sh
 fluigcli metalist show 87
 fluigcli metalist show Cartórios --json
+```
+
+## `fluigcli metalist create <nome> --column TÍTULO:TIPO... [flags]`
+
+Este comando cria uma lista com as colunas informadas. O servidor cria uma
+tabela no banco para a lista. O resultado mostra o id da lista nova.
+
+| Flag | Uso |
+|---|---|
+| `--column TÍTULO:TIPO` | uma coluna. Repita a flag para cada coluna |
+| `--column TÍTULO:metalista:LISTA` | uma coluna que referencia outra lista (id ou nome) |
+| `--label TÍTULO` | marca a coluna como rótulo. Repita a flag para mais de uma |
+| `--description <texto>` | descrição da lista (até 254 caracteres) |
+
+O **rótulo** é o texto que aparece quando outra lista referencia esta. Uma
+coluna do tipo `metalista` não pode ser rótulo.
+
+```sh
+fluigcli metalist create "Tipos de Contrato" \
+  --column "Código:inteiro" \
+  --column "Descrição:texto" \
+  --column "Início:data" \
+  --label Descrição
+
+fluigcli metalist create "Contratos por Cartório" \
+  --column "Contrato:texto" \
+  --column "Cartório:metalista:Cartórios"
+```
+
+### Nome da coluna
+
+O servidor gera o nome da coluna a partir do título. A regra é esta:
+
+- As letras ficam em maiúsculas e sem acento.
+- Cada espaço vira `_`.
+- Os dígitos do início saem. Por exemplo: `1abc` vira `ABC`.
+- Os caracteres `-`, `º` e `ª` saem. Por exemplo: `Nº Pedido-X` vira `N_PEDIDOX`.
+
+O nome tem no máximo 30 caracteres. O título aceita só letras, dígitos,
+espaço, `_`, `-`, `º` e `ª`. Outro símbolo termina com exit **2**. Por
+exemplo: o servidor manteria a `/` no nome, e o banco recusaria a coluna com a
+lista já criada.
+
+O servidor recusa palavras reservadas, como `ID`, `DATE`, `USER`, `VALUE`,
+`ORDER` e `SELECT`. Neste caso, o comando termina com exit **5**, e nada é
+gravado.
+
+### Antes de gravar
+
+A CLI confere estes pontos e termina com exit **2** sem gravar:
+
+- Outra lista já usa o nome. O servidor aceitaria o nome repetido.
+- Duas colunas geram o mesmo nome. Por exemplo: `Ação` e `acao`.
+- A lista referenciada não existe. Neste caso, o exit é **4**.
+
+## `fluigcli metalist update <id|nome> [flags]`
+
+Este comando altera a lista. Informe ao menos uma flag.
+
+| Flag | Uso |
+|---|---|
+| `--name <nome>` | nome novo |
+| `--description <texto>` | descrição nova. Um valor vazio limpa a descrição |
+| `--add-column TÍTULO:TIPO` | coluna nova, no formato do `create`. Repita a flag para cada coluna |
+| `--label COLUNA` | marca a coluna (nova ou existente) como rótulo |
+| `--no-label COLUNA` | tira o rótulo da coluna |
+| `--disable-column COLUNA` | desativa a coluna |
+| `--enable-column COLUNA` | reativa a coluna desativada |
+
+Identifique uma coluna existente pelo nome ou pelo título. Uma coluna
+desativada não tem nome. Neste caso, use o título.
+
+Uma coluna desativada some dos registros. Os dados dela ficam no banco e
+voltam com `--enable-column`.
+
+O comando **não** muda o título nem o tipo de uma coluna existente. A API
+aceita a mudança, mas ela corrompe a lista. Para trocar uma coluna, desative a
+antiga e inclua uma nova.
+
+Uma coluna nova não pode gerar o nome de outra coluna, ativa ou desativada. O
+servidor ignoraria a coluna nova sem avisar. Por isso, a CLI recusa a coluna
+com exit **2**.
+
+```sh
+fluigcli metalist update "Tipos de Contrato" --add-column "Valor:numerico"
+fluigcli metalist update 140 --disable-column Início --name "Tipos de Contrato (2026)"
+fluigcli metalist update 140 --enable-column Início --no-label Descrição --label Código
+```
+
+## `fluigcli metalist delete <id|nome>...`
+
+Este comando remove as listas. O comando pede confirmação. Use `--yes` para não
+perguntar.
+
+O Fluig não apaga os dados. A lista some da interface e da API.
+
+Uma lista que outra lista referencia (coluna `metalista`) não sai. O comando
+termina com exit **5**. O bloqueio continua mesmo depois de remover a lista que
+a referencia. Por isso, crie a referência só quando ela for definitiva.
+
+```sh
+fluigcli metalist delete "Tipos de Contrato" --yes
 ```
 
 ## `fluigcli metalist records list <id|nome> [flags]`
@@ -132,5 +234,5 @@ fluigcli metalist records delete Ramais 12 13 --yes
 
 ## Produção
 
-Os comandos de escrita (`create`, `update` e `delete`) num servidor de
-produção pedem confirmação. Use `--yes` no modo não-interativo.
+Os comandos de escrita (`create`, `update`, `delete` e os de `records`) num
+servidor de produção pedem confirmação. Use `--yes` no modo não-interativo.

@@ -1,0 +1,1 @@
+SELECTé uma palavra reservada do sistema e não pode ser utilizada como nome de campo.

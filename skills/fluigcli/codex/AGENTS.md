@@ -134,8 +134,11 @@ não 2xx); `log --download` grava os headers enviados (segredos) só em arquivo 
 `copy --to` leva o serviço COM os segredos servidor a servidor sem expor
 (`unchanged` quando já igual); `export`/`apply` levam o serviço entre ambientes
 por arquivo versionado sem segredo — o segredo vem da variável do `secretEnv`;
-`apply <código>` lê services/<código>.json), `metalist` (list|show + records
+`apply <código>` lê services/<código>.json), `metalist` (list|show|create|update|delete + records
 list|show|create|update|delete — listas customizadas do Painel de Controle;
+create --column "Título:tipo", update --add-column/--disable-column/--label;
+não muda título nem tipo de coluna existente; título só com letras, dígitos,
+espaço, _ e -;
 lista por id ou nome; coluna = nome em MAIÚSCULAS do `show`; a CLI valida o
 valor pelo tipo antes de gravar, porque o servidor aceita lixo sem avisar —
 exit 2 sem gravar; data dd/mm/aaaa ou aaaa-mm-dd, FK = id do registro
