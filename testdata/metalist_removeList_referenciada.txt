@@ -1,0 +1,1 @@
+A lista 120 não pode ser removida, pois ela está sendo relacionada em outras listas.

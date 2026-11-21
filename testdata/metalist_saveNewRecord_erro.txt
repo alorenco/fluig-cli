@@ -1,0 +1,1 @@
+Falha ao atualizar o registro. Verifique o tipo de dado inserido e/ou o tamanho da informação.

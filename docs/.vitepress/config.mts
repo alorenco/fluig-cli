@@ -79,6 +79,7 @@ export default defineConfig({
           { text: 'role — papéis', link: '/role' },
           { text: 'replacement — substitutos', link: '/replacement' },
           { text: 'service — serviços', link: '/service' },
+          { text: 'metalist — listas', link: '/metalist' },
         ],
       },
       {

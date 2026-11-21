@@ -23,6 +23,7 @@ uso por agentes de IA.
 - [role](role.md) — papéis da plataforma e usuários (requer admin)
 - [replacement](replacement.md) — substitutos de usuário e delegação de tarefas (requer admin)
 - [service](service.md) — cadastro de serviços REST, SOAP e JDBC do Painel de Controle. Lista, mostra, cadastra, altera e exclui, sem mostrar segredos. Grava as autenticações basic, custom, OAuth 1 e OAuth 2. Testa o serviço pelo servidor, liga e baixa o log de requisições e lista os drivers JDBC. Copia um serviço com os segredos para outro servidor. Exporta para um arquivo versionável e aplica em outro ambiente
+- [metalist](metalist.md) — listas customizadas do Painel de Controle. Lista as listas e mostra as colunas. Consulta, filtra, inclui, altera e exclui registros, com validação do valor pelo tipo da coluna
 - [diff](diff.md) — compara artefatos locais com o servidor antes de publicar
 - [deploy](deploy.md) — executa um plano de release (manifesto JSON) na ordem
 - [test](test.md) — teste de processo por cenários. Abre solicitações reais na homologação, move e confere etapa, card, caminho e erros de evento. Mede a cobertura de caminhos do BPMN e gera o esqueleto de uma suíte a partir do diagrama. Roda também o teste de unidade dos scripts no Rhino local, com falsos e sem servidor, e confere a tela real da tarefa num navegador headless (passo `ui`)

@@ -57,6 +57,7 @@ Comece por aqui: identifique a **intenção** e pule para o grupo certo.
 | cadastrar o serviço REST (serviceCode) que um dataset chama via `getAuthorizeClientService` | `service list` · `service create <código> --url <base>` · `service update` |
 | testar um serviço cadastrado (URL, rede do servidor e autenticação de uma vez) ou ver as chamadas dele | `service test <código>` · `service log <código> [--enable --hours N]` |
 | copiar um serviço com os segredos para outro servidor, sem expor os segredos | `service copy <código> --to <servidor> [--as <novo>]` |
+| consultar ou manter os registros de uma lista customizada (Painel de Controle > Listas) | `metalist show <lista>` (nomes das colunas) · `metalist records list <lista> [--where COL=VAL]` · `metalist records create/update/delete` |
 | alterar uma página publicada (título, permissões, layout, mover ou tirar widget) | `page update` · `page permission` · `page move-widget` · `page remove-widget` → `page publish` |
 | levar serviço/página da homologação para a produção (versionado, sem segredo no arquivo) | `service export` / `page export` → commit → `service apply` / `page apply` (ou passos `service`/`page` no `deploy`) |
 | ver / acompanhar / baixar o log do servidor | `log tail` · `log files` · `log download` |
@@ -414,6 +415,28 @@ NÃO deve repetir o mesmo header (vai duplicado → HTTP 400 no destino).
 | `service apply <código\|arquivo> [--dry-run]` | código = `services/<código>.json` do projeto; cria ou alinha (idempotente: "já está igual"); criação basic/custom EXIGE a variável do `secretEnv` (exit 2); alteração sem a variável mantém o segredo; com a variável, compara sem mostrar e só grava se mudou; campo desconhecido no arquivo = exit 2 |
 
 OAuth 1/2: o `show` lista só os NOMES dos campos preenchidos (`oauthFields`). Escrita em produção pede `--yes`.
+
+## metalist — listas customizadas (Painel de Controle > Listas)
+
+A lista é `<id|nome>` (número = id; nome sem diferenciar maiúsculas; inexistente
+= exit 4). A coluna é o `columnNameId` em MAIÚSCULAS mostrado no `show` (o título
+também serve). O servidor aceita lixo sem avisar (coluna inexistente cria
+registro vazio, data fora de dd/MM/yyyy vira null, FK inexistente vira null): a
+CLI valida ANTES e recusa com exit 2 sem gravar. Tipos: `texto`, `area-texto`,
+`inteiro`, `data` (dd/mm/aaaa ou aaaa-mm-dd), `numerico` (12.5 ou 12,5) e
+`metalista` (id de um registro da lista referenciada). Valor vazio limpa a coluna.
+
+| comando | efeito |
+|---|---|
+| `metalist list` | tabela id/nome, em ordem de nome |
+| `metalist show <lista>` | colunas: nome (para `--field`/`--where`), título, tipo, rótulo, lista referenciada, desativada (desativada não tem nome nem aceita valor) |
+| `metalist records list <lista> [--where COL=VAL]... [--columns a,b]` | todas as linhas (o servidor não pagina); `--where` compara o valor inteiro sem diferenciar maiúsculas, filtros combinados com E; coluna `metalista` mostra o RÓTULO |
+| `metalist records show <lista> <recordId>` | um registro; coluna `metalista` mostra o ID da referência (o valor que a escrita aceita); inexistente = exit 4 |
+| `metalist records create <lista> --field COL=VAL... \| --fields-file arq.json\|-` | inclui; `data.record.id` traz o id novo (a API não devolve: a CLI compara antes/depois) |
+| `metalist records update <lista> <recordId> --field COL=VAL...` | altera só as colunas informadas; id inexistente = exit 4 (a API responderia 200 sem gravar) |
+| `metalist records delete <lista> <recordId>... --yes` | exclui; confere antes e depois (a API ignora id inexistente em silêncio); id inexistente = falha no item, exit 6 em lote |
+
+Criar, alterar ou excluir a LISTA (as colunas) ainda é pela interface. Escrita em produção pede `--yes`.
 
 ## document — GED (operação)
 
