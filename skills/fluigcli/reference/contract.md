@@ -141,5 +141,6 @@ esac
 | — | `FLUIGCLI_PASSWORD` | senha do servidor selecionado |
 | `--timeout <dur>` | `FLUIGCLI_TIMEOUT` | timeout por requisição (ex.: `30s`, `1m`). Default 30s; **piso de 2m** nas operações de ESCRITA e nas LEITURAS PESADAS (`db query`, `db grants`, `dataset query`, `user audit`, `log tail --since/--until`). O valor informado aqui sempre vence, inclusive para baixo. Com `-v`, a CLI diz no stderr quando elevou. ⚠️ O timeout é do CLIENTE: o servidor segue executando depois que a CLI desiste |
 | `--no-session-cache` | `FLUIGCLI_NO_SESSION_CACHE=1` | não reaproveita a sessão entre execuções |
+| — | `FLUIGCLI_WAR_UPLOAD` | envio do WAR no `widget export`, `layout export` e `server install-helper`: `auto` (padrão; REST no 2.0/1.8.2, servlet `ApplicationUpload` quando a REST não existe, como no 1.8.1), `rest` ou `servlet`. Valor desconhecido = exit 2 |
 | `--verbose` | — | loga as requisições HTTP no stderr (senha/cookies mascarados) |
 | `--yes` / `-y` | — | assume "sim" em confirmações |

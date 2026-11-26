@@ -28,6 +28,7 @@ const (
 	envNonInteractive = "FLUIGCLI_NON_INTERACTIVE"
 	envTimeout        = "FLUIGCLI_TIMEOUT"
 	envNoSessionCache = "FLUIGCLI_NO_SESSION_CACHE"
+	envWARUpload      = "FLUIGCLI_WAR_UPLOAD"
 	envNoUpdateCheck  = "FLUIGCLI_NO_UPDATE_CHECK"
 )
 
@@ -53,6 +54,10 @@ type App struct {
 	ranCommand   bool
 	projectRoot  string
 	sessionCache *config.DiskSessionCache
+
+	// warUpload é o modo de envio de WAR (env FLUIGCLI_WAR_UPLOAD, validada no
+	// applyEnvDefaults).
+	warUpload fluig.WARUploadMode
 
 	// timeoutExplicit marca que o tempo limite veio do usuário (flag ou env).
 	// Nesse caso a CLI nunca o sobrepõe — ver raiseWriteTimeout.
@@ -155,6 +160,7 @@ func (a *App) clientFor(server *config.Server, password string) (*fluig.Client, 
 		Verbose:      a.Verbose,
 		LogWriter:    os.Stderr,
 		SessionCache: sc,
+		WARUpload:    a.warUpload,
 	})
 }
 
@@ -388,6 +394,11 @@ func (a *App) applyEnvDefaults(cmd *cobra.Command) error {
 			a.NoSessionCache = true
 		}
 	}
+	mode, err := fluig.ParseWARUploadMode(os.Getenv(envWARUpload))
+	if err != nil {
+		return output.Usagef("valor inválido em %s: %q (use auto, rest ou servlet)", envWARUpload, os.Getenv(envWARUpload))
+	}
+	a.warUpload = mode
 	a.timeoutExplicit = flags.Changed("timeout")
 	if !flags.Changed("timeout") {
 		if v := os.Getenv(envTimeout); v != "" {

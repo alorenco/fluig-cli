@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -224,63 +223,6 @@ func (c *Client) ListLayouts(ctx context.Context) ([]Layout, error) {
 			return out, nil
 		}
 	}
-}
-
-// widgetUploadPath é o endpoint nativo de upload de widget/WAR.
-const widgetUploadPath = "/portal/api/rest/wcmservice/rest/product/uploadfile"
-
-const widgetUploadDescription = "WCM Eclipse Plugin Deploy Artifact"
-
-// UploadWidgetWAR publica um WAR de widget via multipart. A
-// instalação é assíncrona no servidor. Resposta com campo "message" = rejeição.
-func (c *Client) UploadWidgetWAR(ctx context.Context, warName string, war []byte) error {
-	if err := c.EnsureSession(ctx); err != nil {
-		return err
-	}
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	if err := mw.WriteField("fileName", warName); err != nil {
-		return err
-	}
-	if err := mw.WriteField("fileDescription", widgetUploadDescription); err != nil {
-		return err
-	}
-	part, err := mw.CreateFormFile("attachment", warName)
-	if err != nil {
-		return err
-	}
-	if _, err := part.Write(war); err != nil {
-		return err
-	}
-	if err := mw.Close(); err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url(widgetUploadPath), &body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("falha ao publicar a widget em %s: %w", c.base.Host, err)
-	}
-	respBody, err := readBody(resp, 1<<20)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &HTTPError{StatusCode: resp.StatusCode, URL: widgetUploadPath, Body: truncate(respBody, 512)}
-	}
-	// Sucesso = ausência de mensagem de erro no corpo.
-	var parsed struct {
-		Message json.RawMessage `json:"message"`
-	}
-	_ = json.Unmarshal([]byte(respBody), &parsed)
-	if m := strings.TrimSpace(string(parsed.Message)); m != "" && m != "null" {
-		return fmt.Errorf("%w: %s", errServerRejected, m)
-	}
-	return nil
 }
 
 // applicationsPath é a coleção de widgets instalados do page-management.

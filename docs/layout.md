@@ -25,7 +25,9 @@ da pasta do layout. Neste caso o `application.info` e o `layout.ftl` ficam em
   **fluigcliHelper** 0.12.0 ou mais novo. A API nativa não informa o arquivo
   `.war` do layout.
 - **export** envia o projeto local ao servidor (deploy). O comando é
-  **nativo** (`uploadfile`), o mesmo caminho do `widget export`.
+  **nativo** e usa o mesmo envio do `widget export`. No Fluig 1.8.1, o envio
+  passa pelo servlet da Central de Componentes. Ver
+  [Envio do WAR e versão do Fluig](widget.md#envio-do-war-e-versão-do-fluig).
 
 Esta versão não tem `layout new`.
 

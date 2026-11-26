@@ -213,6 +213,11 @@ A CLI tem estas flags globais: `--server` (`FLUIGCLI_SERVER`), `--project` (`FLU
 `--verbose`/`-v`, `--timeout` (`FLUIGCLI_TIMEOUT`), `--no-session-cache`
 (`FLUIGCLI_NO_SESSION_CACHE=1`).
 
+A variável `FLUIGCLI_WAR_UPLOAD` (`auto`, `rest` ou `servlet`) força o envio do
+WAR no `widget export`, no `layout export` e no `server install-helper`. O
+padrão `auto` escolhe pela versão do Fluig. Ver
+[docs/widget.md](docs/widget.md#envio-do-war-e-versão-do-fluig).
+
 ### Skill para agentes (Claude Code / Codex)
 
 O repositório traz uma Skill pronta. Ela ensina o agente a dirigir o fluigcli.

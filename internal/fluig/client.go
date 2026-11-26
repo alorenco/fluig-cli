@@ -26,7 +26,8 @@ type Options struct {
 	Timeout      time.Duration
 	Verbose      bool
 	LogWriter    io.Writer
-	SessionCache SessionCache // opcional: reaproveita a sessão entre execuções
+	SessionCache SessionCache  // opcional: reaproveita a sessão entre execuções
+	WARUpload    WARUploadMode // envio do WAR de widget/layout/helper (ver WARUploadMode)
 }
 
 // SessionCache persiste os cookies de sessão entre execuções (implementação em

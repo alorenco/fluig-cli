@@ -252,6 +252,10 @@ rebaixamento é intencional, informe `--allow-downgrade`.
 A instalação é assíncrona no servidor. Depois do envio, o `server status` leva
 alguns segundos para mostrar a versão nova.
 
+O envio do WAR segue a mesma regra do `widget export`. No Fluig 1.8.1, ele passa
+pelo servlet da Central de Componentes. Ver
+[Envio do WAR e versão do Fluig](widget.md#envio-do-war-e-versão-do-fluig).
+
 O `server test` e o `server status` avisam quando as versões divergem, nos dois
 sentidos:
 

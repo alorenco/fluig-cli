@@ -189,3 +189,14 @@ Export/deploy é nativo (uploadfile). ⚠️ O download exige Accept ≠ applica
 > mais. ⚠️ O contrato de ESCRITA diverge bem mais entre as duas famílias — a
 > tabela completa (o POST de grupo aceita código inexistente com 200 e não cria
 > nada) está no FLUIG-APIS.md.
+
+## §5.24 — Envio de WAR pelo servlet da Central de Componentes (issue #8)
+
+| Arquivo | Origem | Status |
+|---|---|---|
+| `applicationupload_info.html` | `POST /portal/p/api/servlet/ApplicationUpload` (WAR válido) | ✅ gravada da homologação (Voyager 2.0) em 2026-11-26. Sem a linha do live reload que o proxy do `fluigcli dev` injeta |
+| `applicationupload_arquivo_invalido.json` | o mesmo servlet com um arquivo que não é zip (HTTP 400) | ✅ gravada da homologação (Voyager 2.0) em 2026-11-26 |
+
+> O 500 da REST `uploadfile` no 1.8.1 (`NotFoundException`) é stub nos testes:
+> não temos servidor 1.8.x. O formato vem das outras rotas inexistentes medidas
+> na homologação.

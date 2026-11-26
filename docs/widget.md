@@ -41,7 +41,8 @@ templates vue e react usam só a estrutura `src/main`.
 
 - **new** cria o esqueleto local. Nada vai ao servidor.
 - **export** envia o projeto local ao servidor (deploy). O comando é
-  **nativo** (`uploadfile`).
+  **nativo**. O envio depende da versão do Fluig. Ver
+  [Envio do WAR e versão do Fluig](#envio-do-war-e-versão-do-fluig).
 - **import** traz o servidor para o projeto local. O comando usa o
   **fluigcliHelper**. O Fluig não expõe o download do pacote da widget
   nativamente. Isso foi confirmado na Voyager 2.0.0.
@@ -189,6 +190,37 @@ caminho. Os outros arquivos da raiz do widget ficam fora do WAR. Por exemplo:
 
 Uma pasta sem arquivos em nenhuma das duas estruturas = exit code 2. Nada vai
 ao servidor.
+
+### Envio do WAR e versão do Fluig
+
+O comando escolhe o envio pela versão do Fluig:
+
+| Versão do Fluig | Envio |
+|---|---|
+| 2.0 ou mais nova | REST `uploadfile` |
+| 1.8.2 | REST `uploadfile` |
+| 1.8.1 ou mais antiga | servlet `ApplicationUpload`, o mesmo da Central de Componentes |
+
+No 1.8.x e em versão desconhecida, a CLI tenta primeiro a REST. O 1.8.1 não
+tem essa rota e responde HTTP 500 (não 404). Neste caso, a CLI publica pelo
+servlet. Quando o servidor pede confirmação para substituir o componente, a CLI
+confirma sozinha. A guarda de colisão já rodou antes do envio. Use `--verbose`
+para ver o envio escolhido.
+
+A variável `FLUIGCLI_WAR_UPLOAD` força um envio:
+
+| Valor | Efeito |
+|---|---|
+| `auto` (padrão) | escolhe pela versão, como na tabela acima |
+| `rest` | usa só a REST `uploadfile` |
+| `servlet` | usa só o servlet `ApplicationUpload` |
+
+```sh
+FLUIGCLI_WAR_UPLOAD=servlet fluigcli widget export minhaWidget --server antigo
+```
+
+Valor desconhecido = exit code 2. A regra vale também para o `layout export`
+e para o `server install-helper`.
 
 ### Guarda de colisão com layout
 
